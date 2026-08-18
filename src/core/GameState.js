@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { ShipBuilder }    from '../shipyard/ShipBuilder.js';
 import { ChunkRenderer }  from '../shipyard/ChunkRenderer.js';
 import { ShipRaycaster }  from '../shipyard/ShipRaycaster.js';
-import { RepairSystem }   from '../shipyard/RepairSystem.js';
+import { BuildSystem }    from '../shipyard/BuildSystem.js';
 import { DamageSystem }   from '../shipyard/DamageSystem.js';
 import { PlayerShip }     from '../obstacle/PlayerShip.js';
 import { ObstacleManager } from '../obstacle/ObstacleManager.js';
@@ -56,7 +56,7 @@ export class GameState {
 
     this._chunkRenderer = null;
     this._raycaster     = null;
-    this._repairSystem  = null;
+    this._buildSystem   = null;
     this._orbitControls = null;
     this._mouseNDC      = new THREE.Vector2();
 
@@ -71,8 +71,17 @@ export class GameState {
     window.addEventListener('keydown', this._boundKeyDown);
     window.addEventListener('keyup', this._boundKeyUp);
 
-    // Pointer event for shipyard raycasting
     this._boundPointerDown = this._onPointerDown.bind(this);
+    this._boundPointerMove = this._onPointerMove.bind(this);
+
+    // Patch keydown to handle single-press R
+    const oldKeyDown = this._boundKeyDown;
+    this._boundKeyDown = (e) => {
+      oldKeyDown(e);
+      if (e.code === 'KeyR' && this.currentPhase === GamePhase.SHIPYARD) {
+        emit('rotateBlueprint');
+      }
+    };
   }
 
   // -------------------------------------------------------------------------
@@ -193,9 +202,9 @@ export class GameState {
     this._raycaster = new ShipRaycaster();
     this._raycaster.build(grid, this._scene);
 
-    // Repair system
-    this._repairSystem = new RepairSystem();
-    this._repairSystem.init(grid, zones, levelCfg.docket);
+    // Build system
+    this._buildSystem = new BuildSystem();
+    this._buildSystem.init(grid, this._scene);
 
     // Orbit controls
     this._orbitControls = new OrbitControls(this._camera, this._renderer.domElement);
@@ -210,6 +219,7 @@ export class GameState {
 
     // Pointer event for clicking cells
     this._renderer.domElement.addEventListener('pointerdown', this._boundPointerDown);
+    this._renderer.domElement.addEventListener('pointermove', this._boundPointerMove);
 
     // Rebuild BVH when topology changes (repair fills a MISSING cell)
     on('cellRepaired', () => {
@@ -264,17 +274,18 @@ export class GameState {
   _exitShipyard() {
     // Remove event listeners
     this._renderer.domElement.removeEventListener('pointerdown', this._boundPointerDown);
+    this._renderer.domElement.removeEventListener('pointermove', this._boundPointerMove);
     off('cellRepaired');
     off('gridDirty');
 
     // Dispose all Three.js objects except the ChunkRenderer and VoxelGrid
     this._raycaster?.dispose(this._scene);
-    this._repairSystem?.reset();
+    this._buildSystem?.reset();
     this._orbitControls?.dispose();
 
     this._zones         = null;
     this._raycaster     = null;
-    this._repairSystem  = null;
+    this._buildSystem   = null;
     this._orbitControls = null;
 
     emit('uiUnmount', { screen: 'shipyard' });
@@ -292,8 +303,24 @@ export class GameState {
 
     const result = this._raycaster.cast(this._mouseNDC, this._camera);
     if (result) {
-      console.log(`[ShipRaycaster] Clicked grid coordinate: [${result.cell.x}, ${result.cell.y}, ${result.cell.z}]`);
-      this._repairSystem.applyTool(result.cell.x, result.cell.y, result.cell.z, result.normal);
+      this._buildSystem.placeObject(result.cell.x, result.cell.y, result.cell.z, result.normal);
+    }
+  }
+
+  _onPointerMove(event) {
+    if (this.currentPhase !== GamePhase.SHIPYARD) return;
+
+    const rect = this._renderer.domElement.getBoundingClientRect();
+    this._mouseNDC.set(
+      ((event.clientX - rect.left) / rect.width)  *  2 - 1,
+      -((event.clientY - rect.top)  / rect.height) *  2 + 1,
+    );
+
+    const result = this._raycaster.cast(this._mouseNDC, this._camera);
+    if (result) {
+      this._buildSystem.updatePreview(result.cell.x, result.cell.y, result.cell.z, result.normal);
+    } else {
+      this._buildSystem.clearPreview();
     }
   }
 

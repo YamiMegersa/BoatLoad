@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GameState, GamePhase } from './core/GameState.js';
 import { LevelConfig }          from './core/LevelConfig.js';
 import { on }                   from './core/EventBus.js';
-import { Toolbox }              from './ui/Toolbox.js';
+import { BuildMenu }            from './ui/BuildMenu.js';
 import { DocketSheet }          from './ui/DocketSheet.js';
 import './ui/ui.css';
 
@@ -58,7 +58,7 @@ window.addEventListener('resize', () => {
 
 const clock      = new THREE.Clock();
 const gameState  = new GameState(scene, camera, renderer);
-const toolbox    = new Toolbox();
+const buildMenu  = new BuildMenu();
 const docket     = new DocketSheet();
 
 function tick() {
