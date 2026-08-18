@@ -8,12 +8,12 @@ import { emit, on, off } from '../core/EventBus.js';
  */
 
 const TOOLS = [
-  { id: 'hammer',    label: 'Hammer',          emoji: '🔨', day: 1 },
-  { id: 'needle',    label: 'Needle & Thread',  emoji: '🧵', day: 1 },
-  { id: 'bucket',    label: 'Water Bucket',      emoji: '🪣', day: 1 },
-  { id: 'rope',      label: 'Rope',              emoji: '🪢', day: 1 },
-  { id: 'metalwork', label: 'Metal Work',        emoji: '⚙️',  day: 2 },
-  { id: 'munitions', label: 'Munitions Stock',   emoji: '💣', day: 2 },
+  { id: 'hammer',      label: 'Repair Wood',     emoji: '🔨', day: 1 },
+  { id: 'wood_block',  label: 'Wood Block',      emoji: '🪵', day: 1 },
+  { id: 'needle',      label: 'Repair Sail',     emoji: '🧵', day: 1 },
+  { id: 'sail_cloth',  label: 'Sail Cloth',      emoji: '⛵', day: 1 },
+  { id: 'bucket',      label: 'Water Bucket',    emoji: '🪣', day: 1 },
+  { id: 'metal_plate', label: 'Metal Plate',     emoji: '🛡️', day: 2 },
 ];
 
 export class Toolbox {

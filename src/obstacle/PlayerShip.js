@@ -29,8 +29,9 @@ export class PlayerShip {
   /**
    * @param {object} stats   { hullHP, speedMultiplier, laneHalfWidth }
    * @param {THREE.Scene} scene
+   * @param {import('../shipyard/ChunkRenderer.js').ChunkRenderer} [chunkRenderer]
    */
-  constructor(stats, scene) {
+  constructor(stats, scene, chunkRenderer) {
     this.hullHP          = stats.hullHP          ?? 100;
     this.maxHullHP       = this.hullHP;
     this.speedMultiplier = stats.speedMultiplier  ?? 1.0;
@@ -44,8 +45,29 @@ export class PlayerShip {
     /** @type {boolean} True when the ship has sunk (HP ≤ 0) */
     this.sunk = false;
 
-    // Build a simple placeholder mesh (replaced by the real ship model later)
-    this.mesh = this._buildMesh();
+    // Use the actual voxel model if provided
+    this.mesh = new THREE.Group();
+    if (chunkRenderer && chunkRenderer.container) {
+      // Create a wrapper to handle scaling and centering independently
+      const wrapper = new THREE.Group();
+      wrapper.add(chunkRenderer.container);
+      
+      // Calculate bounding box to center the voxel grid horizontally
+      const tempBox = new THREE.Box3().setFromObject(chunkRenderer.container);
+      const center = new THREE.Vector3();
+      tempBox.getCenter(center);
+      
+      // Offset so the ship is centered on X and Z, resting on Y=0
+      chunkRenderer.container.position.set(-center.x, -tempBox.min.y, -center.z);
+      
+      // Scale the wrapper down so the massive 24x48 voxel ship fits the 12-unit wide lane
+      wrapper.scale.setScalar(0.1);
+      
+      this.mesh.add(wrapper);
+    } else {
+      this.mesh.add(this._buildMesh());
+    }
+    
     scene.add(this.mesh);
 
     /** AABB updated every frame */
@@ -132,8 +154,8 @@ export class PlayerShip {
   dispose(scene) {
     clearTimeout(this._speedTimer);
     scene.remove(this.mesh);
-    this.mesh.geometry.dispose();
-    this.mesh.material.dispose();
+    // Note: chunkRenderer disposal is handled by GameState phase teardown later,
+    // so we don't deeply dispose its geometry here.
   }
 
   // -------------------------------------------------------------------------

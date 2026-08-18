@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import { GameState, GamePhase } from './core/GameState.js';
 import { LevelConfig }          from './core/LevelConfig.js';
 import { on }                   from './core/EventBus.js';
+import { Toolbox }              from './ui/Toolbox.js';
+import { DocketSheet }          from './ui/DocketSheet.js';
+import './ui/ui.css';
 
 // ---------------------------------------------------------------------------
 // Scene setup
@@ -31,6 +34,14 @@ sun.position.set(10, 20, 10);
 sun.castShadow = true;
 scene.add(sun);
 
+// Helpers for debugging scale and orientation
+const gridHelper = new THREE.GridHelper(100, 100, 0x444444, 0x222222);
+gridHelper.position.y = -0.1; // slightly below 0 so it doesn't z-fight with y=0 voxels
+scene.add(gridHelper);
+
+const axesHelper = new THREE.AxesHelper(10);
+scene.add(axesHelper);
+
 // ---------------------------------------------------------------------------
 // Resize handler
 // ---------------------------------------------------------------------------
@@ -47,12 +58,44 @@ window.addEventListener('resize', () => {
 
 const clock      = new THREE.Clock();
 const gameState  = new GameState(scene, camera, renderer);
+const toolbox    = new Toolbox();
+const docket     = new DocketSheet();
 
 function tick() {
   requestAnimationFrame(tick);
   const delta = Math.min(clock.getDelta(), 0.05); // cap at 50ms to avoid spiral of death
   gameState.update(delta);
   renderer.render(scene, camera);
+}
+
+// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Demo UI Overlay
+// ---------------------------------------------------------------------------
+
+const demoUI = document.createElement('div');
+demoUI.style.cssText = `
+  position: absolute; top: 10px; left: 10px; z-index: 100;
+  background: rgba(0,0,0,0.8); color: white; padding: 15px;
+  font-family: monospace; border-radius: 8px; width: 320px;
+  pointer-events: auto;
+`;
+demoUI.innerHTML = `
+  <h3 style="margin-bottom: 10px; font-family: sans-serif;">BoatLoad Demo</h3>
+  <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+    <button id="btn-shipyard" style="flex:1; padding: 8px; cursor: pointer;">Shipyard</button>
+    <button id="btn-obstacle" style="flex:1; padding: 8px; cursor: pointer;">Sailing</button>
+  </div>
+  <div id="demo-log" style="height: 120px; overflow-y: auto; background: #111; padding: 5px; font-size: 11px; color: #0f0; border: 1px solid #333;">
+    Ready.<br>
+  </div>
+`;
+document.getElementById('ui-root')?.appendChild(demoUI);
+
+const logDiv = demoUI.querySelector('#demo-log');
+function logEvent(msg) {
+  logDiv.innerHTML += `> ${msg}<br>`;
+  logDiv.scrollTop = logDiv.scrollHeight;
 }
 
 // ---------------------------------------------------------------------------
@@ -63,15 +106,25 @@ async function boot() {
   // Load Day 1 data
   const { shipDef, levelCfg } = await LevelConfig.load(1);
 
-  // Listen for UI events (placeholder console logs until UI modules are ready)
-  on('phaseChanged',       d => console.log('[Phase]', d.phase));
-  on('docketItemCompleted', d => console.log('[Docket] ✓', d.label));
-  on('allRepairsDone',      () => console.log('[Docket] ALL DONE — ready to sail'));
-  on('obstacleHit',        d => console.log('[Obstacle] hit by', d.type, '-', d.damage, 'HP'));
-  on('playerDamaged',      d => console.log('[HP]', d.hullHP, '/', d.maxHullHP));
-  on('playerSunk',         () => console.log('[SUNK]'));
+  // Wire buttons
+  document.getElementById('btn-shipyard').onclick = () => {
+    logEvent('Transitioning to Shipyard...');
+    gameState.transition(GamePhase.SHIPYARD, { shipDef, levelCfg });
+  };
+  document.getElementById('btn-obstacle').onclick = () => {
+    logEvent('Transitioning to Sailing...');
+    gameState.transition(GamePhase.OBSTACLE, { shipDef, levelCfg, shipStats: { hullHP: 100 } });
+  };
 
-  // Start at Shipyard for Day 1 (skip Dock for now — wire it up later)
+  // Listen for UI events
+  on('phaseChanged',       d => logEvent(`[Phase] ${d.phase}`));
+  on('docketItemCompleted', d => logEvent(`[Docket] ✓ ${d.label}`));
+  on('allRepairsDone',      () => logEvent('[Docket] ALL DONE — ready to sail'));
+  on('obstacleHit',        d => logEvent(`[Obstacle] hit by ${d.type} -${d.damage} HP`));
+  on('playerDamaged',      d => logEvent(`[HP] ${d.hullHP}/${d.maxHullHP}`));
+  on('playerSunk',         () => logEvent('[SUNK] Game Over'));
+
+  // Start at Shipyard for Day 1
   await gameState.transition(GamePhase.SHIPYARD, { shipDef, levelCfg });
 
   tick();

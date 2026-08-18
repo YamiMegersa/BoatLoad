@@ -44,6 +44,10 @@ export class VoxelGrid {
     /** @type {Uint8Array} Row-major flat array: index = z*W*H + y*W + x */
     this.data = new Uint8Array(width * height * depth);
 
+    /** @type {Uint32Array} Stores the hex color of each block. Parallel to data array. */
+    this.colorData = new Uint32Array(width * height * depth);
+    this.colorData.fill(0xffffff); // Default white
+
     /** Cells modified since the last ChunkRenderer sync. */
     this.dirtySet = new Set();
 
@@ -98,6 +102,18 @@ export class VoxelGrid {
   }
 
   /**
+   * Get the color of a cell.
+   * @param {number} x
+   * @param {number} y
+   * @param {number} z
+   * @returns {number} Hex color value
+   */
+  getColor(x, y, z) {
+    if (!this.inBounds(x, y, z)) return 0xffffff;
+    return this.colorData[this.index(x, y, z)];
+  }
+
+  /**
    * Set the state of a cell and mark it dirty.
    * Throws RangeError if coordinates are out of bounds.
    * @param {number} x
@@ -119,6 +135,21 @@ export class VoxelGrid {
     const wasHull = prev === CellState.INTACT || prev === CellState.DAMAGED || prev === CellState.REPAIRED;
     const isHull  = state === CellState.INTACT || state === CellState.DAMAGED || state === CellState.REPAIRED;
     if (wasHull !== isHull) this.topologyDirty = true;
+  }
+
+  /**
+   * Set the color of a cell.
+   * @param {number} x
+   * @param {number} y
+   * @param {number} z
+   * @param {number} hexColor
+   */
+  setColor(x, y, z, hexColor) {
+    if (this.inBounds(x, y, z)) {
+      const idx = this.index(x, y, z);
+      this.colorData[idx] = hexColor;
+      this.dirtySet.add(idx); // Needs render update
+    }
   }
 
   /**

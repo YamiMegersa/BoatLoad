@@ -64,6 +64,13 @@ export class GameState {
     this._obstacleManager = null;
     this._qteSystem       = null;
 
+    // Input tracking
+    this._keys = {};
+    this._boundKeyDown = (e) => { this._keys[e.code] = true; };
+    this._boundKeyUp   = (e) => { this._keys[e.code] = false; };
+    window.addEventListener('keydown', this._boundKeyDown);
+    window.addEventListener('keyup', this._boundKeyUp);
+
     // Pointer event for shipyard raycasting
     this._boundPointerDown = this._onPointerDown.bind(this);
   }
@@ -174,13 +181,13 @@ export class GameState {
     this._levelCfg = levelCfg;
 
     // Build the voxel data
-    const { grid, zones, def } = ShipBuilder.build(shipDef, levelCfg);
+    const { grid, zones, def, gltfScene } = await ShipBuilder.build(shipDef, levelCfg);
     this._grid  = grid;
     this._zones = zones;
 
     // Chunk renderer
     this._chunkRenderer = new ChunkRenderer();
-    this._chunkRenderer.init(grid, this._scene);
+    this._chunkRenderer.init(grid, this._scene, gltfScene);
 
     // BVH raycaster
     this._raycaster = new ShipRaycaster();
@@ -192,11 +199,13 @@ export class GameState {
 
     // Orbit controls
     this._orbitControls = new OrbitControls(this._camera, this._renderer.domElement);
-    this._orbitControls.target.set(
-      (def.grid.x * 0.5),
-      (def.grid.y * 0.5),
-      (def.grid.z * 0.5),
-    );
+    const cx = def.grid.x * 0.5;
+    const cy = def.grid.y * 0.5;
+    const cz = def.grid.z * 0.5;
+    
+    // Frame the camera nicely relative to the ship size
+    this._camera.position.set(cx + def.grid.x, cy + def.grid.y + 5, cz + def.grid.z + 15);
+    this._orbitControls.target.set(cx, cy, cz);
     this._orbitControls.update();
 
     // Pointer event for clicking cells
@@ -219,8 +228,37 @@ export class GameState {
     emit('uiMount', { screen: 'shipyard', docket: levelCfg.docket });
   }
 
-  _updateShipyard(_delta) {
-    this._orbitControls?.update();
+  _updateShipyard(delta) {
+    if (this._orbitControls) {
+      // WASD panning
+      const speed = 20 * delta;
+      
+      // Get camera's local forward/right vectors (ignoring Y to pan along the flat plane)
+      const forward = new THREE.Vector3();
+      this._camera.getWorldDirection(forward);
+      forward.y = 0;
+      forward.normalize();
+      
+      const right = new THREE.Vector3();
+      right.crossVectors(forward, this._camera.up).normalize();
+
+      const move = new THREE.Vector3();
+      if (this._keys['KeyW']) move.add(forward);
+      if (this._keys['KeyS']) move.sub(forward);
+      if (this._keys['KeyA']) move.sub(right);
+      if (this._keys['KeyD']) move.add(right);
+      
+      if (this._keys['KeyE'] || this._keys['Space']) move.y += 1;
+      if (this._keys['KeyQ'] || this._keys['ShiftLeft']) move.y -= 1;
+
+      if (move.lengthSq() > 0) {
+        move.normalize().multiplyScalar(speed);
+        this._camera.position.add(move);
+        this._orbitControls.target.add(move);
+      }
+
+      this._orbitControls.update();
+    }
   }
 
   _exitShipyard() {
@@ -229,16 +267,13 @@ export class GameState {
     off('cellRepaired');
     off('gridDirty');
 
-    // Dispose all Three.js objects
+    // Dispose all Three.js objects except the ChunkRenderer and VoxelGrid
     this._raycaster?.dispose(this._scene);
-    this._chunkRenderer?.dispose(this._scene);
     this._repairSystem?.reset();
     this._orbitControls?.dispose();
 
-    this._grid          = null;
     this._zones         = null;
     this._raycaster     = null;
-    this._chunkRenderer = null;
     this._repairSystem  = null;
     this._orbitControls = null;
 
@@ -255,9 +290,10 @@ export class GameState {
       -((event.clientY - rect.top)  / rect.height) *  2 + 1,
     );
 
-    const cell = this._raycaster.cast(this._mouseNDC, this._camera);
-    if (cell) {
-      this._repairSystem.applyTool(cell.x, cell.y, cell.z);
+    const result = this._raycaster.cast(this._mouseNDC, this._camera);
+    if (result) {
+      console.log(`[ShipRaycaster] Clicked grid coordinate: [${result.cell.x}, ${result.cell.y}, ${result.cell.z}]`);
+      this._repairSystem.applyTool(result.cell.x, result.cell.y, result.cell.z, result.normal);
     }
   }
 
@@ -270,23 +306,23 @@ export class GameState {
     this._camera.position.set(0, 14, 10);
     this._camera.lookAt(0, 0, -5);
 
-    this._playerShip = new PlayerShip(shipStats ?? { hullHP: 100 }, this._scene);
+    this._playerShip = new PlayerShip(shipStats ?? { hullHP: 100 }, this._scene, this._chunkRenderer);
     this._obstacleManager = new ObstacleManager();
     this._obstacleManager.init(levelCfg.obstacles, this._scene);
     this._qteSystem = new QTESystem();
 
     // Keyboard steering
-    this._boundKeyDown = e => {
+    this._obstacleKeyDown = e => {
       if (e.code === 'ArrowLeft'  || e.code === 'KeyA') this._playerShip.steerInput = -1;
       if (e.code === 'ArrowRight' || e.code === 'KeyD') this._playerShip.steerInput =  1;
     };
-    this._boundKeyUp = e => {
+    this._obstacleKeyUp = e => {
       if (['ArrowLeft','KeyA','ArrowRight','KeyD'].includes(e.code)) {
         this._playerShip.steerInput = 0;
       }
     };
-    window.addEventListener('keydown', this._boundKeyDown);
-    window.addEventListener('keyup',   this._boundKeyUp);
+    window.addEventListener('keydown', this._obstacleKeyDown);
+    window.addEventListener('keyup',   this._obstacleKeyUp);
 
     // When player sinks, transition to results
     on('playerSunk', () => {
@@ -302,17 +338,20 @@ export class GameState {
   }
 
   _exitObstacle() {
-    window.removeEventListener('keydown', this._boundKeyDown);
-    window.removeEventListener('keyup',   this._boundKeyUp);
+    window.removeEventListener('keydown', this._obstacleKeyDown);
+    window.removeEventListener('keyup',   this._obstacleKeyUp);
     off('playerSunk');
 
     this._playerShip?.dispose(this._scene);
     this._obstacleManager?.dispose();
     this._qteSystem?.dispose();
+    this._chunkRenderer?.dispose(this._scene);
 
     this._playerShip      = null;
     this._obstacleManager = null;
     this._qteSystem       = null;
+    this._chunkRenderer   = null;
+    this._grid            = null;
 
     emit('uiUnmount', { screen: 'obstacle' });
   }

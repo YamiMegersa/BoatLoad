@@ -1,15 +1,12 @@
 import * as THREE from 'three';
 import { CellState, CELL_SIZE } from './VoxelGrid.js';
-import { emit } from '../core/EventBus.js';
 
 // ---------------------------------------------------------------------------
-// Material palette (shared across all chunk renderers)
+// Material palette for individual damage/flood meshes
 // ---------------------------------------------------------------------------
 
-/** Intact wood — warm #9A5B2E */
-const woodMaterial = new THREE.MeshLambertMaterial({ color: 0x9A5B2E });
-
-/** Cracked / damaged wood — darker, desaturated */
+/** Voxel material — white base so instance colors show through */
+const intactMaterial = new THREE.MeshLambertMaterial({ color: 0xffffff });
 const damagedMaterial = new THREE.MeshLambertMaterial({ color: 0x5c3317 });
 
 /** Flooded bilge — translucent ocean blue */
@@ -24,8 +21,6 @@ const floodedMaterial = new THREE.MeshPhongMaterial({
  * When the cap is reached, the oldest mesh is recycled.
  */
 const MAX_INDIVIDUAL_MESHES = 256;
-
-// Shared geometry for both the InstancedMesh and individual cells
 const BOX_GEO = new THREE.BoxGeometry(CELL_SIZE, CELL_SIZE, CELL_SIZE);
 
 // ---------------------------------------------------------------------------
@@ -36,58 +31,26 @@ const BOX_GEO = new THREE.BoxGeometry(CELL_SIZE, CELL_SIZE, CELL_SIZE);
  * ChunkRenderer — owns all Three.js visual objects for a ship's VoxelGrid.
  *
  * Rendering strategy:
- *  - INTACT cells   → one shared THREE.InstancedMesh  (≤1 draw call)
- *  - DAMAGED cells  → individual THREE.Mesh with cracked material
- *  - FLOODED cells  → individual THREE.Mesh with water material
- *  - MISSING/EMPTY  → nothing rendered
- *
- * Call `init(grid, scene)` once after ShipBuilder.build().
- * Call `sync(grid)`        every time cells have changed (driven by dirty set).
- * Call `dispose(scene)`    on phase teardown.
+ *  - INTACT cells   → InstancedMesh (colored via grid.getColor).
+ *  - MISSING cells  → Instance hidden (scale 0).
+ *  - DAMAGED cells  → Instance hidden + individual THREE.Mesh spawned.
+ *  - FLOODED cells  → Instance hidden + individual THREE.Mesh spawned.
  */
 export class ChunkRenderer {
   constructor() {
-    /** @type {THREE.InstancedMesh|null} */
+    this.container = new THREE.Group();
+    
     this._instancedMesh = null;
+    this._instanceIdxMap = new Map(); // grid flatIdx -> instance ID
+    this._nextInstanceId = 0;
 
-    /**
-     * Maps flat grid index → individual THREE.Mesh for DAMAGED/FLOODED cells.
-     * @type {Map<number, THREE.Mesh>}
-     */
+    /** Maps flat grid index → individual THREE.Mesh for DAMAGED/FLOODED cells. */
     this._individualMeshes = new Map();
-
-    /**
-     * FIFO queue of grid indices with individual meshes, used to enforce the
-     * MAX_INDIVIDUAL_MESHES cap by evicting the oldest entry first.
-     * @type {number[]}
-     */
+    /** FIFO queue to enforce MAX_INDIVIDUAL_MESHES. */
     this._individualQueue = [];
 
-    /** Total number of INTACT instances (tracks how many slots are live). */
-    this._instanceCount = 0;
-
-    /**
-     * Maps flat grid index → instance slot index in the InstancedMesh.
-     * @type {Map<number, number>}
-     */
-    this._indexToSlot = new Map();
-
-    /**
-     * Stack of freed instance slots available for re-use.
-     * @type {number[]}
-     */
-    this._freeSlots = [];
-
-    /** Parent scene reference (needed for add/remove). */
     this._scene = null;
-
-    /** Reusable Object3D for computing matrices. */
-    this._dummy = new THREE.Object3D();
   }
-
-  // -------------------------------------------------------------------------
-  // Lifecycle
-  // -------------------------------------------------------------------------
 
   /**
    * Initialise from a freshly-built VoxelGrid.
@@ -98,19 +61,21 @@ export class ChunkRenderer {
    */
   init(grid, scene) {
     this._scene = scene;
+    this._scene.add(this.container);
 
-    const maxCells = grid.cellCount;
-
-    // Allocate InstancedMesh with maximum possible slot count.
-    this._instancedMesh = new THREE.InstancedMesh(BOX_GEO, woodMaterial, maxCells);
+    const maxIntact = grid.width * grid.height * grid.depth;
+    this._instancedMesh = new THREE.InstancedMesh(BOX_GEO, intactMaterial, maxIntact);
+    this._instancedMesh.count = 0;
+    
+    // We must manually inform Three.js that we intend to update colors dynamically
     this._instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    this._instancedMesh.count = 0; // will grow as we fill slots
-    scene.add(this._instancedMesh);
+    if (this._instancedMesh.instanceColor) {
+      this._instancedMesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
+    }
+    
+    this.container.add(this._instancedMesh);
 
-    // Pre-fill free slot stack (descending so we pop the lowest index first)
-    this._freeSlots = Array.from({ length: maxCells }, (_, i) => maxCells - 1 - i);
-
-    // Perform a full initial pass — as if all cells are dirty
+    // Perform a full pass to spawn initial meshes
     this._fullRebuild(grid);
   }
 
@@ -124,8 +89,10 @@ export class ChunkRenderer {
     const dirty = grid.consumeDirty();
     if (dirty.size === 0) return;
 
-    let matrixDirty = false;
+    let instanceMatrixDirty = false;
+    let instanceColorDirty = false;
 
+    // Update individual meshes for damaged/flooded cells
     for (const flatIdx of dirty) {
       const z = Math.floor(flatIdx / (grid.width * grid.height));
       const rem = flatIdx % (grid.width * grid.height);
@@ -133,12 +100,17 @@ export class ChunkRenderer {
       const x = rem % grid.width;
       const state = grid.getState(x, y, z);
 
-      this._syncCell(grid, x, y, z, flatIdx, state);
-      matrixDirty = true;
+      if (this._syncCell(grid, x, y, z, flatIdx, state)) {
+        instanceMatrixDirty = true;
+        instanceColorDirty = true;
+      }
     }
 
-    if (matrixDirty) {
+    if (instanceMatrixDirty && this._instancedMesh) {
       this._instancedMesh.instanceMatrix.needsUpdate = true;
+      if (this._instancedMesh.instanceColor) {
+        this._instancedMesh.instanceColor.needsUpdate = true;
+      }
     }
   }
 
@@ -147,20 +119,21 @@ export class ChunkRenderer {
    * @param {THREE.Scene} scene
    */
   dispose(scene) {
+    if (this.container) {
+      scene.remove(this.container);
+    }
+    
     if (this._instancedMesh) {
-      scene.remove(this._instancedMesh);
       this._instancedMesh.dispose();
       this._instancedMesh = null;
     }
 
     for (const mesh of this._individualMeshes.values()) {
-      scene.remove(mesh);
+      this.container.remove(mesh);
       mesh.geometry.dispose();
     }
     this._individualMeshes.clear();
     this._individualQueue.length = 0;
-    this._indexToSlot.clear();
-    this._freeSlots.length = 0;
     this._scene = null;
   }
 
@@ -168,121 +141,97 @@ export class ChunkRenderer {
   // Internal helpers
   // -------------------------------------------------------------------------
 
-  /**
-   * Full grid rebuild — used on init or after a topology change.
-   * @param {import('./VoxelGrid.js').VoxelGrid} grid
-   */
   _fullRebuild(grid) {
-    // Reset instance tracking
-    this._indexToSlot.clear();
-    this._freeSlots.length = 0;
-    const maxCells = grid.cellCount;
-    for (let i = maxCells - 1; i >= 0; i--) this._freeSlots.push(i);
-    this._instancedMesh.count = 0;
-
-    // Remove existing individual meshes
     for (const mesh of this._individualMeshes.values()) {
-      this._scene.remove(mesh);
+      this.container.remove(mesh);
       mesh.geometry.dispose();
     }
     this._individualMeshes.clear();
     this._individualQueue.length = 0;
+    
+    if (this._instancedMesh) {
+      this._instancedMesh.count = 0;
+    }
+    this._instanceIdxMap.clear();
+    this._nextInstanceId = 0;
 
-    // Walk the grid
     grid.forEach((x, y, z, state, flatIdx) => {
       this._syncCell(grid, x, y, z, flatIdx, state);
     });
 
-    this._instancedMesh.instanceMatrix.needsUpdate = true;
-    this._instancedMesh.count = Math.max(this._instancedMesh.count, this._indexToSlot.size);
+    if (this._instancedMesh) {
+      this._instancedMesh.instanceMatrix.needsUpdate = true;
+      if (this._instancedMesh.instanceColor) {
+        this._instancedMesh.instanceColor.needsUpdate = true;
+      }
+    }
   }
 
-  /**
-   * Sync a single cell to the correct render representation.
-   * @param {import('./VoxelGrid.js').VoxelGrid} grid
-   * @param {number} x
-   * @param {number} y
-   * @param {number} z
-   * @param {number} flatIdx
-   * @param {number} state
-   */
+  /** Returns true if fallback InstancedMesh was modified */
   _syncCell(grid, x, y, z, flatIdx, state) {
+    let instanceDirty = false;
+
+    // 1. Manage Fallback InstancedMesh
+    if (this._instancedMesh) {
+      if (state === CellState.INTACT || state === CellState.REPAIRED) {
+        const color = new THREE.Color(grid.getColor(x, y, z));
+        
+        if (!this._instanceIdxMap.has(flatIdx)) {
+          // Allocate new instance ID
+          const iid = this._nextInstanceId++;
+          this._instanceIdxMap.set(flatIdx, iid);
+          this._instancedMesh.count = this._nextInstanceId;
+          
+          const matrix = new THREE.Matrix4().setPosition(grid.toWorldPos(x, y, z));
+          this._instancedMesh.setMatrixAt(iid, matrix);
+          this._instancedMesh.setColorAt(iid, color);
+          instanceDirty = true;
+        } else {
+          // Ensure it's scaled up if it was previously hidden
+          const iid = this._instanceIdxMap.get(flatIdx);
+          const matrix = new THREE.Matrix4().setPosition(grid.toWorldPos(x, y, z));
+          this._instancedMesh.setMatrixAt(iid, matrix);
+          this._instancedMesh.setColorAt(iid, color);
+          instanceDirty = true;
+        }
+      } else {
+        if (this._instanceIdxMap.has(flatIdx)) {
+          // Hide it by scaling to 0
+          const iid = this._instanceIdxMap.get(flatIdx);
+          const matrix = new THREE.Matrix4().makeScale(0, 0, 0);
+          this._instancedMesh.setMatrixAt(iid, matrix);
+          instanceDirty = true;
+        }
+      }
+    }
+
+    // 2. Manage Individual Overlays
     switch (state) {
       case CellState.INTACT:
       case CellState.REPAIRED:
+      case CellState.MISSING:
+      case CellState.EMPTY:
         this._removeIndividual(flatIdx);
-        this._setInstance(grid, x, y, z, flatIdx);
         break;
 
       case CellState.DAMAGED:
-        this._removeInstance(flatIdx);
         this._spawnIndividual(grid, x, y, z, flatIdx, damagedMaterial);
         break;
 
       case CellState.FLOODED:
-        this._removeInstance(flatIdx);
         this._spawnIndividual(grid, x, y, z, flatIdx, floodedMaterial);
         break;
-
-      case CellState.MISSING:
-      case CellState.EMPTY:
-        this._removeInstance(flatIdx);
-        this._removeIndividual(flatIdx);
-        break;
-
-      default:
-        break;
-    }
-  }
-
-  // --- InstancedMesh helpers ---
-
-  _setInstance(grid, x, y, z, flatIdx) {
-    let slot = this._indexToSlot.get(flatIdx);
-    if (slot === undefined) {
-      slot = this._freeSlots.pop();
-      if (slot === undefined) {
-        console.warn('ChunkRenderer: no free instance slots!');
-        return;
-      }
-      this._indexToSlot.set(flatIdx, slot);
-      // Extend the active count if this slot is beyond the current count
-      if (slot >= this._instancedMesh.count) {
-        this._instancedMesh.count = slot + 1;
-      }
     }
 
-    const pos = grid.toWorldPos(x, y, z);
-    this._dummy.position.copy(pos);
-    this._dummy.scale.set(1, 1, 1);
-    this._dummy.updateMatrix();
-    this._instancedMesh.setMatrixAt(slot, this._dummy.matrix);
+    return instanceDirty;
   }
-
-  _removeInstance(flatIdx) {
-    const slot = this._indexToSlot.get(flatIdx);
-    if (slot === undefined) return;
-
-    // Hide by zero-scaling the matrix
-    this._dummy.position.set(0, 0, 0);
-    this._dummy.scale.set(0, 0, 0);
-    this._dummy.updateMatrix();
-    this._instancedMesh.setMatrixAt(slot, this._dummy.matrix);
-
-    this._indexToSlot.delete(flatIdx);
-    this._freeSlots.push(slot);
-  }
-
-  // --- Individual mesh helpers ---
 
   _spawnIndividual(grid, x, y, z, flatIdx, material) {
     if (this._individualMeshes.has(flatIdx)) {
-      // Already exists — just update material if needed
       this._individualMeshes.get(flatIdx).material = material;
       return;
     }
 
-    // Enforce cap — evict oldest if necessary
     if (this._individualMeshes.size >= MAX_INDIVIDUAL_MESHES) {
       const evictIdx = this._individualQueue.shift();
       if (evictIdx !== undefined) this._removeIndividual(evictIdx);
@@ -290,7 +239,7 @@ export class ChunkRenderer {
 
     const mesh = new THREE.Mesh(BOX_GEO, material);
     mesh.position.copy(grid.toWorldPos(x, y, z));
-    this._scene.add(mesh);
+    this.container.add(mesh);
 
     this._individualMeshes.set(flatIdx, mesh);
     this._individualQueue.push(flatIdx);
@@ -300,8 +249,7 @@ export class ChunkRenderer {
     const mesh = this._individualMeshes.get(flatIdx);
     if (!mesh) return;
 
-    this._scene.remove(mesh);
-    // Note: BOX_GEO is shared — do NOT dispose it here
+    this.container.remove(mesh);
     this._individualMeshes.delete(flatIdx);
 
     const qIdx = this._individualQueue.indexOf(flatIdx);

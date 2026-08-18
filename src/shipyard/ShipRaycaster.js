@@ -123,7 +123,7 @@ export class ShipRaycaster {
    *
    * @param {{ x: number, y: number }} mouseNDC  Normalised Device Coordinates (-1…+1)
    * @param {THREE.Camera} camera
-   * @returns {{ x: number, y: number, z: number } | null}
+   * @returns {{ cell: { x: number, y: number, z: number }, normal: THREE.Vector3 } | null}
    */
   cast(mouseNDC, camera) {
     if (!this._hullMesh || !this._grid) return null;
@@ -133,8 +133,14 @@ export class ShipRaycaster {
     if (hits.length === 0) return null;
 
     const hit = hits[0];
-    // hit.point is world-space; fromWorldPos converts to grid coordinates
-    return this._grid.fromWorldPos(hit.point);
+    
+    // Shift the point slightly inward along the normal to reliably resolve the hit cell
+    const inwardPoint = hit.point.clone().sub(hit.face.normal.clone().multiplyScalar(0.001));
+    const cell = this._grid.fromWorldPos(inwardPoint);
+    
+    if (!cell) return null;
+    
+    return { cell, normal: hit.face.normal };
   }
 
   // -------------------------------------------------------------------------

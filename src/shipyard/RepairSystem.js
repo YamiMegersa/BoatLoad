@@ -10,9 +10,9 @@ const TOOL_ZONE_MAP = {
   hammer:     ['hull', 'deck', 'mast'],
   needle:     ['sail'],
   bucket:     ['bilge'],
-  rope:       ['mast', 'anchor', 'rudder'],
-  metalwork:  ['cannon', 'window', 'anchor'],
-  munitions:  ['cannon'],
+  wood_block: ['hull', 'deck', 'mast', 'cannon'], // Can build anywhere in these zones
+  sail_cloth: ['sail'],
+  metal_plate:['hull', 'cannon']
 };
 
 // ---------------------------------------------------------------------------
@@ -75,7 +75,7 @@ export class RepairSystem {
    * @param {string} toolId
    */
   selectTool(toolId) {
-    if (!TOOL_ZONE_MAP[toolId]) {
+    if (!TOOL_ZONE_MAP[toolId] && toolId !== 'wood_block' && toolId !== 'sail_cloth' && toolId !== 'metal_plate') {
       console.warn(`RepairSystem.selectTool: unknown tool "${toolId}"`);
       return;
     }
@@ -94,38 +94,58 @@ export class RepairSystem {
    * @param {number} x
    * @param {number} y
    * @param {number} z
+   * @param {THREE.Vector3} [normal]
    * @returns {{ success: boolean, reason?: string }}
    */
-  applyTool(x, y, z) {
+  applyTool(x, y, z, normal) {
     if (!this.activeTool) {
       return { success: false, reason: 'no_tool_selected' };
     }
 
     const state = this._grid.getState(x, y, z);
+    const zoneName = ShipBuilder.zoneOf({ x, y, z }, this._zones);
 
-    // Only act on cells that are actually damaged
+    // 1. Handle Building / Placing Blocks
+    if (this.activeTool === 'wood_block' || this.activeTool === 'sail_cloth' || this.activeTool === 'metal_plate') {
+      if (!normal) return { success: false, reason: 'no_normal' };
+      
+      const nx = x + Math.round(normal.x);
+      const ny = y + Math.round(normal.y);
+      const nz = z + Math.round(normal.z);
+      
+      if (this._grid.inBounds(nx, ny, nz) && this._grid.getState(nx, ny, nz) === CellState.EMPTY) {
+         this._grid.setState(nx, ny, nz, CellState.INTACT);
+         
+         // Set color based on material
+         let hex = 0x8b5a2b; // wood
+         if (this.activeTool === 'sail_cloth') hex = 0xebe8d8;
+         if (this.activeTool === 'metal_plate') hex = 0x555555;
+         
+         this._grid.setColor(nx, ny, nz, hex);
+         emit('gridDirty');
+         emit('cellRepaired', { x: nx, y: ny, z: nz, zone: zoneName }); 
+         return { success: true };
+      }
+      return { success: false, reason: 'cannot_build_here' };
+    }
+
+    // 2. Handle Repairing existing damaged blocks
     if (state === CellState.INTACT || state === CellState.EMPTY) {
       return { success: false, reason: 'cell_not_damaged' };
     }
 
-    // Determine which zone this cell belongs to
-    const zoneName = ShipBuilder.zoneOf({ x, y, z }, this._zones);
     if (!zoneName) {
       return { success: false, reason: 'cell_not_in_zone' };
     }
 
-    // Validate tool is valid for the zone
     const allowedZones = TOOL_ZONE_MAP[this.activeTool] ?? [];
     if (!allowedZones.includes(zoneName)) {
       emit('repairFailed', { x, y, z, reason: 'wrong_tool', zone: zoneName, tool: this.activeTool });
       return { success: false, reason: 'wrong_tool' };
     }
 
-    // Apply repair — transition to REPAIRED (animation) then INTACT
     this._grid.setState(x, y, z, CellState.REPAIRED);
 
-    // After a short delay, settle to INTACT (ChunkRenderer handles the visual switch)
-    // Using setTimeout keeps the animation frame unblocked.
     setTimeout(() => {
       if (this._grid?.inBounds(x, y, z)) {
         this._grid.setState(x, y, z, CellState.INTACT);
@@ -136,7 +156,6 @@ export class RepairSystem {
     emit('cellRepaired', { x, y, z, zone: zoneName });
     emit('gridDirty');
 
-    // Check if this repair satisfies any open docket items
     this._checkDocket(zoneName);
 
     return { success: true };
