@@ -1,0 +1,35 @@
+{
+  "id": "galleon",
+  "name": "The Iron Leviathan",
+  "grid": { "x": 64, "y": 18, "z": 10 },
+  "zones": {
+    "hull":   [{ "xRange": [0, 63],  "yRange": [0, 5],  "zRange": [0, 9] }],
+    "deck":   [{ "xRange": [4, 59],  "yRange": [6, 6],  "zRange": [1, 8] }],
+    "mast":   [
+      { "xRange": [16, 16], "yRange": [7, 17], "zRange": [4, 5] },
+      { "xRange": [32, 32], "yRange": [7, 17], "zRange": [4, 5] },
+      { "xRange": [48, 48], "yRange": [7, 17], "zRange": [4, 5] }
+    ],
+    "sail":   [
+      { "xRange": [12, 20], "yRange": [7, 17], "zRange": [4, 5] },
+      { "xRange": [28, 36], "yRange": [7, 17], "zRange": [4, 5] },
+      { "xRange": [44, 52], "yRange": [7, 17], "zRange": [4, 5] }
+    ],
+    "bilge":  [{ "xRange": [5, 58],  "yRange": [0, 2],  "zRange": [2, 7] }],
+    "rudder": [{ "xRange": [61, 63], "yRange": [0, 3],  "zRange": [4, 5] }],
+    "anchor": [{ "xRange": [0, 2],   "yRange": [0, 3],  "zRange": [4, 5] }],
+    "cannon": [
+      { "xRange": [10, 10], "yRange": [6, 6], "zRange": [0, 0] },
+      { "xRange": [10, 10], "yRange": [6, 6], "zRange": [9, 9] },
+      { "xRange": [22, 22], "yRange": [6, 6], "zRange": [0, 0] },
+      { "xRange": [22, 22], "yRange": [6, 6], "zRange": [9, 9] },
+      { "xRange": [34, 34], "yRange": [6, 6], "zRange": [0, 0] },
+      { "xRange": [34, 34], "yRange": [6, 6], "zRange": [9, 9] },
+      { "xRange": [46, 46], "yRange": [6, 6], "zRange": [0, 0] },
+      { "xRange": [46, 46], "yRange": [6, 6], "zRange": [9, 9] }
+    ],
+    "window": [
+      { "xRange": [56, 63], "yRange": [7, 12], "zRange": [1, 8] }
+    ]
+  }
+}

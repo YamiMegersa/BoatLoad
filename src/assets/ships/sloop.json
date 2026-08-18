@@ -1,0 +1,17 @@
+{
+  "id": "sloop",
+  "name": "The Salty Sparrow",
+  "grid": { "x": 24, "y": 10, "z": 6 },
+  "zones": {
+    "hull": [{ "xRange": [0, 23], "yRange": [0, 3], "zRange": [0, 5] }],
+    "deck": [{ "xRange": [2, 21], "yRange": [4, 4], "zRange": [1, 4] }],
+    "mast": [{ "xRange": [10, 10], "yRange": [5, 9], "zRange": [2, 3] }],
+    "sail": [{ "xRange": [8, 12], "yRange": [5, 9], "zRange": [2, 3] }],
+    "cannon": [
+      { "xRange": [4, 4],   "yRange": [4, 4], "zRange": [0, 0] },
+      { "xRange": [4, 4],   "yRange": [4, 4], "zRange": [5, 5] },
+      { "xRange": [18, 18], "yRange": [4, 4], "zRange": [0, 0] },
+      { "xRange": [18, 18], "yRange": [4, 4], "zRange": [5, 5] }
+    ]
+  }
+}

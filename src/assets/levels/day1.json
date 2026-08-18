@@ -1,0 +1,22 @@
+{
+  "day": 1,
+  "ship": "sloop",
+  "weather": "sunny",
+  "damage": [
+    { "zone": "hull", "cells": [[2,0,2],[3,0,2],[2,1,2]], "state": "MISSING" },
+    { "zone": "sail", "cells": [[9,6,2]],                  "state": "DAMAGED" },
+    { "zone": "mast", "cells": [[10,7,2]],                 "state": "DAMAGED" }
+  ],
+  "docket": [
+    { "id": "hull_repair",  "zone": "hull",  "label": "Patch hull breach (3 cells)", "tool": "hammer", "mandatory": true  },
+    { "id": "sail_repair",  "zone": "sail",  "label": "Mend torn sail",               "tool": "needle", "mandatory": true  },
+    { "id": "mast_repair",  "zone": "mast",  "label": "Reinforce cracked mast",       "tool": "rope",   "mandatory": true  }
+  ],
+  "obstacles": [
+    { "type": "rock",       "lanePattern": "alternating", "count": 6  },
+    { "type": "seaweed",    "lanePattern": "random",      "count": 4  },
+    { "type": "wave_small", "lanePattern": "random",      "count": 5  }
+  ],
+  "rewardAbilities": ["practiced_hand", "seasoned_hull", "sharp_eye"],
+  "tutorialPrompts": true
+}

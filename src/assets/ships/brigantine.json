@@ -1,0 +1,31 @@
+{
+  "id": "brigantine",
+  "name": "The Stormbreaker",
+  "grid": { "x": 40, "y": 14, "z": 8 },
+  "zones": {
+    "hull":    [{ "xRange": [0, 39],  "yRange": [0, 4],  "zRange": [0, 7] }],
+    "deck":    [{ "xRange": [3, 36],  "yRange": [5, 5],  "zRange": [1, 6] }],
+    "mast":    [
+      { "xRange": [12, 12], "yRange": [6, 13], "zRange": [3, 4] },
+      { "xRange": [26, 26], "yRange": [6, 13], "zRange": [3, 4] }
+    ],
+    "sail":    [
+      { "xRange": [9, 15],  "yRange": [6, 13], "zRange": [3, 4] },
+      { "xRange": [23, 29], "yRange": [6, 13], "zRange": [3, 4] }
+    ],
+    "bilge":   [{ "xRange": [4, 35],  "yRange": [0, 1],  "zRange": [2, 5] }],
+    "rudder":  [{ "xRange": [38, 39], "yRange": [0, 2],  "zRange": [3, 4] }],
+    "anchor":  [{ "xRange": [0, 1],   "yRange": [0, 2],  "zRange": [3, 4] }],
+    "cannon":  [
+      { "xRange": [8,  8],  "yRange": [5, 5], "zRange": [0, 0] },
+      { "xRange": [8,  8],  "yRange": [5, 5], "zRange": [7, 7] },
+      { "xRange": [20, 20], "yRange": [5, 5], "zRange": [0, 0] },
+      { "xRange": [20, 20], "yRange": [5, 5], "zRange": [7, 7] },
+      { "xRange": [30, 30], "yRange": [5, 5], "zRange": [0, 0] },
+      { "xRange": [30, 30], "yRange": [5, 5], "zRange": [7, 7] }
+    ],
+    "window":  [
+      { "xRange": [36, 39], "yRange": [6, 9], "zRange": [1, 6] }
+    ]
+  }
+}
