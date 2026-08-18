@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { emit } from '../core/EventBus.js';
+import { OBB } from 'three/examples/jsm/math/OBB.js';
 
 // ---------------------------------------------------------------------------
 // Obstacle descriptor
@@ -9,7 +10,8 @@ import { emit } from '../core/EventBus.js';
  * @typedef {object} ObstacleDesc
  * @property {string}          type     e.g. 'rock', 'barrel'
  * @property {THREE.Mesh}      mesh
- * @property {THREE.Box3}      box       AABB (null for sphere-based obstacles)
+ * @property {OBB}             baseOBB   Unrotated, local OBB bounds
+ * @property {OBB}             obb       World space OBB
  * @property {THREE.Sphere|null} sphere  Bounding sphere (barrels)
  * @property {number}          scrollSpeed  Z units per second
  * @property {boolean}         active    false = collision disabled, pending removal
@@ -47,8 +49,20 @@ const _mat = {
 function buildObstacle(type, pos) {
   const mesh = new THREE.Mesh(_geo[type] ?? _geo.rock, _mat[type] ?? _mat.rock);
   mesh.position.set(pos.x, 0.5, pos.z);
+  mesh.updateMatrixWorld(true);
 
-  const box    = new THREE.Box3().setFromObject(mesh);
+  const localBox = new THREE.Box3().setFromObject(mesh);
+  const baseOBB = new OBB();
+  // Since mesh is at world pos currently, its box is world box.
+  // Wait, if we use setFromObject while mesh is at pos.x, pos.z, localBox center is shifted!
+  // It's better to compute local bounds from geometry.
+  mesh.geometry.computeBoundingBox();
+  mesh.geometry.boundingBox.getCenter(baseOBB.center);
+  mesh.geometry.boundingBox.getSize(baseOBB.halfSize).multiplyScalar(0.5);
+
+  const obb = new OBB();
+  obb.copy(baseOBB).applyMatrix4(mesh.matrixWorld);
+
   const sphere = type === 'barrel'
     ? new THREE.Sphere(mesh.position.clone(), 0.5)
     : null;
@@ -56,7 +70,8 @@ function buildObstacle(type, pos) {
   return {
     type,
     mesh,
-    box,
+    baseOBB,
+    obb,
     sphere,
     scrollSpeed:  getScrollSpeed(type),
     active:       true,
@@ -143,7 +158,8 @@ export class ObstacleManager {
       obs.mesh.position.z += obs.scrollSpeed * delta;
 
       // Update bounding volumes
-      obs.box.setFromObject(obs.mesh);
+      obs.mesh.updateMatrixWorld(true);
+      obs.obb.copy(obs.baseOBB).applyMatrix4(obs.mesh.matrixWorld);
       if (obs.sphere) obs.sphere.center.copy(obs.mesh.position);
 
       // Check collision
@@ -187,7 +203,7 @@ export class ObstacleManager {
   _checkCollision(obs, ship, delta) {
     // Whirlpool applies a continuous lateral pull
     if (obs.type === 'whirlpool') {
-      const hit = ship.box.intersectsBox(obs.box);
+      const hit = ship.obb.intersectsOBB(obs.obb);
       if (hit) {
         const sign = obs.mesh.position.x < ship.mesh.position.x ? -1 : 1;
         ship.mesh.position.x += sign * obs.pullForce * delta;
@@ -198,7 +214,7 @@ export class ObstacleManager {
 
     // Seaweed — speed debuff zone, no damage
     if (obs.type === 'seaweed') {
-      if (ship.box.intersectsBox(obs.box)) {
+      if (ship.obb.intersectsOBB(obs.obb)) {
         ship.applySpeedModifier(0.5, 3);
         obs.active = false; // fire once
       }
@@ -208,14 +224,14 @@ export class ObstacleManager {
     // Barrel — sphere collision; skip if QTE resolved
     if (obs.type === 'barrel') {
       if (obs.qteResolved) { obs.active = false; return; }
-      if (ship.box.intersectsSphere(obs.sphere)) {
+      if (ship.obb.intersectsSphere(obs.sphere)) {
         this._resolveHit(obs, ship);
       }
       return;
     }
 
-    // Default AABB collision (rock, wave_small)
-    if (ship.box.intersectsBox(obs.box)) {
+    // Default OBB collision (rock, wave_small)
+    if (ship.obb.intersectsOBB(obs.obb)) {
       this._resolveHit(obs, ship);
     }
   }

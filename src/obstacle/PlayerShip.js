@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { emit, on, off } from '../core/EventBus.js';
+import { OBB } from 'three/examples/jsm/math/OBB.js';
 
 // ---------------------------------------------------------------------------
 // Obstacle type definitions
@@ -39,8 +40,14 @@ export class PlayerShip {
 
     /** @type {number} Steering input in [-1, +1] from wheel drag or keyboard */
     this.steerInput = 0;
-    /** px/s lateral speed */
-    this._steerSpeed = 5.0;
+    
+    // Physics & Rotation
+    this.yaw = 0;
+    this.yawVelocity = 0;
+    this.pitch = 0;
+    this.roll = 0;
+    this.pitchVelocity = 0;
+    this.rollVelocity = 0;
 
     /** @type {boolean} True when the ship has sunk (HP ≤ 0) */
     this.sunk = false;
@@ -70,22 +77,50 @@ export class PlayerShip {
     
     scene.add(this.mesh);
 
-    /** AABB updated every frame */
-    this.box = new THREE.Box3().setFromObject(this.mesh);
+    // OBB Collision (compute base unrotated bounds from local mesh)
+    const localBox = new THREE.Box3().setFromObject(this.mesh);
+    this.baseOBB = new OBB();
+    localBox.getCenter(this.baseOBB.center);
+    localBox.getSize(this.baseOBB.halfSize).multiplyScalar(0.5);
+
+    /** Active OBB updated every frame */
+    this.obb = new OBB();
   }
 
   // -------------------------------------------------------------------------
   // Frame update
   // -------------------------------------------------------------------------
 
-  /**
-   * @param {number} delta  Seconds since last frame
-   */
   update(delta) {
     if (this.sunk) return;
 
-    // Lateral steering
-    this.mesh.position.x += this.steerInput * this._steerSpeed * this.speedMultiplier * delta;
+    // Time for natural bobbing
+    const time = performance.now() / 1000;
+
+    // Driving Model: Steer input controls Yaw with inertia (heavy boat feel)
+    const maxYaw = Math.PI / 6; // 30 degrees max turn
+    const turnAccel = 3.5;      // How fast the rudder can apply turning force
+    const damping = 2.5;        // Water resistance against turning
+    
+    // Base turning acceleration from player input
+    let yawAccel = -this.steerInput * turnAccel;
+    
+    // Auto-center yaw slowly when no input (water straightening the hull)
+    if (this.steerInput === 0) {
+      yawAccel -= this.yaw * 4.0;
+    }
+    
+    // Apply water damping/friction
+    yawAccel -= this.yawVelocity * damping;
+    
+    // Euler integration for heavy momentum
+    this.yawVelocity += yawAccel * delta;
+    this.yaw += this.yawVelocity * delta;
+    this.yaw = THREE.MathUtils.clamp(this.yaw, -maxYaw, maxYaw);
+    
+    // Lateral movement based on where the ship is pointing (Yaw)
+    const forwardSpeed = 15.0;
+    this.mesh.position.x -= Math.sin(this.yaw) * forwardSpeed * this.speedMultiplier * delta;
 
     // Clamp to lane boundaries
     this.mesh.position.x = THREE.MathUtils.clamp(
@@ -94,8 +129,31 @@ export class PlayerShip {
       this._laneHalfWidth,
     );
 
-    // Update bounding box
-    this.box.setFromObject(this.mesh);
+    // Natural bobbing (Pitch and Roll)
+    const naturalPitch = Math.sin(time * 2.0) * 0.05;
+    const naturalRoll = Math.cos(time * 1.5) * 0.05;
+
+    // Apply spring physics for impact bobbing
+    this.pitchVelocity *= 0.9; // damping
+    this.rollVelocity *= 0.9;
+    
+    // Spring back to 0
+    this.pitchVelocity -= (this.pitch - 0) * 10 * delta; 
+    this.rollVelocity -= (this.roll - 0) * 10 * delta;
+
+    this.pitch += this.pitchVelocity * delta;
+    this.roll += this.rollVelocity * delta;
+
+    // Apply rotations
+    this.mesh.rotation.order = 'YXZ';
+    this.mesh.rotation.y = this.yaw;
+    this.mesh.rotation.x = this.pitch + naturalPitch;
+    this.mesh.rotation.z = this.roll + naturalRoll;
+
+    // Update OBB collision volume
+    this.mesh.updateMatrixWorld(true);
+    this.obb.copy(this.baseOBB);
+    this.obb.applyMatrix4(this.mesh.matrixWorld);
   }
 
   // -------------------------------------------------------------------------
@@ -119,15 +177,14 @@ export class PlayerShip {
   }
 
   /**
-   * Apply a brief X-axis bounce-back effect.
+   * Apply a massive rotational impulse for visual impact feedback.
    * @param {number} direction  +1 or -1
    */
   bounceBack(direction) {
-    const target = this.mesh.position.x + direction * 1.5;
-    // Simple lerp toward bounce target over the next few frames via a flag
-    this._bounceTarget = target;
-    this._bounceDuration = 0.15; // seconds
-    this._bounceElapsed  = 0;
+    // direction is 1 (hit from right) or -1 (hit from left)
+    // We add a sudden spike to roll and pitch velocity
+    this.rollVelocity += direction * 8.0; 
+    this.pitchVelocity -= 5.0; // Bow dips down abruptly
   }
 
   // -------------------------------------------------------------------------
