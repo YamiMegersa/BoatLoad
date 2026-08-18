@@ -121,7 +121,7 @@ async function boot() {
   on('docketItemCompleted', d => logEvent(`[Docket] ✓ ${d.label}`));
   on('allRepairsDone',      () => logEvent('[Docket] ALL DONE — ready to sail'));
   on('obstacleHit',        d => logEvent(`[Obstacle] hit by ${d.type} -${d.damage} HP`));
-  on('playerDamaged',      d => logEvent(`[HP] ${d.hullHP}/${d.maxHullHP}`));
+  on('playerDamaged',      d => logEvent(`[Collision] Hull breached!`));
   on('playerSunk',         () => logEvent('[SUNK] Game Over'));
 
   // Start at Shipyard for Day 1

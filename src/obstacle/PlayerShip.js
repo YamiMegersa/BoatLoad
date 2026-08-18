@@ -28,15 +28,23 @@ export const ObstacleType = Object.freeze({
  */
 export class PlayerShip {
   /**
-   * @param {object} stats   { hullHP, speedMultiplier, laneHalfWidth }
+   * @param {object} stats
    * @param {THREE.Scene} scene
    * @param {import('../shipyard/ChunkRenderer.js').ChunkRenderer} [chunkRenderer]
+   * @param {import('../shipyard/VoxelGrid.js').VoxelGrid} [grid]
    */
-  constructor(stats, scene, chunkRenderer) {
-    this.hullHP          = stats.hullHP          ?? 100;
-    this.maxHullHP       = this.hullHP;
+  constructor(stats, scene, chunkRenderer, grid) {
     this.speedMultiplier = stats.speedMultiplier  ?? 1.0;
     this._laneHalfWidth  = stats.laneHalfWidth   ?? 6;
+
+    this.chunkRenderer = chunkRenderer;
+    this.grid = grid;
+
+    // Leak System
+    this.waterLevel = 0;
+    this.maxWaterLevel = 100;
+    this.waterlineY = 4; // Any hole below Y=4 leaks water
+    this.numLeaks = 0;
 
     /** @type {number} Steering input in [-1, +1] from wheel drag or keyboard */
     this.steerInput = 0;
@@ -85,6 +93,20 @@ export class PlayerShip {
 
     /** Active OBB updated every frame */
     this.obb = new OBB();
+
+    // Initialise leaks from any unpatched holes left from the shipyard
+    this._countLeaks();
+  }
+
+  _countLeaks() {
+    if (!this.grid) return;
+    this.numLeaks = 0;
+    this.grid.forEach((x, y, z, state) => {
+      // 3 = CellState.MISSING
+      if (y <= this.waterlineY && state === 3) {
+        this.numLeaks++;
+      }
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -97,10 +119,28 @@ export class PlayerShip {
     // Time for natural bobbing
     const time = performance.now() / 1000;
 
+    // --- LEAK SYSTEM ---
+    if (this.numLeaks > 0) {
+      // e.g. 1.5 water units per second per hole
+      this.waterLevel += this.numLeaks * 1.5 * delta;
+      // Tell UI the water level rose
+      emit('playerWaterLevel', { level: this.waterLevel, max: this.maxWaterLevel });
+    }
+    const waterRatio = Math.min(this.waterLevel / this.maxWaterLevel, 1.0);
+    
+    // Check for sinking
+    if (this.waterLevel >= this.maxWaterLevel && !this.sunk) {
+      this.sunk = true;
+      emit('playerSunk');
+    }
+
+    // Heavy Debuffs based on water level
+    const handlingMultiplier = Math.max(0.1, 1.0 - (waterRatio * 1.2)); // Drops handling drastically as water fills
+    
     // Driving Model: Steer input controls Yaw with inertia (heavy boat feel)
     const maxYaw = Math.PI / 6; // 30 degrees max turn
-    const turnAccel = 3.5;      // How fast the rudder can apply turning force
-    const damping = 2.5;        // Water resistance against turning
+    const turnAccel = 3.5 * handlingMultiplier;      // How fast the rudder can apply turning force
+    const damping = 2.5 * (1.0 + waterRatio * 2.0);  // Water resistance against turning (heavier when flooded)
     
     // Base turning acceleration from player input
     let yawAccel = -this.steerInput * turnAccel;
@@ -119,7 +159,8 @@ export class PlayerShip {
     this.yaw = THREE.MathUtils.clamp(this.yaw, -maxYaw, maxYaw);
     
     // Lateral movement based on where the ship is pointing (Yaw)
-    const forwardSpeed = 15.0;
+    const speedPenalty = Math.max(0.3, 1.0 - waterRatio);
+    const forwardSpeed = 15.0 * speedPenalty;
     this.mesh.position.x -= Math.sin(this.yaw) * forwardSpeed * this.speedMultiplier * delta;
 
     // Clamp to lane boundaries
@@ -150,6 +191,10 @@ export class PlayerShip {
     this.mesh.rotation.x = this.pitch + naturalPitch;
     this.mesh.rotation.z = this.roll + naturalRoll;
 
+    // Visually sink the ship on the Y axis
+    // Wrapper is at Y=0. We push the whole mesh down based on water ratio
+    this.mesh.position.y = -(waterRatio * 2.0);
+
     // Update OBB collision volume
     this.mesh.updateMatrixWorld(true);
     this.obb.copy(this.baseOBB);
@@ -161,18 +206,41 @@ export class PlayerShip {
   // -------------------------------------------------------------------------
 
   /**
-   * Apply damage and emit events.
+   * Physically blow holes in the voxel hull.
    * @param {number} amount
    * @param {string} [source]  Obstacle type that caused damage
    */
   takeDamage(amount, source = 'unknown') {
     if (this.sunk) return;
-    this.hullHP = Math.max(0, this.hullHP - amount);
-    emit('playerDamaged', { hullHP: this.hullHP, maxHullHP: this.maxHullHP, source });
 
-    if (this.hullHP <= 0) {
-      this.sunk = true;
-      emit('playerSunk');
+    if (this.grid && this.chunkRenderer) {
+      // 10 damage = 1 hole. Wave = 5 (no hole usually, but 50% chance?)
+      let holesToMake = Math.floor(amount / 10);
+      if (Math.random() < (amount % 10) / 10) holesToMake++;
+
+      let holesMade = 0;
+      let attempts = 0;
+      
+      // Find random INTACT cells near the waterline and blow them out
+      while (holesMade < holesToMake && attempts < 100) {
+        attempts++;
+        const cx = Math.floor(Math.random() * this.grid.width);
+        const cy = Math.floor(Math.random() * (this.waterlineY + 2)); // Up to slightly above waterline
+        const cz = Math.floor(Math.random() * this.grid.depth);
+
+        // 1 = CellState.INTACT
+        if (this.grid.getState(cx, cy, cz) === 1) {
+          // 3 = CellState.MISSING
+          this.grid.setState(cx, cy, cz, 3);
+          holesMade++;
+        }
+      }
+
+      if (holesMade > 0) {
+        this._countLeaks();
+        this.chunkRenderer.sync(this.grid);
+        emit('playerDamaged', { source });
+      }
     }
   }
 

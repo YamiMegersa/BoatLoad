@@ -333,7 +333,7 @@ export class GameState {
     this._camera.position.set(0, 14, 10);
     this._camera.lookAt(0, 0, -5);
 
-    this._playerShip = new PlayerShip(shipStats ?? { hullHP: 100 }, this._scene, this._chunkRenderer);
+    this._playerShip = new PlayerShip(shipStats ?? {}, this._scene, this._chunkRenderer, this._grid);
     this._obstacleManager = new ObstacleManager();
     this._obstacleManager.init(levelCfg.obstacles, this._scene);
     this._qteSystem = new QTESystem();
