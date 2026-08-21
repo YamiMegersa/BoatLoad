@@ -34,13 +34,7 @@ sun.position.set(10, 20, 10);
 sun.castShadow = true;
 scene.add(sun);
 
-// Helpers for debugging scale and orientation
-const gridHelper = new THREE.GridHelper(100, 100, 0x444444, 0x222222);
-gridHelper.position.y = -0.1; // slightly below 0 so it doesn't z-fight with y=0 voxels
-scene.add(gridHelper);
-
-const axesHelper = new THREE.AxesHelper(10);
-scene.add(axesHelper);
+// Helpers for debugging scale and orientation (Removed)
 
 // ---------------------------------------------------------------------------
 // Resize handler

@@ -83,6 +83,22 @@ export class PlayerShip {
       this.mesh.add(this._buildMesh());
     }
     
+    // Internal water plane (rises as boat sinks)
+    // Scaled down to prevent poking out of the tapered bow/stern
+    const innerWaterGeo = new THREE.PlaneGeometry(1.4, 3.6);
+    innerWaterGeo.rotateX(-Math.PI / 2);
+    const innerWaterMat = new THREE.MeshPhongMaterial({
+      color: 0x1c343d, // Matches the deep sea color from Ocean.js
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false // don't occlude other transparent objects weirdly
+    });
+    this.innerWater = new THREE.Mesh(innerWaterGeo, innerWaterMat);
+    // Position it at the bottom of the boat internally
+    this.innerWater.position.set(0, 0.1, 0); 
+    this.innerWater.visible = false;
+    this.mesh.add(this.innerWater);
+
     scene.add(this.mesh);
 
     // OBB Collision (compute base unrotated bounds from local mesh)
@@ -113,7 +129,7 @@ export class PlayerShip {
   // Frame update
   // -------------------------------------------------------------------------
 
-  update(delta) {
+  update(delta, ocean) {
     if (this.sunk) return;
 
     // Time for natural bobbing
@@ -170,9 +186,20 @@ export class PlayerShip {
       this._laneHalfWidth,
     );
 
-    // Natural bobbing (Pitch and Roll)
-    const naturalPitch = Math.sin(time * 2.0) * 0.05;
-    const naturalRoll = Math.cos(time * 1.5) * 0.05;
+    // Sample the ocean wave height and normal at the ship's center
+    let waveHeight = 0;
+    let waveNormal = new THREE.Vector3(0, 1, 0);
+    if (ocean) {
+      const info = ocean.getWaveInfo(this.mesh.position.x, this.mesh.position.z);
+      waveHeight = info.height;
+      waveNormal = info.normal;
+    }
+
+    // Natural bobbing (Pitch and Roll) from wave normal
+    // waveNormal.z is the slope along the Z axis (forward), which translates to Pitch (X rotation)
+    // waveNormal.x is the slope along the X axis (sideways), which translates to Roll (Z rotation)
+    const targetPitch = Math.asin(-waveNormal.z) + Math.sin(time * 2.0) * 0.02;
+    const targetRoll = Math.asin(waveNormal.x) + Math.cos(time * 1.5) * 0.02;
 
     // Apply spring physics for impact bobbing
     this.pitchVelocity *= 0.9; // damping
@@ -188,12 +215,22 @@ export class PlayerShip {
     // Apply rotations
     this.mesh.rotation.order = 'YXZ';
     this.mesh.rotation.y = this.yaw;
-    this.mesh.rotation.x = this.pitch + naturalPitch;
-    this.mesh.rotation.z = this.roll + naturalRoll;
+    this.mesh.rotation.x = this.pitch + targetPitch;
+    this.mesh.rotation.z = this.roll + targetRoll;
 
-    // Visually sink the ship on the Y axis
-    // Wrapper is at Y=0. We push the whole mesh down based on water ratio
-    this.mesh.position.y = -(waterRatio * 2.0);
+    // Set Y based on wave height so the boat rides the waves, minus the sinking amount.
+    // +0.2 adds a slight buffer to ensure corners of the flat boat bottom don't clip the curved wave.
+    this.mesh.position.y = waveHeight + 0.2 - (waterRatio * 1.5);
+
+    // Update internal water plane
+    if (waterRatio > 0) {
+      this.innerWater.visible = true;
+      // The boat walls are ~1.1 units high in world space.
+      // Fill the boat bathtub style as it sinks.
+      this.innerWater.position.y = 0.1 + (waterRatio * 1.0);
+    } else {
+      this.innerWater.visible = false;
+    }
 
     // Update OBB collision volume
     this.mesh.updateMatrixWorld(true);

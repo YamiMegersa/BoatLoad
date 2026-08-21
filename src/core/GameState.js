@@ -10,6 +10,7 @@ import { ObstacleManager } from '../obstacle/ObstacleManager.js';
 import { EnvironmentManager } from '../environment/EnvironmentManager.js';
 import { SharkSkinRepair }    from '../environment/SharkSkinRepair.js';
 import { FishAnimator }       from '../environment/FishAnimator.js';
+import { Ocean }              from '../environment/Ocean.js';
 import { QTESystem }      from '../obstacle/QTESystem.js';
 import { emit, on, off, clear } from './EventBus.js';
 
@@ -44,6 +45,10 @@ export class GameState {
     this._scene    = scene;
     this._camera   = camera;
     this._renderer = renderer;
+
+    // Global ocean instance (persists across phases)
+    this._ocean = new Ocean();
+    this._ocean.init(this._scene);
 
     this.currentPhase = null;
 
@@ -120,6 +125,8 @@ export class GameState {
    * @param {number} delta  Seconds since last frame
    */
   update(delta) {
+    this._ocean.update(delta);
+
     switch (this.currentPhase) {
       case GamePhase.SHIPYARD:
         this._updateShipyard(delta);
@@ -409,7 +416,7 @@ export class GameState {
   }
 
   _updateObstacle(delta) {
-    this._playerShip?.update(delta);
+    this._playerShip?.update(delta, this._ocean);
     this._obstacleManager?.update(delta, this._playerShip);
     this._environmentManager?.update(delta);
   }
