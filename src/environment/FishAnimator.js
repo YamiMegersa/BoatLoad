@@ -30,6 +30,7 @@ export class FishAnimator {
     // Base scale so squash-stretch is relative
     this._baseScale = mesh.scale.x;
     this._bobOffset = 0;
+    this._yawOffset = 0;
   }
 
   /**
@@ -60,10 +61,10 @@ export class FishAnimator {
       // Counter-rotate slightly if needed, though spine animation
       // usually looks fine on its own. We'll do a small counter-rotation.
       const headWag = Math.sin(t * 4.5) * 0.15;
-      this.mesh.rotation.y = -headWag;
+      this._yawOffset = -headWag;
     } else {
       // Fallback if bones aren't found
-      this.mesh.rotation.y = Math.sin(t * 4.5) * 0.18;
+      this._yawOffset = Math.sin(t * 4.5) * 0.18;
     }
 
     // 2. Pectoral Fins (Bone, Bone.001)
@@ -101,5 +102,9 @@ export class FishAnimator {
 
   get bobOffset() {
     return this._bobOffset;
+  }
+
+  get yawOffset() {
+    return this._yawOffset;
   }
 }

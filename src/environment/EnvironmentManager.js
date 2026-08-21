@@ -20,30 +20,48 @@ export class EnvironmentManager {
 
     if (this._fishModels && this._fishModels.length > 0) {
       for (let i = 0; i < 8; i++) {
-        this._spawnShark();
+        // 30% chance to spawn a school of 3-5 fish
+        if (Math.random() < 0.3) {
+          const schoolSize = 3 + Math.floor(Math.random() * 3);
+          const baseX = (Math.random() - 0.5) * 60;
+          const baseY = -4 - Math.random() * 4;
+          const baseZ = (Math.random() - 0.5) * 60;
+          const baseYaw = Math.random() * Math.PI * 2;
+          const fishModel = this._fishModels[Math.floor(Math.random() * this._fishModels.length)];
+          
+          for(let j = 0; j < schoolSize; j++) {
+            this._spawnShark(
+              fishModel, 
+              baseX + (Math.random() - 0.5) * 4, 
+              baseY + (Math.random() - 0.5) * 2, 
+              baseZ + (Math.random() - 0.5) * 4, 
+              baseYaw + (Math.random() - 0.5) * 0.4
+            );
+          }
+        } else {
+          this._spawnShark();
+        }
       }
     }
   }
 
-  _spawnShark() {
-    const fishModel = this._fishModels[Math.floor(Math.random() * this._fishModels.length)];
+  _spawnShark(model = null, px = null, py = null, pz = null, yaw = null) {
+    const fishModel = model || this._fishModels[Math.floor(Math.random() * this._fishModels.length)];
     // Clone the scene (preserves hierarchy but bones become plain Object3Ds)
     const mesh = SkeletonUtils.clone(fishModel.scene);
 
-    // Place + orient randomly around the play area
-    mesh.position.set(
-      (Math.random() - 0.5) * 60,
-      -4 - Math.random() * 4,      // −4 to −8 below surface
-      (Math.random() - 0.5) * 60
-    );
-    mesh.rotation.set(
-      (Math.random() - 0.5) * 0.1,
-      Math.random() * Math.PI * 2,
-      0
-    );
+    // Place + orient randomly around the play area, or use provided school base
+    const x = px !== null ? px : (Math.random() - 0.5) * 60;
+    const y = py !== null ? py : -4 - Math.random() * 4;
+    const z = pz !== null ? pz : (Math.random() - 0.5) * 60;
+    const ry = yaw !== null ? yaw : Math.random() * Math.PI * 2;
+    
+    mesh.position.set(x, y, z);
+    mesh.rotation.set((Math.random() - 0.5) * 0.1, ry, 0);
 
     // Apply the pre-computed normalisation scale with slight random variation
-    const baseScale = fishModel.normSharkScale * (0.8 + Math.random() * 0.4);
+    // Only scale down (0.4 to 1.0 of the base scale)
+    const baseScale = fishModel.normSharkScale * (0.4 + Math.random() * 0.6);
     mesh.scale.setScalar(baseScale);
 
     mesh.traverse(c => {
@@ -74,9 +92,10 @@ export class EnvironmentManager {
 
       // Apply the bob offset from the animator on top of the fixed baseY
       shark.mesh.position.y = shark.baseY + shark.animator.bobOffset;
+      shark.mesh.rotation.y = shark.baseYaw + shark.animator.yawOffset;
 
-      // Swim forward (local −Z is the shark's nose direction after Blender export)
-      shark.mesh.translateZ(-shark.speed * delta);
+      // Swim forward
+      shark.mesh.translateZ(shark.speed * delta);
 
       // Wrap around the play area
       const p = shark.mesh.position;

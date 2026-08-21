@@ -78,6 +78,9 @@ export class PlayerShip {
       // Scale the wrapper down so the massive 24x48 voxel ship fits the 12-unit wide lane
       wrapper.scale.setScalar(0.1);
       
+      // The voxel model faces +Z by default, but we move towards -Z
+      wrapper.rotation.y = Math.PI;
+      
       this.mesh.add(wrapper);
     } else {
       this.mesh.add(this._buildMesh());
