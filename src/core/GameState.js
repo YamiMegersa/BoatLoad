@@ -195,7 +195,7 @@ export class GameState {
   // SHIPYARD
   // =========================================================================
 
-  async _enterShipyard({ shipDef, levelCfg, fishModel }) {
+  async _enterShipyard({ shipDef, levelCfg, fishModels }) {
     this._levelCfg = levelCfg;
 
     // Build the voxel data
@@ -226,8 +226,9 @@ export class GameState {
     this._orbitControls.target.set(cx, cy, cz);
     this._orbitControls.update();
 
-    // PROTOTYPE DEBUG: Render the shark directly next to the boat
-    if (fishModel) {
+    // PROTOTYPE DEBUG: Render a random fish directly next to the boat
+    if (fishModels && fishModels.length > 0) {
+      const fishModel = fishModels[Math.floor(Math.random() * fishModels.length)];
       this._debugShark = fishModel.scene;
       const normScale = fishModel.normSharkScale ?? 1;
       this._debugShark.scale.setScalar(normScale);
@@ -372,7 +373,7 @@ export class GameState {
   // OBSTACLE
   // =========================================================================
 
-  _enterObstacle({ levelCfg, shipStats, rockModels, fishModel }) {
+  _enterObstacle({ levelCfg, shipStats, rockModels, fishModels }) {
     // Semi top-down camera
     this._camera.position.set(0, 14, 10);
     this._camera.lookAt(0, 0, -5);
@@ -382,7 +383,7 @@ export class GameState {
     this._obstacleManager.init(levelCfg.obstacles, this._scene, rockModels);
     
     this._environmentManager = new EnvironmentManager();
-    this._environmentManager.init(this._scene, fishModel);
+    this._environmentManager.init(this._scene, fishModels);
     
     this._qteSystem = new QTESystem();
 

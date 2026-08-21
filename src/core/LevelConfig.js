@@ -33,6 +33,16 @@ export class LevelConfig {
     '/src/assets/rocks/voxel_Rocks.glb'
   ];
 
+  static _fishUrls = [
+    '/src/assets/fish/Dolphin.glb',
+    '/src/assets/fish/Fish-BEcU9rjiAq.glb',
+    '/src/assets/fish/Fish-XWl86YFtpF.glb',
+    '/src/assets/fish/Fish.glb',
+    '/src/assets/fish/Manta ray.glb',
+    '/src/assets/fish/Shark.glb',
+    '/src/assets/fish/Whale.glb'
+  ];
+
   /**
    * Load the ship definition and level config for a given day.
    * Results are cached so repeated loads are instant.
@@ -63,34 +73,33 @@ export class LevelConfig {
     const rockModels = LevelConfig._cache.get('rockModels');
 
     // Preload fish if not cached
-    if (!LevelConfig._cache.has('fishModel')) {
+    if (!LevelConfig._cache.has('fishModels')) {
       const loader = new GLTFLoader();
-      const fishModel = await new Promise((resolve, reject) => {
-        loader.load('/src/assets/fish/shark.glb', resolve, undefined, reject);
+      const fishModels = await Promise.all(
+        LevelConfig._fishUrls.map(url => new Promise((resolve, reject) => {
+          loader.load(url, resolve, undefined, reject);
+        }))
+      );
+
+      fishModels.forEach(fishModel => {
+        const dummyScene = new THREE.Scene();
+        dummyScene.add(fishModel.scene);
+        dummyScene.updateMatrixWorld(true);
+
+        const box = new THREE.Box3().setFromObject(fishModel.scene);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        const maxDim = Math.max(size.x, size.y, size.z);
+        fishModel.normSharkScale = (maxDim > 0) ? (4.0 / maxDim) : 1;
+
+        dummyScene.remove(fishModel.scene);
       });
 
-      // Pre-compute normalization scale by temporarily parenting the scene
-      // to a real THREE.Scene so updateMatrixWorld propagates the Armature's
-      // 100x scale correctly. Without this, Box3 measures identity-space and
-      // returns the wrong size, causing sharks to render at 100x actual size.
-      const dummyScene = new THREE.Scene();
-      dummyScene.add(fishModel.scene);
-      dummyScene.updateMatrixWorld(true);
-
-      const box = new THREE.Box3().setFromObject(fishModel.scene);
-      const size = new THREE.Vector3();
-      box.getSize(size);
-      const maxDim = Math.max(size.x, size.y, size.z);
-      fishModel.normSharkScale = (maxDim > 0) ? (4.0 / maxDim) : 1;
-
-      // Remove from dummy scene — it will be re-added to the real scene later
-      dummyScene.remove(fishModel.scene);
-
-      LevelConfig._cache.set('fishModel', fishModel);
+      LevelConfig._cache.set('fishModels', fishModels);
     }
-    const fishModel = LevelConfig._cache.get('fishModel');
+    const fishModels = LevelConfig._cache.get('fishModels');
 
-    return { shipDef, levelCfg, rockModels, fishModel };
+    return { shipDef, levelCfg, rockModels, fishModels };
   }
 
   static async _loadRockModels() {

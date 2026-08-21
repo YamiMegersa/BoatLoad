@@ -105,7 +105,7 @@ function logEvent(msg) {
 async function boot() {
   try {
     // Load Day 1 data
-    const { shipDef, levelCfg, rockModels, fishModel } = await LevelConfig.load(1);
+    const { shipDef, levelCfg, rockModels, fishModels } = await LevelConfig.load(1);
     
     // Expose to window for debugging if needed
     window.__DEBUG_ROCK_MODELS = rockModels;
@@ -114,8 +114,8 @@ async function boot() {
     const logDiv = document.querySelector('#demo-log');
     if (logDiv) {
       logDiv.innerHTML += `> Loaded ${rockModels ? rockModels.length : 0} rock models.<br>`;
-      if (fishModel) {
-        logDiv.innerHTML += `> Loaded fish model.<br>`;
+      if (fishModels) {
+        logDiv.innerHTML += `> Loaded ${fishModels.length} fish models.<br>`;
       }
       logDiv.scrollTop = logDiv.scrollHeight;
     }
@@ -123,11 +123,11 @@ async function boot() {
     // Wire buttons
     document.getElementById('btn-shipyard').onclick = () => {
       logEvent('Transitioning to Shipyard...');
-      gameState.transition(GamePhase.SHIPYARD, { shipDef, levelCfg, fishModel });
+      gameState.transition(GamePhase.SHIPYARD, { shipDef, levelCfg, fishModels });
     };
     document.getElementById('btn-obstacle').onclick = () => {
       logEvent('Transitioning to Sailing...');
-      gameState.transition(GamePhase.OBSTACLE, { shipDef, levelCfg, shipStats: { hullHP: 100 }, rockModels, fishModel });
+      gameState.transition(GamePhase.OBSTACLE, { shipDef, levelCfg, shipStats: { hullHP: 100 }, rockModels, fishModels });
     };
 
     // Listen for UI events
@@ -139,7 +139,7 @@ async function boot() {
     on('playerSunk',         () => logEvent('[SUNK] Game Over'));
 
     // Start at Shipyard for Day 1
-    await gameState.transition(GamePhase.SHIPYARD, { shipDef, levelCfg, fishModel });
+    await gameState.transition(GamePhase.SHIPYARD, { shipDef, levelCfg, fishModels });
 
     tick();
   } catch (err) {

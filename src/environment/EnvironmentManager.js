@@ -1,27 +1,24 @@
 import * as THREE from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { SharkSkinRepair } from './SharkSkinRepair.js';
 import { FishAnimator }    from './FishAnimator.js';
 
 export class EnvironmentManager {
   constructor() {
-    this._scene     = null;
-    this._fishModel = null;
-    this._sharks    = [];
-    this._normScale = 1;
+    this._scene      = null;
+    this._fishModels = null;
+    this._sharks     = [];
   }
 
   /**
    * @param {THREE.Scene} scene
-   * @param {object}      fishModel  - GLTF object from LevelConfig (has .scene and .normSharkScale)
+   * @param {object[]}    fishModels  - Array of GLTF objects from LevelConfig
    */
-  init(scene, fishModel) {
-    this._scene     = scene;
-    this._fishModel = fishModel;
-    this._sharks    = [];
-    this._normScale = fishModel?.normSharkScale ?? 1;
+  init(scene, fishModels) {
+    this._scene      = scene;
+    this._fishModels = fishModels;
+    this._sharks     = [];
 
-    if (this._fishModel) {
+    if (this._fishModels && this._fishModels.length > 0) {
       for (let i = 0; i < 8; i++) {
         this._spawnShark();
       }
@@ -29,11 +26,9 @@ export class EnvironmentManager {
   }
 
   _spawnShark() {
+    const fishModel = this._fishModels[Math.floor(Math.random() * this._fishModels.length)];
     // Clone the scene (preserves hierarchy but bones become plain Object3Ds)
-    const mesh = SkeletonUtils.clone(this._fishModel.scene);
-
-    // Repair the missing skin so the Tail bone actually deforms vertices
-    const repair = SharkSkinRepair.repair(mesh);
+    const mesh = SkeletonUtils.clone(fishModel.scene);
 
     // Place + orient randomly around the play area
     mesh.position.set(
@@ -48,7 +43,7 @@ export class EnvironmentManager {
     );
 
     // Apply the pre-computed normalisation scale with slight random variation
-    const baseScale = this._normScale * (0.8 + Math.random() * 0.4);
+    const baseScale = fishModel.normSharkScale * (0.8 + Math.random() * 0.4);
     mesh.scale.setScalar(baseScale);
 
     mesh.traverse(c => {
@@ -62,8 +57,7 @@ export class EnvironmentManager {
     this._scene.add(mesh);
 
     const speed     = 2.0 + Math.random() * 2.5;
-    const tailBone  = repair?.tailBone ?? null;
-    const animator  = new FishAnimator(mesh, tailBone, 0.8 + Math.random() * 0.4);
+    const animator  = new FishAnimator(mesh, 0.8 + Math.random() * 0.4);
 
     this._sharks.push({
       mesh,
