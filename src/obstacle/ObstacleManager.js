@@ -27,7 +27,7 @@ import { OBB } from 'three/examples/jsm/math/OBB.js';
 const _geo = {
   rock:       new THREE.DodecahedronGeometry(0.9, 0),
   barrel:     new THREE.CylinderGeometry(0.4, 0.4, 0.8, 8),
-  wave:       new THREE.BoxGeometry(2.5, 0.3, 0.8),
+  wave_small: new THREE.BoxGeometry(2.5, 0.3, 0.8),
   seaweed:    new THREE.PlaneGeometry(3, 2),
   whirlpool:  new THREE.CylinderGeometry(1.5, 0.3, 0.5, 16, 1, true),
 };
@@ -35,7 +35,7 @@ const _geo = {
 const _mat = {
   rock:      new THREE.MeshLambertMaterial({ color: 0x555566 }),
   barrel:    new THREE.MeshLambertMaterial({ color: 0x7a4f2a }),
-  wave:      new THREE.MeshPhongMaterial({ color: 0x474b6b, transparent: true, opacity: 0.7 }),
+  wave_small: new THREE.MeshPhongMaterial({ color: 0x474b6b, transparent: true, opacity: 0.7 }),
   seaweed:   new THREE.MeshLambertMaterial({ color: 0x2e6b3e, transparent: true, opacity: 0.5, side: THREE.DoubleSide }),
   whirlpool: new THREE.MeshPhongMaterial({ color: 0x222233, transparent: true, opacity: 0.8, side: THREE.DoubleSide }),
 };
@@ -44,21 +44,54 @@ const _mat = {
  * Build an ObstacleDesc from a type string and initial position.
  * @param {string} type
  * @param {{ x:number, z:number }} pos
+ * @param {object[]} [rockModels]
  * @returns {ObstacleDesc}
  */
-function buildObstacle(type, pos) {
-  const mesh = new THREE.Mesh(_geo[type] ?? _geo.rock, _mat[type] ?? _mat.rock);
-  mesh.position.set(pos.x, 0.5, pos.z);
+function buildObstacle(type, pos, rockModels) {
+  let mesh;
+  if (type === 'rock' && rockModels && rockModels.length > 0) {
+    const randomGltf = rockModels[Math.floor(Math.random() * rockModels.length)];
+    const cloned = randomGltf.scene.clone(true);
+    
+    cloned.rotation.y = Math.random() * Math.PI * 2;
+    cloned.rotation.z = (Math.random() - 0.5) * 0.2;
+
+    // Update matrix world before calculating Box3 bounds!
+    cloned.updateMatrixWorld(true);
+
+    // Compute bounds to normalize scale and center
+    const tempBox = new THREE.Box3().setFromObject(cloned);
+    const size = new THREE.Vector3();
+    tempBox.getSize(size);
+    const center = new THREE.Vector3();
+    tempBox.getCenter(center);
+    
+    // Scale to fit ~1.8 max dimension
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const scale = (maxDim > 0) ? (1.8 / maxDim) : 1;
+    cloned.scale.setScalar(scale);
+    
+    // Center it locally
+    cloned.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
+    
+    mesh = new THREE.Group();
+    mesh.add(cloned);
+  } else {
+    mesh = new THREE.Mesh(_geo[type] ?? _geo.rock, _mat[type] ?? _mat.rock);
+  }
+
+  // Position at origin to calculate local bounds
+  mesh.position.set(0, 0, 0);
   mesh.updateMatrixWorld(true);
 
   const localBox = new THREE.Box3().setFromObject(mesh);
   const baseOBB = new OBB();
-  // Since mesh is at world pos currently, its box is world box.
-  // Wait, if we use setFromObject while mesh is at pos.x, pos.z, localBox center is shifted!
-  // It's better to compute local bounds from geometry.
-  mesh.geometry.computeBoundingBox();
-  mesh.geometry.boundingBox.getCenter(baseOBB.center);
-  mesh.geometry.boundingBox.getSize(baseOBB.halfSize).multiplyScalar(0.5);
+  localBox.getCenter(baseOBB.center);
+  localBox.getSize(baseOBB.halfSize).multiplyScalar(0.5);
+
+  // Now place it at actual position
+  mesh.position.set(pos.x, 0.5, pos.z);
+  mesh.updateMatrixWorld(true);
 
   const obb = new OBB();
   obb.copy(baseOBB).applyMatrix4(mesh.matrixWorld);
@@ -128,9 +161,11 @@ export class ObstacleManager {
   /**
    * @param {object[]} obstacleConfigs  From levelConfig.obstacles
    * @param {THREE.Scene} scene
+   * @param {object[]} rockModels
    */
-  init(obstacleConfigs, scene) {
+  init(obstacleConfigs, scene, rockModels) {
     this._scene = scene;
+    this._rockModels = rockModels;
     this._obstacles = [];
     this._spawnTimer = 0;
 
@@ -185,10 +220,13 @@ export class ObstacleManager {
   dispose() {
     for (const obs of this._obstacles) {
       this._scene?.remove(obs.mesh);
-      obs.mesh.geometry.dispose();
+      // For procedural geometries, we dispose. For groups (rocks), we might need to dispose children's geometries/materials
+      // if not cached. Since models are cached by LevelConfig, we don't dispose their geometries to avoid breaking clones later.
+      if (obs.mesh.geometry) obs.mesh.geometry.dispose();
     }
     this._obstacles.length = 0;
     this._scene = null;
+    this._rockModels = null;
   }
 
   // -------------------------------------------------------------------------
@@ -266,14 +304,14 @@ export class ObstacleManager {
     const def = this._spawnQueue.shift();
     if (!def) return;
 
-    const obs = buildObstacle(def.type, { x: def.laneX, z: this._spawnZ });
+    const obs = buildObstacle(def.type, { x: def.laneX, z: this._spawnZ }, this._rockModels);
     this._scene.add(obs.mesh);
     this._obstacles.push(obs);
   }
 
   _remove(obs) {
     this._scene?.remove(obs.mesh);
-    obs.mesh.geometry.dispose();
+    if (obs.mesh.geometry) obs.mesh.geometry.dispose();
     const i = this._obstacles.indexOf(obs);
     if (i !== -1) this._obstacles.splice(i, 1);
   }

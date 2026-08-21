@@ -103,31 +103,52 @@ function logEvent(msg) {
 // ---------------------------------------------------------------------------
 
 async function boot() {
-  // Load Day 1 data
-  const { shipDef, levelCfg } = await LevelConfig.load(1);
+  try {
+    // Load Day 1 data
+    const { shipDef, levelCfg, rockModels, fishModel } = await LevelConfig.load(1);
+    
+    // Expose to window for debugging if needed
+    window.__DEBUG_ROCK_MODELS = rockModels;
 
-  // Wire buttons
-  document.getElementById('btn-shipyard').onclick = () => {
-    logEvent('Transitioning to Shipyard...');
-    gameState.transition(GamePhase.SHIPYARD, { shipDef, levelCfg });
-  };
-  document.getElementById('btn-obstacle').onclick = () => {
-    logEvent('Transitioning to Sailing...');
-    gameState.transition(GamePhase.OBSTACLE, { shipDef, levelCfg, shipStats: { hullHP: 100 } });
-  };
+    // Log the rock models status
+    const logDiv = document.querySelector('#demo-log');
+    if (logDiv) {
+      logDiv.innerHTML += `> Loaded ${rockModels ? rockModels.length : 0} rock models.<br>`;
+      if (fishModel) {
+        logDiv.innerHTML += `> Loaded fish model.<br>`;
+      }
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
 
-  // Listen for UI events
-  on('phaseChanged',       d => logEvent(`[Phase] ${d.phase}`));
-  on('docketItemCompleted', d => logEvent(`[Docket] ✓ ${d.label}`));
-  on('allRepairsDone',      () => logEvent('[Docket] ALL DONE — ready to sail'));
-  on('obstacleHit',        d => logEvent(`[Obstacle] hit by ${d.type} -${d.damage} HP`));
-  on('playerDamaged',      d => logEvent(`[Collision] Hull breached!`));
-  on('playerSunk',         () => logEvent('[SUNK] Game Over'));
+    // Wire buttons
+    document.getElementById('btn-shipyard').onclick = () => {
+      logEvent('Transitioning to Shipyard...');
+      gameState.transition(GamePhase.SHIPYARD, { shipDef, levelCfg, fishModel });
+    };
+    document.getElementById('btn-obstacle').onclick = () => {
+      logEvent('Transitioning to Sailing...');
+      gameState.transition(GamePhase.OBSTACLE, { shipDef, levelCfg, shipStats: { hullHP: 100 }, rockModels, fishModel });
+    };
 
-  // Start at Shipyard for Day 1
-  await gameState.transition(GamePhase.SHIPYARD, { shipDef, levelCfg });
+    // Listen for UI events
+    on('phaseChanged',       d => logEvent(`[Phase] ${d.phase}`));
+    on('docketItemCompleted', d => logEvent(`[Docket] ✓ ${d.label}`));
+    on('allRepairsDone',      () => logEvent('[Docket] ALL DONE — ready to sail'));
+    on('obstacleHit',        d => logEvent(`[Obstacle] hit by ${d.type} -${d.damage} HP`));
+    on('playerDamaged',      d => logEvent(`[Collision] Hull breached!`));
+    on('playerSunk',         () => logEvent('[SUNK] Game Over'));
 
-  tick();
+    // Start at Shipyard for Day 1
+    await gameState.transition(GamePhase.SHIPYARD, { shipDef, levelCfg, fishModel });
+
+    tick();
+  } catch (err) {
+    console.error('Boot error:', err);
+    const logDiv = document.querySelector('#demo-log');
+    if (logDiv) {
+      logDiv.innerHTML += `> BOOT ERROR: ${err.message}<br>`;
+    }
+  }
 }
 
-boot().catch(err => console.error('Boot error:', err));
+boot();

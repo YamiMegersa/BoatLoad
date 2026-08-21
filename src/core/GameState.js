@@ -7,6 +7,9 @@ import { BuildSystem }    from '../shipyard/BuildSystem.js';
 import { DamageSystem }   from '../shipyard/DamageSystem.js';
 import { PlayerShip }     from '../obstacle/PlayerShip.js';
 import { ObstacleManager } from '../obstacle/ObstacleManager.js';
+import { EnvironmentManager } from '../environment/EnvironmentManager.js';
+import { SharkSkinRepair }    from '../environment/SharkSkinRepair.js';
+import { FishAnimator }       from '../environment/FishAnimator.js';
 import { QTESystem }      from '../obstacle/QTESystem.js';
 import { emit, on, off, clear } from './EventBus.js';
 
@@ -60,8 +63,14 @@ export class GameState {
     this._orbitControls = null;
     this._mouseNDC      = new THREE.Vector2();
 
+    // Debug prototyping
+    this._debugShark      = null;
+    this._debugSharkAnim  = null;
+    this._debugSharkBaseY = 0;
+
     this._playerShip      = null;
     this._obstacleManager = null;
+    this._environmentManager = null;
     this._qteSystem       = null;
 
     // Input tracking
@@ -186,7 +195,7 @@ export class GameState {
   // SHIPYARD
   // =========================================================================
 
-  async _enterShipyard({ shipDef, levelCfg }) {
+  async _enterShipyard({ shipDef, levelCfg, fishModel }) {
     this._levelCfg = levelCfg;
 
     // Build the voxel data
@@ -217,6 +226,30 @@ export class GameState {
     this._orbitControls.target.set(cx, cy, cz);
     this._orbitControls.update();
 
+    // PROTOTYPE DEBUG: Render the shark directly next to the boat
+    if (fishModel) {
+      this._debugShark = fishModel.scene;
+      const normScale = fishModel.normSharkScale ?? 1;
+      this._debugShark.scale.setScalar(normScale);
+      this._debugShark.position.set(cx + 8, cy, cz);
+      this._scene.add(this._debugShark);
+      
+      // Repair the missing skin so the Tail bone can deform the mesh
+      const repair = SharkSkinRepair.repair(this._debugShark);
+      
+      // Turn off frustum culling so the shark stays visible while animated
+      this._debugShark.traverse(c => {
+        if (c.isMesh || c.isSkinnedMesh) c.frustumCulled = false;
+      });
+
+      this._debugSharkBaseY = cy;
+      this._debugSharkAnim  = new FishAnimator(
+        this._debugShark,
+        repair?.tailBone ?? null,
+        1.0
+      );
+    }
+
     // Pointer event for clicking cells
     this._renderer.domElement.addEventListener('pointerdown', this._boundPointerDown);
     this._renderer.domElement.addEventListener('pointermove', this._boundPointerMove);
@@ -239,6 +272,11 @@ export class GameState {
   }
 
   _updateShipyard(delta) {
+    if (this._debugSharkAnim) {
+      this._debugSharkAnim.update(delta);
+      this._debugShark.position.y = this._debugSharkBaseY + this._debugSharkAnim.bobOffset;
+    }
+
     if (this._orbitControls) {
       // WASD panning
       const speed = 20 * delta;
@@ -282,6 +320,12 @@ export class GameState {
     this._raycaster?.dispose(this._scene);
     this._buildSystem?.reset();
     this._orbitControls?.dispose();
+    
+    if (this._debugShark) {
+      this._scene.remove(this._debugShark);
+      this._debugShark     = null;
+      this._debugSharkAnim = null;
+    }
 
     this._zones         = null;
     this._raycaster     = null;
@@ -328,14 +372,18 @@ export class GameState {
   // OBSTACLE
   // =========================================================================
 
-  _enterObstacle({ levelCfg, shipStats }) {
+  _enterObstacle({ levelCfg, shipStats, rockModels, fishModel }) {
     // Semi top-down camera
     this._camera.position.set(0, 14, 10);
     this._camera.lookAt(0, 0, -5);
 
     this._playerShip = new PlayerShip(shipStats ?? {}, this._scene, this._chunkRenderer, this._grid);
     this._obstacleManager = new ObstacleManager();
-    this._obstacleManager.init(levelCfg.obstacles, this._scene);
+    this._obstacleManager.init(levelCfg.obstacles, this._scene, rockModels);
+    
+    this._environmentManager = new EnvironmentManager();
+    this._environmentManager.init(this._scene, fishModel);
+    
     this._qteSystem = new QTESystem();
 
     // Keyboard steering
@@ -362,6 +410,7 @@ export class GameState {
   _updateObstacle(delta) {
     this._playerShip?.update(delta);
     this._obstacleManager?.update(delta, this._playerShip);
+    this._environmentManager?.update(delta);
   }
 
   _exitObstacle() {
@@ -371,11 +420,13 @@ export class GameState {
 
     this._playerShip?.dispose(this._scene);
     this._obstacleManager?.dispose();
+    this._environmentManager?.dispose();
     this._qteSystem?.dispose();
     this._chunkRenderer?.dispose(this._scene);
 
     this._playerShip      = null;
     this._obstacleManager = null;
+    this._environmentManager = null;
     this._qteSystem       = null;
     this._chunkRenderer   = null;
     this._grid            = null;
