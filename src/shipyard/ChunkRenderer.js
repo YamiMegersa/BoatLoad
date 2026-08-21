@@ -9,6 +9,11 @@ import { CellState, CELL_SIZE } from './VoxelGrid.js';
 const intactMaterial = new THREE.MeshLambertMaterial({ color: 0xffffff });
 const damagedMaterial = new THREE.MeshLambertMaterial({ color: 0x5c3317 });
 
+/** Missing/Broken cell — red outline */
+const missingMaterial = new THREE.LineBasicMaterial({
+  color: 0xff0000,
+});
+
 /** Flooded bilge — translucent ocean blue */
 const floodedMaterial = new THREE.MeshPhongMaterial({
   color: 0x474b6b,
@@ -22,6 +27,7 @@ const floodedMaterial = new THREE.MeshPhongMaterial({
  */
 const MAX_INDIVIDUAL_MESHES = 256;
 const BOX_GEO = new THREE.BoxGeometry(CELL_SIZE, CELL_SIZE, CELL_SIZE);
+const EDGES_GEO = new THREE.EdgesGeometry(BOX_GEO);
 
 // ---------------------------------------------------------------------------
 // ChunkRenderer
@@ -209,9 +215,12 @@ export class ChunkRenderer {
     switch (state) {
       case CellState.INTACT:
       case CellState.REPAIRED:
-      case CellState.MISSING:
       case CellState.EMPTY:
         this._removeIndividual(flatIdx);
+        break;
+
+      case CellState.MISSING:
+        this._spawnIndividual(grid, x, y, z, flatIdx, missingMaterial, true);
         break;
 
       case CellState.DAMAGED:
@@ -226,10 +235,16 @@ export class ChunkRenderer {
     return instanceDirty;
   }
 
-  _spawnIndividual(grid, x, y, z, flatIdx, material) {
+  _spawnIndividual(grid, x, y, z, flatIdx, material, isOutline = false) {
     if (this._individualMeshes.has(flatIdx)) {
-      this._individualMeshes.get(flatIdx).material = material;
-      return;
+      const existing = this._individualMeshes.get(flatIdx);
+      if ((existing.type === 'LineSegments') !== isOutline) {
+        // Different object type; recreate it
+        this._removeIndividual(flatIdx);
+      } else {
+        existing.material = material;
+        return;
+      }
     }
 
     if (this._individualMeshes.size >= MAX_INDIVIDUAL_MESHES) {
@@ -237,11 +252,11 @@ export class ChunkRenderer {
       if (evictIdx !== undefined) this._removeIndividual(evictIdx);
     }
 
-    const mesh = new THREE.Mesh(BOX_GEO, material);
-    mesh.position.copy(grid.toWorldPos(x, y, z));
-    this.container.add(mesh);
+    const obj = isOutline ? new THREE.LineSegments(EDGES_GEO, material) : new THREE.Mesh(BOX_GEO, material);
+    obj.position.copy(grid.toWorldPos(x, y, z));
+    this.container.add(obj);
 
-    this._individualMeshes.set(flatIdx, mesh);
+    this._individualMeshes.set(flatIdx, obj);
     this._individualQueue.push(flatIdx);
   }
 

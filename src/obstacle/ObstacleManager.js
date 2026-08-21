@@ -45,9 +45,12 @@ const _mat = {
  * @param {string} type
  * @param {{ x:number, z:number }} pos
  * @param {object[]} [rockModels]
+ * @param {object[]} [pickupModels]
+ * @param {object[]} [seaweedModels]
+ * @param {object[]} [waveModels]
  * @returns {ObstacleDesc}
  */
-function buildObstacle(type, pos, rockModels) {
+function buildObstacle(type, pos, rockModels, pickupModels, seaweedModels, waveModels) {
   let mesh;
   if (type === 'rock' && rockModels && rockModels.length > 0) {
     const randomGltf = rockModels[Math.floor(Math.random() * rockModels.length)];
@@ -72,6 +75,70 @@ function buildObstacle(type, pos, rockModels) {
     cloned.scale.setScalar(scale);
     
     // Center it locally
+    cloned.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
+    
+    mesh = new THREE.Group();
+    mesh.add(cloned);
+  } else if (type === 'pickup' && pickupModels && pickupModels.length > 0) {
+    const randomGltf = pickupModels[Math.floor(Math.random() * pickupModels.length)];
+    const cloned = randomGltf.scene.clone(true);
+    
+    // Pickups bob/spin, but we just set base rotation
+    cloned.rotation.y = Math.random() * Math.PI * 2;
+    cloned.updateMatrixWorld(true);
+
+    const tempBox = new THREE.Box3().setFromObject(cloned);
+    const size = new THREE.Vector3();
+    tempBox.getSize(size);
+    const center = new THREE.Vector3();
+    tempBox.getCenter(center);
+
+    // Scale to fit ~1.2 max dimension
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const scale = (maxDim > 0) ? (1.2 / maxDim) : 1;
+    cloned.scale.setScalar(scale);
+    
+    cloned.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
+    
+    mesh = new THREE.Group();
+    mesh.add(cloned);
+  } else if (type === 'seaweed' && seaweedModels && seaweedModels.length > 0) {
+    const randomGltf = seaweedModels[Math.floor(Math.random() * seaweedModels.length)];
+    const cloned = randomGltf.scene.clone(true);
+    
+    cloned.rotation.y = Math.random() * Math.PI * 2;
+    cloned.updateMatrixWorld(true);
+
+    const tempBox = new THREE.Box3().setFromObject(cloned);
+    const size = new THREE.Vector3();
+    tempBox.getSize(size);
+    const center = new THREE.Vector3();
+    tempBox.getCenter(center);
+
+    const maxDim = Math.max(size.x, size.z); // Seaweed spreads mostly horizontally
+    const scale = (maxDim > 0) ? (3.0 / maxDim) : 1;
+    cloned.scale.setScalar(scale);
+    cloned.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
+    
+    mesh = new THREE.Group();
+    mesh.add(cloned);
+  } else if (type === 'wave_small' && waveModels && waveModels.length > 0) {
+    const randomGltf = waveModels[Math.floor(Math.random() * waveModels.length)];
+    const cloned = randomGltf.scene.clone(true);
+    
+    // Make wave face the ship (rotated 90 degrees)
+    cloned.rotation.y = Math.PI / 2; 
+    cloned.updateMatrixWorld(true);
+
+    const tempBox = new THREE.Box3().setFromObject(cloned);
+    const size = new THREE.Vector3();
+    tempBox.getSize(size);
+    const center = new THREE.Vector3();
+    tempBox.getCenter(center);
+
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const scale = (maxDim > 0) ? (2.5 / maxDim) : 1;
+    cloned.scale.setScalar(scale);
     cloned.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
     
     mesh = new THREE.Group();
@@ -115,12 +182,12 @@ function buildObstacle(type, pos, rockModels) {
 }
 
 function getScrollSpeed(type) {
-  const map = { rock: 8, barrel: 10, wave_small: 12, seaweed: 7, whirlpool: 6 };
+  const map = { rock: 8, barrel: 10, wave_small: 12, seaweed: 7, whirlpool: 6, pickup: 10 };
   return map[type] ?? 8;
 }
 
 function getDamage(type) {
-  const map = { rock: 20, barrel: 30, wave_small: 5, seaweed: 0, whirlpool: 10 };
+  const map = { rock: 20, barrel: 30, wave_small: 5, seaweed: 0, whirlpool: 10, pickup: 0 };
   return map[type] ?? 10;
 }
 
@@ -162,12 +229,19 @@ export class ObstacleManager {
    * @param {object[]} obstacleConfigs  From levelConfig.obstacles
    * @param {THREE.Scene} scene
    * @param {object[]} rockModels
+   * @param {object[]} pickupModels
+   * @param {object[]} seaweedModels
+   * @param {object[]} waveModels
    */
-  init(obstacleConfigs, scene, rockModels) {
+  init(obstacleConfigs, scene, rockModels, pickupModels, seaweedModels, waveModels) {
     this._scene = scene;
     this._rockModels = rockModels;
+    this._pickupModels = pickupModels;
+    this._seaweedModels = seaweedModels;
+    this._waveModels = waveModels;
     this._obstacles = [];
     this._spawnTimer = 0;
+    this._obstaclesSinceLastPickup = 0;
 
     // Build a flat queue of { type, laneX } entries from the config
     this._spawnQueue = this._buildSpawnQueue(obstacleConfigs);
@@ -183,7 +257,7 @@ export class ObstacleManager {
     this._spawnTimer += delta;
     if (this._spawnTimer >= this._spawnInterval && this._spawnQueue.length > 0) {
       this._spawnTimer = 0;
-      this._spawnNext();
+      this._spawnNext(playerShip);
     }
 
     // Update existing obstacles
@@ -259,6 +333,19 @@ export class ObstacleManager {
       return;
     }
 
+    // Pickup — heals the ship
+    if (obs.type === 'pickup') {
+      if (ship.obb.intersectsOBB(obs.obb)) {
+        obs.active = false;
+        if (typeof ship.healDamage === 'function') {
+          ship.healDamage(1);
+        }
+        emit('playSound', { sound: 'success' }); // positive feedback
+        obs.mesh.position.z = this._despawnZ + 1; // remove next frame
+      }
+      return;
+    }
+
     // Barrel — sphere collision; skip if QTE resolved
     if (obs.type === 'barrel') {
       if (obs.qteResolved) { obs.active = false; return; }
@@ -299,12 +386,29 @@ export class ObstacleManager {
   // Spawning
   // -------------------------------------------------------------------------
 
-  _spawnNext() {
+  _spawnNext(playerShip) {
     if (this._obstacles.length >= 30) return; // performance cap
+
+    // Check if we should inject a pickup spawn
+    if (playerShip && playerShip.numLeaks > 0) {
+      this._obstaclesSinceLastPickup++;
+      if (this._obstaclesSinceLastPickup >= 4) {
+        this._obstaclesSinceLastPickup = 0;
+        const lanes = [-4, -2, 0, 2, 4];
+        const laneX = lanes[Math.floor(Math.random() * lanes.length)];
+        const obs = buildObstacle('pickup', { x: laneX, z: this._spawnZ }, null, this._pickupModels, null, null);
+        this._scene.add(obs.mesh);
+        this._obstacles.push(obs);
+        return; // We used this interval to spawn a pickup instead
+      }
+    } else {
+      this._obstaclesSinceLastPickup = 0;
+    }
+
     const def = this._spawnQueue.shift();
     if (!def) return;
 
-    const obs = buildObstacle(def.type, { x: def.laneX, z: this._spawnZ }, this._rockModels);
+    const obs = buildObstacle(def.type, { x: def.laneX, z: this._spawnZ }, this._rockModels, this._pickupModels, this._seaweedModels, this._waveModels);
     this._scene.add(obs.mesh);
     this._obstacles.push(obs);
   }

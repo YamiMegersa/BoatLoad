@@ -285,6 +285,47 @@ export class PlayerShip {
   }
 
   /**
+   * Heal the hull by patching missing holes.
+   * @param {number} amount
+   */
+  healDamage(amount) {
+    if (this.sunk || !this.grid || !this.chunkRenderer) return;
+    
+    let holesPatched = 0;
+    
+    // Find MISSING cells (state === 3). Prioritize those below the waterline first.
+    const missingCells = [];
+    this.grid.forEach((x, y, z, state) => {
+      if (state === 3) {
+        missingCells.push({ x, y, z, isLeak: y <= this.waterlineY });
+      }
+    });
+    
+    // Sort so leaks are repaired first
+    missingCells.sort((a, b) => {
+      if (a.isLeak && !b.isLeak) return -1;
+      if (!a.isLeak && b.isLeak) return 1;
+      return 0;
+    });
+    
+    for (const cell of missingCells) {
+      if (holesPatched >= amount) break;
+      
+      // 1 = CellState.INTACT
+      this.grid.setState(cell.x, cell.y, cell.z, 1);
+      holesPatched++;
+    }
+    
+    if (holesPatched > 0) {
+      this._countLeaks();
+      this.chunkRenderer.sync(this.grid);
+      
+      // Optionally lower the water level slightly as a reward?
+      // this.waterLevel = Math.max(0, this.waterLevel - holesPatched * 5.0);
+    }
+  }
+
+  /**
    * Apply a massive rotational impulse for visual impact feedback.
    * @param {number} direction  +1 or -1
    */

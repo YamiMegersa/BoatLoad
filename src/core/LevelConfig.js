@@ -12,25 +12,25 @@ export class LevelConfig {
   static _cache = new Map();
 
   static _rockUrls = [
-    '/src/assets/rocks/voxel_basic stone 3.glb',
-    '/src/assets/rocks/voxel_Cliff.glb',
-    '/src/assets/rocks/voxel_Desert Pillar.glb',
-    '/src/assets/rocks/voxel_Little Desert Town.glb',
-    '/src/assets/rocks/voxel_Rock by Danni Bittman - 4TpBWdzKDf2.glb',
-    '/src/assets/rocks/voxel_Rock by Quaternius - RtLRqYjfMs.glb',
-    '/src/assets/rocks/voxel_Rock Large by Quaternius - d2VWOdthtR.glb',
-    '/src/assets/rocks/voxel_Rock Large-d2VWOdthtR.glb',
-    '/src/assets/rocks/voxel_Rock Large.glb',
-    '/src/assets/rocks/voxel_Rock-34W5ymEePk.glb',
-    '/src/assets/rocks/voxel_Rock-4MUaQTcDdc.glb',
-    '/src/assets/rocks/voxel_Rock-4TpBWdzKDf2.glb',
-    '/src/assets/rocks/voxel_Rock-b7gRkv0cEa.glb',
-    '/src/assets/rocks/voxel_Rock-JmFMh7ztL9.glb',
-    '/src/assets/rocks/voxel_Rock-R2UjZAX3By.glb',
-    '/src/assets/rocks/voxel_Rock-RtLRqYjfMs.glb',
-    '/src/assets/rocks/voxel_Rock.glb',
-    '/src/assets/rocks/voxel_Rocks by Quaternius - OQvi8PIZ40.glb',
-    '/src/assets/rocks/voxel_Rocks.glb'
+    '/src/assets/obstacles/rocks/voxel_basic stone 3.glb',
+    '/src/assets/obstacles/rocks/voxel_Cliff.glb',
+    '/src/assets/obstacles/rocks/voxel_Desert Pillar.glb',
+    '/src/assets/obstacles/rocks/voxel_Little Desert Town.glb',
+    '/src/assets/obstacles/rocks/voxel_Rock by Danni Bittman - 4TpBWdzKDf2.glb',
+    '/src/assets/obstacles/rocks/voxel_Rock by Quaternius - RtLRqYjfMs.glb',
+    '/src/assets/obstacles/rocks/voxel_Rock Large by Quaternius - d2VWOdthtR.glb',
+    '/src/assets/obstacles/rocks/voxel_Rock Large-d2VWOdthtR.glb',
+    '/src/assets/obstacles/rocks/voxel_Rock Large.glb',
+    '/src/assets/obstacles/rocks/voxel_Rock-34W5ymEePk.glb',
+    '/src/assets/obstacles/rocks/voxel_Rock-4MUaQTcDdc.glb',
+    '/src/assets/obstacles/rocks/voxel_Rock-4TpBWdzKDf2.glb',
+    '/src/assets/obstacles/rocks/voxel_Rock-b7gRkv0cEa.glb',
+    '/src/assets/obstacles/rocks/voxel_Rock-JmFMh7ztL9.glb',
+    '/src/assets/obstacles/rocks/voxel_Rock-R2UjZAX3By.glb',
+    '/src/assets/obstacles/rocks/voxel_Rock-RtLRqYjfMs.glb',
+    '/src/assets/obstacles/rocks/voxel_Rock.glb',
+    '/src/assets/obstacles/rocks/voxel_Rocks by Quaternius - OQvi8PIZ40.glb',
+    '/src/assets/obstacles/rocks/voxel_Rocks.glb'
   ];
 
   static _fishUrls = [
@@ -41,6 +41,18 @@ export class LevelConfig {
     '/src/assets/fish/Manta ray.glb',
     '/src/assets/fish/Shark.glb',
     '/src/assets/fish/Whale.glb'
+  ];
+
+  static _pickupUrls = [
+    '/src/assets/pickups/Wood Planks by Quaternius - hwQ1Fx5P8U.glb'
+  ];
+
+  static _seaweedUrls = [
+    '/src/assets/obstacles/seaweed/Kelp by Christopher F - 3VhttTFyADO.glb'
+  ];
+
+  static _waveUrls = [
+    '/src/assets/obstacles/wave/Wave by Poly by Google - 6mpwUZqCgzy.glb'
   ];
 
   /**
@@ -99,7 +111,43 @@ export class LevelConfig {
     }
     const fishModels = LevelConfig._cache.get('fishModels');
 
-    return { shipDef, levelCfg, rockModels, fishModels };
+    // Preload pickups if not cached
+    if (!LevelConfig._cache.has('pickupModels')) {
+      const loader = new GLTFLoader();
+      const pickupModels = await Promise.all(
+        LevelConfig._pickupUrls.map(url => new Promise((resolve, reject) => {
+          loader.load(url, resolve, undefined, reject);
+        }))
+      );
+      LevelConfig._cache.set('pickupModels', pickupModels);
+    }
+    const pickupModels = LevelConfig._cache.get('pickupModels');
+
+    // Preload seaweed if not cached
+    if (!LevelConfig._cache.has('seaweedModels')) {
+      const loader = new GLTFLoader();
+      const seaweedModels = await Promise.all(
+        LevelConfig._seaweedUrls.map(url => new Promise((resolve, reject) => {
+          loader.load(url, resolve, undefined, reject);
+        }))
+      );
+      LevelConfig._cache.set('seaweedModels', seaweedModels);
+    }
+    const seaweedModels = LevelConfig._cache.get('seaweedModels');
+
+    // Preload waves if not cached
+    if (!LevelConfig._cache.has('waveModels')) {
+      const loader = new GLTFLoader();
+      const waveModels = await Promise.all(
+        LevelConfig._waveUrls.map(url => new Promise((resolve, reject) => {
+          loader.load(url, resolve, undefined, reject);
+        }))
+      );
+      LevelConfig._cache.set('waveModels', waveModels);
+    }
+    const waveModels = LevelConfig._cache.get('waveModels');
+
+    return { shipDef, levelCfg, rockModels, fishModels, pickupModels, seaweedModels, waveModels };
   }
 
   static async _loadRockModels() {

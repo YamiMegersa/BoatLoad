@@ -99,7 +99,7 @@ function logEvent(msg) {
 async function boot() {
   try {
     // Load Day 1 data
-    const { shipDef, levelCfg, rockModels, fishModels } = await LevelConfig.load(1);
+    const { shipDef, levelCfg, rockModels, fishModels, pickupModels, seaweedModels, waveModels } = await LevelConfig.load(1);
     
     // Expose to window for debugging if needed
     window.__DEBUG_ROCK_MODELS = rockModels;
@@ -121,7 +121,7 @@ async function boot() {
     };
     document.getElementById('btn-obstacle').onclick = () => {
       logEvent('Transitioning to Sailing...');
-      gameState.transition(GamePhase.OBSTACLE, { shipDef, levelCfg, shipStats: { hullHP: 100 }, rockModels, fishModels });
+      gameState.transition(GamePhase.OBSTACLE, { shipDef, levelCfg, shipStats: { hullHP: 100 }, rockModels, fishModels, pickupModels, seaweedModels, waveModels });
     };
 
     // Listen for UI events

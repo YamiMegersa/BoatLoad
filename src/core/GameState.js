@@ -276,7 +276,7 @@ export class GameState {
       }
     });
 
-    emit('uiMount', { screen: 'shipyard', docket: levelCfg.docket });
+    emit('uiMount', { screen: 'shipyard' });
   }
 
   _updateShipyard(delta) {
@@ -380,14 +380,14 @@ export class GameState {
   // OBSTACLE
   // =========================================================================
 
-  _enterObstacle({ levelCfg, shipStats, rockModels, fishModels }) {
+  _enterObstacle({ levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels }) {
     // Semi top-down camera
     this._camera.position.set(0, 14, 10);
     this._camera.lookAt(0, 0, -5);
 
     this._playerShip = new PlayerShip(shipStats ?? {}, this._scene, this._chunkRenderer, this._grid);
     this._obstacleManager = new ObstacleManager();
-    this._obstacleManager.init(levelCfg.obstacles, this._scene, rockModels);
+    this._obstacleManager.init(levelCfg.obstacles, this._scene, rockModels, pickupModels, seaweedModels, waveModels);
     
     this._environmentManager = new EnvironmentManager();
     this._environmentManager.init(this._scene, fishModels);

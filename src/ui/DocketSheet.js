@@ -13,7 +13,7 @@ export class DocketSheet {
     this._items      = [];
     this._onAllDone  = null;
 
-    on('uiMount',            d => { if (d.screen === 'shipyard') this.mount(d.docket); });
+    on('uiMount',            d => { if (d.screen === 'shipyard' && d.docket) this.mount(d.docket); });
     on('uiUnmount',          d => { if (d.screen === 'shipyard') this.unmount(); });
     on('docketItemCompleted', d => this._checkOff(d.itemId));
     on('allRepairsDone',      () => this._enableSailButton());
