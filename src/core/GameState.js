@@ -11,6 +11,9 @@ import { EnvironmentManager } from '../environment/EnvironmentManager.js';
 import { SharkSkinRepair }    from '../environment/SharkSkinRepair.js';
 import { FishAnimator }       from '../environment/FishAnimator.js';
 import { Ocean }              from '../environment/Ocean.js';
+import { Sky }                from '../environment/Sky.js';
+import { DockStall }          from '../environment/DockStall.js';
+import { WeatherSystem }      from '../environment/WeatherSystem.js';
 import { QTESystem }      from '../obstacle/QTESystem.js';
 import { emit, on, off, clear } from './EventBus.js';
 
@@ -46,9 +49,23 @@ export class GameState {
     this._camera   = camera;
     this._renderer = renderer;
 
-    // Global ocean instance (persists across phases)
+    this._time = 0;
+
+    // Global lighting
+    this._ambient = new THREE.AmbientLight(0xffffff, 1.0);
+    this._sun = new THREE.DirectionalLight(0xffffff, 1.0);
+    this._sun.castShadow = true;
+    this._scene.add(this._ambient, this._sun);
+
+    // Global environment instances (persists across phases)
     this._ocean = new Ocean();
     this._ocean.init(this._scene);
+    
+    this._sky = new Sky();
+    this._sky.init(this._scene);
+
+    this._weather = new WeatherSystem();
+    this._dockStall = new DockStall();
 
     this.currentPhase = null;
 
@@ -125,9 +142,14 @@ export class GameState {
    * @param {number} delta  Seconds since last frame
    */
   update(delta) {
+    this._time += delta;
     this._ocean.update(delta);
 
     switch (this.currentPhase) {
+      case GamePhase.DOCK:
+        this._dockStall.update(delta, this._time);
+        break;
+
       case GamePhase.SHIPYARD:
         this._updateShipyard(delta);
         break;
@@ -148,7 +170,7 @@ export class GameState {
   async _onEnter(phase, opts) {
     switch (phase) {
       case GamePhase.DOCK:
-        this._enterDock(opts);
+        await this._enterDock(opts);
         break;
 
       case GamePhase.SHIPYARD:
@@ -174,6 +196,10 @@ export class GameState {
 
   async _onExit(phase) {
     switch (phase) {
+      case GamePhase.DOCK:
+        this._exitDock();
+        break;
+
       case GamePhase.SHIPYARD:
         this._exitShipyard();
         break;
@@ -191,11 +217,32 @@ export class GameState {
   // DOCK
   // =========================================================================
 
-  _enterDock(opts) {
-    // Set up fixed cinematic camera
-    this._camera.position.set(0, 5, 20);
-    this._camera.lookAt(0, 0, 0);
+  async _enterDock(opts) {
+    // Set up cinematic camera
+    this._camera.position.set(2, 4, 15);
+    this._camera.lookAt(0, 2, 4);
+    
+    // Setup environment
+    const stallGroup = this._dockStall.build();
+    this._scene.add(stallGroup);
+    this._ocean.breakwaterEnabled = true;
+
+    // Load and apply weather
+    await this._weather.loadLevel(this.day, {
+      ambient: this._ambient,
+      sun: this._sun,
+      ocean: this._ocean,
+      sky: this._sky,
+      lanternLight: this._dockStall.lanternLight
+    });
+
     emit('uiMount', { screen: 'dock' });
+  }
+
+  _exitDock() {
+    this._scene.remove(this._dockStall.group);
+    // Ocean breakwater is disabled by default for other phases unless explicitly enabled
+    this._ocean.breakwaterEnabled = false;
   }
 
   // =========================================================================

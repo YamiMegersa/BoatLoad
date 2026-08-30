@@ -23,18 +23,9 @@ const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerH
 camera.position.set(0, 10, 30);
 
 // ---------------------------------------------------------------------------
-// Lighting
+// Lighting is now managed by GameState via WeatherSystem
 // ---------------------------------------------------------------------------
 
-const ambient = new THREE.AmbientLight(0xf3e3b4, 0.6);
-scene.add(ambient);
-
-const sun = new THREE.DirectionalLight(0xfff5e0, 1.2);
-sun.position.set(10, 20, 10);
-sun.castShadow = true;
-scene.add(sun);
-
-// Helpers for debugging scale and orientation (Removed)
 
 // ---------------------------------------------------------------------------
 // Resize handler
@@ -63,7 +54,6 @@ function tick() {
 }
 
 // ---------------------------------------------------------------------------
-// ---------------------------------------------------------------------------
 // Demo UI Overlay
 // ---------------------------------------------------------------------------
 
@@ -77,6 +67,7 @@ demoUI.style.cssText = `
 demoUI.innerHTML = `
   <h3 style="margin-bottom: 10px; font-family: sans-serif;">BoatLoad Demo</h3>
   <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+    <button id="btn-dock" style="flex:1; padding: 8px; cursor: pointer;">Dock</button>
     <button id="btn-shipyard" style="flex:1; padding: 8px; cursor: pointer;">Shipyard</button>
     <button id="btn-obstacle" style="flex:1; padding: 8px; cursor: pointer;">Sailing</button>
   </div>
@@ -115,6 +106,10 @@ async function boot() {
     }
 
     // Wire buttons
+    document.getElementById('btn-dock').onclick = () => {
+      logEvent('Transitioning to Dock...');
+      gameState.transition(GamePhase.DOCK, { levelCfg });
+    };
     document.getElementById('btn-shipyard').onclick = () => {
       logEvent('Transitioning to Shipyard...');
       gameState.transition(GamePhase.SHIPYARD, { shipDef, levelCfg, fishModels });
@@ -132,8 +127,8 @@ async function boot() {
     on('playerDamaged',      d => logEvent(`[Collision] Hull breached!`));
     on('playerSunk',         () => logEvent('[SUNK] Game Over'));
 
-    // Start at Shipyard for Day 1
-    await gameState.transition(GamePhase.SHIPYARD, { shipDef, levelCfg, fishModels });
+    // Start at Dock for Day 1
+    await gameState.transition(GamePhase.DOCK, { levelCfg });
 
     tick();
   } catch (err) {
