@@ -1,0 +1,8 @@
+{
+  "id": "galleon",
+  "grid": { "x": 32, "y": 30, "z": 80 },
+  "zones": [
+    { "id": "hull", "xRange": [0, 31], "yRange": [0, 15], "zRange": [0, 79] },
+    { "id": "deck", "xRange": [0, 31], "yRange": [16, 17], "zRange": [0, 79] }
+  ]
+}

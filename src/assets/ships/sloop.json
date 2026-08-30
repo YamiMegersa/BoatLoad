@@ -1,0 +1,10 @@
+{
+  "id": "sloop",
+  "grid": { "x": 24, "y": 24, "z": 48 },
+  "zones": {
+    "hull": [{ "xRange": [0, 23], "yRange": [0, 11], "zRange": [0, 47] }],
+    "deck": [{ "xRange": [0, 23], "yRange": [12, 13], "zRange": [0, 47] }],
+    "mast": [{ "xRange": [10, 13], "yRange": [14, 23], "zRange": [20, 24] }],
+    "sail": [{ "xRange": [2, 21], "yRange": [16, 22], "zRange": [22, 24] }]
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "id": "brigantine",
+  "grid": { "x": 28, "y": 26, "z": 64 },
+  "zones": [
+    { "id": "hull", "xRange": [0, 27], "yRange": [0, 13], "zRange": [0, 63] },
+    { "id": "deck", "xRange": [0, 27], "yRange": [14, 15], "zRange": [0, 63] },
+    { "id": "mast1", "xRange": [12, 15], "yRange": [16, 25], "zRange": [16, 20] },
+    { "id": "mast2", "xRange": [12, 15], "yRange": [16, 25], "zRange": [44, 48] }
+  ]
+}
