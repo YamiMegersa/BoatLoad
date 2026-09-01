@@ -1,7 +1,7 @@
 {
   "day": 5,
   "ship": "sloop",
-  "weather": "night",
+  "weather": "stormy",
   "damage": [
     { "zone": "hull", "cells": [[2,0,2],[3,0,2],[2,1,2]], "state": "MISSING" },
     { "zone": "sail", "cells": [[9,6,2]],                  "state": "DAMAGED" },

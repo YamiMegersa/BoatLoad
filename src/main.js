@@ -4,6 +4,7 @@ import { LevelConfig }          from './core/LevelConfig.js';
 import { on }                   from './core/EventBus.js';
 import { BuildMenu }            from './ui/BuildMenu.js';
 import { DocketSheet }          from './ui/DocketSheet.js';
+import { DockUI }               from './ui/DockUI.js';
 import './ui/ui.css';
 
 // ---------------------------------------------------------------------------
@@ -34,6 +35,12 @@ camera.position.set(0, 10, 30);
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
+
+  if (gameState.activeCamera && gameState.activeCamera !== camera) {
+    gameState.activeCamera.aspect = window.innerWidth / window.innerHeight;
+    gameState.activeCamera.updateProjectionMatrix();
+  }
+
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
@@ -45,12 +52,13 @@ const clock      = new THREE.Clock();
 const gameState  = new GameState(scene, camera, renderer);
 const buildMenu  = new BuildMenu();
 const docket     = new DocketSheet();
+const dockUI     = new DockUI();
 
 function tick() {
   requestAnimationFrame(tick);
   const delta = Math.min(clock.getDelta(), 0.05); // cap at 50ms to avoid spiral of death
   gameState.update(delta);
-  renderer.render(scene, camera);
+  renderer.render(scene, gameState.activeCamera || camera);
 }
 
 // ---------------------------------------------------------------------------

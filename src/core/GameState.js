@@ -52,7 +52,7 @@ export class GameState {
     this._time = 0;
 
     // Global lighting
-    this._ambient = new THREE.AmbientLight(0xffffff, 1.0);
+    this._ambient = new THREE.HemisphereLight(0xffffff, 0xffffff, 1.0);
     this._sun = new THREE.DirectionalLight(0xffffff, 1.0);
     this._sun.castShadow = true;
     this._scene.add(this._ambient, this._sun);
@@ -68,6 +68,7 @@ export class GameState {
     this._dockStall = new DockStall();
 
     this.currentPhase = null;
+    this.activeCamera = null;
 
     // Day / session data
     this.day           = 1;
@@ -144,10 +145,12 @@ export class GameState {
   update(delta) {
     this._time += delta;
     this._ocean.update(delta);
+    if (this._weather) this._weather.update(delta);
 
     switch (this.currentPhase) {
       case GamePhase.DOCK:
         this._dockStall.update(delta, this._time);
+        if (this._dockOrbitControls) this._dockOrbitControls.update();
         break;
 
       case GamePhase.SHIPYARD:
@@ -218,9 +221,16 @@ export class GameState {
   // =========================================================================
 
   async _enterDock(opts) {
+    if (this._chunkRenderer && this._chunkRenderer.container) {
+      this._chunkRenderer.container.position.set(15, -0.5, 0);
+    }
     // Set up cinematic camera
-    this._camera.position.set(2, 4, 15);
-    this._camera.lookAt(0, 2, 4);
+    this._camera.position.set(0, 5, 20);
+    this._camera.lookAt(0, 2, 0);
+
+    this._dockOrbitControls = new OrbitControls(this._camera, this._renderer.domElement);
+    this._dockOrbitControls.enableDamping = true;
+    this._dockOrbitControls.target.set(0, 2, 0);
     
     // Setup environment
     const stallGroup = this._dockStall.build();
@@ -233,16 +243,25 @@ export class GameState {
       sun: this._sun,
       ocean: this._ocean,
       sky: this._sky,
-      lanternLight: this._dockStall.lanternLight
+      lanternLight: this._dockStall.lanternLight,
+      scene: this._scene
     });
 
-    emit('uiMount', { screen: 'dock' });
+    emit('uiMount', { screen: 'dock', dockStall: this._dockStall, gameState: this });
   }
 
   _exitDock() {
     this._scene.remove(this._dockStall.group);
     // Ocean breakwater is disabled by default for other phases unless explicitly enabled
     this._ocean.breakwaterEnabled = false;
+
+    if (this._dockOrbitControls) {
+      this._dockOrbitControls.dispose();
+      this._dockOrbitControls = null;
+    }
+    this.activeCamera = null;
+
+    emit('uiUnmount', { screen: 'dock' });
   }
 
   // =========================================================================
@@ -250,6 +269,9 @@ export class GameState {
   // =========================================================================
 
   async _enterShipyard({ shipDef, levelCfg, fishModels }) {
+    if (this._chunkRenderer) {
+      this._chunkRenderer.dispose(this._scene);
+    }
     this._levelCfg = levelCfg;
 
     // Build the voxel data

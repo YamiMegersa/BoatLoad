@@ -30,9 +30,12 @@ export class DockStall {
   }
 
   build() {
-            const dockGroup = new THREE.Group();
-            dockGroup.position.y = 1.5;
-            this.group.add(dockGroup);
+    if (this._isBuilt) return this.group;
+    this._isBuilt = true;
+
+    const dockGroup = new THREE.Group();
+    dockGroup.position.y = 1.5;
+    this.group.add(dockGroup);
             const plankMat = new THREE.MeshStandardMaterial({ color: Palette.dockPlank, roughness: 0.9 });
             const plankDarkMat = new THREE.MeshStandardMaterial({ color: Palette.dockDark, roughness: 0.9 });
             // Dock now runs left-to-right along X, with the shop positioned off to
@@ -550,6 +553,7 @@ export class DockStall {
             lanternLight.position.set(0, 0.3, 0);
             lanternLight.castShadow = true;
             lanternGroup.add(lanternLight);
+            this.lanternLight = lanternLight;
 
             // Right-front corner: rope coil
             const ropeCoil = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.06, 8, 16), ropeMat);
