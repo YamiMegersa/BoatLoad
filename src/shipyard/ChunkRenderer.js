@@ -21,6 +21,14 @@ const floodedMaterial = new THREE.MeshPhongMaterial({
   opacity: 0.62,
 });
 
+/** Missing/Broken cell — red highlight */
+const missingMaterial = new THREE.MeshPhongMaterial({
+  color: 0xff0000,
+  emissive: 0x660000,
+  transparent: true,
+  opacity: 0.5,
+});
+
 /**
  * Maximum number of simultaneously active individual (DAMAGED/FLOODED) meshes.
  * When the cap is reached, the oldest mesh is recycled.
