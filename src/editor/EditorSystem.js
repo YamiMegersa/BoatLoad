@@ -32,6 +32,9 @@ export class EditorSystem {
     this._plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     this._intersection = new THREE.Vector3();
 
+    // World Boundary Visualization
+    this._boundaryVisual = null;
+
     // Bindings
     this._boundPointerDown = this._onPointerDown.bind(this);
     this._boundPointerMove = this._onPointerMove.bind(this);
@@ -52,6 +55,13 @@ export class EditorSystem {
       this._activeUrl = null;
       this._activeTool = d.tool;
       this._updatePreview();
+    });
+    
+    on('editorSetWorldSize', d => {
+      if (this._levelCfg) {
+        this._levelCfg.worldSize = d.size;
+        this._updateBoundaryVisual();
+      }
     });
 
     on('editorExport', () => this.exportLevel());
@@ -82,6 +92,26 @@ export class EditorSystem {
         }
       }
     }
+    
+    this._updateBoundaryVisual();
+  }
+
+  _updateBoundaryVisual() {
+    if (this._boundaryVisual) {
+      this._scene.remove(this._boundaryVisual);
+      this._boundaryVisual.geometry.dispose();
+      this._boundaryVisual.material.dispose();
+      this._boundaryVisual = null;
+    }
+    
+    const radius = (this._levelCfg && this._levelCfg.worldSize) ? this._levelCfg.worldSize : 200;
+    
+    const geo = new THREE.RingGeometry(radius - 1, radius, 64);
+    const mat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.5, side: THREE.DoubleSide });
+    this._boundaryVisual = new THREE.Mesh(geo, mat);
+    this._boundaryVisual.rotation.x = -Math.PI / 2;
+    this._boundaryVisual.position.y = 0.1;
+    this._scene.add(this._boundaryVisual);
   }
 
   dispose() {
@@ -100,8 +130,16 @@ export class EditorSystem {
     }
     this._placedObstacles = [];
     
+    if (this._boundaryVisual) {
+      this._scene.remove(this._boundaryVisual);
+      this._boundaryVisual.geometry.dispose();
+      this._boundaryVisual.material.dispose();
+      this._boundaryVisual = null;
+    }
+    
     off('editorSelectType');
     off('editorSelectTool');
+    off('editorSetWorldSize');
     off('editorExport');
   }
 
@@ -183,24 +221,27 @@ export class EditorSystem {
     if (this._activeTool === 'place' && this._activeType) {
       this._spawnObstacle(this._activeType, this._activeUrl, this._intersection.x, this._currentY, this._intersection.z, this._currentScale);
     } else if (this._activeTool === 'delete') {
-      // Find closest obstacle to intersection
-      let closest = null;
-      let minDist = 3.0; // Click radius
-      let closestIdx = -1;
+      // Use raycasting to find the exactly clicked mesh
+      const meshes = this._placedObstacles.map(o => o.mesh);
+      const intersects = this._raycaster.intersectObjects(meshes, true);
       
-      for (let i = 0; i < this._placedObstacles.length; i++) {
-        const obs = this._placedObstacles[i];
-        const dist = Math.hypot(obs.mesh.position.x - this._intersection.x, obs.mesh.position.z - this._intersection.z);
-        if (dist < minDist) {
-          minDist = dist;
-          closest = obs;
-          closestIdx = i;
+      if (intersects.length > 0) {
+        const hitObject = intersects[0].object;
+        
+        // Find which obstacle this object belongs to
+        const closestIdx = this._placedObstacles.findIndex(o => {
+          let isMatch = false;
+          o.mesh.traverse(child => {
+            if (child === hitObject) isMatch = true;
+          });
+          return isMatch;
+        });
+
+        if (closestIdx !== -1) {
+          const closest = this._placedObstacles[closestIdx];
+          this._scene.remove(closest.mesh);
+          this._placedObstacles.splice(closestIdx, 1);
         }
-      }
-      
-      if (closest) {
-        this._scene.remove(closest.mesh);
-        this._placedObstacles.splice(closestIdx, 1);
       }
     }
   }
@@ -221,6 +262,7 @@ export class EditorSystem {
     // Only output explicitly placed obstacles per user request
     const exportData = {
       ...this._levelCfg,
+      worldSize: this._levelCfg.worldSize || 200,
       obstacles: this._placedObstacles.map(obs => ({
         type: obs.type,
         assetUrl: obs.assetUrl,

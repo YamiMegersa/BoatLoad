@@ -10,8 +10,11 @@ export class EditorUI {
     on('uiUnmount', d => { if (d.screen === 'editor') this.unmount(); });
   }
 
-  mount() {
+  mount(d) {
     if (this._el) this.unmount();
+    
+    const levelCfg = d?.levelCfg || {};
+    const worldSize = levelCfg.worldSize || 200;
 
     this._el = document.createElement('div');
     this._el.id = 'editor-ui';
@@ -69,6 +72,14 @@ export class EditorUI {
         <h4>Tools</h4>
         <button class="editor-btn tool-btn tool-active" data-tool="select">Cursor / Move</button>
         <button class="editor-btn tool-btn" data-tool="delete">🗑️ Delete (Click)</button>
+        
+        <h4>World Settings</h4>
+        <div style="margin-bottom: 10px; color: white; font-size: 14px;">
+          <label style="display:flex; justify-content:space-between;">
+            World Radius: <span id="world-size-val">${worldSize}</span>
+          </label>
+          <input type="range" id="world-size-slider" min="50" max="1000" step="10" value="${worldSize}" style="width:100%; margin-top: 5px;">
+        </div>
       </div>
 
       <div class="editor-footer">
@@ -103,6 +114,17 @@ export class EditorUI {
     this._el.querySelector('#btn-editor-export').onclick = () => {
       emit('editorExport');
     };
+
+    // Handle World Size
+    const sizeSlider = this._el.querySelector('#world-size-slider');
+    const sizeVal = this._el.querySelector('#world-size-val');
+    if (sizeSlider) {
+      sizeSlider.oninput = (e) => {
+        const val = parseInt(e.target.value, 10);
+        sizeVal.innerText = val;
+        emit('editorSetWorldSize', { size: val });
+      };
+    }
 
     document.getElementById('ui-root')?.appendChild(this._el);
   }

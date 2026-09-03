@@ -43,6 +43,11 @@ export class HUD {
         <span id="hud-water-val">0%</span>
       </div>
       <div id="hud-day">Day ${day ?? 1}</div>
+      <div id="hud-godmode" style="margin-top: 10px; pointer-events: auto;">
+        <label style="color: white; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 5px;">
+          <input type="checkbox" id="chk-godmode"> God Mode (No Damage)
+        </label>
+      </div>
       <div id="hud-qte" style="display:none">
         <div id="hud-qte-key"></div>
         <svg id="hud-qte-ring" viewBox="0 0 36 36">
@@ -56,6 +61,15 @@ export class HUD {
     this._hpBar = this._el.querySelector('#hud-hp-bar');
     this._waterBar = this._el.querySelector('#hud-water-bar');
     this._qteEl = this._el.querySelector('#hud-qte');
+
+    const godChk = this._el.querySelector('#chk-godmode');
+    if (godChk) {
+      godChk.checked = window.godModeEnabled || false;
+      godChk.onchange = (e) => {
+        window.godModeEnabled = e.target.checked;
+        emit('toggleGodMode', { enabled: e.target.checked });
+      };
+    }
 
     document.getElementById('ui-root')?.appendChild(this._el);
   }

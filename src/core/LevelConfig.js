@@ -1,5 +1,10 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
+
+THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
+THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
+THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 /**
  * LevelConfig — loads and caches ship definition and level config JSONs.
@@ -172,7 +177,14 @@ export class LevelConfig {
           loader.load(url, resolve, undefined, reject);
         }))
       );
-      islandModels.forEach((m, i) => m.url = LevelConfig._islandUrls[i]);
+      islandModels.forEach((m, i) => {
+        m.url = LevelConfig._islandUrls[i];
+        m.scene.traverse((child) => {
+          if (child.isMesh && child.geometry) {
+            child.geometry.computeBoundsTree();
+          }
+        });
+      });
       LevelConfig._cache.set('islandModels', islandModels);
     }
     const islandModels = LevelConfig._cache.get('islandModels');

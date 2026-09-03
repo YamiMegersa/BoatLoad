@@ -269,7 +269,7 @@ body {
 #hud {
   position: absolute;
   top: 20px;
-  left: 20px;
+  left: 360px;
   font-family: sans-serif;
   color: white;
   pointer-events: none;

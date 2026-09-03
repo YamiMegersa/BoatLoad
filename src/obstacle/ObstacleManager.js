@@ -203,6 +203,19 @@ export function buildObstacle(type, pos, url, scale, rockModels, pickupModels, s
   localBox.getCenter(baseOBB.center);
   localBox.getSize(baseOBB.halfSize).multiplyScalar(0.5);
 
+  // HITBOX VISUALIZATION
+  if (type === 'barrel') {
+    const sphereGeo = new THREE.WireframeGeometry(new THREE.SphereGeometry(0.5, 8, 8));
+    const sphereMesh = new THREE.LineSegments(sphereGeo, new THREE.LineBasicMaterial({ color: 0xff0000 }));
+    mesh.add(sphereMesh);
+  } else if (type !== 'island') { // Don't draw giant AABB for islands since they use BVH
+    const wireMat = new THREE.LineBasicMaterial({ color: 0xff0000 });
+    const wireGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(baseOBB.halfSize.x * 2, baseOBB.halfSize.y * 2, baseOBB.halfSize.z * 2));
+    const wireMesh = new THREE.LineSegments(wireGeo, wireMat);
+    wireMesh.position.copy(baseOBB.center);
+    mesh.add(wireMesh);
+  }
+
   // Now place it at actual position
   mesh.position.set(pos.x, pos.y !== undefined ? pos.y : 0.5, pos.z);
   mesh.updateMatrixWorld(true);
@@ -269,7 +282,7 @@ export class ObstacleManager {
   // -------------------------------------------------------------------------
 
   /**
-   * @param {object[]} obstacleConfigs  From levelConfig.obstacles
+   * @param {object} levelCfg
    * @param {THREE.Scene} scene
    * @param {object[]} rockModels
    * @param {object[]} pickupModels
@@ -277,7 +290,7 @@ export class ObstacleManager {
    * @param {object[]} waveModels
    * @param {object[]} islandModels
    */
-  init(obstacleConfigs, scene, rockModels, pickupModels, seaweedModels, waveModels, islandModels) {
+  init(levelCfg, scene, rockModels, pickupModels, seaweedModels, waveModels, islandModels) {
     this._scene = scene;
     this._rockModels = rockModels;
     this._pickupModels = pickupModels;
@@ -285,8 +298,9 @@ export class ObstacleManager {
     this._waveModels = waveModels;
     this._islandModels = islandModels;
     this._obstacles = [];
+    this.playRadius = levelCfg.worldSize || 200;
     
-    this._spawnAllRandomly(obstacleConfigs);
+    this._spawnAllRandomly(levelCfg.obstacles || []);
   }
 
   /**
@@ -395,7 +409,24 @@ export class ObstacleManager {
 
     // Default OBB collision (rock, wave_small)
     if (ship.obb.intersectsOBB(obs.obb)) {
-      this._resolveHit(obs, ship);
+      if (obs.type === 'island') {
+        // Narrowphase Mesh BVH
+        const shipBox = new THREE.Box3().setFromObject(ship.mesh);
+        let meshHit = false;
+        const invMat = new THREE.Matrix4();
+        obs.mesh.traverse(child => {
+          if (meshHit || !child.isMesh || !child.geometry.boundsTree) return;
+          invMat.copy(child.matrixWorld).invert();
+          if (child.geometry.boundsTree.intersectsBox(shipBox, invMat)) {
+            meshHit = true;
+          }
+        });
+        if (meshHit) {
+          this._resolveHit(obs, ship);
+        }
+      } else {
+        this._resolveHit(obs, ship);
+      }
     }
   }
 

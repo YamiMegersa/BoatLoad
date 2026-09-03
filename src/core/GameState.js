@@ -411,7 +411,7 @@ export class GameState {
 
     this._playerShip = new PlayerShip(shipStats ?? {}, this._scene, this._chunkRenderer, this._grid);
     this._obstacleManager = new ObstacleManager();
-    this._obstacleManager.init(levelCfg.obstacles, this._scene, rockModels, pickupModels, seaweedModels, waveModels, islandModels);
+    this._obstacleManager.init(levelCfg, this._scene, rockModels, pickupModels, seaweedModels, waveModels, islandModels);
     
     this._environmentManager = new EnvironmentManager();
     this._environmentManager.init(this._scene, fishModels);
@@ -517,7 +517,7 @@ export class GameState {
       levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels
     );
 
-    emit('uiMount', { screen: 'editor' });
+    emit('uiMount', { screen: 'editor', levelCfg });
   }
 
   _updateEditor(delta) {

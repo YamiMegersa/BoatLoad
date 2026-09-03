@@ -121,8 +121,28 @@ export class PlayerShip {
     localBox.getCenter(this.baseOBB.center);
     localBox.getSize(this.baseOBB.halfSize).multiplyScalar(0.5);
 
-    /** Active OBB updated every frame */
+    // HITBOX VISUALIZATION
+    const wireMat = new THREE.LineBasicMaterial({ color: 0x00ff00 });
+    const wireGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(this.baseOBB.halfSize.x * 2, this.baseOBB.halfSize.y * 2, this.baseOBB.halfSize.z * 2));
+    const wireMesh = new THREE.LineSegments(wireGeo, wireMat);
+    wireMesh.position.copy(this.baseOBB.center);
+    this.mesh.add(wireMesh);
+
     this.obb = new OBB();
+
+    this.godMode = window.godModeEnabled || false;
+    this._onGodMode = (d) => { 
+      this.godMode = d.enabled; 
+      if (this.godMode) {
+        this.sunk = false;
+        this.waterLevel = 0;
+        this.hullHP = this.maxHullHP;
+        emit('playerWaterLevel', { level: this.waterLevel, max: this.maxWaterLevel });
+        emit('playerHealth', { hp: this.hullHP, max: this.maxHullHP });
+        this.healDamage(9999); // patch all holes
+      }
+    };
+    on('toggleGodMode', this._onGodMode);
 
     // Initialise leaks from any unpatched holes left from the shipyard
     this._countLeaks();
@@ -166,12 +186,14 @@ export class PlayerShip {
     const distFromOrigin = Math.hypot(this.mesh.position.x, this.mesh.position.z);
     if (distFromOrigin > 220) {
       // Rapidly sink if out of bounds
-      this.waterLevel += 20 * delta;
-      emit('playerWaterLevel', { level: this.waterLevel, max: this.maxWaterLevel });
+      if (!this.godMode) {
+        this.waterLevel += 20 * delta;
+        emit('playerWaterLevel', { level: this.waterLevel, max: this.maxWaterLevel });
+      }
     }
 
     // --- LEAK SYSTEM ---
-    if (this.numLeaks > 0) {
+    if (this.numLeaks > 0 && !this.godMode) {
       // e.g. 1.5 water units per second per hole
       this.waterLevel += this.numLeaks * 1.5 * delta;
       // Tell UI the water level rose
@@ -291,6 +313,7 @@ export class PlayerShip {
    */
   takeDamage(amount, source = 'unknown') {
     if (this.sunk) return;
+    if (this.godMode) return;
 
     this.hullHP = Math.max(0, this.hullHP - amount);
     emit('playerHealth', { hp: this.hullHP, max: this.maxHullHP });
@@ -485,6 +508,7 @@ export class PlayerShip {
   // -------------------------------------------------------------------------
 
   dispose(scene) {
+    off('toggleGodMode', this._onGodMode);
     clearTimeout(this._speedTimer);
     scene.remove(this.mesh);
     // Note: chunkRenderer disposal is handled by GameState phase teardown later,
