@@ -50,9 +50,10 @@ const _mat = {
  * @param {object[]} [waveModels]
  * @returns {ObstacleDesc}
  */
-export function buildObstacle(type, pos, url, rockModels, pickupModels, seaweedModels, waveModels) {
+export function buildObstacle(type, pos, url, scale, rockModels, pickupModels, seaweedModels, waveModels, islandModels) {
   let mesh;
   let selectedModel = null;
+  const targetScale = scale || 1.0;
   if (type === 'rock' && rockModels && rockModels.length > 0) {
     if (url) {
       selectedModel = rockModels.find(m => m.url === url) || rockModels[Math.floor(Math.random() * rockModels.length)];
@@ -76,11 +77,12 @@ export function buildObstacle(type, pos, url, rockModels, pickupModels, seaweedM
     
     // Scale to fit ~1.8 max dimension
     const maxDim = Math.max(size.x, size.y, size.z);
-    const scale = (maxDim > 0) ? (1.8 / maxDim) : 1;
-    cloned.scale.setScalar(scale);
+    const normScale = (maxDim > 0) ? (1.8 / maxDim) : 1;
+    const finalScale = normScale * targetScale;
+    cloned.scale.setScalar(finalScale);
     
     // Center it locally
-    cloned.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
+    cloned.position.set(-center.x * finalScale, -center.y * finalScale, -center.z * finalScale);
     
     mesh = new THREE.Group();
     mesh.add(cloned);
@@ -104,10 +106,11 @@ export function buildObstacle(type, pos, url, rockModels, pickupModels, seaweedM
 
     // Scale to fit ~1.2 max dimension
     const maxDim = Math.max(size.x, size.y, size.z);
-    const scale = (maxDim > 0) ? (1.2 / maxDim) : 1;
-    cloned.scale.setScalar(scale);
+    const normScale = (maxDim > 0) ? (1.2 / maxDim) : 1;
+    const finalScale = normScale * targetScale;
+    cloned.scale.setScalar(finalScale);
     
-    cloned.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
+    cloned.position.set(-center.x * finalScale, -center.y * finalScale, -center.z * finalScale);
     
     mesh = new THREE.Group();
     mesh.add(cloned);
@@ -129,9 +132,10 @@ export function buildObstacle(type, pos, url, rockModels, pickupModels, seaweedM
     tempBox.getCenter(center);
 
     const maxDim = Math.max(size.x, size.z); // Seaweed spreads mostly horizontally
-    const scale = (maxDim > 0) ? (3.0 / maxDim) : 1;
-    cloned.scale.setScalar(scale);
-    cloned.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
+    const normScale = (maxDim > 0) ? (3.0 / maxDim) : 1;
+    const finalScale = normScale * targetScale;
+    cloned.scale.setScalar(finalScale);
+    cloned.position.set(-center.x * finalScale, -center.y * finalScale, -center.z * finalScale);
     
     mesh = new THREE.Group();
     mesh.add(cloned);
@@ -154,9 +158,35 @@ export function buildObstacle(type, pos, url, rockModels, pickupModels, seaweedM
     tempBox.getCenter(center);
 
     const maxDim = Math.max(size.x, size.y, size.z);
-    const scale = (maxDim > 0) ? (2.5 / maxDim) : 1;
-    cloned.scale.setScalar(scale);
-    cloned.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
+    const normScale = (maxDim > 0) ? (2.5 / maxDim) : 1;
+    const finalScale = normScale * targetScale;
+    cloned.scale.setScalar(finalScale);
+    cloned.position.set(-center.x * finalScale, -center.y * finalScale, -center.z * finalScale);
+    
+    mesh = new THREE.Group();
+    mesh.add(cloned);
+  } else if (type === 'island' && islandModels && islandModels.length > 0) {
+    if (url) {
+      selectedModel = islandModels.find(m => m.url === url) || islandModels[Math.floor(Math.random() * islandModels.length)];
+    } else {
+      selectedModel = islandModels[Math.floor(Math.random() * islandModels.length)];
+    }
+    const cloned = selectedModel.scene.clone(true);
+    
+    cloned.rotation.y = Math.random() * Math.PI * 2;
+    cloned.updateMatrixWorld(true);
+
+    const tempBox = new THREE.Box3().setFromObject(cloned);
+    const size = new THREE.Vector3();
+    tempBox.getSize(size);
+    const center = new THREE.Vector3();
+    tempBox.getCenter(center);
+
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const normScale = (maxDim > 0) ? (40.0 / maxDim) : 1;
+    const finalScale = normScale * targetScale;
+    cloned.scale.setScalar(finalScale);
+    cloned.position.set(-center.x * finalScale, -center.y * finalScale, -center.z * finalScale);
     
     mesh = new THREE.Group();
     mesh.add(cloned);
@@ -174,7 +204,7 @@ export function buildObstacle(type, pos, url, rockModels, pickupModels, seaweedM
   localBox.getSize(baseOBB.halfSize).multiplyScalar(0.5);
 
   // Now place it at actual position
-  mesh.position.set(pos.x, 0.5, pos.z);
+  mesh.position.set(pos.x, pos.y !== undefined ? pos.y : 0.5, pos.z);
   mesh.updateMatrixWorld(true);
 
   const obb = new OBB();
@@ -191,6 +221,7 @@ export function buildObstacle(type, pos, url, rockModels, pickupModels, seaweedM
     obb,
     sphere,
     assetUrl:     selectedModel ? selectedModel.url : null,
+    scale:        targetScale,
     scrollSpeed:  getScrollSpeed(type),
     active:       true,
     qteResolved:  false,
@@ -200,12 +231,12 @@ export function buildObstacle(type, pos, url, rockModels, pickupModels, seaweedM
 }
 
 function getScrollSpeed(type) {
-  const map = { rock: 8, barrel: 10, wave_small: 12, seaweed: 7, whirlpool: 6, pickup: 10 };
+  const map = { rock: 8, barrel: 10, wave_small: 12, seaweed: 7, whirlpool: 6, pickup: 10, island: 0 };
   return map[type] ?? 8;
 }
 
 function getDamage(type) {
-  const map = { rock: 20, barrel: 30, wave_small: 5, seaweed: 0, whirlpool: 10, pickup: 0 };
+  const map = { rock: 20, barrel: 30, wave_small: 5, seaweed: 0, whirlpool: 10, pickup: 0, island: 50 };
   return map[type] ?? 10;
 }
 
@@ -244,13 +275,15 @@ export class ObstacleManager {
    * @param {object[]} pickupModels
    * @param {object[]} seaweedModels
    * @param {object[]} waveModels
+   * @param {object[]} islandModels
    */
-  init(obstacleConfigs, scene, rockModels, pickupModels, seaweedModels, waveModels) {
+  init(obstacleConfigs, scene, rockModels, pickupModels, seaweedModels, waveModels, islandModels) {
     this._scene = scene;
     this._rockModels = rockModels;
     this._pickupModels = pickupModels;
     this._seaweedModels = seaweedModels;
     this._waveModels = waveModels;
+    this._islandModels = islandModels;
     this._obstacles = [];
     
     this._spawnAllRandomly(obstacleConfigs);
@@ -372,7 +405,7 @@ export class ObstacleManager {
    * @param {import('./PlayerShip.js').PlayerShip} ship
    */
   _resolveHit(obs, ship) {
-    if (obs.type !== 'rock') {
+    if (obs.type !== 'rock' && obs.type !== 'island') {
       obs.active = false;
       obs.mesh.visible = false;
     }
@@ -384,7 +417,7 @@ export class ObstacleManager {
     const dz = ship.mesh.position.z - obs.mesh.position.z;
     ship.bounceBack(dx, dz, obs.type);
 
-    if (obs.type === 'rock') {
+    if (obs.type === 'rock' || obs.type === 'island') {
       // Act as a static obstacle: push the ship away so it doesn't pass through
       const dx = ship.mesh.position.x - obs.mesh.position.x;
       const dz = ship.mesh.position.z - obs.mesh.position.z;
@@ -427,12 +460,14 @@ export class ObstacleManager {
     for (const cfg of explicitSpawns) {
       const obs = buildObstacle(
         cfg.type,
-        { x: cfg.position.x, z: cfg.position.z },
+        { x: cfg.position.x, y: cfg.position.y, z: cfg.position.z },
         cfg.assetUrl,
+        cfg.scale || 1.0,
         this._rockModels,
         this._pickupModels,
         this._seaweedModels,
-        this._waveModels
+        this._waveModels,
+        this._islandModels
       );
       this._scene.add(obs.mesh);
       this._obstacles.push(obs);
@@ -449,12 +484,14 @@ export class ObstacleManager {
 
         const obs = buildObstacle(
           type,
-          { x: px, z: pz },
+          { x: px, y: 0.5, z: pz },
           null, // Random url
+          1.0,  // Default scale for random spawns
           this._rockModels,
           this._pickupModels,
           this._seaweedModels,
-          this._waveModels
+          this._waveModels,
+          this._islandModels
         );
         this._scene.add(obs.mesh);
         this._obstacles.push(obs);

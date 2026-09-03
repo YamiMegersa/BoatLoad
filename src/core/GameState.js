@@ -404,14 +404,14 @@ export class GameState {
   // OBSTACLE
   // =========================================================================
 
-  _enterObstacle({ levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels }) {
+  _enterObstacle({ levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels }) {
     // Semi top-down camera
     this._camera.position.set(0, 14, 10);
     this._camera.lookAt(0, 0, -5);
 
     this._playerShip = new PlayerShip(shipStats ?? {}, this._scene, this._chunkRenderer, this._grid);
     this._obstacleManager = new ObstacleManager();
-    this._obstacleManager.init(levelCfg.obstacles, this._scene, rockModels, pickupModels, seaweedModels, waveModels);
+    this._obstacleManager.init(levelCfg.obstacles, this._scene, rockModels, pickupModels, seaweedModels, waveModels, islandModels);
     
     this._environmentManager = new EnvironmentManager();
     this._environmentManager.init(this._scene, fishModels);
@@ -503,7 +503,7 @@ export class GameState {
   // EDITOR
   // =========================================================================
 
-  _enterEditor({ levelCfg, rockModels, pickupModels, seaweedModels, waveModels }) {
+  _enterEditor({ levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels }) {
     this._camera.position.set(0, 30, 0);
     this._camera.lookAt(0, 0, -5);
     
@@ -514,7 +514,7 @@ export class GameState {
     this._editorSystem = new EditorSystem();
     this._editorSystem.init(
       this._scene, this._camera, this._renderer, 
-      levelCfg, rockModels, pickupModels, seaweedModels, waveModels
+      levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels
     );
 
     emit('uiMount', { screen: 'editor' });

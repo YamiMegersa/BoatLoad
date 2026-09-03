@@ -64,6 +64,7 @@ export class EditorUI {
         ${buildSubmenu('Waves', '🌊', 'wave_small', LevelConfig.waveUrls)}
         ${whirlpoolHtml}
         ${buildSubmenu('Pickups', '📦', 'pickup', LevelConfig.pickupUrls)}
+        ${buildSubmenu('Islands', '🏝️', 'island', LevelConfig.islandUrls)}
         
         <h4>Tools</h4>
         <button class="editor-btn tool-btn tool-active" data-tool="select">Cursor / Move</button>

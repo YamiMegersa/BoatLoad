@@ -17,6 +17,8 @@ export class EditorSystem {
     this._activeUrl = null;
     this._activeTool = 'select'; // 'select', 'delete'
     this._previewMesh = null;
+    this._currentScale = 1.0;
+    this._currentY = 0.5;
     
     // Config
     this._levelCfg = null;
@@ -33,11 +35,15 @@ export class EditorSystem {
     // Bindings
     this._boundPointerDown = this._onPointerDown.bind(this);
     this._boundPointerMove = this._onPointerMove.bind(this);
+    this._boundWheel = this._onWheel.bind(this);
+    this._boundKeyDown = this._onKeyDown.bind(this);
     
     on('editorSelectType', d => {
       this._activeType = d.type;
       this._activeUrl = d.url;
       this._activeTool = 'place';
+      this._currentScale = 1.0; // reset scale on new tool
+      this._currentY = 0.5;     // reset height on new tool
       this._updatePreview();
     });
     
@@ -51,7 +57,7 @@ export class EditorSystem {
     on('editorExport', () => this.exportLevel());
   }
 
-  init(scene, camera, renderer, levelCfg, rockModels, pickupModels, seaweedModels, waveModels) {
+  init(scene, camera, renderer, levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels) {
     this._scene = scene;
     this._camera = camera;
     this._renderer = renderer;
@@ -60,16 +66,19 @@ export class EditorSystem {
     this._pickupModels = pickupModels;
     this._seaweedModels = seaweedModels;
     this._waveModels = waveModels;
+    this._islandModels = islandModels;
 
     this._renderer.domElement.addEventListener('pointerdown', this._boundPointerDown);
     this._renderer.domElement.addEventListener('pointermove', this._boundPointerMove);
+    this._renderer.domElement.addEventListener('wheel', this._boundWheel, { passive: false });
+    window.addEventListener('keydown', this._boundKeyDown);
     
     // Clear and respawn any existing explicit obstacles in the config
     this._placedObstacles = [];
     if (this._levelCfg && this._levelCfg.obstacles) {
       for (const cfg of this._levelCfg.obstacles) {
         if (cfg.position) {
-          this._spawnObstacle(cfg.type, cfg.assetUrl, cfg.position.x, cfg.position.z);
+          this._spawnObstacle(cfg.type, cfg.assetUrl, cfg.position.x, cfg.position.y !== undefined ? cfg.position.y : 0.5, cfg.position.z, cfg.scale || 1.0);
         }
       }
     }
@@ -78,6 +87,8 @@ export class EditorSystem {
   dispose() {
     this._renderer.domElement.removeEventListener('pointerdown', this._boundPointerDown);
     this._renderer.domElement.removeEventListener('pointermove', this._boundPointerMove);
+    this._renderer.domElement.removeEventListener('wheel', this._boundWheel);
+    window.removeEventListener('keydown', this._boundKeyDown);
     
     if (this._previewMesh) {
       this._scene.remove(this._previewMesh.mesh);
@@ -105,7 +116,8 @@ export class EditorSystem {
         this._activeType, 
         { x: 0, z: 0 }, 
         this._activeUrl,
-        this._rockModels, this._pickupModels, this._seaweedModels, this._waveModels
+        this._currentScale,
+        this._rockModels, this._pickupModels, this._seaweedModels, this._waveModels, this._islandModels
       );
       
       // Make it slightly transparent
@@ -121,6 +133,34 @@ export class EditorSystem {
     }
   }
 
+  _onWheel(event) {
+    if (this._activeTool === 'place' && this._activeType) {
+      event.preventDefault();
+      
+      // Adjust vertical height (Y)
+      const delta = event.deltaY > 0 ? -0.5 : 0.5;
+      this._currentY += delta;
+      
+      // Update position immediately using last known mouse intersection
+      if (this._previewMesh) {
+        this._previewMesh.mesh.position.set(this._intersection.x, this._currentY, this._intersection.z);
+      }
+    }
+  }
+
+  _onKeyDown(event) {
+    if (this._activeTool === 'place' && this._activeType) {
+      if (event.code === 'KeyO' || event.code === 'KeyP') {
+        const delta = event.code === 'KeyO' ? 0.1 : -0.1;
+        this._currentScale = Math.max(0.1, Math.min(10.0, this._currentScale + delta));
+        this._updatePreview();
+        if (this._previewMesh) {
+          this._previewMesh.mesh.position.set(this._intersection.x, this._currentY, this._intersection.z);
+        }
+      }
+    }
+  }
+
   _onPointerMove(event) {
     const rect = this._renderer.domElement.getBoundingClientRect();
     this._mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -130,7 +170,7 @@ export class EditorSystem {
     this._raycaster.ray.intersectPlane(this._plane, this._intersection);
 
     if (this._previewMesh) {
-      this._previewMesh.mesh.position.set(this._intersection.x, 0.5, this._intersection.z);
+      this._previewMesh.mesh.position.set(this._intersection.x, this._currentY, this._intersection.z);
     }
   }
 
@@ -141,7 +181,7 @@ export class EditorSystem {
     this._onPointerMove(event);
 
     if (this._activeTool === 'place' && this._activeType) {
-      this._spawnObstacle(this._activeType, this._activeUrl, this._intersection.x, this._intersection.z);
+      this._spawnObstacle(this._activeType, this._activeUrl, this._intersection.x, this._currentY, this._intersection.z, this._currentScale);
     } else if (this._activeTool === 'delete') {
       // Find closest obstacle to intersection
       let closest = null;
@@ -165,12 +205,13 @@ export class EditorSystem {
     }
   }
 
-  _spawnObstacle(type, url, x, z) {
+  _spawnObstacle(type, url, x, y, z, scale) {
     const obs = buildObstacle(
       type, 
-      { x, z }, 
+      { x, y, z }, 
       url,
-      this._rockModels, this._pickupModels, this._seaweedModels, this._waveModels
+      scale,
+      this._rockModels, this._pickupModels, this._seaweedModels, this._waveModels, this._islandModels
     );
     this._scene.add(obs.mesh);
     this._placedObstacles.push(obs);
@@ -183,8 +224,10 @@ export class EditorSystem {
       obstacles: this._placedObstacles.map(obs => ({
         type: obs.type,
         assetUrl: obs.assetUrl,
+        scale: obs.scale,
         position: {
           x: Math.round(obs.mesh.position.x * 100) / 100,
+          y: Math.round(obs.mesh.position.y * 100) / 100,
           z: Math.round(obs.mesh.position.z * 100) / 100
         }
       }))

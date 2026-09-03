@@ -124,7 +124,7 @@ function logEvent(msg) {
 async function boot() {
   try {
     // Load Day 1 data
-    const { shipDef, levelCfg, rockModels, fishModels, pickupModels, seaweedModels, waveModels } = await LevelConfig.load(1);
+    const { shipDef, levelCfg, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels } = await LevelConfig.load(1);
     
     // Expose to window for debugging if needed
     window.__DEBUG_ROCK_MODELS = rockModels;
@@ -150,11 +150,11 @@ async function boot() {
       if (gameState._grid) {
         hp = DamageSystem.getSummary(gameState._grid).integrityPct;
       }
-      gameState.transition(GamePhase.OBSTACLE, { shipDef, levelCfg, shipStats: { hullHP: hp }, rockModels, fishModels, pickupModels, seaweedModels, waveModels });
+      gameState.transition(GamePhase.OBSTACLE, { shipDef, levelCfg, shipStats: { hullHP: hp }, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels });
     };
     document.getElementById('btn-editor').onclick = () => {
       logEvent('Transitioning to Level Editor...');
-      gameState.transition(GamePhase.EDITOR, { levelCfg, rockModels, pickupModels, seaweedModels, waveModels });
+      gameState.transition(GamePhase.EDITOR, { levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels });
     };
 
     // Listen for UI events

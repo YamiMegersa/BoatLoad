@@ -55,11 +55,18 @@ export class LevelConfig {
     '/src/assets/obstacles/wave/Wave by Poly by Google - 6mpwUZqCgzy.glb'
   ];
 
+  static _islandUrls = [
+    '/src/islands/Low-poly landscape by sirkitree - bjsNFfddgOv.glb',
+    '/src/islands/Mountain by Poly by Google - 7Jhw3p6TusU.glb',
+    '/src/islands/Mountaintop by Matthew Burdette - 8mWDJgGcXSH.glb'
+  ];
+
   static get rockUrls() { return [...this._rockUrls]; }
   static get fishUrls() { return [...this._fishUrls]; }
   static get pickupUrls() { return [...this._pickupUrls]; }
   static get seaweedUrls() { return [...this._seaweedUrls]; }
   static get waveUrls() { return [...this._waveUrls]; }
+  static get islandUrls() { return [...this._islandUrls]; }
 
   /**
    * Load the ship definition and level config for a given day.
@@ -158,7 +165,28 @@ export class LevelConfig {
     }
     const waveModels = LevelConfig._cache.get('waveModels');
 
-    return { shipDef, levelCfg, rockModels, fishModels, pickupModels, seaweedModels, waveModels };
+    if (!LevelConfig._cache.has('islandModels')) {
+      const loader = new GLTFLoader();
+      const islandModels = await Promise.all(
+        LevelConfig._islandUrls.map(url => new Promise((resolve, reject) => {
+          loader.load(url, resolve, undefined, reject);
+        }))
+      );
+      islandModels.forEach((m, i) => m.url = LevelConfig._islandUrls[i]);
+      LevelConfig._cache.set('islandModels', islandModels);
+    }
+    const islandModels = LevelConfig._cache.get('islandModels');
+
+    return {
+      shipDef,
+      levelCfg,
+      rockModels,
+      fishModels,
+      pickupModels,
+      seaweedModels,
+      waveModels,
+      islandModels
+    };
   }
 
   static async _loadRockModels() {
