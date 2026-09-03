@@ -46,6 +46,10 @@ export class PlayerShip {
     this.waterlineY = 4; // Any hole below Y=4 leaks water
     this.numLeaks = 0;
 
+    // HP System
+    this.hullHP = stats.hullHP ?? 100;
+    this.maxHullHP = stats.hullHP ?? 100;
+
     /** @type {number} Steering input in [-1, +1] from wheel drag or keyboard */
     this.steerInput = 0;
     
@@ -56,6 +60,13 @@ export class PlayerShip {
     this.roll = 0;
     this.pitchVelocity = 0;
     this.rollVelocity = 0;
+
+    // Pinball-like knockback velocity
+    this.knockbackVelocity = new THREE.Vector3();
+    
+    // Immunity
+    this.immuneTime = 0;
+    this._lastOpacity = 1.0;
 
     /** @type {boolean} True when the ship has sunk (HP ≤ 0) */
     this.sunk = false;
@@ -132,11 +143,32 @@ export class PlayerShip {
   // Frame update
   // -------------------------------------------------------------------------
 
-  update(delta, ocean) {
+  update(delta, ocean, windDir = new THREE.Vector3(0, 0, -1)) {
     if (this.sunk) return;
 
     // Time for natural bobbing
     const time = performance.now() / 1000;
+
+    // --- IMMUNITY & FLASHING ---
+    if (this.immuneTime > 0) {
+      this.immuneTime -= delta;
+      
+      // Flash every 0.15s
+      const isTransparent = Math.floor(this.immuneTime / 0.15) % 2 === 0;
+      this._setOpacity(isTransparent ? 0.3 : 1.0);
+    } else {
+      if (this._lastOpacity !== 1.0) {
+        this._setOpacity(1.0);
+      }
+    }
+
+    // --- KILL RADIUS ---
+    const distFromOrigin = Math.hypot(this.mesh.position.x, this.mesh.position.z);
+    if (distFromOrigin > 220) {
+      // Rapidly sink if out of bounds
+      this.waterLevel += 20 * delta;
+      emit('playerWaterLevel', { level: this.waterLevel, max: this.maxWaterLevel });
+    }
 
     // --- LEAK SYSTEM ---
     if (this.numLeaks > 0) {
@@ -157,17 +189,11 @@ export class PlayerShip {
     const handlingMultiplier = Math.max(0.1, 1.0 - (waterRatio * 1.2)); // Drops handling drastically as water fills
     
     // Driving Model: Steer input controls Yaw with inertia (heavy boat feel)
-    const maxYaw = Math.PI / 6; // 30 degrees max turn
-    const turnAccel = 3.5 * handlingMultiplier;      // How fast the rudder can apply turning force
-    const damping = 2.5 * (1.0 + waterRatio * 2.0);  // Water resistance against turning (heavier when flooded)
+    const turnAccel = 2.0 * handlingMultiplier;      // How fast the rudder can apply turning force
+    const damping = 3.0 * (1.0 + waterRatio * 2.0);  // Water resistance against turning (heavier when flooded)
     
     // Base turning acceleration from player input
     let yawAccel = -this.steerInput * turnAccel;
-    
-    // Auto-center yaw slowly when no input (water straightening the hull)
-    if (this.steerInput === 0) {
-      yawAccel -= this.yaw * 4.0;
-    }
     
     // Apply water damping/friction
     yawAccel -= this.yawVelocity * damping;
@@ -175,19 +201,32 @@ export class PlayerShip {
     // Euler integration for heavy momentum
     this.yawVelocity += yawAccel * delta;
     this.yaw += this.yawVelocity * delta;
-    this.yaw = THREE.MathUtils.clamp(this.yaw, -maxYaw, maxYaw);
+    // No more clamping, free 360 degree rotation
     
+    // Calculate wind alignment speed modifier
+    const shipDir = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw)).normalize();
+    const windNorm = windDir.clone().normalize();
+    const windDot = shipDir.dot(windNorm); // 1.0 (with wind), -1.0 (against wind)
+    
+    // Map dot product [-1, 1] to speed multiplier [0.3, 1.0] (never negative)
+    const windSpeedMult = 0.3 + ((windDot + 1) / 2) * 0.7;
+
     // Lateral movement based on where the ship is pointing (Yaw)
     const speedPenalty = Math.max(0.3, 1.0 - waterRatio);
-    const forwardSpeed = 15.0 * speedPenalty;
-    this.mesh.position.x -= Math.sin(this.yaw) * forwardSpeed * this.speedMultiplier * delta;
+    const forwardSpeed = 15.0 * speedPenalty * windSpeedMult;
+    
+    this.mesh.position.x += shipDir.x * forwardSpeed * this.speedMultiplier * delta;
+    this.mesh.position.z += shipDir.z * forwardSpeed * this.speedMultiplier * delta;
 
-    // Clamp to lane boundaries
-    this.mesh.position.x = THREE.MathUtils.clamp(
-      this.mesh.position.x,
-      -this._laneHalfWidth,
-      this._laneHalfWidth,
-    );
+    // Apply pinball knockback
+    if (this.knockbackVelocity.lengthSq() > 0.001) {
+      this.mesh.position.addScaledVector(this.knockbackVelocity, delta);
+      // Damping the knockback (friction)
+      this.knockbackVelocity.lerp(new THREE.Vector3(), 5.0 * delta);
+    }
+
+    // Keep ship slightly contained before the hard kill radius if we wanted, but user asked for static radius then kill radius
+    // So we just let them sail freely until they hit 220 (handled above)
 
     // Sample the ocean wave height and normal at the ship's center
     let waveHeight = 0;
@@ -253,6 +292,14 @@ export class PlayerShip {
   takeDamage(amount, source = 'unknown') {
     if (this.sunk) return;
 
+    this.hullHP = Math.max(0, this.hullHP - amount);
+    emit('playerHealth', { hp: this.hullHP, max: this.maxHullHP });
+
+    if (this.hullHP <= 0 && !this.sunk) {
+      this.sunk = true;
+      emit('playerSunk');
+    }
+
     if (this.grid && this.chunkRenderer) {
       // 10 damage = 1 hole. Wave = 5 (no hole usually, but 50% chance?)
       let holesToMake = Math.floor(amount / 10);
@@ -291,6 +338,9 @@ export class PlayerShip {
   healDamage(amount) {
     if (this.sunk || !this.grid || !this.chunkRenderer) return;
     
+    this.hullHP = Math.min(this.maxHullHP, this.hullHP + amount);
+    emit('playerHealth', { hp: this.hullHP, max: this.maxHullHP });
+    
     let holesPatched = 0;
     
     // Find MISSING cells (state === 3). Prioritize those below the waterline first.
@@ -326,14 +376,91 @@ export class PlayerShip {
   }
 
   /**
-   * Apply a massive rotational impulse for visual impact feedback.
-   * @param {number} direction  +1 or -1
+   * Apply a dynamic rotational impulse reacting to the shape and angle of the collision.
+   * @param {number} dx  World X difference (ship.x - obs.x)
+   * @param {number} dz  World Z difference (ship.z - obs.z)
+   * @param {string} type Obstacle type
    */
-  bounceBack(direction) {
-    // direction is 1 (hit from right) or -1 (hit from left)
-    // We add a sudden spike to roll and pitch velocity
-    this.rollVelocity += direction * 8.0; 
-    this.pitchVelocity -= 5.0; // Bow dips down abruptly
+  bounceBack(dx, dz, type) {
+    const dist = Math.hypot(dx, dz) || 0.001;
+    const nx = dx / dist; // nx > 0 means obstacle is to the left
+    const nz = dz / dist; // nz > 0 means obstacle is in front (since ship moves to -Z)
+
+    // Roll: If obstacle is on the left (nx > 0), the left hull rides up it, 
+    // rolling the ship to the right (negative Z rotation).
+    this.rollVelocity += -nx * 10.0;
+
+    // Pitch: Depends on the shape of the obstacle
+    let pitchImpulse = 0;
+    switch (type) {
+      case 'rock':
+        // Rocks are steep slopes. Hitting them pitches the bow UP.
+        pitchImpulse = 8.0; 
+        break;
+      case 'wave_small':
+        // Waves lift the bow very sharply.
+        pitchImpulse = 12.0;
+        break;
+      case 'barrel':
+        // Barrels are low and get crushed, causing the bow to dip over them.
+        pitchImpulse = -5.0;
+        break;
+      default:
+        pitchImpulse = 5.0;
+    }
+
+    // Scale pitch by how head-on the collision was (nz).
+    // If nz > 0 (hit front), bow goes UP (or down for barrels).
+    // If nz < 0 (hit back), stern goes UP -> bow goes DOWN.
+    this.pitchVelocity += nz * pitchImpulse;
+  }
+
+  /**
+   * Add a physical velocity impulse to the ship.
+   * @param {THREE.Vector3} forceVector
+   */
+  applyKnockback(forceVector) {
+    this.knockbackVelocity.add(forceVector);
+  }
+
+  // -------------------------------------------------------------------------
+  // Immunity
+  // -------------------------------------------------------------------------
+
+  isImmune() {
+    return this.immuneTime > 0;
+  }
+
+  setImmune(duration) {
+    this.immuneTime = duration;
+  }
+
+  _setOpacity(opacity) {
+    if (this._lastOpacity === opacity) return;
+    this._lastOpacity = opacity;
+
+    this.mesh.traverse((child) => {
+      if (child.isMesh && child !== this.innerWater) {
+        if (child.material) {
+          // Clone material on first modify to prevent affecting shared materials globally
+          if (!child.userData.clonedMat) {
+            if (Array.isArray(child.material)) {
+               child.material = child.material.map(m => m.clone());
+            } else {
+               child.material = child.material.clone();
+            }
+            child.userData.clonedMat = true;
+          }
+          
+          const mats = Array.isArray(child.material) ? child.material : [child.material];
+          mats.forEach(mat => {
+            mat.transparent = opacity < 1.0;
+            mat.opacity = opacity;
+            mat.needsUpdate = true;
+          });
+        }
+      }
+    });
   }
 
   // -------------------------------------------------------------------------

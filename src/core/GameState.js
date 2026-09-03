@@ -12,6 +12,10 @@ import { SharkSkinRepair }    from '../environment/SharkSkinRepair.js';
 import { FishAnimator }       from '../environment/FishAnimator.js';
 import { Ocean }              from '../environment/Ocean.js';
 import { QTESystem }      from '../obstacle/QTESystem.js';
+import { Minimap }        from '../ui/Minimap.js';
+import { HUD }            from '../ui/HUD.js';
+import { EditorUI }       from '../ui/EditorUI.js';
+import { EditorSystem }   from '../editor/EditorSystem.js';
 import { emit, on, off, clear } from './EventBus.js';
 
 // ---------------------------------------------------------------------------
@@ -23,6 +27,7 @@ export const GamePhase = Object.freeze({
   SHIPYARD: 'SHIPYARD',
   OBSTACLE: 'OBSTACLE',
   RESULTS:  'RESULTS',
+  EDITOR:   'EDITOR',
 });
 
 // ---------------------------------------------------------------------------
@@ -77,6 +82,13 @@ export class GameState {
     this._obstacleManager = null;
     this._environmentManager = null;
     this._qteSystem       = null;
+    this._minimap         = new Minimap();
+    this._hud             = new HUD();
+    this._editorUI        = new EditorUI();
+    this._editorSystem    = null;
+    
+    // Global wind direction (e.g., blowing towards North-East)
+    this.windDir = new THREE.Vector3(1, 0, -1).normalize();
 
     // Input tracking
     this._keys = {};
@@ -136,6 +148,10 @@ export class GameState {
         this._updateObstacle(delta);
         break;
 
+      case GamePhase.EDITOR:
+        this._updateEditor(delta);
+        break;
+
       default:
         break;
     }
@@ -163,6 +179,10 @@ export class GameState {
         this._enterResults(opts);
         break;
 
+      case GamePhase.EDITOR:
+        this._enterEditor(opts);
+        break;
+
       default:
         break;
     }
@@ -180,6 +200,10 @@ export class GameState {
 
       case GamePhase.OBSTACLE:
         this._exitObstacle();
+        break;
+
+      case GamePhase.EDITOR:
+        this._exitEditor();
         break;
 
       default:
@@ -416,9 +440,33 @@ export class GameState {
   }
 
   _updateObstacle(delta) {
-    this._playerShip?.update(delta, this._ocean);
-    this._obstacleManager?.update(delta, this._playerShip);
-    this._environmentManager?.update(delta);
+    this._playerShip?.update(delta, this._ocean, this.windDir);
+    this._obstacleManager?.update(delta, this._playerShip, this.windDir);
+    this._environmentManager?.update(delta, this.windDir);
+
+    if (this._playerShip) {
+      const p = this._playerShip.mesh.position;
+      
+      // Camera follows the ship from behind and slightly above
+      const shipDir = new THREE.Vector3(-Math.sin(this._playerShip.yaw), 0, -Math.cos(this._playerShip.yaw));
+      const offset = shipDir.clone().multiplyScalar(-14); // 14 units behind
+      offset.y = 11; // 11 units up
+      
+      // Smoothly interpolate camera position
+      this._camera.position.lerp(p.clone().add(offset), 5 * delta);
+      
+      // Look slightly ahead of the ship
+      const lookTarget = p.clone().add(shipDir.clone().multiplyScalar(10));
+      this._camera.lookAt(lookTarget);
+      
+      // Update Minimap
+      this._minimap?.update(
+        p,
+        this._playerShip.yaw,
+        this._obstacleManager?._obstacles || [],
+        this.windDir
+      );
+    }
   }
 
   _exitObstacle() {
@@ -449,5 +497,68 @@ export class GameState {
   _enterResults({ passed }) {
     emit('uiMount', { screen: 'results', passed, day: this.day });
     if (passed) this.day++;
+  }
+
+  // =========================================================================
+  // EDITOR
+  // =========================================================================
+
+  _enterEditor({ levelCfg, rockModels, pickupModels, seaweedModels, waveModels }) {
+    this._camera.position.set(0, 30, 0);
+    this._camera.lookAt(0, 0, -5);
+    
+    this._orbitControls = new OrbitControls(this._camera, this._renderer.domElement);
+    this._orbitControls.target.set(0, 0, -5);
+    this._orbitControls.update();
+
+    this._editorSystem = new EditorSystem();
+    this._editorSystem.init(
+      this._scene, this._camera, this._renderer, 
+      levelCfg, rockModels, pickupModels, seaweedModels, waveModels
+    );
+
+    emit('uiMount', { screen: 'editor' });
+  }
+
+  _updateEditor(delta) {
+    if (this._orbitControls) {
+      // WASD panning for editor
+      const speed = 40 * delta;
+      
+      const forward = new THREE.Vector3();
+      this._camera.getWorldDirection(forward);
+      forward.y = 0;
+      forward.normalize();
+      
+      const right = new THREE.Vector3();
+      right.crossVectors(forward, this._camera.up).normalize();
+
+      const move = new THREE.Vector3();
+      if (this._keys['KeyW']) move.add(forward);
+      if (this._keys['KeyS']) move.sub(forward);
+      if (this._keys['KeyA']) move.sub(right);
+      if (this._keys['KeyD']) move.add(right);
+      
+      if (this._keys['KeyE'] || this._keys['Space']) move.y += 1;
+      if (this._keys['KeyQ'] || this._keys['ShiftLeft']) move.y -= 1;
+
+      if (move.lengthSq() > 0) {
+        move.normalize().multiplyScalar(speed);
+        this._camera.position.add(move);
+        this._orbitControls.target.add(move);
+      }
+
+      this._orbitControls.update();
+    }
+  }
+
+  _exitEditor() {
+    this._editorSystem?.dispose();
+    this._editorSystem = null;
+    
+    this._orbitControls?.dispose();
+    this._orbitControls = null;
+
+    emit('uiUnmount', { screen: 'editor' });
   }
 }

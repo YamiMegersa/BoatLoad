@@ -13,11 +13,13 @@ export class HUD {
   constructor() {
     this._el     = null;
     this._hpBar  = null;
+    this._waterBar = null;
     this._qteEl  = null;
     this._qteTimer = null;
 
     on('uiMount',      d => { if (d.screen === 'obstacle') this.mount(d); });
     on('uiUnmount',    d => { if (d.screen === 'obstacle') this.unmount(); });
+    on('playerHealth', d => this._updateHP(d.hp, d.max));
     on('playerWaterLevel', d => this._updateWater(d.level, d.max));
     on('qteStart',      d => this._showQTE(d));
     on('qteSuccess',    () => this._hideQTE());
@@ -30,6 +32,11 @@ export class HUD {
     this._el = document.createElement('div');
     this._el.id = 'hud';
     this._el.innerHTML = `
+      <div id="hud-hp">
+        <span>Hull HP</span>
+        <div id="hud-hp-bar-track"><div id="hud-hp-bar"></div></div>
+        <span id="hud-hp-val">100%</span>
+      </div>
       <div id="hud-water">
         <span>Water</span>
         <div id="hud-water-bar-track"><div id="hud-water-bar"></div></div>
@@ -46,6 +53,7 @@ export class HUD {
       <div id="hud-ammo">🔫 ∞</div>
     `;
 
+    this._hpBar = this._el.querySelector('#hud-hp-bar');
     this._waterBar = this._el.querySelector('#hud-water-bar');
     this._qteEl = this._el.querySelector('#hud-qte');
 
@@ -56,8 +64,18 @@ export class HUD {
     clearInterval(this._qteTimer);
     this._el?.remove();
     this._el    = null;
+    this._hpBar = null;
     this._waterBar = null;
     this._qteEl = null;
+  }
+
+  _updateHP(hp, maxHP) {
+    if (!this._hpBar) return;
+    const pct = Math.max(0, Math.min(100, (hp / maxHP) * 100));
+    this._hpBar.style.width = `${pct}%`;
+    this._hpBar.style.background = pct < 25 ? '#f44336' : pct < 50 ? '#ff9800' : '#4caf50';
+    const valEl = this._el.querySelector('#hud-hp-val');
+    if (valEl) valEl.textContent = `${Math.floor(pct)}%`;
   }
 
   _updateWater(level, maxLevel) {

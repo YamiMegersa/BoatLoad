@@ -50,11 +50,16 @@ const _mat = {
  * @param {object[]} [waveModels]
  * @returns {ObstacleDesc}
  */
-function buildObstacle(type, pos, rockModels, pickupModels, seaweedModels, waveModels) {
+export function buildObstacle(type, pos, url, rockModels, pickupModels, seaweedModels, waveModels) {
   let mesh;
+  let selectedModel = null;
   if (type === 'rock' && rockModels && rockModels.length > 0) {
-    const randomGltf = rockModels[Math.floor(Math.random() * rockModels.length)];
-    const cloned = randomGltf.scene.clone(true);
+    if (url) {
+      selectedModel = rockModels.find(m => m.url === url) || rockModels[Math.floor(Math.random() * rockModels.length)];
+    } else {
+      selectedModel = rockModels[Math.floor(Math.random() * rockModels.length)];
+    }
+    const cloned = selectedModel.scene.clone(true);
     
     cloned.rotation.y = Math.random() * Math.PI * 2;
     cloned.rotation.z = (Math.random() - 0.5) * 0.2;
@@ -80,8 +85,12 @@ function buildObstacle(type, pos, rockModels, pickupModels, seaweedModels, waveM
     mesh = new THREE.Group();
     mesh.add(cloned);
   } else if (type === 'pickup' && pickupModels && pickupModels.length > 0) {
-    const randomGltf = pickupModels[Math.floor(Math.random() * pickupModels.length)];
-    const cloned = randomGltf.scene.clone(true);
+    if (url) {
+      selectedModel = pickupModels.find(m => m.url === url) || pickupModels[Math.floor(Math.random() * pickupModels.length)];
+    } else {
+      selectedModel = pickupModels[Math.floor(Math.random() * pickupModels.length)];
+    }
+    const cloned = selectedModel.scene.clone(true);
     
     // Pickups bob/spin, but we just set base rotation
     cloned.rotation.y = Math.random() * Math.PI * 2;
@@ -103,8 +112,12 @@ function buildObstacle(type, pos, rockModels, pickupModels, seaweedModels, waveM
     mesh = new THREE.Group();
     mesh.add(cloned);
   } else if (type === 'seaweed' && seaweedModels && seaweedModels.length > 0) {
-    const randomGltf = seaweedModels[Math.floor(Math.random() * seaweedModels.length)];
-    const cloned = randomGltf.scene.clone(true);
+    if (url) {
+      selectedModel = seaweedModels.find(m => m.url === url) || seaweedModels[Math.floor(Math.random() * seaweedModels.length)];
+    } else {
+      selectedModel = seaweedModels[Math.floor(Math.random() * seaweedModels.length)];
+    }
+    const cloned = selectedModel.scene.clone(true);
     
     cloned.rotation.y = Math.random() * Math.PI * 2;
     cloned.updateMatrixWorld(true);
@@ -123,8 +136,12 @@ function buildObstacle(type, pos, rockModels, pickupModels, seaweedModels, waveM
     mesh = new THREE.Group();
     mesh.add(cloned);
   } else if (type === 'wave_small' && waveModels && waveModels.length > 0) {
-    const randomGltf = waveModels[Math.floor(Math.random() * waveModels.length)];
-    const cloned = randomGltf.scene.clone(true);
+    if (url) {
+      selectedModel = waveModels.find(m => m.url === url) || waveModels[Math.floor(Math.random() * waveModels.length)];
+    } else {
+      selectedModel = waveModels[Math.floor(Math.random() * waveModels.length)];
+    }
+    const cloned = selectedModel.scene.clone(true);
     
     // Make wave face the ship (rotated 90 degrees)
     cloned.rotation.y = Math.PI / 2; 
@@ -173,6 +190,7 @@ function buildObstacle(type, pos, rockModels, pickupModels, seaweedModels, waveM
     baseOBB,
     obb,
     sphere,
+    assetUrl:     selectedModel ? selectedModel.url : null,
     scrollSpeed:  getScrollSpeed(type),
     active:       true,
     qteResolved:  false,
@@ -212,13 +230,7 @@ export class ObstacleManager {
     /** @type {ObstacleDesc[]} */
     this._obstacles = [];
     this._scene     = null;
-    this._spawnZ    = -40; // Start Z for new obstacles
-    this._despawnZ  =  15; // Remove obstacles that scroll past this Z
-
-    /** Queued spawn definitions from the level config. */
-    this._spawnQueue = [];
-    this._spawnTimer = 0;
-    this._spawnInterval = 2.5; // seconds between spawns
+    this.playRadius = 200;
   }
 
   // -------------------------------------------------------------------------
@@ -240,31 +252,33 @@ export class ObstacleManager {
     this._seaweedModels = seaweedModels;
     this._waveModels = waveModels;
     this._obstacles = [];
-    this._spawnTimer = 0;
-    this._obstaclesSinceLastPickup = 0;
-
-    // Build a flat queue of { type, laneX } entries from the config
-    this._spawnQueue = this._buildSpawnQueue(obstacleConfigs);
+    
+    this._spawnAllRandomly(obstacleConfigs);
   }
 
   /**
    * Update all obstacles. Call once per frame.
    * @param {number} delta         Seconds since last frame
    * @param {import('./PlayerShip.js').PlayerShip} playerShip
+   * @param {THREE.Vector3} windDir
    */
-  update(delta, playerShip) {
-    // Spawn next obstacle
-    this._spawnTimer += delta;
-    if (this._spawnTimer >= this._spawnInterval && this._spawnQueue.length > 0) {
-      this._spawnTimer = 0;
-      this._spawnNext(playerShip);
-    }
-
-    // Update existing obstacles
-    const toRemove = [];
+  update(delta, playerShip, windDir) {
     for (const obs of this._obstacles) {
-      // Scroll toward camera
-      obs.mesh.position.z += obs.scrollSpeed * delta;
+      if (!obs.active) continue;
+
+      // Only waves move, according to wind direction
+      if (obs.type === 'wave_small' && windDir) {
+        obs.mesh.position.x += windDir.x * obs.scrollSpeed * delta;
+        obs.mesh.position.z += windDir.z * obs.scrollSpeed * delta;
+
+        // Wrap around if they go out of bounds
+        const dist = Math.hypot(obs.mesh.position.x, obs.mesh.position.z);
+        if (dist > this.playRadius + 20) {
+          // Push to the opposite edge
+          obs.mesh.position.x = -windDir.x * this.playRadius;
+          obs.mesh.position.z = -windDir.z * this.playRadius;
+        }
+      }
 
       // Update bounding volumes
       obs.mesh.updateMatrixWorld(true);
@@ -272,19 +286,7 @@ export class ObstacleManager {
       if (obs.sphere) obs.sphere.center.copy(obs.mesh.position);
 
       // Check collision
-      if (obs.active) {
-        this._checkCollision(obs, playerShip, delta);
-      }
-
-      // Despawn off-screen
-      if (obs.mesh.position.z > this._despawnZ) {
-        toRemove.push(obs);
-      }
-    }
-
-    // Remove despawned obstacles
-    for (const obs of toRemove) {
-      this._remove(obs);
+      this._checkCollision(obs, playerShip, delta);
     }
   }
 
@@ -313,6 +315,9 @@ export class ObstacleManager {
    * @param {number} delta
    */
   _checkCollision(obs, ship, delta) {
+    // Ignore hazards while immune (pickups can still be collected)
+    if (ship.isImmune() && obs.type !== 'pickup') return;
+
     // Whirlpool applies a continuous lateral pull
     if (obs.type === 'whirlpool') {
       const hit = ship.obb.intersectsOBB(obs.obb);
@@ -367,87 +372,93 @@ export class ObstacleManager {
    * @param {import('./PlayerShip.js').PlayerShip} ship
    */
   _resolveHit(obs, ship) {
-    obs.active = false;
+    if (obs.type !== 'rock') {
+      obs.active = false;
+      obs.mesh.visible = false;
+    }
 
     ship.takeDamage(obs.damage, obs.type);
+    ship.setImmune(2.0); // 2 seconds of immunity after getting hit
 
-    // Bounce ship away from the obstacle centre
-    const dir = ship.mesh.position.x >= obs.mesh.position.x ? 1 : -1;
-    ship.bounceBack(dir);
+    const dx = ship.mesh.position.x - obs.mesh.position.x;
+    const dz = ship.mesh.position.z - obs.mesh.position.z;
+    ship.bounceBack(dx, dz, obs.type);
+
+    if (obs.type === 'rock') {
+      // Act as a static obstacle: push the ship away so it doesn't pass through
+      const dx = ship.mesh.position.x - obs.mesh.position.x;
+      const dz = ship.mesh.position.z - obs.mesh.position.z;
+      const dist = Math.hypot(dx, dz);
+      if (dist > 0.001) {
+        // Immediate static resolve to avoid sticking
+        ship.mesh.position.x += (dx / dist) * 2.5;
+        ship.mesh.position.z += (dz / dist) * 2.5;
+        
+        // Pinball knockback velocity
+        ship.applyKnockback(new THREE.Vector3((dx / dist) * 40, 0, (dz / dist) * 40));
+      }
+    }
 
     emit('obstacleHit', { type: obs.type, damage: obs.damage });
     emit('playSound', { sound: 'collision' });
-
-    // Visually remove on next frame — flag it; the update loop will despawn
-    obs.mesh.position.z = this._despawnZ + 1;
   }
 
   // -------------------------------------------------------------------------
   // Spawning
   // -------------------------------------------------------------------------
 
-  _spawnNext(playerShip) {
-    if (this._obstacles.length >= 30) return; // performance cap
-
-    // Check if we should inject a pickup spawn
-    if (playerShip && playerShip.numLeaks > 0) {
-      this._obstaclesSinceLastPickup++;
-      if (this._obstaclesSinceLastPickup >= 4) {
-        this._obstaclesSinceLastPickup = 0;
-        const lanes = [-4, -2, 0, 2, 4];
-        const laneX = lanes[Math.floor(Math.random() * lanes.length)];
-        const obs = buildObstacle('pickup', { x: laneX, z: this._spawnZ }, null, this._pickupModels, null, null);
-        this._scene.add(obs.mesh);
-        this._obstacles.push(obs);
-        return; // We used this interval to spawn a pickup instead
-      }
-    } else {
-      this._obstaclesSinceLastPickup = 0;
-    }
-
-    const def = this._spawnQueue.shift();
-    if (!def) return;
-
-    const obs = buildObstacle(def.type, { x: def.laneX, z: this._spawnZ }, this._rockModels, this._pickupModels, this._seaweedModels, this._waveModels);
-    this._scene.add(obs.mesh);
-    this._obstacles.push(obs);
-  }
-
-  _remove(obs) {
-    this._scene?.remove(obs.mesh);
-    if (obs.mesh.geometry) obs.mesh.geometry.dispose();
-    const i = this._obstacles.indexOf(obs);
-    if (i !== -1) this._obstacles.splice(i, 1);
-  }
-
-  /**
-   * Convert level config obstacle array into a flat spawn queue.
-   * @param {object[]} configs
-   * @returns {Array<{type:string, laneX:number}>}
-   */
-  _buildSpawnQueue(configs) {
-    const lanes = [-4, -2, 0, 2, 4]; // 5 lanes on X axis
-    const queue = [];
+  _spawnAllRandomly(configs) {
+    // Determine counts per type and collect explicit positions
+    const counts = { pickup: 10 }; // always sprinkle some random pickups
+    const explicitSpawns = [];
 
     for (const cfg of configs) {
-      const count = cfg.count ?? 3;
-      for (let i = 0; i < count; i++) {
-        let laneX;
-        if (cfg.lanePattern === 'alternating') {
-          laneX = lanes[i % lanes.length];
-        } else {
-          laneX = lanes[Math.floor(Math.random() * lanes.length)];
-        }
-        queue.push({ type: cfg.type, laneX });
+      if (cfg.position) {
+        // Explicitly placed obstacle
+        explicitSpawns.push(cfg);
+      } else {
+        // Randomly placed obstacle
+        const count = cfg.count ?? 3;
+        counts[cfg.type] = (counts[cfg.type] || 0) + count * 5; // Multiply by 5 for a larger 2D area
       }
     }
-
-    // Shuffle to avoid all of one type spawning consecutively
-    for (let i = queue.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [queue[i], queue[j]] = [queue[j], queue[i]];
+    
+    // Spawn explicit obstacles first
+    for (const cfg of explicitSpawns) {
+      const obs = buildObstacle(
+        cfg.type,
+        { x: cfg.position.x, z: cfg.position.z },
+        cfg.assetUrl,
+        this._rockModels,
+        this._pickupModels,
+        this._seaweedModels,
+        this._waveModels
+      );
+      this._scene.add(obs.mesh);
+      this._obstacles.push(obs);
     }
 
-    return queue;
+    // Spawn random obstacles
+    for (const [type, count] of Object.entries(counts)) {
+      for (let i = 0; i < count; i++) {
+        // Random position within radius (avoiding the immediate center r<30)
+        let r = 30 + Math.random() * (this.playRadius - 30);
+        let theta = Math.random() * Math.PI * 2;
+        let px = Math.cos(theta) * r;
+        let pz = Math.sin(theta) * r;
+
+        const obs = buildObstacle(
+          type,
+          { x: px, z: pz },
+          null, // Random url
+          this._rockModels,
+          this._pickupModels,
+          this._seaweedModels,
+          this._waveModels
+        );
+        this._scene.add(obs.mesh);
+        this._obstacles.push(obs);
+      }
+    }
   }
 }

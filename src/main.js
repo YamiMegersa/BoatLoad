@@ -4,6 +4,7 @@ import { LevelConfig }          from './core/LevelConfig.js';
 import { on }                   from './core/EventBus.js';
 import { BuildMenu }            from './ui/BuildMenu.js';
 import { DocketSheet }          from './ui/DocketSheet.js';
+import { DamageSystem }         from './shipyard/DamageSystem.js';
 import './ui/ui.css';
 
 // ---------------------------------------------------------------------------
@@ -55,8 +56,31 @@ const gameState  = new GameState(scene, camera, renderer);
 const buildMenu  = new BuildMenu();
 const docket     = new DocketSheet();
 
-function tick() {
+let frameCount = 0;
+let lastFpsTime = performance.now();
+const fpsCounter = document.createElement('div');
+fpsCounter.id = 'fps-counter';
+fpsCounter.style.cssText = `
+  position: absolute; top: 10px; right: 10px; z-index: 100;
+  background: rgba(0,0,0,0.8); color: #0f0; padding: 5px 10px;
+  font-family: monospace; border-radius: 4px; font-size: 14px;
+  pointer-events: none;
+`;
+fpsCounter.innerText = 'FPS: 0';
+document.getElementById('ui-root')?.appendChild(fpsCounter);
+
+function tick(now) {
   requestAnimationFrame(tick);
+  
+  if (now) {
+    frameCount++;
+    if (now - lastFpsTime >= 1000) {
+      fpsCounter.innerText = `FPS: ${frameCount}`;
+      frameCount = 0;
+      lastFpsTime = now;
+    }
+  }
+
   const delta = Math.min(clock.getDelta(), 0.05); // cap at 50ms to avoid spiral of death
   gameState.update(delta);
   renderer.render(scene, camera);
@@ -79,6 +103,7 @@ demoUI.innerHTML = `
   <div style="display: flex; gap: 10px; margin-bottom: 10px;">
     <button id="btn-shipyard" style="flex:1; padding: 8px; cursor: pointer;">Shipyard</button>
     <button id="btn-obstacle" style="flex:1; padding: 8px; cursor: pointer;">Sailing</button>
+    <button id="btn-editor" style="flex:1; padding: 8px; cursor: pointer; background: #474b6b; color: white; border: 1px solid #556;">Editor</button>
   </div>
   <div id="demo-log" style="height: 120px; overflow-y: auto; background: #111; padding: 5px; font-size: 11px; color: #0f0; border: 1px solid #333;">
     Ready.<br>
@@ -121,7 +146,15 @@ async function boot() {
     };
     document.getElementById('btn-obstacle').onclick = () => {
       logEvent('Transitioning to Sailing...');
-      gameState.transition(GamePhase.OBSTACLE, { shipDef, levelCfg, shipStats: { hullHP: 100 }, rockModels, fishModels, pickupModels, seaweedModels, waveModels });
+      let hp = 100;
+      if (gameState._grid) {
+        hp = DamageSystem.getSummary(gameState._grid).integrityPct;
+      }
+      gameState.transition(GamePhase.OBSTACLE, { shipDef, levelCfg, shipStats: { hullHP: hp }, rockModels, fishModels, pickupModels, seaweedModels, waveModels });
+    };
+    document.getElementById('btn-editor').onclick = () => {
+      logEvent('Transitioning to Level Editor...');
+      gameState.transition(GamePhase.EDITOR, { levelCfg, rockModels, pickupModels, seaweedModels, waveModels });
     };
 
     // Listen for UI events

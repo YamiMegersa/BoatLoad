@@ -55,6 +55,12 @@ export class LevelConfig {
     '/src/assets/obstacles/wave/Wave by Poly by Google - 6mpwUZqCgzy.glb'
   ];
 
+  static get rockUrls() { return [...this._rockUrls]; }
+  static get fishUrls() { return [...this._fishUrls]; }
+  static get pickupUrls() { return [...this._pickupUrls]; }
+  static get seaweedUrls() { return [...this._seaweedUrls]; }
+  static get waveUrls() { return [...this._waveUrls]; }
+
   /**
    * Load the ship definition and level config for a given day.
    * Results are cached so repeated loads are instant.
@@ -93,7 +99,9 @@ export class LevelConfig {
         }))
       );
 
-      fishModels.forEach(fishModel => {
+      fishModels.forEach((fishModel, i) => {
+        fishModel.url = LevelConfig._fishUrls[i];
+        
         const dummyScene = new THREE.Scene();
         dummyScene.add(fishModel.scene);
         dummyScene.updateMatrixWorld(true);
@@ -119,6 +127,7 @@ export class LevelConfig {
           loader.load(url, resolve, undefined, reject);
         }))
       );
+      pickupModels.forEach((m, i) => m.url = LevelConfig._pickupUrls[i]);
       LevelConfig._cache.set('pickupModels', pickupModels);
     }
     const pickupModels = LevelConfig._cache.get('pickupModels');
@@ -131,6 +140,7 @@ export class LevelConfig {
           loader.load(url, resolve, undefined, reject);
         }))
       );
+      seaweedModels.forEach((m, i) => m.url = LevelConfig._seaweedUrls[i]);
       LevelConfig._cache.set('seaweedModels', seaweedModels);
     }
     const seaweedModels = LevelConfig._cache.get('seaweedModels');
@@ -143,6 +153,7 @@ export class LevelConfig {
           loader.load(url, resolve, undefined, reject);
         }))
       );
+      waveModels.forEach((m, i) => m.url = LevelConfig._waveUrls[i]);
       LevelConfig._cache.set('waveModels', waveModels);
     }
     const waveModels = LevelConfig._cache.get('waveModels');
@@ -160,6 +171,7 @@ export class LevelConfig {
       }))
     );
     
+    loadedGltfs.forEach((m, i) => m.url = LevelConfig._rockUrls[i]);
     return loadedGltfs; // Array of GLTF objects
   }
 

@@ -19,13 +19,13 @@ export class EnvironmentManager {
     this._sharks     = [];
 
     if (this._fishModels && this._fishModels.length > 0) {
-      for (let i = 0; i < 8; i++) {
+      for (let i = 0; i < 15; i++) {
         // 30% chance to spawn a school of 3-5 fish
         if (Math.random() < 0.3) {
           const schoolSize = 3 + Math.floor(Math.random() * 3);
-          const baseX = (Math.random() - 0.5) * 60;
+          const baseX = (Math.random() - 0.5) * 400; // 200 radius
           const baseY = -4 - Math.random() * 4;
-          const baseZ = (Math.random() - 0.5) * 60;
+          const baseZ = (Math.random() - 0.5) * 400;
           const baseYaw = Math.random() * Math.PI * 2;
           const fishModel = this._fishModels[Math.floor(Math.random() * this._fishModels.length)];
           
@@ -51,9 +51,9 @@ export class EnvironmentManager {
     const mesh = SkeletonUtils.clone(fishModel.scene);
 
     // Place + orient randomly around the play area, or use provided school base
-    const x = px !== null ? px : (Math.random() - 0.5) * 60;
+    const x = px !== null ? px : (Math.random() - 0.5) * 400;
     const y = py !== null ? py : -4 - Math.random() * 4;
-    const z = pz !== null ? pz : (Math.random() - 0.5) * 60;
+    const z = pz !== null ? pz : (Math.random() - 0.5) * 400;
     const ry = yaw !== null ? yaw : Math.random() * Math.PI * 2;
     
     mesh.position.set(x, y, z);
@@ -97,12 +97,12 @@ export class EnvironmentManager {
       // Swim forward
       shark.mesh.translateZ(shark.speed * delta);
 
-      // Wrap around the play area
+      // Wrap around the play area (200 radius = -200 to 200)
       const p = shark.mesh.position;
-      if (p.z >  60) p.z -= 120;
-      if (p.z < -60) p.z += 120;
-      if (p.x >  60) p.x -= 120;
-      if (p.x < -60) p.x += 120;
+      if (p.z >  200) p.z -= 400;
+      if (p.z < -200) p.z += 400;
+      if (p.x >  200) p.x -= 400;
+      if (p.x < -200) p.x += 400;
     }
   }
 

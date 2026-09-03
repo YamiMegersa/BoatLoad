@@ -14,8 +14,7 @@
   ],
   "obstacles": [
     { "type": "rock",       "lanePattern": "alternating", "count": 6  },
-    { "type": "seaweed",    "lanePattern": "random",      "count": 4  },
-    { "type": "wave_small", "lanePattern": "random",      "count": 5  }
+    { "type": "seaweed",    "lanePattern": "random",      "count": 4  }
   ],
   "rewardAbilities": ["practiced_hand", "seasoned_hull", "sharp_eye"],
   "tutorialPrompts": true
