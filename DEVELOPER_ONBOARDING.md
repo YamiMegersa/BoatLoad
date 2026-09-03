@@ -9,6 +9,7 @@ BoatLoad is a 3D web game built using **Three.js**. The game is structured aroun
 The core gameplay loops involve:
 1. **Shipyard Phase:** A voxel-based editing mode where the player repairs damage to a ship using various tools (hammer, rope, needle). The ship is represented as a 3D voxel grid.
 2. **Obstacle Phase:** An arcade-style sailing mode where the player steers the ship to avoid obstacles. The ship is subjected to physical damage which modifies the underlying voxel grid, potentially causing it to sink.
+3. **Editor Phase:** A robust Level Creation Kit (dev-kit) for developers to place, scale, and vertically adjust assets (like massive islands) to construct new level JSON definitions.
 
 ## Directory & File Structure
 
@@ -21,7 +22,7 @@ The source code is contained entirely within the `src/` directory, broken down i
 
 ### 2. Core Game Logic (`src/core/`)
 Contains the central state management and configuration loading systems.
-- **`GameState.js`**: The backbone of the game. Implements a Finite State Machine managing transitions between `DOCK`, `SHIPYARD`, `OBSTACLE`, and `RESULTS` phases. It owns phase-specific managers and ensures clean teardown of memory/events when switching modes.
+- **`GameState.js`**: The backbone of the game. Implements a Finite State Machine managing transitions between `DOCK`, `SHIPYARD`, `OBSTACLE`, `RESULTS`, and `EDITOR` phases. It owns phase-specific managers and ensures clean teardown of memory/events when switching modes.
 - **`EventBus.js`**: A lightweight, global event emitter (pub/sub pattern). Used to decouple systems (e.g., UI components trigger events that the GameState listens to).
 - **`LevelConfig.js`**: Responsible for fetching and parsing level definitions (e.g., `day1.json`). It dictates the required repairs, spawned obstacles, and environmental factors for each day.
 
@@ -40,14 +41,19 @@ Handles the arcade-style sailing mechanics.
 - **`ObstacleManager.js`**: Spawns and recycles obstacles (e.g., rocks, seaweed) as the ship sails forward. Handles bounding box collision detection between obstacles and the `PlayerShip`.
 - **`QTESystem.js`**: Quick Time Event system for specific mid-gameplay interactions or repairing on-the-fly.
 
-### 5. Environment & VFX (`src/environment/`)
+### 5. Level Creation Kit (`src/editor/`)
+Handles the in-game developer tools for constructing levels.
+- **`EditorSystem.js`**: Core 3D engine for the level editor. Supports raycast-based drag-and-drop placement, universal scaling (O/P keys), vertical elevation adjustment (Scroll Wheel), and exporting the explicitly placed configuration into `day.json` format.
+- **`EditorUI.js`**: Overlay UI handling dynamic accordion submenus that grant devs complete access to the game's entire 3D asset library, fed directly by `LevelConfig`.
+
+### 6. Environment & VFX (`src/environment/`)
 Handles the background aesthetics, lighting, and ambient creatures.
 - **`Ocean.js`**: A custom shader-based ocean material applied to a large `PlaneGeometry`. It calculates complex wave heights using superimposed sine waves based on time. It exposes `getWaveInfo(x, z)` so physics objects can ride the surface.
 - **`EnvironmentManager.js`**: Spawns ambient environmental details (like random fish swimming around) to make the ocean feel alive.
 - **`FishAnimator.js`**: A procedural animation system for aquatic life. Instead of relying on pre-baked skeletal animations, it calculates procedural sine-wave deformations and squash-and-stretch scales on the fish bones (e.g., Spine, Tail) to simulate swimming.
 - **`SharkSkinRepair.js`**: A specific utility for repairing skeletal hierarchies or missing vertex weights on dynamically loaded shark/fish models to ensure they deform correctly under `FishAnimator`.
 
-### 6. User Interface (`src/ui/`)
+### 7. User Interface (`src/ui/`)
 Manages the HTML/CSS overlay systems that sit on top of the Three.js canvas.
 - **`HUD.js`**: The Heads-Up Display for the sailing phase (health bars, score, steering indicators).
 - **`BuildMenu.js`**: The UI for selecting repair materials (blueprints) in the shipyard.
@@ -55,13 +61,13 @@ Manages the HTML/CSS overlay systems that sit on top of the Three.js canvas.
 - **`DialogueBox.js`**: System for displaying NPC dialogue or tutorial prompts.
 - **`ui.css`**: Specific stylesheets for the UI components.
 
-### 7. Utilities (`src/utils/`)
+### 8. Utilities (`src/utils/`)
 - **`AudioManager.js`**: Wrapper for the Web Audio API to handle sound effects and background music.
 - **`MathUtils.js`**: Common mathematical helper functions (lerping, clamping).
 
-### 8. Assets (`src/assets/`)
+### 9. Assets (`src/assets/` & `src/islands/`)
 Contains all static configurations and 3D models required by the game.
-- **Models (`ships/`, `creatures/`):** e.g., `sloop.glb` (Ship models), `shark.glb` (Fish models).
+- **Models (`ships/`, `creatures/`, `islands/`):** e.g., `sloop.glb` (Ship models), `shark.glb` (Fish models), massive landscape GLBs.
 - **Configurations (`ships/`):** e.g., `sloop.json` (defines grid dimensions and bounding zones for voxelization).
 - **Levels (`levels/`):** e.g., `day1.json` (defines day progression, obstacles, and initial damage).
 

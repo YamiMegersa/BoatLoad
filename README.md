@@ -8,7 +8,8 @@ BoatLoad is an arcade-style, voxel-based ship simulation and puzzle game where y
 - **Shipyard Mode:** A free-form, base-building voxel environment. You are provided with a `.glb` model that is automatically converted and scaled into a fully interactive Voxel Grid.
 - **Base Building:** Use the Build Menu to select predefined blueprints (Blocks, Planks, Panels). Place them directly onto the ship with full grid-snapping, rotational support, and ghost mesh previews. 
 - **Sailing Mode:** Take your newly built/repaired ship out onto the open water! The custom ship you built in the shipyard is directly transported into an obstacle avoidance trial.
-- **Dynamic Obstacles:** Dodge rocks, seaweed, and waves using keyboard controls. Your ship's bounding box scales dynamically to match your customizations.
+- **Dynamic Obstacles:** Dodge rocks, seaweed, islands, and waves using keyboard controls. Your ship's bounding box scales dynamically to match your customizations.
+- **Level Creation Kit:** Developers can use a fully-featured in-game editor to drag and drop assets from the entire 3D library, dynamically scale them, and position them in 3D space to construct new JSON levels.
 
 ## How to Play
 
@@ -18,6 +19,7 @@ BoatLoad is an arcade-style, voxel-based ship simulation and puzzle game where y
 4. Left-click to place the blocks. You can patch holes, build new decks, or erect towers!
 5. Once satisfied, check your **Repair Docket** and click **Set Sail!**
 6. Use the **A/D** or **Left/Right Arrow** keys to dodge obstacles in the Sailing phase. If your ship's health drops to 0, it sinks!
+7. Access the **Editor** mode from the main demo UI to build your own obstacle courses and export them.
 
 ## Getting Started
 
