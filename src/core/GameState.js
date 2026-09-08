@@ -521,6 +521,10 @@ export class GameState {
   }
 
   _updateEditor(delta) {
+    if (this._editorSystem) {
+      this._editorSystem.update(delta);
+    }
+
     if (this._orbitControls) {
       // WASD panning for editor
       const speed = 40 * delta;

@@ -355,6 +355,40 @@ export class PlayerShip {
   }
 
   /**
+   * Take direct water damage without blowing holes in the hull.
+   * Useful for whirlpools that pull the ship under.
+   * @param {number} amount 
+   */
+  takeWaterDamage(amount) {
+    if (this.sunk || this.godMode) return;
+    
+    this.waterLevel += amount;
+    emit('playerWaterLevel', { level: this.waterLevel, max: this.maxWaterLevel });
+    
+    if (this.waterLevel >= this.maxWaterLevel && !this.sunk) {
+      this.sunk = true;
+      emit('playerSunk');
+    }
+  }
+
+  /**
+   * Take direct water damage without blowing holes in the hull.
+   * Useful for whirlpools that pull the ship under.
+   * @param {number} amount 
+   */
+  takeWaterDamage(amount) {
+    if (this.sunk || this.godMode) return;
+    
+    this.waterLevel += amount;
+    emit('playerWaterLevel', { level: this.waterLevel, max: this.maxWaterLevel });
+    
+    if (this.waterLevel >= this.maxWaterLevel && !this.sunk) {
+      this.sunk = true;
+      emit('playerSunk');
+    }
+  }
+
+  /**
    * Heal the hull by patching missing holes.
    * @param {number} amount
    */

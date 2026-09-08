@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { emit } from '../core/EventBus.js';
 import { OBB } from 'three/examples/jsm/math/OBB.js';
+import { WhirlpoolParticles } from './WhirlpoolParticles.js';
 
 // ---------------------------------------------------------------------------
 // Obstacle descriptor
@@ -29,7 +30,7 @@ const _geo = {
   barrel:     new THREE.CylinderGeometry(0.4, 0.4, 0.8, 8),
   wave_small: new THREE.BoxGeometry(2.5, 0.3, 0.8),
   seaweed:    new THREE.PlaneGeometry(3, 2),
-  whirlpool:  new THREE.CylinderGeometry(1.5, 0.3, 0.5, 16, 1, true),
+  whirlpool:  new THREE.CylinderGeometry(12.0, 0.5, 2.0, 32, 1, true),
 };
 
 const _mat = {
@@ -194,6 +195,12 @@ export function buildObstacle(type, pos, url, scale, rockModels, pickupModels, s
     mesh = new THREE.Mesh(_geo[type] ?? _geo.rock, _mat[type] ?? _mat.rock);
   }
 
+  let particles = null;
+  if (type === 'whirlpool') {
+    particles = new WhirlpoolParticles(12, 150);
+    mesh.add(particles.mesh);
+  }
+
   // Position at origin to calculate local bounds
   mesh.position.set(0, 0, 0);
   mesh.updateMatrixWorld(true);
@@ -239,7 +246,8 @@ export function buildObstacle(type, pos, url, scale, rockModels, pickupModels, s
     active:       true,
     qteResolved:  false,
     damage:       getDamage(type),
-    pullForce:    type === 'whirlpool' ? 2.0 : null,
+    pullForce:    type === 'whirlpool' ? 8.0 : null,
+    particles:    particles,
   };
 }
 
@@ -327,6 +335,10 @@ export class ObstacleManager {
         }
       }
 
+      if (obs.particles) {
+        obs.particles.update(delta);
+      }
+
       // Update bounding volumes
       obs.mesh.updateMatrixWorld(true);
       obs.obb.copy(obs.baseOBB).applyMatrix4(obs.mesh.matrixWorld);
@@ -365,13 +377,33 @@ export class ObstacleManager {
     // Ignore hazards while immune (pickups can still be collected)
     if (ship.isImmune() && obs.type !== 'pickup') return;
 
-    // Whirlpool applies a continuous lateral pull
+    // Whirlpool applies a continuous radial pull
     if (obs.type === 'whirlpool') {
-      const hit = ship.obb.intersectsOBB(obs.obb);
-      if (hit) {
-        const sign = obs.mesh.position.x < ship.mesh.position.x ? -1 : 1;
-        ship.mesh.position.x += sign * obs.pullForce * delta;
-        ship.takeDamage(obs.damage * delta, obs.type); // continuous trickle damage
+      const dx = obs.mesh.position.x - ship.mesh.position.x;
+      const dz = obs.mesh.position.z - ship.mesh.position.z;
+      const dist = Math.hypot(dx, dz) || 0.001;
+
+      if (dist < 12.0) {
+        // Stronger pull as you get closer to the center
+        const pullSpeed = obs.pullForce * Math.max(0.2, (1.0 - (dist / 12.0))); 
+        
+        const dirX = dx / dist;
+        const dirZ = dz / dist;
+        
+        // Radial pull
+        ship.mesh.position.x += dirX * pullSpeed * delta;
+        ship.mesh.position.z += dirZ * pullSpeed * delta;
+        
+        // Tangential spiral pull
+        ship.mesh.position.x += -dirZ * pullSpeed * 0.6 * delta;
+        ship.mesh.position.z += dirX * pullSpeed * 0.6 * delta;
+
+        // Take continuous water damage at the center
+        if (dist < 2.5) {
+          if (typeof ship.takeWaterDamage === 'function') {
+            ship.takeWaterDamage(obs.damage * delta);
+          }
+        }
       }
       return;
     }

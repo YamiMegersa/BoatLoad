@@ -165,6 +165,25 @@ async function boot() {
     on('playerDamaged',      d => logEvent(`[Collision] Hull breached!`));
     on('playerSunk',         () => logEvent('[SUNK] Game Over'));
 
+    on('editorRequestPlay', () => {
+      if (gameState.currentPhase === GamePhase.EDITOR && gameState._editorSystem) {
+        logEvent('Playing Custom Level from Editor...');
+        const customLevelCfg = gameState._editorSystem.getPlayableConfig();
+        
+        let hp = 100;
+        if (gameState._grid) {
+          hp = DamageSystem.getSummary(gameState._grid).integrityPct;
+        }
+
+        gameState.transition(GamePhase.OBSTACLE, { 
+          shipDef, 
+          levelCfg: customLevelCfg, 
+          shipStats: { hullHP: hp }, 
+          rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels 
+        });
+      }
+    });
+
     // Start at Shipyard for Day 1
     await gameState.transition(GamePhase.SHIPYARD, { shipDef, levelCfg, fishModels });
 

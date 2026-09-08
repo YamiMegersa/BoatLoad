@@ -258,11 +258,10 @@ export class EditorSystem {
     this._placedObstacles.push(obs);
   }
 
-  exportLevel() {
-    // Only output explicitly placed obstacles per user request
-    const exportData = {
+  getPlayableConfig() {
+    return {
       ...this._levelCfg,
-      worldSize: this._levelCfg.worldSize || 200,
+      worldSize: this._levelCfg?.worldSize || 200,
       obstacles: this._placedObstacles.map(obs => ({
         type: obs.type,
         assetUrl: obs.assetUrl,
@@ -274,6 +273,10 @@ export class EditorSystem {
         }
       }))
     };
+  }
+
+  exportLevel() {
+    const exportData = this.getPlayableConfig();
     
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData, null, 2));
     const a = document.createElement('a');
@@ -284,5 +287,17 @@ export class EditorSystem {
     document.body.removeChild(a);
     
     console.log("Level Exported", exportData);
+  }
+
+  update(delta) {
+    if (this._previewMesh && this._previewMesh.particles) {
+      this._previewMesh.particles.update(delta);
+    }
+    
+    for (const obs of this._placedObstacles) {
+      if (obs.particles) {
+        obs.particles.update(delta);
+      }
+    }
   }
 }

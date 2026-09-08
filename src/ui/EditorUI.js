@@ -83,6 +83,7 @@ export class EditorUI {
       </div>
 
       <div class="editor-footer">
+        <button id="btn-editor-play" style="background-color: #2e6b3e; margin-bottom: 5px;">▶️ Play Level</button>
         <button id="btn-editor-export">💾 Export JSON</button>
       </div>
     `;
@@ -113,6 +114,11 @@ export class EditorUI {
     // Handle Export
     this._el.querySelector('#btn-editor-export').onclick = () => {
       emit('editorExport');
+    };
+
+    // Handle Play
+    this._el.querySelector('#btn-editor-play').onclick = () => {
+      emit('editorRequestPlay');
     };
 
     // Handle World Size
