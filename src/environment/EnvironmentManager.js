@@ -1,12 +1,14 @@
 import * as THREE from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { FishAnimator }    from './FishAnimator.js';
+import { WindParticles }   from './WindParticles.js';
 
 export class EnvironmentManager {
   constructor() {
     this._scene      = null;
     this._fishModels = null;
     this._sharks     = [];
+    this._windParticles = null;
   }
 
   /**
@@ -17,6 +19,8 @@ export class EnvironmentManager {
     this._scene      = scene;
     this._fishModels = fishModels;
     this._sharks     = [];
+    
+    this._windParticles = new WindParticles(scene);
 
     if (this._fishModels && this._fishModels.length > 0) {
       for (let i = 0; i < 15; i++) {
@@ -86,7 +90,11 @@ export class EnvironmentManager {
     });
   }
 
-  update(delta) {
+  update(delta, windDir) {
+    if (this._windParticles) {
+      this._windParticles.update(delta, windDir);
+    }
+
     for (const shark of this._sharks) {
       shark.animator.update(delta);
 
@@ -111,5 +119,10 @@ export class EnvironmentManager {
       this._scene?.remove(shark.mesh);
     }
     this._sharks = [];
+
+    if (this._windParticles) {
+      this._windParticles.dispose();
+      this._windParticles = null;
+    }
   }
 }
