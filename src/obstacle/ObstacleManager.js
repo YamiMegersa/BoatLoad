@@ -55,7 +55,24 @@ export function buildObstacle(type, pos, url, scale, rockModels, pickupModels, s
   let mesh;
   let selectedModel = null;
   const targetScale = scale || 1.0;
-  if (type === 'rock' && rockModels && rockModels.length > 0) {
+  if (type === 'wind_zone') {
+    mesh = new THREE.Group();
+    // Ring
+    const ringGeo = new THREE.RingGeometry(9.5, 10.0, 32);
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, side: THREE.DoubleSide, transparent: true, opacity: 0.5 });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = -Math.PI / 2;
+    mesh.add(ring);
+    
+    // Arrow pointing -Z
+    const arrowGeo = new THREE.ConeGeometry(1, 3, 8);
+    const arrowMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.8 });
+    const arrow = new THREE.Mesh(arrowGeo, arrowMat);
+    arrow.rotation.x = -Math.PI / 2;
+    arrow.position.z = -10;
+    mesh.add(arrow);
+    mesh.scale.setScalar(targetScale);
+  } else if (type === 'rock' && rockModels && rockModels.length > 0) {
     if (url) {
       selectedModel = rockModels.find(m => m.url === url) || rockModels[Math.floor(Math.random() * rockModels.length)];
     } else {
@@ -193,6 +210,7 @@ export function buildObstacle(type, pos, url, scale, rockModels, pickupModels, s
     mesh.add(cloned);
   } else {
     mesh = new THREE.Mesh(_geo[type] ?? _geo.rock, _mat[type] ?? _mat.rock);
+    mesh.scale.setScalar(targetScale);
   }
 
   let particles = null;
@@ -315,23 +333,22 @@ export class ObstacleManager {
    * Update all obstacles. Call once per frame.
    * @param {number} delta         Seconds since last frame
    * @param {import('./PlayerShip.js').PlayerShip} playerShip
-   * @param {THREE.Vector3} windDir
+   * @param {import('../environment/WindManager.js').WindManager} windManager
    */
-  update(delta, playerShip, windDir) {
+  update(delta, playerShip, windManager) {
     for (const obs of this._obstacles) {
       if (!obs.active) continue;
 
       // Only waves move, according to wind direction
-      if (obs.type === 'wave_small' && windDir) {
-        obs.mesh.position.x += windDir.x * obs.scrollSpeed * delta;
-        obs.mesh.position.z += windDir.z * obs.scrollSpeed * delta;
-
-        // Wrap around if they go out of bounds
-        const dist = Math.hypot(obs.mesh.position.x, obs.mesh.position.z);
-        if (dist > this.playRadius + 20) {
-          // Push to the opposite edge
-          obs.mesh.position.x = -windDir.x * this.playRadius;
-          obs.mesh.position.z = -windDir.z * this.playRadius;
+      if (obs.type === 'wave_small' && windManager) {
+        const localWind = windManager.getWindAt(obs.mesh.position.x, obs.mesh.position.z);
+        obs.mesh.position.x += localWind.x * obs.scrollSpeed * delta;
+        obs.mesh.position.z += localWind.z * obs.scrollSpeed * delta;
+        
+        // Wrap around bounds
+        if (Math.abs(obs.mesh.position.x) > this.playRadius || Math.abs(obs.mesh.position.z) > this.playRadius) {
+          obs.mesh.position.x = -localWind.x * this.playRadius;
+          obs.mesh.position.z = -localWind.z * this.playRadius;
         }
       }
 
@@ -377,15 +394,19 @@ export class ObstacleManager {
     // Ignore hazards while immune (pickups can still be collected)
     if (ship.isImmune() && obs.type !== 'pickup') return;
 
+    // Ignore wind zones for collision
+    if (obs.type === 'wind_zone') return;
+
     // Whirlpool applies a continuous radial pull
     if (obs.type === 'whirlpool') {
       const dx = obs.mesh.position.x - ship.mesh.position.x;
       const dz = obs.mesh.position.z - ship.mesh.position.z;
       const dist = Math.hypot(dx, dz) || 0.001;
+      const pullRadius = 12.0 * obs.scale;
 
-      if (dist < 12.0) {
+      if (dist < pullRadius) {
         // Stronger pull as you get closer to the center
-        const pullSpeed = obs.pullForce * Math.max(0.2, (1.0 - (dist / 12.0))); 
+        const pullSpeed = obs.pullForce * Math.max(0.2, (1.0 - (dist / pullRadius))); 
         
         const dirX = dx / dist;
         const dirZ = dz / dist;
@@ -399,7 +420,7 @@ export class ObstacleManager {
         ship.mesh.position.z += dirX * pullSpeed * 0.6 * delta;
 
         // Take continuous water damage at the center
-        if (dist < 2.5) {
+        if (dist < 2.5 * obs.scale) {
           if (typeof ship.takeWaterDamage === 'function') {
             ship.takeWaterDamage(obs.damage * delta);
           }

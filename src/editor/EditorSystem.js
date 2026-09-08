@@ -19,6 +19,7 @@ export class EditorSystem {
     this._previewMesh = null;
     this._currentScale = 1.0;
     this._currentY = 0.5;
+    this._currentRotation = 0;
     
     // Config
     this._levelCfg = null;
@@ -47,6 +48,7 @@ export class EditorSystem {
       this._activeTool = 'place';
       this._currentScale = 1.0; // reset scale on new tool
       this._currentY = 0.5;     // reset height on new tool
+      this._currentRotation = 0; // reset rotation
       this._updatePreview();
     });
     
@@ -88,7 +90,7 @@ export class EditorSystem {
     if (this._levelCfg && this._levelCfg.obstacles) {
       for (const cfg of this._levelCfg.obstacles) {
         if (cfg.position) {
-          this._spawnObstacle(cfg.type, cfg.assetUrl, cfg.position.x, cfg.position.y !== undefined ? cfg.position.y : 0.5, cfg.position.z, cfg.scale || 1.0);
+          this._spawnObstacle(cfg.type, cfg.assetUrl, cfg.position.x, cfg.position.y !== undefined ? cfg.position.y : 0.5, cfg.position.z, cfg.scale || 1.0, cfg.rotation || 0);
         }
       }
     }
@@ -167,6 +169,7 @@ export class EditorSystem {
         }
       });
       
+      this._previewMesh.mesh.rotation.y = this._currentRotation;
       this._scene.add(this._previewMesh.mesh);
     }
   }
@@ -195,6 +198,12 @@ export class EditorSystem {
         if (this._previewMesh) {
           this._previewMesh.mesh.position.set(this._intersection.x, this._currentY, this._intersection.z);
         }
+      } else if (event.code === 'BracketLeft' || event.code === 'BracketRight') {
+        const deltaRot = event.code === 'BracketLeft' ? Math.PI / 8 : -Math.PI / 8;
+        this._currentRotation += deltaRot;
+        if (this._previewMesh) {
+          this._previewMesh.mesh.rotation.y = this._currentRotation;
+        }
       }
     }
   }
@@ -219,7 +228,7 @@ export class EditorSystem {
     this._onPointerMove(event);
 
     if (this._activeTool === 'place' && this._activeType) {
-      this._spawnObstacle(this._activeType, this._activeUrl, this._intersection.x, this._currentY, this._intersection.z, this._currentScale);
+      this._spawnObstacle(this._activeType, this._activeUrl, this._intersection.x, this._currentY, this._intersection.z, this._currentScale, this._currentRotation);
     } else if (this._activeTool === 'delete') {
       // Use raycasting to find the exactly clicked mesh
       const meshes = this._placedObstacles.map(o => o.mesh);
@@ -246,7 +255,7 @@ export class EditorSystem {
     }
   }
 
-  _spawnObstacle(type, url, x, y, z, scale) {
+  _spawnObstacle(type, url, x, y, z, scale, rotation = 0) {
     const obs = buildObstacle(
       type, 
       { x, y, z }, 
@@ -254,6 +263,8 @@ export class EditorSystem {
       scale,
       this._rockModels, this._pickupModels, this._seaweedModels, this._waveModels, this._islandModels
     );
+    obs.mesh.rotation.y = rotation;
+    obs.rotation = rotation;
     this._scene.add(obs.mesh);
     this._placedObstacles.push(obs);
   }
@@ -266,6 +277,7 @@ export class EditorSystem {
         type: obs.type,
         assetUrl: obs.assetUrl,
         scale: obs.scale,
+        rotation: obs.rotation,
         position: {
           x: Math.round(obs.mesh.position.x * 100) / 100,
           y: Math.round(obs.mesh.position.y * 100) / 100,

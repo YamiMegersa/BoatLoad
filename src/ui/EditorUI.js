@@ -54,6 +54,13 @@ export class EditorUI {
       </button>
     `;
 
+    // Wind Zone (procedural)
+    const windZoneHtml = `
+      <button class="editor-btn asset-btn" data-type="wind_zone" data-url="">
+        💨 Wind Zone (Procedural)
+      </button>
+    `;
+
     this._el.innerHTML = `
       <div class="editor-header">
         <h3>Level Editor</h3>
@@ -66,9 +73,19 @@ export class EditorUI {
         ${buildSubmenu('Seaweed', '🌿', 'seaweed', LevelConfig.seaweedUrls)}
         ${buildSubmenu('Waves', '🌊', 'wave_small', LevelConfig.waveUrls)}
         ${whirlpoolHtml}
+        ${windZoneHtml}
         ${buildSubmenu('Pickups', '📦', 'pickup', LevelConfig.pickupUrls)}
         ${buildSubmenu('Islands', '🏝️', 'island', LevelConfig.islandUrls)}
-        
+      </div>
+
+      <div class="editor-help">
+        <p><strong>Controls:</strong></p>
+        <p>Mouse Wheel: Adjust Height</p>
+        <p>O/P: Adjust Scale (Radius for Wind)</p>
+        <p>[/]: Rotate Object (Direction for Wind)</p>
+        <p>Click: Place</p>
+      </div>
+
         <h4>Tools</h4>
         <button class="editor-btn tool-btn tool-active" data-tool="select">Cursor / Move</button>
         <button class="editor-btn tool-btn" data-tool="delete">🗑️ Delete (Click)</button>

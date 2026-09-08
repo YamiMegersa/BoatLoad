@@ -16,6 +16,7 @@ import { Minimap }        from '../ui/Minimap.js';
 import { HUD }            from '../ui/HUD.js';
 import { EditorUI }       from '../ui/EditorUI.js';
 import { EditorSystem }   from '../editor/EditorSystem.js';
+import { WindManager }        from '../environment/WindManager.js';
 import { emit, on, off, clear } from './EventBus.js';
 
 // ---------------------------------------------------------------------------
@@ -86,6 +87,7 @@ export class GameState {
     this._hud             = new HUD();
     this._editorUI        = new EditorUI();
     this._editorSystem    = null;
+    this._windManager     = null;
     
     // Global wind direction (e.g., blowing towards North-East)
     this.windDir = new THREE.Vector3(1, 0, -1).normalize();
@@ -295,8 +297,11 @@ export class GameState {
 
     // Sync renderer on dirty events
     on('gridDirty', () => {
-      if (this._grid && this._chunkRenderer) {
-        this._chunkRenderer.sync(this._grid);
+      if (this._windManager) {
+        const localWind = this._windManager.getWindAt(this._playerShip.mesh.position.x, this._playerShip.mesh.position.z);
+        
+        document.getElementById('ui-hud-wind-dir').textContent = 
+          `Wind: ${localWind.x.toFixed(1)}, ${localWind.z.toFixed(1)}`;
       }
     });
 
@@ -412,10 +417,11 @@ export class GameState {
     this._playerShip = new PlayerShip(shipStats ?? {}, this._scene, this._chunkRenderer, this._grid);
     this._obstacleManager = new ObstacleManager();
     this._obstacleManager.init(levelCfg, this._scene, rockModels, pickupModels, seaweedModels, waveModels, islandModels);
-    
     this._environmentManager = new EnvironmentManager();
     this._environmentManager.init(this._scene, fishModels);
     
+    this._windManager = new WindManager(levelCfg);
+
     this._qteSystem = new QTESystem();
 
     // Keyboard steering
@@ -440,9 +446,10 @@ export class GameState {
   }
 
   _updateObstacle(delta) {
-    this._playerShip?.update(delta, this._ocean, this.windDir);
-    this._obstacleManager?.update(delta, this._playerShip, this.windDir);
-    this._environmentManager?.update(delta, this.windDir);
+    // Pass WindManager instead of static windDir
+    this._playerShip?.update(delta, this._ocean, this._windManager);
+    this._obstacleManager?.update(delta, this._playerShip, this._windManager);
+    this._environmentManager?.update(delta, this._windManager);
 
     if (this._playerShip) {
       const p = this._playerShip.mesh.position;

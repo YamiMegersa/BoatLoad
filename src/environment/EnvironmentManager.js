@@ -90,9 +90,9 @@ export class EnvironmentManager {
     });
   }
 
-  update(delta, windDir) {
+  update(delta, windManager) {
     if (this._windParticles) {
-      this._windParticles.update(delta, windDir);
+      this._windParticles.update(delta, windManager);
     }
 
     for (const shark of this._sharks) {

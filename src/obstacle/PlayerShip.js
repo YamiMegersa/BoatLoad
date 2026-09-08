@@ -163,7 +163,7 @@ export class PlayerShip {
   // Frame update
   // -------------------------------------------------------------------------
 
-  update(delta, ocean, windDir = new THREE.Vector3(0, 0, -1)) {
+  update(delta, ocean, windManager) {
     if (this.sunk) return;
 
     // Time for natural bobbing
@@ -225,9 +225,12 @@ export class PlayerShip {
     this.yaw += this.yawVelocity * delta;
     // No more clamping, free 360 degree rotation
     
+    const pos = this.mesh.position;
+    const localWind = windManager ? windManager.getWindAt(pos.x, pos.z) : new THREE.Vector3(1, 0, -1).normalize();
+
     // Calculate wind alignment speed modifier
-    const shipDir = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw)).normalize();
-    const windNorm = windDir.clone().normalize();
+    const shipDir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.mesh.quaternion).normalize();
+    const windNorm = localWind.clone().normalize();
     const windDot = shipDir.dot(windNorm); // 1.0 (with wind), -1.0 (against wind)
     
     // Map dot product [-1, 1] to speed multiplier [0.3, 1.0] (never negative)

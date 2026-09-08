@@ -40,27 +40,20 @@ export class WindParticles {
     this._scene.add(this.mesh);
   }
   
-  update(delta, windDir) {
-    if (!windDir) return;
+  update(delta, windManager) {
+    if (!windManager) return;
     
-    const dx = windDir.x * this.speed * delta;
-    const dy = windDir.y * this.speed * delta;
-    const dz = windDir.z * this.speed * delta;
     const pr = this.playRadius;
     
-    // Wind streaks should point along the wind direction.
-    // By default, BoxGeometry length is along Z axis.
-    const targetQuaternion = new THREE.Quaternion().setFromUnitVectors(
-      new THREE.Vector3(0, 0, 1), 
-      windDir.clone().normalize()
-    );
-    
-    this.dummy.quaternion.copy(targetQuaternion);
-    
     for (let i = 0; i < this.count; i++) {
-      this.positions[i * 3]     += dx;
-      this.positions[i * 3 + 1] += dy;
-      this.positions[i * 3 + 2] += dz;
+      const x = this.positions[i * 3];
+      const z = this.positions[i * 3 + 2];
+      
+      const localWind = windManager.getWindAt(x, z);
+      
+      this.positions[i * 3]     += localWind.x * this.speed * delta;
+      this.positions[i * 3 + 1] += localWind.y * this.speed * delta;
+      this.positions[i * 3 + 2] += localWind.z * this.speed * delta;
       
       // Wrap around
       if (this.positions[i * 3] > pr) this.positions[i * 3] -= pr * 2;
@@ -77,6 +70,13 @@ export class WindParticles {
         this.positions[i * 3 + 1],
         this.positions[i * 3 + 2]
       );
+      
+      const targetQuaternion = new THREE.Quaternion().setFromUnitVectors(
+        new THREE.Vector3(0, 0, 1), 
+        localWind.clone().normalize()
+      );
+      this.dummy.quaternion.copy(targetQuaternion);
+      
       this.dummy.updateMatrix();
       this.mesh.setMatrixAt(i, this.dummy.matrix);
     }
