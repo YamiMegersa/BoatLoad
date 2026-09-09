@@ -1,4 +1,4 @@
-import { on, off } from '../core/EventBus.js';
+import { emit, on, off } from '../core/EventBus.js';
 
 /**
  * DocketSheet — DOM overlay showing the customer's repair checklist.
@@ -28,6 +28,10 @@ export class DocketSheet {
     this._el = document.createElement('div');
     this._el.id = 'docket-sheet';
     this._el.innerHTML = this._buildHTML(docket);
+
+    this._el.querySelector('#sail-btn').addEventListener('click', () => {
+      emit('startSailing');
+    });
 
     document.getElementById('ui-root')?.appendChild(this._el);
   }
