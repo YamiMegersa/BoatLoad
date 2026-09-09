@@ -112,14 +112,17 @@ export class BuildSystem {
     let targetY = cellY;
     let targetZ = cellZ;
 
-    if (normal) {
+    const state = this._grid.getState(cellX, cellY, cellZ);
+    const isRepair = (state === CellState.MISSING || state === CellState.DAMAGED);
+
+    if (normal && !isRepair) {
       // Snap to the adjacent cell based on the normal
       targetX += normal.x;
       targetY += normal.y;
       targetZ += normal.z;
     }
 
-    this._currentPlacement = { cellX, cellY, cellZ, normal };
+    this._currentPlacement = { cellX: targetX, cellY: targetY, cellZ: targetZ, normal: null };
 
     // We align the bottom-center of the object to the target cell
     const [sx, sy, sz] = this._getRotatedSize();
@@ -159,7 +162,10 @@ export class BuildSystem {
     let targetY = cellY;
     let targetZ = cellZ;
 
-    if (normal) {
+    const state = this._grid.getState(cellX, cellY, cellZ);
+    const isRepair = (state === CellState.MISSING || state === CellState.DAMAGED);
+
+    if (normal && !isRepair) {
       targetX += normal.x;
       targetY += normal.y;
       targetZ += normal.z;

@@ -128,6 +128,9 @@ export class VoxelGrid {
 
     const idx = this.index(x, y, z);
     const prev = this.data[idx];
+    if (x === 10 && y === 18 && z === 22) {
+      console.log(`[DEBUG VoxelGrid] Cell 10,18,22 changing from ${prev} to ${state}`);
+    }
     this.data[idx] = state;
     this.dirtySet.add(idx);
 
