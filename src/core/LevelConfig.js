@@ -93,7 +93,8 @@ export class LevelConfig {
         }))
       );
 
-      fishModels.forEach(fishModel => {
+      fishModels.forEach((fishModel, index) => {
+        fishModel.isShark = LevelConfig._fishUrls[index].includes('Shark');
         const dummyScene = new THREE.Scene();
         dummyScene.add(fishModel.scene);
         dummyScene.updateMatrixWorld(true);
@@ -168,7 +169,7 @@ export class LevelConfig {
    * @returns {Promise<object>}
    */
   static async _fetchJson(path) {
-    const res = await fetch(path);
+    const res = await fetch(`${path}?t=${Date.now()}`);
     if (!res.ok) throw new Error(`LevelConfig: failed to load ${path} (${res.status})`);
     return res.json();
   }
