@@ -202,10 +202,15 @@ export class EnvironmentManager {
 
       // Wrap around the play area
       const p = shark.mesh.position;
-      if (p.z >  60) p.z -= 120;
-      if (p.z < -60) p.z += 120;
-      if (p.x >  60) p.x -= 120;
-      if (p.x < -60) p.x += 120;
+      let wrapped = false;
+      if (p.z >  60) { p.z -= 120; wrapped = true; }
+      if (p.z < -60) { p.z += 120; wrapped = true; }
+      if (p.x >  60) { p.x -= 120; wrapped = true; }
+      if (p.x < -60) { p.x += 120; wrapped = true; }
+      
+      if (wrapped) {
+        shark.qteTriggered = false;
+      }
     }
 
     for (const shark of toRemove) {
