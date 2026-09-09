@@ -50,9 +50,12 @@ export class QTESystem {
   /**
    * Start a QTE event.
    * @param {{ type: string, windowMs: number, onSuccess?: Function, onFail?: Function }} opts
+   * @returns {boolean} True if the QTE successfully started, false if another is already active.
    */
   trigger({ type, windowMs = 2000, onSuccess, onFail }) {
-    if (this._active) return; // ignore overlapping QTEs
+    if (this._active) return false; // ignore overlapping QTEs
+
+    console.log(`[QTE] Triggered ${type}`);
 
     this._active    = true;
     this._type      = type;
@@ -64,6 +67,8 @@ export class QTESystem {
     window.addEventListener('keydown', this._boundKey);
 
     this._timer = setTimeout(() => this._fail(), windowMs);
+    
+    return true;
   }
 
   /**
@@ -100,6 +105,8 @@ export class QTESystem {
     this._active = false;
     this._type   = null;
 
+    console.log(`[QTE] Success ${type}`);
+
     emit('qteSuccess', { type });
     emit('playSound', { sound: 'qte_success' });
     this._onSuccess();
@@ -113,6 +120,8 @@ export class QTESystem {
     const type = this._type;
     this._active = false;
     this._type   = null;
+
+    console.log(`[QTE] Failed ${type}`);
 
     emit('qteFail', { type });
     emit('playSound', { sound: 'qte_fail' });

@@ -33,12 +33,14 @@ export class PlayerShip {
    * @param {import('../shipyard/ChunkRenderer.js').ChunkRenderer} [chunkRenderer]
    * @param {import('../shipyard/VoxelGrid.js').VoxelGrid} [grid]
    */
-  constructor(stats, scene, chunkRenderer, grid) {
+  constructor(stats, scene, chunkRenderer, grid, qteSystem) {
     this.speedMultiplier = stats.speedMultiplier  ?? 1.0;
     this._laneHalfWidth  = stats.laneHalfWidth   ?? 6;
 
     this.chunkRenderer = chunkRenderer;
     this.grid = grid;
+    this.qteSystem = qteSystem;
+    this._bailingWater = false;
 
     // Leak System
     this.waterLevel = 0;
@@ -145,6 +147,25 @@ export class PlayerShip {
       // Tell UI the water level rose
       emit('playerWaterLevel', { level: this.waterLevel, max: this.maxWaterLevel });
     }
+
+    // Trigger sinking QTE
+    if (this.waterLevel > this.maxWaterLevel * 0.75 && !this._bailingWater && this.qteSystem) {
+      this._bailingWater = true;
+      this.qteSystem.trigger({
+        type: 'RESIST',
+        windowMs: 2500,
+        onSuccess: () => {
+          this.waterLevel = Math.max(0, this.waterLevel - 25);
+          emit('playerWaterLevel', { level: this.waterLevel, max: this.maxWaterLevel });
+          this._bailingWater = false;
+          emit('spawnParticles', { type: 'splash', position: this.mesh.position });
+        },
+        onFail: () => {
+          this._bailingWater = false;
+        }
+      });
+    }
+
     const waterRatio = Math.min(this.waterLevel / this.maxWaterLevel, 1.0);
     
     // Check for sinking
