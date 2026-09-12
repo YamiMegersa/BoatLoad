@@ -38,18 +38,19 @@ Handles the logic, rendering, and interaction for the voxel-based ship repair ph
 ### 4. Obstacle Sailing Phase (`src/obstacle/`)
 Handles the arcade-style sailing mechanics.
 - **`PlayerShip.js`**: The player's avatar during the sailing phase. It wraps the `ChunkRenderer` to display the voxel ship, manages steering/physics, and dynamically updates its Y-position and pitch/roll to ride the ocean waves. It also tracks the `waterLevel` and manages sinking logic if `MISSING` cells fall below the waterline.
-- **`ObstacleManager.js`**: Spawns and recycles obstacles (e.g., rocks, seaweed) as the ship sails forward. Handles bounding box collision detection between obstacles and the `PlayerShip`.
+- **`ObstacleManager.js`**: Spawns and recycles obstacles (e.g., rocks, seaweed, whirlpools) as the ship sails forward. Handles bounding box collision detection (recently improved) between obstacles and the `PlayerShip`.
 - **`QTESystem.js`**: Quick Time Event system for specific mid-gameplay interactions or repairing on-the-fly.
 
 ### 5. Level Creation Kit (`src/editor/`)
 Handles the in-game developer tools for constructing levels.
-- **`EditorSystem.js`**: Core 3D engine for the level editor. Supports raycast-based drag-and-drop placement, universal scaling (O/P keys), vertical elevation adjustment (Scroll Wheel), and exporting the explicitly placed configuration into `day.json` format.
+- **`EditorSystem.js`**: Core 3D engine for the level editor. Supports raycast-based drag-and-drop placement, universal scaling (O/P keys) that accurately scales both terrain and non-terrain objects, vertical elevation adjustment (Scroll Wheel), and exporting the explicitly placed configuration into `day.json` format. It also features a God Mode for collision-free testing.
 - **`EditorUI.js`**: Overlay UI handling dynamic accordion submenus that grant devs complete access to the game's entire 3D asset library, fed directly by `LevelConfig`.
 
 ### 6. Environment & VFX (`src/environment/`)
 Handles the background aesthetics, lighting, and ambient creatures.
 - **`Ocean.js`**: A custom shader-based ocean material applied to a large `PlaneGeometry`. It calculates complex wave heights using superimposed sine waves based on time. It exposes `getWaveInfo(x, z)` so physics objects can ride the surface.
 - **`EnvironmentManager.js`**: Spawns ambient environmental details (like random fish swimming around) to make the ocean feel alive.
+- **`WindManager.js` & `WindParticles.js`**: Handles dynamic wind particle effects and wind-related logic influencing the sailing phase.
 - **`FishAnimator.js`**: A procedural animation system for aquatic life. Instead of relying on pre-baked skeletal animations, it calculates procedural sine-wave deformations and squash-and-stretch scales on the fish bones (e.g., Spine, Tail) to simulate swimming.
 - **`SharkSkinRepair.js`**: A specific utility for repairing skeletal hierarchies or missing vertex weights on dynamically loaded shark/fish models to ensure they deform correctly under `FishAnimator`.
 
@@ -67,7 +68,7 @@ Manages the HTML/CSS overlay systems that sit on top of the Three.js canvas.
 
 ### 9. Assets (`src/assets/` & `src/islands/`)
 Contains all static configurations and 3D models required by the game.
-- **Models (`ships/`, `creatures/`, `islands/`):** e.g., `sloop.glb` (Ship models), `shark.glb` (Fish models), massive landscape GLBs.
+- **Models (`ships/`, `creatures/`, `islands/`):** e.g., `sloop.glb` (Ship models), `shark.glb` (Fish models), massive landscape GLBs. Note: Low poly models have been updated to cohesive voxel models across the board.
 - **Configurations (`ships/`):** e.g., `sloop.json` (defines grid dimensions and bounding zones for voxelization).
 - **Levels (`levels/`):** e.g., `day1.json` (defines day progression, obstacles, and initial damage).
 
