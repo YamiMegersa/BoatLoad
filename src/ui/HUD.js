@@ -1,4 +1,5 @@
-import { on, off } from '../core/EventBus.js';
+import { emit, on, off } from '../core/EventBus.js';
+import wheelImage from '../assets/wheels/wheel_threshold.png';
 
 /**
  * HUD — obstacle phase HUD overlay.
@@ -56,11 +57,76 @@ export class HUD {
         </svg>
       </div>
       <div id="hud-ammo">🔫 ∞</div>
+      
+      <!-- Steering Wheel -->
+      <div id="hud-wheel-container" style="position: fixed; bottom: 30px; right: 30px; pointer-events: auto;">
+        <img id="hud-wheel" src="${wheelImage}" style="width: 350px; height: 350px; transform-origin: center; touch-action: none; user-select: none; cursor: grab; filter: drop-shadow(0 10px 20px rgba(0,0,0,0.5));">
+      </div>
     `;
 
     this._hpBar = this._el.querySelector('#hud-hp-bar');
     this._waterBar = this._el.querySelector('#hud-water-bar');
     this._qteEl = this._el.querySelector('#hud-qte');
+    this._wheel = this._el.querySelector('#hud-wheel');
+    
+    // Steering Wheel Interaction
+    this._wheelAngle = 0;
+    this._isDraggingWheel = false;
+
+    const getAngle = (e) => {
+      const rect = this._wheel.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      return Math.atan2(e.clientY - centerY, e.clientX - centerX);
+    };
+
+    this._wheel.addEventListener('pointerdown', (e) => {
+      this._isDraggingWheel = true;
+      this._lastAngle = getAngle(e);
+      this._wheel.style.cursor = 'grabbing';
+      e.target.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+
+    this._wheel.addEventListener('pointermove', (e) => {
+      if (!this._isDraggingWheel) return;
+      const currentAngle = getAngle(e);
+      let diff = currentAngle - this._lastAngle;
+      if (diff > Math.PI) diff -= Math.PI * 2;
+      if (diff < -Math.PI) diff += Math.PI * 2;
+      
+      this._wheelAngle += (diff * 180 / Math.PI);
+      const maxRotation = 180;
+      this._wheelAngle = Math.max(-maxRotation, Math.min(maxRotation, this._wheelAngle));
+      this._lastAngle = currentAngle;
+    });
+
+    const stopDragging = (e) => {
+      if (!this._isDraggingWheel) return;
+      this._isDraggingWheel = false;
+      this._wheel.style.cursor = 'grab';
+      e.target.releasePointerCapture(e.pointerId);
+    };
+
+    this._wheel.addEventListener('pointerup', stopDragging);
+    this._wheel.addEventListener('pointercancel', stopDragging);
+
+    // Auto-centering & emit loop
+    const autoCenter = () => {
+      if (!this._el) return; // Stop loop if unmounted
+      
+      if (!this._isDraggingWheel) {
+        this._wheelAngle *= 0.85; // Spring back
+        if (Math.abs(this._wheelAngle) < 0.1) this._wheelAngle = 0;
+      }
+      
+      this._wheel.style.transform = `rotate(${this._wheelAngle}deg)`;
+      const maxRotation = 180;
+      emit('steer', { value: this._wheelAngle / maxRotation });
+      
+      requestAnimationFrame(autoCenter);
+    };
+    requestAnimationFrame(autoCenter);
 
     const godChk = this._el.querySelector('#chk-godmode');
     if (godChk) {

@@ -424,18 +424,12 @@ export class GameState {
 
     this._qteSystem = new QTESystem();
 
-    // Keyboard steering
-    this._obstacleKeyDown = e => {
-      if (e.code === 'ArrowLeft'  || e.code === 'KeyA') this._playerShip.steerInput = -1;
-      if (e.code === 'ArrowRight' || e.code === 'KeyD') this._playerShip.steerInput =  1;
-    };
-    this._obstacleKeyUp = e => {
-      if (['ArrowLeft','KeyA','ArrowRight','KeyD'].includes(e.code)) {
-        this._playerShip.steerInput = 0;
+    this._onSteer = (d) => {
+      if (this._playerShip) {
+        this._playerShip.steerInput = d.value;
       }
     };
-    window.addEventListener('keydown', this._obstacleKeyDown);
-    window.addEventListener('keyup',   this._obstacleKeyUp);
+    on('steer', this._onSteer);
 
     // When player sinks, transition to results
     on('playerSunk', () => {
@@ -477,8 +471,7 @@ export class GameState {
   }
 
   _exitObstacle() {
-    window.removeEventListener('keydown', this._obstacleKeyDown);
-    window.removeEventListener('keyup',   this._obstacleKeyUp);
+    off('steer', this._onSteer);
     off('playerSunk');
 
     this._playerShip?.dispose(this._scene);
