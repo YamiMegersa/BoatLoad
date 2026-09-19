@@ -410,8 +410,8 @@ export class GameState {
   // =========================================================================
 
   _enterObstacle({ levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels }) {
-    // Semi top-down camera
-    this._camera.position.set(0, 14, 10);
+    // Chase camera initial position
+    this._camera.position.set(0, 5, 16);
     this._camera.lookAt(0, 0, -5);
 
     this._playerShip = new PlayerShip(shipStats ?? {}, this._scene, this._chunkRenderer, this._grid);
@@ -447,18 +447,47 @@ export class GameState {
 
     if (this._playerShip) {
       const p = this._playerShip.mesh.position;
+      const shipYaw = this._playerShip.yaw;
+      const shipYawVel = this._playerShip.yawVelocity;
       
-      // Camera follows the ship from behind and slightly above
-      const shipDir = new THREE.Vector3(-Math.sin(this._playerShip.yaw), 0, -Math.cos(this._playerShip.yaw));
-      const offset = shipDir.clone().multiplyScalar(-14); // 14 units behind
-      offset.y = 11; // 11 units up
+      const shipDir = new THREE.Vector3(-Math.sin(shipYaw), 0, -Math.cos(shipYaw));
+      const rightDir = new THREE.Vector3(Math.cos(shipYaw), 0, -Math.sin(shipYaw));
+
+      // 1. Base Target
+      const baseTarget = p.clone().add(shipDir.clone().multiplyScalar(-16));
+      baseTarget.y += 5;
+
+      // 2. Overshoot Spring
+      if (this._camOvershoot === undefined) {
+        this._camOvershoot = 0;
+        this._camOvershootVel = 0;
+        this._camVelocity = new THREE.Vector3();
+        this._camLookTarget = p.clone();
+      }
       
-      // Smoothly interpolate camera position
-      this._camera.position.lerp(p.clone().add(offset), 5 * delta);
+      // Push camera outward relative to turn speed. 
+      // If turning right (negative yawVel), targetOvershoot becomes negative.
+      // rightDir is positive X (when facing -Z), so negative rightDir pushes left (outside the turn).
+      const targetOvershoot = shipYawVel * 15.0; // scale factor
       
-      // Look slightly ahead of the ship
-      const lookTarget = p.clone().add(shipDir.clone().multiplyScalar(10));
-      this._camera.lookAt(lookTarget);
+      // Spring physics for the overshoot
+      const springK = 25.0;
+      const springDamp = 6.0;
+      const force = (targetOvershoot - this._camOvershoot) * springK - this._camOvershootVel * springDamp;
+      this._camOvershootVel += force * delta;
+      this._camOvershoot += this._camOvershootVel * delta;
+
+      // 3. Final Target P3
+      const P3 = baseTarget.clone().add(rightDir.clone().multiplyScalar(this._camOvershoot));
+
+      // 4. Move camera smoothly towards the spring-loaded target
+      // The spring logic in P3 provides the curved sweep and overshoot.
+      this._camera.position.lerp(P3, 5.0 * delta);
+
+      // 6. Look Target (delayed)
+      // Lerp look target so it sweeps across the hull slightly
+      this._camLookTarget.lerp(p, 8.0 * delta);
+      this._camera.lookAt(this._camLookTarget);
       
       // Update Minimap
       this._minimap?.update(
