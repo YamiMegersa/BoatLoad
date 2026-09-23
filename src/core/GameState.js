@@ -13,6 +13,15 @@ import { SharkSkinRepair } from '../environment/SharkSkinRepair.js';
 import { FishAnimator } from '../environment/FishAnimator.js';
 import { Ocean } from '../environment/Ocean.js';
 import { QTESystem } from '../obstacle/QTESystem.js';
+import { SharkSkinRepair } from '../environment/SharkSkinRepair.js';
+import { FishAnimator } from '../environment/FishAnimator.js';
+import { Ocean } from '../environment/Ocean.js';
+import { QTESystem } from '../obstacle/QTESystem.js';
+import { Minimap } from '../ui/Minimap.js';
+import { HUD } from '../ui/HUD.js';
+import { EditorUI } from '../ui/EditorUI.js';
+import { EditorSystem } from '../editor/EditorSystem.js';
+import { WindManager } from '../environment/WindManager.js';
 import { emit, on, off, clear } from './EventBus.js';
 
 // ---------------------------------------------------------------------------
@@ -24,6 +33,8 @@ export const GamePhase = Object.freeze({
   SHIPYARD: 'SHIPYARD',
   OBSTACLE: 'OBSTACLE',
   RESULTS: 'RESULTS',
+  RESULTS: 'RESULTS',
+  EDITOR: 'EDITOR',
 });
 
 // ---------------------------------------------------------------------------
@@ -78,6 +89,15 @@ export class GameState {
     this._obstacleManager = null;
     this._environmentManager = null;
     this._qteSystem = null;
+    this._qteSystem = null;
+    this._minimap = new Minimap();
+    this._hud = new HUD();
+    this._editorUI = new EditorUI();
+    this._editorSystem = null;
+    this._windManager = null;
+
+    // Global wind direction (e.g., blowing towards North-East)
+    this.windDir = new THREE.Vector3(1, 0, -1).normalize();
 
     // Input tracking
     this._keys = {};
@@ -89,14 +109,28 @@ export class GameState {
     this._boundPointerDown = this._onPointerDown.bind(this);
     this._boundPointerMove = this._onPointerMove.bind(this);
 
-    // Patch keydown to handle single-press R
+    // Patch keydown to handle single-press R and F
     const oldKeyDown = this._boundKeyDown;
     this._boundKeyDown = (e) => {
       oldKeyDown(e);
       if (e.code === 'KeyR' && this.currentPhase === GamePhase.SHIPYARD) {
         emit('rotateBlueprint');
       }
+      if (e.code === 'KeyF') {
+        if (this._environmentManager) {
+          const isDense = this._environmentManager.toggleDenseFog();
+          window.denseFogEnabled = isDense;
+          emit('denseFogChanged', { enabled: isDense });
+        }
+      }
     };
+
+    on('toggleDenseFogUI', (d) => {
+      if (this._environmentManager) {
+        this._environmentManager.toggleDenseFog(d.enabled);
+        window.denseFogEnabled = d.enabled;
+      }
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -137,6 +171,10 @@ export class GameState {
         this._updateObstacle(delta);
         break;
 
+      case GamePhase.EDITOR:
+        this._updateEditor(delta);
+        break;
+
       default:
         break;
     }
@@ -164,6 +202,10 @@ export class GameState {
         this._enterResults(opts);
         break;
 
+      case GamePhase.EDITOR:
+        this._enterEditor(opts);
+        break;
+
       default:
         break;
     }
@@ -181,6 +223,10 @@ export class GameState {
 
       case GamePhase.OBSTACLE:
         this._exitObstacle(newPhase);
+        break;
+
+      case GamePhase.EDITOR:
+        this._exitEditor();
         break;
 
       default:
@@ -225,7 +271,7 @@ export class GameState {
 
       // Deep copy levelCfg so we can modify the docket without mutating the cached json
       this._levelCfg = JSON.parse(JSON.stringify(levelCfg));
-      
+
       // Dynamically generate the docket based on current grid damages
       this._generateDynamicDocket();
     }
@@ -290,8 +336,13 @@ export class GameState {
       if (this._grid && this._chunkRenderer) {
         this._chunkRenderer.sync(this._grid);
         this._checkDocket();
-      }
-    });
+        if (this._windManager) {
+          const localWind = this._windManager.getWindAt(this._playerShip.mesh.position.x, this._playerShip.mesh.position.z);
+
+          document.getElementById('ui-hud-wind-dir').textContent =
+            `Wind: ${localWind.x.toFixed(1)}, ${localWind.z.toFixed(1)}`;
+        }
+      });
 
     emit('uiMount', { screen: 'shipyard' });
     emit('uiMount', { screen: 'shipyard', docket: this._levelCfg.docket });
@@ -354,7 +405,7 @@ export class GameState {
 
     this._grid.forEach((x, y, z, state) => {
       if (state === CellState.MISSING || state === CellState.DAMAGED || state === CellState.FLOODED) {
-        const zone = ShipBuilder.zoneOf({x, y, z}, this._zones);
+        const zone = ShipBuilder.zoneOf({ x, y, z }, this._zones);
         if (zone) {
           damagedZones.add(zone);
           damageCount++;
@@ -487,9 +538,9 @@ export class GameState {
   // OBSTACLE
   // =========================================================================
 
-  _enterObstacle({ levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels }) {
-    // Semi top-down camera
-    this._camera.position.set(0, 14, 10);
+  _enterObstacle({ levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels }) {
+    // Chase camera initial position
+    this._camera.position.set(0, 5, 16);
     this._camera.lookAt(0, 0, -5);
 
     // Restore pristine grid state from shipyard backup
@@ -501,6 +552,13 @@ export class GameState {
       this._grid.topologyDirty = true;
       this._chunkRenderer?.sync(this._grid);
     }
+    this._playerShip = new PlayerShip(shipStats ?? {}, this._scene, this._chunkRenderer, this._grid);
+    this._obstacleManager = new ObstacleManager();
+    this._obstacleManager.init(levelCfg, this._scene, rockModels, pickupModels, seaweedModels, waveModels, islandModels);
+    this._environmentManager = new EnvironmentManager();
+    this._environmentManager.init(this._scene, fishModels);
+
+    this._windManager = new WindManager(levelCfg);
 
     this._qteSystem = new QTESystem();
     this._playerShip = new PlayerShip(shipStats ?? {}, this._scene, this._chunkRenderer, this._grid, this._qteSystem);
@@ -522,6 +580,12 @@ export class GameState {
     };
     window.addEventListener('keydown', this._obstacleKeyDown);
     window.addEventListener('keyup', this._obstacleKeyUp);
+    this._onSteer = (d) => {
+      if (this._playerShip) {
+        this._playerShip.steerInput = d.value;
+      }
+    };
+    on('steer', this._onSteer);
 
     // When player sinks, transition to results
     on('playerSunk', () => {
@@ -540,6 +604,67 @@ export class GameState {
   _exitObstacle(newPhase) {
     window.removeEventListener('keydown', this._obstacleKeyDown);
     window.removeEventListener('keyup', this._obstacleKeyUp);
+    // Pass WindManager instead of static windDir
+    this._playerShip?.update(delta, this._ocean, this._windManager);
+    this._obstacleManager?.update(delta, this._playerShip, this._windManager);
+    this._environmentManager?.update(delta, this._windManager, this._playerShip?.mesh.position);
+
+    if (this._playerShip) {
+      const p = this._playerShip.mesh.position;
+      const shipYaw = this._playerShip.yaw;
+      const shipYawVel = this._playerShip.yawVelocity;
+
+      const shipDir = new THREE.Vector3(-Math.sin(shipYaw), 0, -Math.cos(shipYaw));
+      const rightDir = new THREE.Vector3(Math.cos(shipYaw), 0, -Math.sin(shipYaw));
+
+      // 1. Base Target
+      const baseTarget = p.clone().add(shipDir.clone().multiplyScalar(-16));
+      baseTarget.y += 5;
+
+      // 2. Overshoot Spring
+      if (this._camOvershoot === undefined) {
+        this._camOvershoot = 0;
+        this._camOvershootVel = 0;
+        this._camVelocity = new THREE.Vector3();
+        this._camLookTarget = p.clone();
+      }
+
+      // Push camera outward relative to turn speed. 
+      // If turning right (negative yawVel), targetOvershoot becomes negative.
+      // rightDir is positive X (when facing -Z), so negative rightDir pushes left (outside the turn).
+      const targetOvershoot = shipYawVel * 15.0; // scale factor
+
+      // Spring physics for the overshoot
+      const springK = 25.0;
+      const springDamp = 6.0;
+      const force = (targetOvershoot - this._camOvershoot) * springK - this._camOvershootVel * springDamp;
+      this._camOvershootVel += force * delta;
+      this._camOvershoot += this._camOvershootVel * delta;
+
+      // 3. Final Target P3
+      const P3 = baseTarget.clone().add(rightDir.clone().multiplyScalar(this._camOvershoot));
+
+      // 4. Move camera smoothly towards the spring-loaded target
+      // The spring logic in P3 provides the curved sweep and overshoot.
+      this._camera.position.lerp(P3, 5.0 * delta);
+
+      // 6. Look Target (delayed)
+      // Lerp look target so it sweeps across the hull slightly
+      this._camLookTarget.lerp(p, 8.0 * delta);
+      this._camera.lookAt(this._camLookTarget);
+
+      // Update Minimap
+      this._minimap?.update(
+        p,
+        this._playerShip.yaw,
+        this._obstacleManager?._obstacles || [],
+        this.windDir
+      );
+    }
+  }
+
+  _exitObstacle() {
+    off('steer', this._onSteer);
     off('playerSunk');
 
     this._playerShip?.dispose(this._scene);
@@ -570,5 +695,72 @@ export class GameState {
   _enterResults({ passed }) {
     emit('uiMount', { screen: 'results', passed, day: this.day });
     if (passed) this.day++;
+  }
+
+  // =========================================================================
+  // EDITOR
+  // =========================================================================
+
+  _enterEditor({ levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels }) {
+    this._camera.position.set(0, 30, 0);
+    this._camera.lookAt(0, 0, -5);
+
+    this._orbitControls = new OrbitControls(this._camera, this._renderer.domElement);
+    this._orbitControls.target.set(0, 0, -5);
+    this._orbitControls.update();
+
+    this._editorSystem = new EditorSystem();
+    this._editorSystem.init(
+      this._scene, this._camera, this._renderer,
+      levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels
+    );
+
+    emit('uiMount', { screen: 'editor', levelCfg });
+  }
+
+  _updateEditor(delta) {
+    if (this._editorSystem) {
+      this._editorSystem.update(delta);
+    }
+
+    if (this._orbitControls) {
+      // WASD panning for editor
+      const speed = 40 * delta;
+
+      const forward = new THREE.Vector3();
+      this._camera.getWorldDirection(forward);
+      forward.y = 0;
+      forward.normalize();
+
+      const right = new THREE.Vector3();
+      right.crossVectors(forward, this._camera.up).normalize();
+
+      const move = new THREE.Vector3();
+      if (this._keys['KeyW']) move.add(forward);
+      if (this._keys['KeyS']) move.sub(forward);
+      if (this._keys['KeyA']) move.sub(right);
+      if (this._keys['KeyD']) move.add(right);
+
+      if (this._keys['KeyE'] || this._keys['Space']) move.y += 1;
+      if (this._keys['KeyQ'] || this._keys['ShiftLeft']) move.y -= 1;
+
+      if (move.lengthSq() > 0) {
+        move.normalize().multiplyScalar(speed);
+        this._camera.position.add(move);
+        this._orbitControls.target.add(move);
+      }
+
+      this._orbitControls.update();
+    }
+  }
+
+  _exitEditor() {
+    this._editorSystem?.dispose();
+    this._editorSystem = null;
+
+    this._orbitControls?.dispose();
+    this._orbitControls = null;
+
+    emit('uiUnmount', { screen: 'editor' });
   }
 }

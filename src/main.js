@@ -9,6 +9,11 @@ import { TitleScreen } from './ui/TitleScreen.js';
 import { DialogueBox } from './ui/DialogueBox.js';
 import { PauseMenu } from './ui/PauseMenu.js';
 import { ParticleSystem } from './environment/ParticleSystem.js';
+import { LevelConfig } from './core/LevelConfig.js';
+import { on } from './core/EventBus.js';
+import { BuildMenu } from './ui/BuildMenu.js';
+import { DocketSheet } from './ui/DocketSheet.js';
+import { DamageSystem } from './shipyard/DamageSystem.js';
 import './ui/ui.css';
 
 // ---------------------------------------------------------------------------
@@ -66,7 +71,20 @@ const dialogue = new DialogueBox();
 const pauseMenu = new PauseMenu();
 const particles = new ParticleSystem(scene);
 
-function tick() {
+let frameCount = 0;
+let lastFpsTime = performance.now();
+const fpsCounter = document.createElement('div');
+fpsCounter.id = 'fps-counter';
+fpsCounter.style.cssText = `
+  position: absolute; top: 10px; right: 10px; z-index: 100;
+  background: rgba(0,0,0,0.8); color: #0f0; padding: 5px 10px;
+  font-family: monospace; border-radius: 4px; font-size: 14px;
+  pointer-events: none;
+`;
+fpsCounter.innerText = 'FPS: 0';
+document.getElementById('ui-root')?.appendChild(fpsCounter);
+
+function tick(now) {
   requestAnimationFrame(tick);
   const now = performance.now();
   const delta = Math.min((now - lastTime) / 1000, 0.05); // cap at 50ms to avoid spiral of death
@@ -77,7 +95,50 @@ function tick() {
     particles.update(delta);
   }
 
+
+  if (now) {
+    frameCount++;
+    if (now - lastFpsTime >= 1000) {
+      fpsCounter.innerText = `FPS: ${frameCount}`;
+      frameCount = 0;
+      lastFpsTime = now;
+    }
+  }
+
+  const delta = Math.min(clock.getDelta(), 0.05); // cap at 50ms to avoid spiral of death
+  gameState.update(delta);
   renderer.render(scene, camera);
+}
+
+// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Demo UI Overlay
+// ---------------------------------------------------------------------------
+
+const demoUI = document.createElement('div');
+demoUI.style.cssText = `
+  position: absolute; top: 10px; left: 10px; z-index: 100;
+  background: rgba(0,0,0,0.8); color: white; padding: 15px;
+  font-family: monospace; border-radius: 8px; width: 320px;
+  pointer-events: auto;
+`;
+demoUI.innerHTML = `
+  <h3 style="margin-bottom: 10px; font-family: sans-serif;">BoatLoad Demo</h3>
+  <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+    <button id="btn-shipyard" style="flex:1; padding: 8px; cursor: pointer;">Shipyard</button>
+    <button id="btn-obstacle" style="flex:1; padding: 8px; cursor: pointer;">Sailing</button>
+    <button id="btn-editor" style="flex:1; padding: 8px; cursor: pointer; background: #474b6b; color: white; border: 1px solid #556;">Editor</button>
+  </div>
+  <div id="demo-log" style="height: 120px; overflow-y: auto; background: #111; padding: 5px; font-size: 11px; color: #0f0; border: 1px solid #333;">
+    Ready.<br>
+  </div>
+`;
+document.getElementById('ui-root')?.appendChild(demoUI);
+
+const logDiv = demoUI.querySelector('#demo-log');
+function logEvent(msg) {
+  logDiv.innerHTML += `> ${msg}<br>`;
+  logDiv.scrollTop = logDiv.scrollHeight;
 }
 
 // ---------------------------------------------------------------------------
@@ -88,6 +149,8 @@ async function boot() {
   try {
     // Load Day 1 data
     const { shipDef, levelCfg, rockModels, fishModels, pickupModels, seaweedModels, waveModels } = await LevelConfig.load(1);
+
+    const { shipDef, levelCfg, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels } = await LevelConfig.load(1);
 
     // Expose to window for debugging if needed
     window.__DEBUG_ROCK_MODELS = rockModels;
@@ -112,12 +175,46 @@ async function boot() {
     on('dialogueDone', () => {
       gameState.transition(GamePhase.SHIPYARD, { shipDef, levelCfg, fishModels });
     });
+  };
+  document.getElementById('btn-obstacle').onclick = () => {
+    logEvent('Transitioning to Sailing...');
+    let hp = 100;
+    if (gameState._grid) {
+      hp = DamageSystem.getSummary(gameState._grid).integrityPct;
+    }
+    gameState.transition(GamePhase.OBSTACLE, { shipDef, levelCfg, shipStats: { hullHP: hp }, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels });
+  };
+  document.getElementById('btn-editor').onclick = () => {
+    logEvent('Transitioning to Level Editor...');
+    gameState.transition(GamePhase.EDITOR, { levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels });
+  };
 
 
   // Listen for Set Sail click in Shipyard
   on('startSailing', () => {
     gameState.transition(GamePhase.OBSTACLE, { levelCfg, shipStats: {}, rockModels, fishModels });
   });
+  on('editorRequestPlay', () => {
+    if (gameState.currentPhase === GamePhase.EDITOR && gameState._editorSystem) {
+      logEvent('Playing Custom Level from Editor...');
+      const customLevelCfg = gameState._editorSystem.getPlayableConfig();
+
+      let hp = 100;
+      if (gameState._grid) {
+        hp = DamageSystem.getSummary(gameState._grid).integrityPct;
+      }
+
+      gameState.transition(GamePhase.OBSTACLE, {
+        shipDef,
+        levelCfg: customLevelCfg,
+        shipStats: { hullHP: hp },
+        rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels
+      });
+    }
+  });
+
+  // Start at Shipyard for Day 1
+  await gameState.transition(GamePhase.SHIPYARD, { shipDef, levelCfg, fishModels });
 
   // Pause handling
   window.addEventListener('keydown', (e) => {

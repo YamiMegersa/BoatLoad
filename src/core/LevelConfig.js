@@ -1,5 +1,10 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
+
+THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
+THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
+THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 /**
  * LevelConfig — loads and caches ship definition and level config JSONs.
@@ -55,6 +60,19 @@ export class LevelConfig {
     '/src/assets/obstacles/wave/Wave by Poly by Google - 6mpwUZqCgzy.glb'
   ];
 
+  static _islandUrls = [
+    '/src/islands/Low-poly landscape by sirkitree - bjsNFfddgOv.glb',
+    '/src/islands/Mountain by Poly by Google - 7Jhw3p6TusU.glb',
+    '/src/islands/Mountaintop by Matthew Burdette - 8mWDJgGcXSH.glb'
+  ];
+
+  static get rockUrls() { return [...this._rockUrls]; }
+  static get fishUrls() { return [...this._fishUrls]; }
+  static get pickupUrls() { return [...this._pickupUrls]; }
+  static get seaweedUrls() { return [...this._seaweedUrls]; }
+  static get waveUrls() { return [...this._waveUrls]; }
+  static get islandUrls() { return [...this._islandUrls]; }
+
   /**
    * Load the ship definition and level config for a given day.
    * Results are cached so repeated loads are instant.
@@ -95,72 +113,107 @@ export class LevelConfig {
 
       fishModels.forEach((fishModel, index) => {
         fishModel.isShark = LevelConfig._fishUrls[index].includes('Shark');
-        const dummyScene = new THREE.Scene();
-        dummyScene.add(fishModel.scene);
-        dummyScene.updateMatrixWorld(true);
+        fishModels.forEach((fishModel, i) => {
+          fishModel.url = LevelConfig._fishUrls[i];
 
-        const box = new THREE.Box3().setFromObject(fishModel.scene);
-        const size = new THREE.Vector3();
-        box.getSize(size);
-        const maxDim = Math.max(size.x, size.y, size.z);
-        fishModel.normSharkScale = (maxDim > 0) ? (4.0 / maxDim) : 1;
+          const dummyScene = new THREE.Scene();
+          dummyScene.add(fishModel.scene);
+          dummyScene.updateMatrixWorld(true);
 
-        dummyScene.remove(fishModel.scene);
-      });
+          const box = new THREE.Box3().setFromObject(fishModel.scene);
+          const size = new THREE.Vector3();
+          box.getSize(size);
+          const maxDim = Math.max(size.x, size.y, size.z);
+          fishModel.normSharkScale = (maxDim > 0) ? (4.0 / maxDim) : 1;
 
-      LevelConfig._cache.set('fishModels', fishModels);
-    }
+          dummyScene.remove(fishModel.scene);
+        });
+
+        LevelConfig._cache.set('fishModels', fishModels);
+      }
     const fishModels = LevelConfig._cache.get('fishModels');
 
-    // Preload pickups if not cached
-    if (!LevelConfig._cache.has('pickupModels')) {
-      const loader = new GLTFLoader();
-      const pickupModels = await Promise.all(
-        LevelConfig._pickupUrls.map(url => new Promise((resolve, reject) => {
-          loader.load(url, resolve, undefined, reject);
-        }))
-      );
-      LevelConfig._cache.set('pickupModels', pickupModels);
-    }
-    const pickupModels = LevelConfig._cache.get('pickupModels');
+      // Preload pickups if not cached
+      if (!LevelConfig._cache.has('pickupModels')) {
+        const loader = new GLTFLoader();
+        const pickupModels = await Promise.all(
+          LevelConfig._pickupUrls.map(url => new Promise((resolve, reject) => {
+            loader.load(url, resolve, undefined, reject);
+          }))
+        );
+        pickupModels.forEach((m, i) => m.url = LevelConfig._pickupUrls[i]);
+        LevelConfig._cache.set('pickupModels', pickupModels);
+      }
+      const pickupModels = LevelConfig._cache.get('pickupModels');
 
-    // Preload seaweed if not cached
-    if (!LevelConfig._cache.has('seaweedModels')) {
-      const loader = new GLTFLoader();
-      const seaweedModels = await Promise.all(
-        LevelConfig._seaweedUrls.map(url => new Promise((resolve, reject) => {
-          loader.load(url, resolve, undefined, reject);
-        }))
-      );
-      LevelConfig._cache.set('seaweedModels', seaweedModels);
-    }
-    const seaweedModels = LevelConfig._cache.get('seaweedModels');
+      // Preload seaweed if not cached
+      if (!LevelConfig._cache.has('seaweedModels')) {
+        const loader = new GLTFLoader();
+        const seaweedModels = await Promise.all(
+          LevelConfig._seaweedUrls.map(url => new Promise((resolve, reject) => {
+            loader.load(url, resolve, undefined, reject);
+          }))
+        );
+        seaweedModels.forEach((m, i) => m.url = LevelConfig._seaweedUrls[i]);
+        LevelConfig._cache.set('seaweedModels', seaweedModels);
+      }
+      const seaweedModels = LevelConfig._cache.get('seaweedModels');
 
-    // Preload waves if not cached
-    if (!LevelConfig._cache.has('waveModels')) {
-      const loader = new GLTFLoader();
-      const waveModels = await Promise.all(
-        LevelConfig._waveUrls.map(url => new Promise((resolve, reject) => {
-          loader.load(url, resolve, undefined, reject);
-        }))
-      );
-      LevelConfig._cache.set('waveModels', waveModels);
-    }
-    const waveModels = LevelConfig._cache.get('waveModels');
+      // Preload waves if not cached
+      if (!LevelConfig._cache.has('waveModels')) {
+        const loader = new GLTFLoader();
+        const waveModels = await Promise.all(
+          LevelConfig._waveUrls.map(url => new Promise((resolve, reject) => {
+            loader.load(url, resolve, undefined, reject);
+          }))
+        );
+        waveModels.forEach((m, i) => m.url = LevelConfig._waveUrls[i]);
+        LevelConfig._cache.set('waveModels', waveModels);
+      }
+      const waveModels = LevelConfig._cache.get('waveModels');
 
-    return { shipDef, levelCfg, rockModels, fishModels, pickupModels, seaweedModels, waveModels };
-  }
+      if (!LevelConfig._cache.has('islandModels')) {
+        const loader = new GLTFLoader();
+        const islandModels = await Promise.all(
+          LevelConfig._islandUrls.map(url => new Promise((resolve, reject) => {
+            loader.load(url, resolve, undefined, reject);
+          }))
+        );
+        islandModels.forEach((m, i) => {
+          m.url = LevelConfig._islandUrls[i];
+          m.scene.traverse((child) => {
+            if (child.isMesh && child.geometry) {
+              child.geometry.computeBoundsTree();
+            }
+          });
+        });
+        LevelConfig._cache.set('islandModels', islandModels);
+      }
+      const islandModels = LevelConfig._cache.get('islandModels');
+
+      return {
+        shipDef,
+        levelCfg,
+        rockModels,
+        fishModels,
+        pickupModels,
+        seaweedModels,
+        waveModels,
+        islandModels
+      };
+    }
 
   static async _loadRockModels() {
     const loader = new GLTFLoader();
-    
+
     // Load all rocks concurrently
     const loadedGltfs = await Promise.all(
       LevelConfig._rockUrls.map(url => new Promise((resolve, reject) => {
         loader.load(url, resolve, undefined, reject);
       }))
     );
-    
+
+    loadedGltfs.forEach((m, i) => m.url = LevelConfig._rockUrls[i]);
     return loadedGltfs; // Array of GLTF objects
   }
 
