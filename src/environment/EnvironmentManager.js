@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { FishAnimator }    from './FishAnimator.js';
 import { WindParticles }   from './WindParticles.js';
+import { RainManager }     from './RainManager.js';
+import { FogVolume }       from './FogVolume.js';
+import { StormClouds }     from './StormClouds.js';
 
 export class EnvironmentManager {
   constructor() {
@@ -9,6 +12,10 @@ export class EnvironmentManager {
     this._fishModels = null;
     this._sharks     = [];
     this._windParticles = null;
+    this._rainManager = null;
+    this._fogVolume = null;
+    this._stormClouds = null;
+    this._isDenseFog = false;
   }
 
   /**
@@ -20,7 +27,13 @@ export class EnvironmentManager {
     this._fishModels = fishModels;
     this._sharks     = [];
     
+    // Enable true depth-based fog to obscure objects like islands and the ship
+    scene.fog = new THREE.FogExp2(0x1a2430, 0.006);
+    
     this._windParticles = new WindParticles(scene);
+    this._rainManager = new RainManager(scene);
+    this._fogVolume = new FogVolume(scene);
+    this._stormClouds = new StormClouds(scene);
 
     if (this._fishModels && this._fishModels.length > 0) {
       for (let i = 0; i < 15; i++) {
@@ -90,10 +103,15 @@ export class EnvironmentManager {
     });
   }
 
-  update(delta, windManager) {
+  update(delta, windManager, shipPos) {
     if (this._windParticles) {
       this._windParticles.update(delta, windManager);
     }
+
+    const localWind = shipPos ? windManager.getWindAt(shipPos.x, shipPos.z) : new THREE.Vector3(0, 0, -1);
+    if (this._rainManager) this._rainManager.update(delta, shipPos, localWind);
+    if (this._fogVolume) this._fogVolume.update(delta, shipPos, localWind);
+    if (this._stormClouds) this._stormClouds.update(delta, shipPos, localWind);
 
     for (const shark of this._sharks) {
       shark.animator.update(delta);
@@ -114,6 +132,30 @@ export class EnvironmentManager {
     }
   }
 
+  toggleDenseFog(forceState) {
+    if (forceState !== undefined) {
+      this._isDenseFog = forceState;
+    } else {
+      this._isDenseFog = !this._isDenseFog;
+    }
+    
+    if (this._scene && this._scene.fog) {
+      // 0.05 is very dense, simulating Silent Hill style limited visibility
+      this._scene.fog.density = this._isDenseFog ? 0.05 : 0.006;
+      this._scene.background = this._isDenseFog ? this._scene.fog.color : new THREE.Color(0x222233);
+    }
+    
+    if (this._fogVolume && this._fogVolume.mesh) {
+      this._fogVolume.mesh.visible = !this._isDenseFog;
+    }
+    
+    if (this._stormClouds && this._stormClouds.mesh) {
+      this._stormClouds.mesh.visible = !this._isDenseFog;
+    }
+    
+    return this._isDenseFog;
+  }
+
   dispose() {
     for (const shark of this._sharks) {
       this._scene?.remove(shark.mesh);
@@ -124,5 +166,9 @@ export class EnvironmentManager {
       this._windParticles.dispose();
       this._windParticles = null;
     }
+    if (this._rainManager) { this._rainManager.dispose(); this._rainManager = null; }
+    if (this._fogVolume) { this._fogVolume.dispose(); this._fogVolume = null; }
+    if (this._stormClouds) { this._stormClouds.dispose(); this._stormClouds = null; }
+    if (this._scene) { this._scene.fog = null; }
   }
 }

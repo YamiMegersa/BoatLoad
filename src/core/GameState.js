@@ -102,14 +102,28 @@ export class GameState {
     this._boundPointerDown = this._onPointerDown.bind(this);
     this._boundPointerMove = this._onPointerMove.bind(this);
 
-    // Patch keydown to handle single-press R
+    // Patch keydown to handle single-press R and F
     const oldKeyDown = this._boundKeyDown;
     this._boundKeyDown = (e) => {
       oldKeyDown(e);
       if (e.code === 'KeyR' && this.currentPhase === GamePhase.SHIPYARD) {
         emit('rotateBlueprint');
       }
+      if (e.code === 'KeyF') {
+        if (this._environmentManager) {
+          const isDense = this._environmentManager.toggleDenseFog();
+          window.denseFogEnabled = isDense;
+          emit('denseFogChanged', { enabled: isDense });
+        }
+      }
     };
+
+    on('toggleDenseFogUI', (d) => {
+      if (this._environmentManager) {
+        this._environmentManager.toggleDenseFog(d.enabled);
+        window.denseFogEnabled = d.enabled;
+      }
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -443,7 +457,7 @@ export class GameState {
     // Pass WindManager instead of static windDir
     this._playerShip?.update(delta, this._ocean, this._windManager);
     this._obstacleManager?.update(delta, this._playerShip, this._windManager);
-    this._environmentManager?.update(delta, this._windManager);
+    this._environmentManager?.update(delta, this._windManager, this._playerShip?.mesh.position);
 
     if (this._playerShip) {
       const p = this._playerShip.mesh.position;

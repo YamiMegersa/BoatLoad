@@ -16,13 +16,18 @@ export class Ocean {
 
     const oceanMat = new THREE.ShaderMaterial({
       transparent: true,
-      uniforms: {
-        uTime: { value: 0 },
-        uShallow: { value: new THREE.Color(seaColor) },
-        uDeep: { value: new THREE.Color(seaDeepColor) },
-        uSunDir: { value: sunDir }
-      },
+      fog: true,
+      uniforms: THREE.UniformsUtils.merge([
+        THREE.UniformsLib['fog'],
+        {
+          uTime: { value: 0 },
+          uShallow: { value: new THREE.Color(seaColor) },
+          uDeep: { value: new THREE.Color(seaDeepColor) },
+          uSunDir: { value: sunDir }
+        }
+      ]),
       vertexShader: `
+        #include <fog_pars_vertex>
         uniform float uTime;
         varying float vHeight;
         varying vec3 vNormalW;
@@ -48,10 +53,14 @@ export class Ocean {
           vec3 tangentZ = normalize(vec3(0.0, hZ - h, eps));
           vNormalW = normalize(cross(tangentZ, tangentX));
 
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+          vec4 mvPosition = modelViewMatrix * vec4(p, 1.0);
+          gl_Position = projectionMatrix * mvPosition;
+          
+          #include <fog_vertex>
         }
       `,
       fragmentShader: `
+        #include <fog_pars_fragment>
         varying float vHeight;
         varying vec3 vNormalW;
         varying vec2 vPosXZ;
@@ -69,6 +78,8 @@ export class Ocean {
           }
           
           gl_FragColor = vec4(col, 0.85); // 0.85 alpha for transparency so fish are visible
+          
+          #include <fog_fragment>
         }
       `
     });

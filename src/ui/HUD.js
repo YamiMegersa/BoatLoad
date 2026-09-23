@@ -49,6 +49,11 @@ export class HUD {
           <input type="checkbox" id="chk-godmode"> God Mode (No Damage)
         </label>
       </div>
+      <div id="hud-densefog" style="margin-top: 10px; pointer-events: auto;">
+        <label style="color: white; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 5px;">
+          <input type="checkbox" id="chk-densefog"> Dense Fog (F)
+        </label>
+      </div>
       <div id="hud-qte" style="display:none">
         <div id="hud-qte-key"></div>
         <svg id="hud-qte-ring" viewBox="0 0 36 36">
@@ -137,10 +142,28 @@ export class HUD {
       };
     }
 
+    const fogChk = this._el.querySelector('#chk-densefog');
+    if (fogChk) {
+      fogChk.checked = window.denseFogEnabled || false;
+      fogChk.onchange = (e) => {
+        window.denseFogEnabled = e.target.checked;
+        emit('toggleDenseFogUI', { enabled: e.target.checked });
+      };
+      
+      this._onDenseFogChanged = (d) => {
+        fogChk.checked = d.enabled;
+      };
+      on('denseFogChanged', this._onDenseFogChanged);
+    }
+
     document.getElementById('ui-root')?.appendChild(this._el);
   }
 
   unmount() {
+    if (this._onDenseFogChanged) {
+      off('denseFogChanged', this._onDenseFogChanged);
+      this._onDenseFogChanged = null;
+    }
     clearInterval(this._qteTimer);
     this._el?.remove();
     this._el    = null;
