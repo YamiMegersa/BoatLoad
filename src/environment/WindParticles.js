@@ -53,13 +53,14 @@ export class WindParticles {
   update(delta, windManager) {
     if (!windManager) return;
     
+    if (!this._tempWind) this._tempWind = new THREE.Vector3();
     const pr = this.playRadius;
     
     for (let i = 0; i < this.count; i++) {
       const x = this.positions[i * 3];
       const z = this.positions[i * 3 + 2];
       
-      const localWind = windManager.getWindAt(x, z);
+      const localWind = windManager.getWindAt(x, z, this._tempWind);
       
       this.lifespans[i] -= delta;
       if (this.lifespans[i] <= 0) {

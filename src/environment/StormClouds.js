@@ -77,6 +77,7 @@ export class StormClouds {
         {
           uTime: { value: 0 },
           uWindDirection: { value: new THREE.Vector3(0, 0, -1) },
+          uPanOffset: { value: new THREE.Vector2(0, 0) },
           uLightningIntensity: { value: 0 },
           uLightningPos: { value: new THREE.Vector2(0, 0) }
         }
@@ -102,13 +103,13 @@ export class StormClouds {
         
         uniform float uLightningIntensity;
         uniform vec2 uLightningPos;
+        uniform vec2 uPanOffset;
         
         ${noiseShader}
         
         void main() {
-          // Pan UVs via wind and add time for boiling effect (the y component of snoise)
-          vec2 pan = uWindDirection.xz * uTime * 5.0;
-          vec3 noisePos = vec3(vWorldPosition.x + pan.x, uTime * 2.0, vWorldPosition.z + pan.y) * 0.005;
+          // Add time for boiling effect (the y component of snoise)
+          vec3 noisePos = vec3(vWorldPosition.x + uPanOffset.x, uTime * 2.0, vWorldPosition.z + uPanOffset.y) * 0.005;
           
           float n = snoise(noisePos) * 0.5 + 0.5;
           n += snoise(noisePos * 2.0) * 0.25;
@@ -172,8 +173,22 @@ export class StormClouds {
     }
 
     if (this.mesh) {
+      if (!this._panOffset) this._panOffset = new THREE.Vector2();
+      this._panOffset.x += windDir.x * delta * 5.0;
+      this._panOffset.y += windDir.z * delta * 5.0;
+      
+      // To prevent float precision issues over long play sessions
+      this._panOffset.x = this._panOffset.x % 100000;
+      this._panOffset.y = this._panOffset.y % 100000;
+
       this.mesh.material.uniforms.uTime.value = this._time;
       this.mesh.material.uniforms.uWindDirection.value.copy(windDir);
+      
+      if (!this.mesh.material.uniforms.uPanOffset) {
+        this.mesh.material.uniforms.uPanOffset = { value: new THREE.Vector2() };
+      }
+      this.mesh.material.uniforms.uPanOffset.value.copy(this._panOffset);
+      
       this.mesh.material.uniforms.uLightningIntensity.value = this.lightningIntensity;
       
       if (shipPosition) {

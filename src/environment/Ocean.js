@@ -21,6 +21,7 @@ export class Ocean {
         THREE.UniformsLib['fog'],
         {
           uTime: { value: 0 },
+          uRadius: { value: 200.0 },
           uShallow: { value: new THREE.Color(seaColor) },
           uDeep: { value: new THREE.Color(seaDeepColor) },
           uSunDir: { value: sunDir }
@@ -65,6 +66,7 @@ export class Ocean {
         varying vec3 vNormalW;
         varying vec2 vPosXZ;
         uniform vec3 uShallow, uDeep, uSunDir;
+        uniform float uRadius;
         
         void main() {
           float t = clamp(vHeight * 0.5 + 0.5, 0.0, 1.0);
@@ -72,9 +74,11 @@ export class Ocean {
           float spec = pow(max(dot(normalize(vNormalW), normalize(uSunDir)), 0.0), 40.0);
           vec3 col = base + vec3(1.0, 0.95, 0.8) * spec * 0.6;
           
+          
           float dist = length(vPosXZ);
-          if (dist > 220.0) {
-             col = mix(col, vec3(0.02, 0.05, 0.1), clamp((dist - 220.0) / 20.0, 0.0, 0.8));
+          float fadeStart = uRadius + 20.0;
+          if (dist > fadeStart) {
+             col = mix(col, vec3(0.02, 0.05, 0.1), clamp((dist - fadeStart) / 20.0, 0.0, 0.8));
           }
           
           gl_FragColor = vec4(col, 0.85); // 0.85 alpha for transparency so fish are visible
@@ -94,6 +98,24 @@ export class Ocean {
     this._time += delta;
     if (this.mesh) {
       this.mesh.material.uniforms.uTime.value = this._time;
+    }
+  }
+
+  setWorldSize(radius) {
+    if (!this.mesh) return;
+    
+    // Scale size proportionally to radius, base is 600 size for 200 radius (3x)
+    const size = Math.max(600, radius * 3.0);
+    const segments = Math.floor(size / (600 / 256));
+    
+    const newGeo = new THREE.PlaneGeometry(size, size, segments, segments);
+    newGeo.rotateX(-Math.PI / 2);
+    
+    this.mesh.geometry.dispose();
+    this.mesh.geometry = newGeo;
+    
+    if (this.mesh.material.uniforms.uRadius) {
+      this.mesh.material.uniforms.uRadius.value = radius;
     }
   }
 

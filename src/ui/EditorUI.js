@@ -99,8 +99,14 @@ export class EditorUI {
         </div>
         
         <div style="margin-bottom: 10px; color: white; font-size: 14px;">
-          <label style="display:flex; justify-content:space-between;">
-            Global Wind Dir: <span id="wind-dir-val">${levelCfg.globalWindDir || 0}°</span>
+          <label style="display:flex; justify-content:space-between; align-items:center;">
+            Global Wind Dir: 
+            <div style="display:flex; align-items:center;">
+              <span id="wind-dir-val" style="margin-right: 8px;">${levelCfg.globalWindDir || 0}°</span>
+              <svg id="wind-dir-arrow" width="16" height="16" viewBox="0 0 24 24" style="transform: rotate(${levelCfg.globalWindDir || 0}deg); transition: transform 0.1s;">
+                <path fill="currentColor" d="M12 2L15 8H13V22H11V8H9L12 2Z"/>
+              </svg>
+            </div>
           </label>
           <input type="range" id="wind-dir-slider" min="0" max="360" step="1" value="${levelCfg.globalWindDir || 0}" style="width:100%; margin-top: 5px;">
         </div>
@@ -166,10 +172,14 @@ export class EditorUI {
     // Handle Wind Dir
     const windSlider = this._el.querySelector('#wind-dir-slider');
     const windVal = this._el.querySelector('#wind-dir-val');
+    const windArrow = this._el.querySelector('#wind-dir-arrow');
     if (windSlider) {
       windSlider.oninput = (e) => {
         const val = parseInt(e.target.value, 10);
         windVal.innerText = val + '°';
+        if (windArrow) {
+          windArrow.style.transform = `rotate(${val}deg)`;
+        }
         emit('editorSetWindDir', { dir: val });
       };
     }

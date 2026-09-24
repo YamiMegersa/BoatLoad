@@ -36,22 +36,34 @@ export class WindManager {
     }
   }
 
-  /**
-   * Get the wind direction vector at a specific location.
-   * If inside a wind zone, returns that zone's direction.
-   * If overlapping multiple, returns the first one (or we could average them).
-   * @param {number} x 
-   * @param {number} z 
-   * @returns {THREE.Vector3} Normalized wind direction
-   */
-  getWindAt(x, z) {
+  getWindAt(x, z, target = null) {
+    if (!target) target = new THREE.Vector3();
+    target.copy(this.defaultWind);
+    
     for (const zone of this.zones) {
       const dx = x - zone.x;
       const dz = z - zone.z;
-      if (dx * dx + dz * dz <= zone.radiusSq) {
-        return zone.dir;
+      const distSq = dx * dx + dz * dz;
+      
+      if (distSq <= zone.radiusSq) {
+        const dist = Math.sqrt(distSq);
+        const radius = Math.sqrt(zone.radiusSq);
+        
+        // Outer 50% of the zone is the transition area. Inner 50% is full strength.
+        const transitionStart = radius;
+        const transitionEnd = radius * 0.5;
+        
+        let blend = 1.0;
+        if (dist > transitionEnd) {
+          blend = 1.0 - ((dist - transitionEnd) / (transitionStart - transitionEnd));
+          // smoothstep
+          blend = blend * blend * (3 - 2 * blend);
+        }
+        
+        target.lerp(zone.dir, blend).normalize();
+        break;
       }
     }
-    return this.defaultWind;
+    return target;
   }
 }

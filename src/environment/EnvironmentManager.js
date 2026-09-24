@@ -119,7 +119,8 @@ export class EnvironmentManager {
       this._windParticles.update(delta, windManager);
     }
 
-    const localWind = shipPos ? windManager.getWindAt(shipPos.x, shipPos.z) : new THREE.Vector3(0, 0, -1);
+    if (!this._tempWind) this._tempWind = new THREE.Vector3();
+    const localWind = shipPos ? windManager.getWindAt(shipPos.x, shipPos.z, this._tempWind) : new THREE.Vector3(0, 0, -1);
     if (this._rainManager) this._rainManager.update(delta, shipPos, localWind);
     if (this._fogVolume) this._fogVolume.update(delta, shipPos, localWind);
     if (this._stormClouds) this._stormClouds.update(delta, shipPos, localWind);

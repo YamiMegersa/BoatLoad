@@ -64,11 +64,16 @@ export class EditorSystem {
         this._levelCfg.worldSize = d.size;
         this._updateBoundaryVisual();
       }
+      emit('oceanSetWorldSize', d);
     });
 
     on('editorSetWindDir', d => {
       if (this._levelCfg) {
         this._levelCfg.globalWindDir = d.dir;
+      }
+      if (this._windArrowHelper) {
+        const newDir = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), THREE.MathUtils.degToRad(d.dir)).normalize();
+        this._windArrowHelper.setDirection(newDir);
       }
     });
 
@@ -100,6 +105,20 @@ export class EditorSystem {
     this._seaweedModels = seaweedModels;
     this._waveModels = waveModels;
     this._islandModels = islandModels;
+
+    const initialDensity = levelCfg && levelCfg.fogDensity !== undefined ? levelCfg.fogDensity : 0.006;
+    this._scene.fog = new THREE.FogExp2(0x1a2430, initialDensity);
+    if (initialDensity >= 0.05) {
+      this._scene.background = this._scene.fog.color;
+    } else {
+      this._scene.background = new THREE.Color(0x222233);
+    }
+
+    // Initialize 3D Wind Arrow
+    const windDirAngle = this._levelCfg?.globalWindDir || 0;
+    const initialWindDir = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), THREE.MathUtils.degToRad(windDirAngle)).normalize();
+    this._windArrowHelper = new THREE.ArrowHelper(initialWindDir, new THREE.Vector3(0, 10, 0), 30, 0x00ffff, 8, 4);
+    this._scene.add(this._windArrowHelper);
 
     this._renderer.domElement.addEventListener('pointerdown', this._boundPointerDown);
     this._renderer.domElement.addEventListener('pointermove', this._boundPointerMove);
@@ -160,12 +179,26 @@ export class EditorSystem {
       this._boundaryVisual = null;
     }
     
+    if (this._windArrowHelper) {
+      this._scene.remove(this._windArrowHelper);
+      this._windArrowHelper.line.geometry.dispose();
+      this._windArrowHelper.line.material.dispose();
+      this._windArrowHelper.cone.geometry.dispose();
+      this._windArrowHelper.cone.material.dispose();
+      this._windArrowHelper = null;
+    }
+
     off('editorSelectType');
     off('editorSelectTool');
     off('editorSetWorldSize');
     off('editorSetWindDir');
     off('editorSetFogDensity');
     off('editorExport');
+    
+    if (this._scene) {
+      this._scene.fog = null;
+      this._scene.background = new THREE.Color(0x222233);
+    }
   }
 
   _updatePreview() {

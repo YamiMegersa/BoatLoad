@@ -21,20 +21,19 @@ export class RainManager {
       uniforms: {
         uTime: { value: 0 },
         uWindDirection: { value: new THREE.Vector3(0, -1, 0) }, // Default straight down
-        uSpeed: { value: 40.0 }, // Fall speed
+        uDisplacement: { value: new THREE.Vector3(0, 0, 0) },
         uBoxSize: { value: new THREE.Vector3(200, 100, 200) }
       },
       vertexShader: `
         uniform float uTime;
         uniform vec3 uWindDirection;
-        uniform float uSpeed;
+        uniform vec3 uDisplacement;
         uniform vec3 uBoxSize;
         
         void main() {
           vec3 basePos = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
           
-          vec3 displacement = uWindDirection * uTime * uSpeed;
-          vec3 pos = basePos + displacement;
+          vec3 pos = basePos + uDisplacement;
           
           pos.x = mod(pos.x + uBoxSize.x * 0.5, uBoxSize.x) - uBoxSize.x * 0.5;
           pos.y = mod(pos.y, uBoxSize.y);
@@ -87,6 +86,20 @@ export class RainManager {
       // Rain slants with the wind
       const fallDir = new THREE.Vector3(windDir.x * 1.0, -1.0, windDir.z * 1.0).normalize();
       this.mesh.material.uniforms.uWindDirection.value.copy(fallDir);
+      
+      if (!this._displacement) this._displacement = new THREE.Vector3();
+      this._displacement.addScaledVector(fallDir, 40.0 * delta); // 40.0 is the fall speed
+      
+      // Keep displacement bounded to prevent float precision issues over time
+      const box = this.mesh.material.uniforms.uBoxSize.value;
+      this._displacement.x = this._displacement.x % box.x;
+      this._displacement.y = this._displacement.y % box.y;
+      this._displacement.z = this._displacement.z % box.z;
+      
+      if (!this.mesh.material.uniforms.uDisplacement) {
+        this.mesh.material.uniforms.uDisplacement = { value: new THREE.Vector3() };
+      }
+      this.mesh.material.uniforms.uDisplacement.value.copy(this._displacement);
       
       if (shipPosition) {
         this.mesh.position.set(shipPosition.x, 0, shipPosition.z);

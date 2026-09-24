@@ -124,6 +124,12 @@ export class GameState {
         window.denseFogEnabled = d.enabled;
       }
     });
+
+    on('oceanSetWorldSize', (d) => {
+      if (this._ocean) {
+        this._ocean.setWorldSize(d.size);
+      }
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -244,6 +250,9 @@ export class GameState {
 
   async _enterShipyard({ shipDef, levelCfg, fishModels }) {
     this._levelCfg = levelCfg;
+    if (this._ocean) {
+      this._ocean.setWorldSize(levelCfg?.worldSize || 200);
+    }
 
     // Build the voxel data
     const { grid, zones, def, gltfScene } = await ShipBuilder.build(shipDef, levelCfg);
@@ -428,6 +437,10 @@ export class GameState {
     this._camera.position.set(0, 5, 16);
     this._camera.lookAt(0, 0, -5);
 
+    if (this._ocean) {
+      this._ocean.setWorldSize(levelCfg?.worldSize || 200);
+    }
+
     this._playerShip = new PlayerShip(shipStats ?? {}, this._scene, this._chunkRenderer, this._grid);
     this._obstacleManager = new ObstacleManager();
     this._obstacleManager.init(levelCfg, this._scene, rockModels, pickupModels, seaweedModels, waveModels, islandModels);
@@ -549,6 +562,10 @@ export class GameState {
   _enterEditor({ levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels }) {
     this._camera.position.set(0, 30, 0);
     this._camera.lookAt(0, 0, -5);
+    
+    if (this._ocean) {
+      this._ocean.setWorldSize(levelCfg?.worldSize || 200);
+    }
     
     this._orbitControls = new OrbitControls(this._camera, this._renderer.domElement);
     this._orbitControls.target.set(0, 0, -5);

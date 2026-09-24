@@ -341,7 +341,8 @@ export class ObstacleManager {
 
       // Only waves move, according to wind direction
       if (obs.type === 'wave_small' && windManager) {
-        const localWind = windManager.getWindAt(obs.mesh.position.x, obs.mesh.position.z);
+        if (!this._tempWind) this._tempWind = new THREE.Vector3();
+        const localWind = windManager.getWindAt(obs.mesh.position.x, obs.mesh.position.z, this._tempWind);
         obs.mesh.position.x += localWind.x * obs.scrollSpeed * delta;
         obs.mesh.position.z += localWind.z * obs.scrollSpeed * delta;
         

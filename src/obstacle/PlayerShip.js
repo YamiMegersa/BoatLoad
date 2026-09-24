@@ -226,7 +226,8 @@ export class PlayerShip {
     // No more clamping, free 360 degree rotation
     
     const pos = this.mesh.position;
-    const localWind = windManager ? windManager.getWindAt(pos.x, pos.z) : new THREE.Vector3(1, 0, -1).normalize();
+    if (!this._tempWind) this._tempWind = new THREE.Vector3();
+    const localWind = windManager ? windManager.getWindAt(pos.x, pos.z, this._tempWind) : new THREE.Vector3(1, 0, -1).normalize();
 
     // Calculate wind alignment speed modifier
     const shipDir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.mesh.quaternion).normalize();
