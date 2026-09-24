@@ -11,15 +11,10 @@ import { EnvironmentManager } from '../environment/EnvironmentManager.js';
 import { SharkSkinRepair }    from '../environment/SharkSkinRepair.js';
 import { FishAnimator }       from '../environment/FishAnimator.js';
 import { Ocean }              from '../environment/Ocean.js';
-import { QTESystem }      from '../obstacle/QTESystem.js';
-import { Minimap }        from '../ui/Minimap.js';
-import { HUD }            from '../ui/HUD.js';
-import { EditorUI }       from '../ui/EditorUI.js';
-import { EditorSystem }   from '../editor/EditorSystem.js';
-import { WindManager }        from '../environment/WindManager.js';
 import { Sky }                from '../environment/Sky.js';
 import { DockStall }          from '../environment/DockStall.js';
 import { WeatherSystem }      from '../environment/WeatherSystem.js';
+import { QTESystem }      from '../obstacle/QTESystem.js';
 import { emit, on, off, clear } from './EventBus.js';
 
 // ---------------------------------------------------------------------------
@@ -31,7 +26,6 @@ export const GamePhase = Object.freeze({
   SHIPYARD: 'SHIPYARD',
   OBSTACLE: 'OBSTACLE',
   RESULTS:  'RESULTS',
-  EDITOR:   'EDITOR',
 });
 
 // ---------------------------------------------------------------------------
@@ -55,11 +49,26 @@ export class GameState {
     this._camera   = camera;
     this._renderer = renderer;
 
-    // Global ocean instance (persists across phases)
+    this._time = 0;
+
+    // Global lighting
+    this._ambient = new THREE.HemisphereLight(0xffffff, 0xffffff, 1.0);
+    this._sun = new THREE.DirectionalLight(0xffffff, 1.0);
+    this._sun.castShadow = true;
+    this._scene.add(this._ambient, this._sun);
+
+    // Global environment instances (persists across phases)
     this._ocean = new Ocean();
     this._ocean.init(this._scene);
+    
+    this._sky = new Sky();
+    this._sky.init(this._scene);
+
+    this._weather = new WeatherSystem();
+    this._dockStall = new DockStall();
 
     this.currentPhase = null;
+    this.activeCamera = null;
 
     // Day / session data
     this.day           = 1;
@@ -86,19 +95,6 @@ export class GameState {
     this._obstacleManager = null;
     this._environmentManager = null;
     this._qteSystem       = null;
-    this._minimap         = new Minimap();
-    this._hud             = new HUD();
-    this._editorUI        = new EditorUI();
-    this._editorSystem    = null;
-    this._windManager     = null;
-    this._time            = 0;
-    this._sky             = new Sky();
-    this._sky.init(this._scene);
-    this._weather         = new WeatherSystem();
-    this._dockStall       = new DockStall();
-    
-    // Global wind direction (e.g., blowing towards North-East)
-    this.windDir = new THREE.Vector3(1, 0, -1).normalize();
 
     // Input tracking
     this._keys = {};
@@ -110,28 +106,14 @@ export class GameState {
     this._boundPointerDown = this._onPointerDown.bind(this);
     this._boundPointerMove = this._onPointerMove.bind(this);
 
-    // Patch keydown to handle single-press R and F
+    // Patch keydown to handle single-press R
     const oldKeyDown = this._boundKeyDown;
     this._boundKeyDown = (e) => {
       oldKeyDown(e);
       if (e.code === 'KeyR' && this.currentPhase === GamePhase.SHIPYARD) {
         emit('rotateBlueprint');
       }
-      if (e.code === 'KeyF') {
-        if (this._environmentManager) {
-          const isDense = this._environmentManager.toggleDenseFog();
-          window.denseFogEnabled = isDense;
-          emit('denseFogChanged', { enabled: isDense });
-        }
-      }
     };
-
-    on('toggleDenseFogUI', (d) => {
-      if (this._environmentManager) {
-        this._environmentManager.toggleDenseFog(d.enabled);
-        window.denseFogEnabled = d.enabled;
-      }
-    });
   }
 
   // -------------------------------------------------------------------------
@@ -167,7 +149,7 @@ export class GameState {
 
     switch (this.currentPhase) {
       case GamePhase.DOCK:
-        if (this._dockStall) this._dockStall.update(delta, this._time);
+        this._dockStall.update(delta, this._time);
         if (this._dockOrbitControls) this._dockOrbitControls.update();
         break;
 
@@ -177,10 +159,6 @@ export class GameState {
 
       case GamePhase.OBSTACLE:
         this._updateObstacle(delta);
-        break;
-
-      case GamePhase.EDITOR:
-        this._updateEditor(delta);
         break;
 
       default:
@@ -195,7 +173,7 @@ export class GameState {
   async _onEnter(phase, opts) {
     switch (phase) {
       case GamePhase.DOCK:
-        this._enterDock(opts);
+        await this._enterDock(opts);
         break;
 
       case GamePhase.SHIPYARD:
@@ -208,10 +186,6 @@ export class GameState {
 
       case GamePhase.RESULTS:
         this._enterResults(opts);
-        break;
-
-      case GamePhase.EDITOR:
-        this._enterEditor(opts);
         break;
 
       default:
@@ -237,14 +211,6 @@ export class GameState {
         this._exitObstacle();
         break;
 
-      case GamePhase.EDITOR:
-        this._exitEditor();
-        break;
-
-      case GamePhase.RESULTS:
-        emit('uiUnmount', { screen: 'results' });
-        break;
-
       default:
         break;
     }
@@ -258,10 +224,10 @@ export class GameState {
     if (this._chunkRenderer && this._chunkRenderer.container) {
       this._chunkRenderer.container.position.set(15, -0.5, 0);
     }
-    // Set up fixed cinematic camera
+    // Set up cinematic camera
     this._camera.position.set(0, 5, 20);
     this._camera.lookAt(0, 2, 0);
-    
+
     this._dockOrbitControls = new OrbitControls(this._camera, this._renderer.domElement);
     this._dockOrbitControls.enableDamping = true;
     this._dockOrbitControls.target.set(0, 2, 0);
@@ -286,12 +252,15 @@ export class GameState {
 
   _exitDock() {
     this._scene.remove(this._dockStall.group);
+    // Ocean breakwater is disabled by default for other phases unless explicitly enabled
     this._ocean.breakwaterEnabled = false;
 
     if (this._dockOrbitControls) {
       this._dockOrbitControls.dispose();
       this._dockOrbitControls = null;
     }
+    this.activeCamera = null;
+
     emit('uiUnmount', { screen: 'dock' });
   }
 
@@ -300,6 +269,9 @@ export class GameState {
   // =========================================================================
 
   async _enterShipyard({ shipDef, levelCfg, fishModels }) {
+    if (this._chunkRenderer) {
+      this._chunkRenderer.dispose(this._scene);
+    }
     this._levelCfg = levelCfg;
 
     // Build the voxel data
@@ -350,6 +322,7 @@ export class GameState {
       this._debugSharkBaseY = cy;
       this._debugSharkAnim  = new FishAnimator(
         this._debugShark,
+        repair?.tailBone ?? null,
         1.0
       );
     }
@@ -367,15 +340,12 @@ export class GameState {
 
     // Sync renderer on dirty events
     on('gridDirty', () => {
-      if (this._windManager) {
-        const localWind = this._windManager.getWindAt(this._playerShip.mesh.position.x, this._playerShip.mesh.position.z);
-        
-        document.getElementById('ui-hud-wind-dir').textContent = 
-          `Wind: ${localWind.x.toFixed(1)}, ${localWind.z.toFixed(1)}`;
+      if (this._grid && this._chunkRenderer) {
+        this._chunkRenderer.sync(this._grid);
       }
     });
 
-    emit('uiMount', { screen: 'shipyard' });
+    emit('uiMount', { screen: 'shipyard', docket: levelCfg.docket });
   }
 
   _updateShipyard(delta) {
@@ -479,27 +449,32 @@ export class GameState {
   // OBSTACLE
   // =========================================================================
 
-  _enterObstacle({ levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels }) {
-    // Chase camera initial position
-    this._camera.position.set(0, 5, 16);
+  _enterObstacle({ levelCfg, shipStats, rockModels, fishModels }) {
+    // Semi top-down camera
+    this._camera.position.set(0, 14, 10);
     this._camera.lookAt(0, 0, -5);
 
     this._playerShip = new PlayerShip(shipStats ?? {}, this._scene, this._chunkRenderer, this._grid);
     this._obstacleManager = new ObstacleManager();
-    this._obstacleManager.init(levelCfg, this._scene, rockModels, pickupModels, seaweedModels, waveModels, islandModels);
+    this._obstacleManager.init(levelCfg.obstacles, this._scene, rockModels);
+    
     this._environmentManager = new EnvironmentManager();
     this._environmentManager.init(this._scene, fishModels);
     
-    this._windManager = new WindManager(levelCfg);
-
     this._qteSystem = new QTESystem();
 
-    this._onSteer = (d) => {
-      if (this._playerShip) {
-        this._playerShip.steerInput = d.value;
+    // Keyboard steering
+    this._obstacleKeyDown = e => {
+      if (e.code === 'ArrowLeft'  || e.code === 'KeyA') this._playerShip.steerInput = -1;
+      if (e.code === 'ArrowRight' || e.code === 'KeyD') this._playerShip.steerInput =  1;
+    };
+    this._obstacleKeyUp = e => {
+      if (['ArrowLeft','KeyA','ArrowRight','KeyD'].includes(e.code)) {
+        this._playerShip.steerInput = 0;
       }
     };
-    on('steer', this._onSteer);
+    window.addEventListener('keydown', this._obstacleKeyDown);
+    window.addEventListener('keyup',   this._obstacleKeyUp);
 
     // When player sinks, transition to results
     on('playerSunk', () => {
@@ -510,67 +485,14 @@ export class GameState {
   }
 
   _updateObstacle(delta) {
-    // Pass WindManager instead of static windDir
-    this._playerShip?.update(delta, this._ocean, this._windManager);
-    this._obstacleManager?.update(delta, this._playerShip, this._windManager);
-    this._environmentManager?.update(delta, this._windManager, this._playerShip?.mesh.position);
-
-    if (this._playerShip) {
-      const p = this._playerShip.mesh.position;
-      const shipYaw = this._playerShip.yaw;
-      const shipYawVel = this._playerShip.yawVelocity;
-      
-      const shipDir = new THREE.Vector3(-Math.sin(shipYaw), 0, -Math.cos(shipYaw));
-      const rightDir = new THREE.Vector3(Math.cos(shipYaw), 0, -Math.sin(shipYaw));
-
-      // 1. Base Target
-      const baseTarget = p.clone().add(shipDir.clone().multiplyScalar(-16));
-      baseTarget.y += 5;
-
-      // 2. Overshoot Spring
-      if (this._camOvershoot === undefined) {
-        this._camOvershoot = 0;
-        this._camOvershootVel = 0;
-        this._camVelocity = new THREE.Vector3();
-        this._camLookTarget = p.clone();
-      }
-      
-      // Push camera outward relative to turn speed. 
-      // If turning right (negative yawVel), targetOvershoot becomes negative.
-      // rightDir is positive X (when facing -Z), so negative rightDir pushes left (outside the turn).
-      const targetOvershoot = shipYawVel * 15.0; // scale factor
-      
-      // Spring physics for the overshoot
-      const springK = 25.0;
-      const springDamp = 6.0;
-      const force = (targetOvershoot - this._camOvershoot) * springK - this._camOvershootVel * springDamp;
-      this._camOvershootVel += force * delta;
-      this._camOvershoot += this._camOvershootVel * delta;
-
-      // 3. Final Target P3
-      const P3 = baseTarget.clone().add(rightDir.clone().multiplyScalar(this._camOvershoot));
-
-      // 4. Move camera smoothly towards the spring-loaded target
-      // The spring logic in P3 provides the curved sweep and overshoot.
-      this._camera.position.lerp(P3, 5.0 * delta);
-
-      // 6. Look Target (delayed)
-      // Lerp look target so it sweeps across the hull slightly
-      this._camLookTarget.lerp(p, 8.0 * delta);
-      this._camera.lookAt(this._camLookTarget);
-      
-      // Update Minimap
-      this._minimap?.update(
-        p,
-        this._playerShip.yaw,
-        this._obstacleManager?._obstacles || [],
-        this.windDir
-      );
-    }
+    this._playerShip?.update(delta, this._ocean);
+    this._obstacleManager?.update(delta, this._playerShip);
+    this._environmentManager?.update(delta);
   }
 
   _exitObstacle() {
-    off('steer', this._onSteer);
+    window.removeEventListener('keydown', this._obstacleKeyDown);
+    window.removeEventListener('keyup',   this._obstacleKeyUp);
     off('playerSunk');
 
     this._playerShip?.dispose(this._scene);
@@ -585,7 +507,6 @@ export class GameState {
     this._qteSystem       = null;
     this._chunkRenderer   = null;
     this._grid            = null;
-    this._windManager     = null;
 
     emit('uiUnmount', { screen: 'obstacle' });
   }
@@ -597,72 +518,5 @@ export class GameState {
   _enterResults({ passed }) {
     emit('uiMount', { screen: 'results', passed, day: this.day });
     if (passed) this.day++;
-  }
-
-  // =========================================================================
-  // EDITOR
-  // =========================================================================
-
-  _enterEditor({ levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels }) {
-    this._camera.position.set(0, 30, 0);
-    this._camera.lookAt(0, 0, -5);
-    
-    this._orbitControls = new OrbitControls(this._camera, this._renderer.domElement);
-    this._orbitControls.target.set(0, 0, -5);
-    this._orbitControls.update();
-
-    this._editorSystem = new EditorSystem();
-    this._editorSystem.init(
-      this._scene, this._camera, this._renderer, 
-      levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels
-    );
-
-    emit('uiMount', { screen: 'editor', levelCfg });
-  }
-
-  _updateEditor(delta) {
-    if (this._editorSystem) {
-      this._editorSystem.update(delta);
-    }
-
-    if (this._orbitControls) {
-      // WASD panning for editor
-      const speed = 40 * delta;
-      
-      const forward = new THREE.Vector3();
-      this._camera.getWorldDirection(forward);
-      forward.y = 0;
-      forward.normalize();
-      
-      const right = new THREE.Vector3();
-      right.crossVectors(forward, this._camera.up).normalize();
-
-      const move = new THREE.Vector3();
-      if (this._keys['KeyW']) move.add(forward);
-      if (this._keys['KeyS']) move.sub(forward);
-      if (this._keys['KeyA']) move.sub(right);
-      if (this._keys['KeyD']) move.add(right);
-      
-      if (this._keys['KeyE'] || this._keys['Space']) move.y += 1;
-      if (this._keys['KeyQ'] || this._keys['ShiftLeft']) move.y -= 1;
-
-      if (move.lengthSq() > 0) {
-        move.normalize().multiplyScalar(speed);
-        this._camera.position.add(move);
-        this._orbitControls.target.add(move);
-      }
-
-      this._orbitControls.update();
-    }
-  }
-
-  _exitEditor() {
-    this._editorSystem?.dispose();
-    this._editorSystem = null;
-    
-    this._orbitControls?.dispose();
-    this._orbitControls = null;
-
-    emit('uiUnmount', { screen: 'editor' });
   }
 }

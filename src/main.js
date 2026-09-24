@@ -28,10 +28,10 @@ camera.position.set(0, 10, 30);
 // Lighting
 // ---------------------------------------------------------------------------
 
-const ambient = new THREE.AmbientLight(0xf3e3b4, 0.6);
+const ambient = new THREE.HemisphereLight(0xffffff, 0xffffff, 1.0);
 scene.add(ambient);
 
-const sun = new THREE.DirectionalLight(0xfff5e0, 1.2);
+const sun = new THREE.DirectionalLight(0xffffff, 1.0);
 sun.position.set(10, 20, 10);
 sun.castShadow = true;
 scene.add(sun);
@@ -45,6 +45,12 @@ scene.add(sun);
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
+
+  if (gameState.activeCamera && gameState.activeCamera !== camera) {
+    gameState.activeCamera.aspect = window.innerWidth / window.innerHeight;
+    gameState.activeCamera.updateProjectionMatrix();
+  }
+
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
@@ -54,6 +60,8 @@ window.addEventListener('resize', () => {
 
 const clock      = new THREE.Clock();
 const gameState  = new GameState(scene, camera, renderer);
+gameState._ambient = ambient;
+gameState._sun     = sun;
 const buildMenu  = new BuildMenu();
 const docket     = new DocketSheet();
 const dockUI     = new DockUI();
@@ -85,7 +93,7 @@ function tick(now) {
 
   const delta = Math.min(clock.getDelta(), 0.05); // cap at 50ms to avoid spiral of death
   gameState.update(delta);
-  renderer.render(scene, camera);
+  renderer.render(scene, gameState.activeCamera || camera);
 }
 
 // ---------------------------------------------------------------------------
