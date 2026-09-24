@@ -117,6 +117,20 @@ export class EditorUI {
           </label>
           <input type="range" id="fog-density-slider" min="0" max="0.1" step="0.001" value="${levelCfg.fogDensity !== undefined ? levelCfg.fogDensity : 0.006}" style="width:100%; margin-top: 5px;">
         </div>
+        
+        <div style="margin-bottom: 10px; color: white; font-size: 14px;">
+          <label style="display:flex; justify-content:space-between;">
+            Time of Day: <span id="time-val">${levelCfg.timeOfDay !== undefined ? levelCfg.timeOfDay.toFixed(1) : "8.0"}</span>
+          </label>
+          <input type="range" id="time-slider" min="0" max="24" step="0.1" value="${levelCfg.timeOfDay !== undefined ? levelCfg.timeOfDay : 8.0}" style="width:100%; margin-top: 5px;">
+        </div>
+
+        <div style="margin-bottom: 10px; color: white; font-size: 14px;">
+          <label style="display:flex; align-items:center;">
+            <input type="checkbox" id="storm-check" ${levelCfg.isStormy ? 'checked' : ''} style="margin-right: 8px;">
+            Stormy Weather
+          </label>
+        </div>
       </div>
 
       <div class="editor-footer">
@@ -192,6 +206,25 @@ export class EditorUI {
         const val = parseFloat(e.target.value);
         fogVal.innerText = val.toFixed(3);
         emit('editorSetFogDensity', { density: val });
+      };
+    }
+
+    // Handle Time of Day
+    const timeSlider = this._el.querySelector('#time-slider');
+    const timeVal = this._el.querySelector('#time-val');
+    if (timeSlider) {
+      timeSlider.oninput = (e) => {
+        const val = parseFloat(e.target.value);
+        timeVal.innerText = val.toFixed(1);
+        emit('editorSetTimeOfDay', { time: val });
+      };
+    }
+
+    // Handle Storm Checkbox
+    const stormCheck = this._el.querySelector('#storm-check');
+    if (stormCheck) {
+      stormCheck.onchange = (e) => {
+        emit('editorSetStormy', { isStormy: e.target.checked });
       };
     }
 

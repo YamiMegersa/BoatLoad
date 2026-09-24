@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { emit, on, off } from '../core/EventBus.js';
 import { buildObstacle } from '../obstacle/ObstacleManager.js';
+import { EnvironmentManager } from '../environment/EnvironmentManager.js';
 
 export class EditorSystem {
   constructor() {
@@ -81,14 +82,31 @@ export class EditorSystem {
       if (this._levelCfg) {
         this._levelCfg.fogDensity = d.density;
       }
-      if (this._scene && this._scene.fog) {
-        this._scene.fog.density = d.density;
-        // Check if dense enough to need background color matching
+      if (this._envManager) {
         if (d.density >= 0.05) {
-          this._scene.background = this._scene.fog.color;
+          this._envManager.toggleDenseFog(true);
         } else {
-          this._scene.background = new THREE.Color(0x222233);
+          this._envManager.toggleDenseFog(false);
+          if (this._scene && this._scene.fog) {
+            this._scene.fog.density = d.density;
+          }
         }
+      }
+    });
+
+    on('editorSetTimeOfDay', d => {
+      if (this._levelCfg) this._levelCfg.timeOfDay = d.time;
+      if (this._envManager) {
+        this._envManager._timeOfDay = d.time;
+        this._envManager._updateTimeAndLighting(0);
+      }
+    });
+
+    on('editorSetStormy', d => {
+      if (this._levelCfg) this._levelCfg.isStormy = d.isStormy;
+      if (this._envManager) {
+        this._envManager.toggleStorm(d.isStormy);
+        this._envManager._updateTimeAndLighting(0);
       }
     });
 
@@ -106,13 +124,8 @@ export class EditorSystem {
     this._waveModels = waveModels;
     this._islandModels = islandModels;
 
-    const initialDensity = levelCfg && levelCfg.fogDensity !== undefined ? levelCfg.fogDensity : 0.006;
-    this._scene.fog = new THREE.FogExp2(0x1a2430, initialDensity);
-    if (initialDensity >= 0.05) {
-      this._scene.background = this._scene.fog.color;
-    } else {
-      this._scene.background = new THREE.Color(0x222233);
-    }
+    this._envManager = new EnvironmentManager();
+    this._envManager.init(this._scene, [], this._levelCfg);
 
     // Initialize 3D Wind Arrow
     const windDirAngle = this._levelCfg?.globalWindDir || 0;
@@ -193,7 +206,14 @@ export class EditorSystem {
     off('editorSetWorldSize');
     off('editorSetWindDir');
     off('editorSetFogDensity');
+    off('editorSetTimeOfDay');
+    off('editorSetStormy');
     off('editorExport');
+    
+    if (this._envManager) {
+      this._envManager.dispose();
+      this._envManager = null;
+    }
     
     if (this._scene) {
       this._scene.fog = null;
@@ -331,6 +351,8 @@ export class EditorSystem {
       worldSize: this._levelCfg?.worldSize || 200,
       globalWindDir: this._levelCfg?.globalWindDir || 0,
       fogDensity: this._levelCfg?.fogDensity !== undefined ? this._levelCfg.fogDensity : 0.006,
+      timeOfDay: this._levelCfg?.timeOfDay !== undefined ? this._levelCfg.timeOfDay : 8.0,
+      isStormy: this._levelCfg?.isStormy || false,
       obstacles: this._placedObstacles.map(obs => ({
         type: obs.type,
         assetUrl: obs.assetUrl,
@@ -368,6 +390,10 @@ export class EditorSystem {
       if (obs.particles) {
         obs.particles.update(delta);
       }
+    }
+    
+    if (this._envManager) {
+      this._envManager.update(delta, { getWindAt: () => new THREE.Vector3(0, 0, -1) }, new THREE.Vector3());
     }
   }
 }

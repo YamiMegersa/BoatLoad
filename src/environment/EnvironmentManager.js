@@ -6,6 +6,25 @@ import { RainManager }     from './RainManager.js';
 import { FogVolume }       from './FogVolume.js';
 import { StormClouds }     from './StormClouds.js';
 
+const TIME_STOPS = [
+  { time: 0,  sun: 0x111122, amb: 0x050511, sky: 0x020511, fog: 0x020511 }, // Midnight
+  { time: 5,  sun: 0x223355, amb: 0x112233, sky: 0x112233, fog: 0x112233 }, // Pre-dawn
+  { time: 7,  sun: 0xffaa55, amb: 0x443333, sky: 0xcc5533, fog: 0xcc5533 }, // Dawn
+  { time: 10, sun: 0xfff5e0, amb: 0x8899aa, sky: 0x5588cc, fog: 0x5588cc }, // Morning
+  { time: 12, sun: 0xffffee, amb: 0x99aabb, sky: 0x6699ff, fog: 0x6699ff }, // Noon
+  { time: 16, sun: 0xfff5e0, amb: 0x8899aa, sky: 0x5588cc, fog: 0x5588cc }, // Afternoon
+  { time: 18, sun: 0xff8844, amb: 0x554444, sky: 0xcc4422, fog: 0xcc4422 }, // Sunset
+  { time: 20, sun: 0x223355, amb: 0x112233, sky: 0x112233, fog: 0x112233 }, // Dusk
+  { time: 24, sun: 0x111122, amb: 0x050511, sky: 0x020511, fog: 0x020511 }, // Midnight
+];
+
+const STORM_COLORS = {
+  sun: 0x445566,
+  amb: 0x223344,
+  sky: 0x222222,
+  fog: 0x222222,
+};
+
 export class EnvironmentManager {
   constructor() {
     this._scene      = null;
@@ -16,6 +35,13 @@ export class EnvironmentManager {
     this._fogVolume = null;
     this._stormClouds = null;
     this._isDenseFog = false;
+
+    this._timeOfDay = 8.0; // Default
+    this._timeSpeed = 0.0; // Static time
+    this._isStormy = false;
+    this._ambientLight = null;
+    this._sunLight = null;
+    this._sunRadius = 60;
   }
 
   /**
@@ -27,6 +53,9 @@ export class EnvironmentManager {
     this._scene      = scene;
     this._fishModels = fishModels;
     this._sharks     = [];
+    this._ambientLight = scene.children.find(c => c.isAmbientLight);
+    this._sunLight = scene.children.find(c => c.isDirectionalLight);
+
     
     const initialDensity = levelCfg && levelCfg.fogDensity !== undefined ? levelCfg.fogDensity : 0.006;
     
@@ -35,12 +64,16 @@ export class EnvironmentManager {
     
     if (initialDensity >= 0.05) {
       this._isDenseFog = true;
-      scene.background = scene.fog.color;
     } else {
       this._isDenseFog = false;
-      scene.background = new THREE.Color(0x222233);
     }
     
+    this._timeOfDay = levelCfg && levelCfg.timeOfDay !== undefined ? levelCfg.timeOfDay : 8.0;
+    this._isStormy = levelCfg && levelCfg.isStormy !== undefined ? levelCfg.isStormy : false;
+    
+    this._updateTimeAndLighting(0);
+    this.toggleStorm(this._isStormy);
+
     this._windParticles = new WindParticles(scene);
     this._rainManager = new RainManager(scene);
     this._fogVolume = new FogVolume(scene);
@@ -142,6 +175,89 @@ export class EnvironmentManager {
       if (p.x >  200) p.x -= 400;
       if (p.x < -200) p.x += 400;
     }
+
+    this._updateTimeAndLighting(delta);
+  }
+
+  _updateTimeAndLighting(delta) {
+    this._timeOfDay = (this._timeOfDay + delta * this._timeSpeed) % 24;
+
+    let prev = TIME_STOPS[0];
+    let next = TIME_STOPS[TIME_STOPS.length - 1];
+    for (let i = 0; i < TIME_STOPS.length - 1; i++) {
+      if (this._timeOfDay >= TIME_STOPS[i].time && this._timeOfDay < TIME_STOPS[i+1].time) {
+        prev = TIME_STOPS[i];
+        next = TIME_STOPS[i+1];
+        break;
+      }
+    }
+    
+    const t = (this._timeOfDay - prev.time) / (next.time - prev.time);
+
+    const cSun = new THREE.Color(prev.sun).lerp(new THREE.Color(next.sun), t);
+    const cAmb = new THREE.Color(prev.amb).lerp(new THREE.Color(next.amb), t);
+    const cSky = new THREE.Color(prev.sky).lerp(new THREE.Color(next.sky), t);
+    const cFog = new THREE.Color(prev.fog).lerp(new THREE.Color(next.fog), t);
+
+    if (this._isStormy) {
+      cSun.lerp(new THREE.Color(STORM_COLORS.sun), 0.8);
+      cAmb.lerp(new THREE.Color(STORM_COLORS.amb), 0.8);
+      cSky.lerp(new THREE.Color(STORM_COLORS.sky), 0.8);
+      cFog.lerp(new THREE.Color(STORM_COLORS.fog), 0.8);
+    }
+
+    if (this._sunLight) {
+      this._sunLight.color.copy(cSun);
+      const theta = ((this._timeOfDay - 6) / 12) * Math.PI; 
+      this._sunLight.position.set(
+        Math.cos(theta) * this._sunRadius,
+        Math.sin(theta) * this._sunRadius,
+        Math.sin(theta) * 20
+      );
+    }
+
+    if (this._ambientLight) {
+      this._ambientLight.color.copy(cAmb);
+    }
+
+    if (this._scene) {
+      if (this._scene.fog) {
+        this._scene.fog.color.copy(cFog);
+      }
+      if (!this._isDenseFog) {
+         this._scene.background = cSky;
+      }
+    }
+  }
+
+  toggleStorm(forceState) {
+    if (forceState !== undefined) {
+      this._isStormy = forceState;
+    } else {
+      this._isStormy = !this._isStormy;
+    }
+
+    if (this._rainManager) {
+      this._rainManager.setIntensity(this._isStormy ? 1.0 : 0.0);
+    }
+    
+    // You could also toggle storm clouds visibility or intensity here
+    if (this._stormClouds && this._stormClouds.mesh) {
+       this._stormClouds.mesh.visible = this._isStormy;
+    }
+
+    return this._isStormy;
+  }
+
+  toggleTimeSpeed() {
+     if (this._timeSpeed > 5.0) {
+       this._timeSpeed = 0.0;
+     } else if (this._timeSpeed > 0.0) {
+       this._timeSpeed = 10.0; // Fast forward
+     } else {
+       this._timeSpeed = 1.0; // Play
+     }
+     return this._timeSpeed;
   }
 
   toggleDenseFog(forceState) {
@@ -162,7 +278,7 @@ export class EnvironmentManager {
     }
     
     if (this._stormClouds && this._stormClouds.mesh) {
-      this._stormClouds.mesh.visible = !this._isDenseFog;
+      this._stormClouds.mesh.visible = !this._isDenseFog && this._isStormy;
     }
     
     return this._isDenseFog;

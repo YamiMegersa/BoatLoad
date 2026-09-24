@@ -22,7 +22,8 @@ export class RainManager {
         uTime: { value: 0 },
         uWindDirection: { value: new THREE.Vector3(0, -1, 0) }, // Default straight down
         uDisplacement: { value: new THREE.Vector3(0, 0, 0) },
-        uBoxSize: { value: new THREE.Vector3(200, 100, 200) }
+        uBoxSize: { value: new THREE.Vector3(200, 100, 200) },
+        uOpacity: { value: 0.0 }
       },
       vertexShader: `
         uniform float uTime;
@@ -55,11 +56,15 @@ export class RainManager {
         }
       `,
       fragmentShader: `
+        uniform float uOpacity;
         void main() {
-          gl_FragColor = vec4(0.8, 0.9, 1.0, 0.3);
+          if (uOpacity <= 0.01) discard;
+          gl_FragColor = vec4(0.8, 0.9, 1.0, 0.3 * uOpacity);
         }
       `
     });
+
+    this._targetIntensity = 0.0;
 
     this.mesh = new THREE.InstancedMesh(cylGeometry, material, rainCount);
     
@@ -81,6 +86,11 @@ export class RainManager {
   update(delta, shipPosition, windDir) {
     this._time += delta;
     if (this.mesh) {
+      if (this._targetIntensity !== undefined) {
+        const cur = this.mesh.material.uniforms.uOpacity.value;
+        this.mesh.material.uniforms.uOpacity.value += (this._targetIntensity - cur) * delta * 2.0;
+      }
+
       this.mesh.material.uniforms.uTime.value = this._time;
       
       // Rain slants with the wind
@@ -105,6 +115,10 @@ export class RainManager {
         this.mesh.position.set(shipPosition.x, 0, shipPosition.z);
       }
     }
+  }
+
+  setIntensity(val) {
+    this._targetIntensity = val;
   }
 
   dispose() {
