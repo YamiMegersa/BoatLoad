@@ -210,6 +210,10 @@ export class GameState {
 
   async _onExit(phase) {
     switch (phase) {
+      case GamePhase.DOCK:
+        this._exitDock();
+        break;
+
       case GamePhase.SHIPYARD:
         this._exitShipyard();
         break;
@@ -220,6 +224,10 @@ export class GameState {
 
       case GamePhase.EDITOR:
         this._exitEditor();
+        break;
+
+      case GamePhase.RESULTS:
+        emit('uiUnmount', { screen: 'results' });
         break;
 
       default:
@@ -236,6 +244,10 @@ export class GameState {
     this._camera.position.set(0, 5, 20);
     this._camera.lookAt(0, 0, 0);
     emit('uiMount', { screen: 'dock' });
+  }
+
+  _exitDock() {
+    emit('uiUnmount', { screen: 'dock' });
   }
 
   // =========================================================================
@@ -293,7 +305,6 @@ export class GameState {
       this._debugSharkBaseY = cy;
       this._debugSharkAnim  = new FishAnimator(
         this._debugShark,
-        repair?.tailBone ?? null,
         1.0
       );
     }
@@ -529,6 +540,7 @@ export class GameState {
     this._qteSystem       = null;
     this._chunkRenderer   = null;
     this._grid            = null;
+    this._windManager     = null;
 
     emit('uiUnmount', { screen: 'obstacle' });
   }

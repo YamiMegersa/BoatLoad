@@ -62,8 +62,9 @@ export class EditorUI {
     `;
 
     this._el.innerHTML = `
-      <div class="editor-header">
-        <h3>Level Editor</h3>
+      <div class="editor-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="margin: 0;">Level Editor</h3>
+        <button id="btn-editor-toggle" style="background: none; border: none; color: white; cursor: pointer; font-size: 16px;">◀</button>
       </div>
       
       <div class="editor-tools">
@@ -148,6 +149,20 @@ export class EditorUI {
         emit('editorSetWorldSize', { size: val });
       };
     }
+
+    const toggleBtn = this._el.querySelector('#btn-editor-toggle');
+    toggleBtn.onclick = () => {
+      const isCollapsed = this._el.style.width === '40px';
+      if (!isCollapsed) {
+        this._el.style.width = '40px';
+        toggleBtn.innerText = '▶';
+        this._el.querySelectorAll('.editor-tools, .editor-footer, .editor-header h3').forEach(el => el.style.display = 'none');
+      } else {
+        this._el.style.width = '250px';
+        toggleBtn.innerText = '◀';
+        this._el.querySelectorAll('.editor-tools, .editor-footer, .editor-header h3').forEach(el => el.style.display = '');
+      }
+    };
 
     document.getElementById('ui-root')?.appendChild(this._el);
   }
