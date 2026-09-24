@@ -46,9 +46,11 @@ export class RainManager {
           float skewX = w.x / abs(w.y + 0.0001);
           float skewZ = w.z / abs(w.y + 0.0001);
           
-          localPos.x += localPos.y * skewX;
-          localPos.z += localPos.y * skewZ;
-
+          localPos.x -= localPos.y * skewX;
+          localPos.z -= localPos.y * skewZ;
+          
+          // Also invert the overall wind velocity for the displacement if it was backwards, but displacement is fine.
+          
           vec4 worldPosition = modelMatrix * vec4(localPos + pos, 1.0);
           gl_Position = projectionMatrix * viewMatrix * worldPosition;
         }
@@ -82,7 +84,8 @@ export class RainManager {
     if (this.mesh) {
       this.mesh.material.uniforms.uTime.value = this._time;
       
-      const fallDir = new THREE.Vector3(windDir.x * 0.6, -1.0, windDir.z * 0.6).normalize();
+      // Rain slants with the wind
+      const fallDir = new THREE.Vector3(windDir.x * 1.0, -1.0, windDir.z * 1.0).normalize();
       this.mesh.material.uniforms.uWindDirection.value.copy(fallDir);
       
       if (shipPosition) {
