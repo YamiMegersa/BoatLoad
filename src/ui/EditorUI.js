@@ -97,6 +97,20 @@ export class EditorUI {
           </label>
           <input type="range" id="world-size-slider" min="50" max="1000" step="10" value="${worldSize}" style="width:100%; margin-top: 5px;">
         </div>
+        
+        <div style="margin-bottom: 10px; color: white; font-size: 14px;">
+          <label style="display:flex; justify-content:space-between;">
+            Global Wind Dir: <span id="wind-dir-val">${levelCfg.globalWindDir || 0}°</span>
+          </label>
+          <input type="range" id="wind-dir-slider" min="0" max="360" step="1" value="${levelCfg.globalWindDir || 0}" style="width:100%; margin-top: 5px;">
+        </div>
+
+        <div style="margin-bottom: 10px; color: white; font-size: 14px;">
+          <label style="display:flex; justify-content:space-between;">
+            Fog Density: <span id="fog-density-val">${levelCfg.fogDensity !== undefined ? levelCfg.fogDensity : 0.006}</span>
+          </label>
+          <input type="range" id="fog-density-slider" min="0" max="0.1" step="0.001" value="${levelCfg.fogDensity !== undefined ? levelCfg.fogDensity : 0.006}" style="width:100%; margin-top: 5px;">
+        </div>
       </div>
 
       <div class="editor-footer">
@@ -146,6 +160,28 @@ export class EditorUI {
         const val = parseInt(e.target.value, 10);
         sizeVal.innerText = val;
         emit('editorSetWorldSize', { size: val });
+      };
+    }
+
+    // Handle Wind Dir
+    const windSlider = this._el.querySelector('#wind-dir-slider');
+    const windVal = this._el.querySelector('#wind-dir-val');
+    if (windSlider) {
+      windSlider.oninput = (e) => {
+        const val = parseInt(e.target.value, 10);
+        windVal.innerText = val + '°';
+        emit('editorSetWindDir', { dir: val });
+      };
+    }
+
+    // Handle Fog Density
+    const fogSlider = this._el.querySelector('#fog-density-slider');
+    const fogVal = this._el.querySelector('#fog-density-val');
+    if (fogSlider) {
+      fogSlider.oninput = (e) => {
+        const val = parseFloat(e.target.value);
+        fogVal.innerText = val.toFixed(3);
+        emit('editorSetFogDensity', { density: val });
       };
     }
 

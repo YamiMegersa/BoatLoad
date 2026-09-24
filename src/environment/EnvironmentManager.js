@@ -21,14 +21,25 @@ export class EnvironmentManager {
   /**
    * @param {THREE.Scene} scene
    * @param {object[]}    fishModels  - Array of GLTF objects from LevelConfig
+   * @param {object}      levelCfg    - The level configuration
    */
-  init(scene, fishModels) {
+  init(scene, fishModels, levelCfg) {
     this._scene      = scene;
     this._fishModels = fishModels;
     this._sharks     = [];
     
+    const initialDensity = levelCfg && levelCfg.fogDensity !== undefined ? levelCfg.fogDensity : 0.006;
+    
     // Enable true depth-based fog to obscure objects like islands and the ship
-    scene.fog = new THREE.FogExp2(0x1a2430, 0.006);
+    scene.fog = new THREE.FogExp2(0x1a2430, initialDensity);
+    
+    if (initialDensity >= 0.05) {
+      this._isDenseFog = true;
+      scene.background = scene.fog.color;
+    } else {
+      this._isDenseFog = false;
+      scene.background = new THREE.Color(0x222233);
+    }
     
     this._windParticles = new WindParticles(scene);
     this._rainManager = new RainManager(scene);

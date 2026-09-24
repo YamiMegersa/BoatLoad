@@ -66,6 +66,27 @@ export class EditorSystem {
       }
     });
 
+    on('editorSetWindDir', d => {
+      if (this._levelCfg) {
+        this._levelCfg.globalWindDir = d.dir;
+      }
+    });
+
+    on('editorSetFogDensity', d => {
+      if (this._levelCfg) {
+        this._levelCfg.fogDensity = d.density;
+      }
+      if (this._scene && this._scene.fog) {
+        this._scene.fog.density = d.density;
+        // Check if dense enough to need background color matching
+        if (d.density >= 0.05) {
+          this._scene.background = this._scene.fog.color;
+        } else {
+          this._scene.background = new THREE.Color(0x222233);
+        }
+      }
+    });
+
     on('editorExport', () => this.exportLevel());
   }
 
@@ -142,6 +163,8 @@ export class EditorSystem {
     off('editorSelectType');
     off('editorSelectTool');
     off('editorSetWorldSize');
+    off('editorSetWindDir');
+    off('editorSetFogDensity');
     off('editorExport');
   }
 
@@ -273,6 +296,8 @@ export class EditorSystem {
     return {
       ...this._levelCfg,
       worldSize: this._levelCfg?.worldSize || 200,
+      globalWindDir: this._levelCfg?.globalWindDir || 0,
+      fogDensity: this._levelCfg?.fogDensity !== undefined ? this._levelCfg.fogDensity : 0.006,
       obstacles: this._placedObstacles.map(obs => ({
         type: obs.type,
         assetUrl: obs.assetUrl,

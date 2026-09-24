@@ -6,7 +6,11 @@ export class WindManager {
    */
   constructor(levelCfg) {
     this.zones = [];
-    this.defaultWind = new THREE.Vector3(1, 0, -1).normalize(); // Global fallback wind
+    
+    // Convert globalWindDir (0-360 degrees) to a direction vector. Default to 0 (North/Forward = 0,0,-1)
+    const globalWindDirAngle = levelCfg && levelCfg.globalWindDir !== undefined ? levelCfg.globalWindDir : 45; 
+    // Rotate the forward vector by the angle around the Y axis
+    this.defaultWind = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), THREE.MathUtils.degToRad(globalWindDirAngle)).normalize();
     
     if (levelCfg && levelCfg.obstacles) {
       for (const obs of levelCfg.obstacles) {

@@ -432,7 +432,7 @@ export class GameState {
     this._obstacleManager = new ObstacleManager();
     this._obstacleManager.init(levelCfg, this._scene, rockModels, pickupModels, seaweedModels, waveModels, islandModels);
     this._environmentManager = new EnvironmentManager();
-    this._environmentManager.init(this._scene, fishModels);
+    this._environmentManager.init(this._scene, fishModels, levelCfg);
     
     this._windManager = new WindManager(levelCfg);
 
