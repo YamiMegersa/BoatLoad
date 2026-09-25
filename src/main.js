@@ -5,6 +5,7 @@ import { on }                   from './core/EventBus.js';
 import { BuildMenu }            from './ui/BuildMenu.js';
 import { DocketSheet }          from './ui/DocketSheet.js';
 import { DamageSystem }         from './shipyard/DamageSystem.js';
+import { GodRays }              from './environment/GodRays.js';
 import './ui/ui.css';
 
 // ---------------------------------------------------------------------------
@@ -38,6 +39,12 @@ scene.add(sun);
 // Helpers for debugging scale and orientation (Removed)
 
 // ---------------------------------------------------------------------------
+// God Rays post-processing
+// ---------------------------------------------------------------------------
+
+const godRays = new GodRays(renderer, scene, camera);
+
+// ---------------------------------------------------------------------------
 // Resize handler
 // ---------------------------------------------------------------------------
 
@@ -45,6 +52,7 @@ window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  godRays.resize(window.innerWidth, window.innerHeight);
 });
 
 // ---------------------------------------------------------------------------
@@ -83,7 +91,7 @@ function tick(now) {
 
   const delta = Math.min(clock.getDelta(), 0.05); // cap at 50ms to avoid spiral of death
   gameState.update(delta);
-  renderer.render(scene, camera);
+  godRays.render(sun);
 }
 
 // ---------------------------------------------------------------------------
