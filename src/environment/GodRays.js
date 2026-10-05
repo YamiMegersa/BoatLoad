@@ -129,8 +129,8 @@ const GlowShader = {
       // Massive soft glow that bleeds into the screen
       float intensity = pow(clamp(1.0 - dist / uRadius, 0.0, 1.0), 2.5);
       
-      // Hot core
-      intensity += pow(clamp(1.0 - dist / (uRadius * 0.03), 0.0, 1.0), 5.0) * 10.0;
+      // Hot core - made wider and smoother to prevent sudden flashbangs when entering screen
+      intensity += pow(clamp(1.0 - dist / (uRadius * 0.15), 0.0, 1.0), 3.0) * 5.0;
       
       gl_FragColor = vec4(vec3(intensity), 1.0);
     }
@@ -176,8 +176,27 @@ export class GodRays {
     // --- Sun billboard (rendered into both beauty pass and occlusion mask) ---
     // Enormous billboard for exaggerated god rays
     const sunGeo = new THREE.PlaneGeometry(120, 120);
-    const sunMat = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
+    const sunMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uColor: { value: new THREE.Color(0xffffff) }
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uColor;
+        varying vec2 vUv;
+        void main() {
+          // Circular gradient
+          float dist = length(vUv - 0.5) * 2.0;
+          float alpha = pow(clamp(1.0 - dist, 0.0, 1.0), 2.0);
+          gl_FragColor = vec4(uColor, alpha);
+        }
+      `,
       transparent: true,
       blending: THREE.AdditiveBlending,
       depthTest: true,
@@ -349,7 +368,7 @@ export class GodRays {
 
     // Render the sun billboard into the beauty pass (tinted to sun color)
     renderer.autoClear = false;
-    this._sunBillboard.material.color.copy(sunLight.color);
+    this._sunBillboard.material.uniforms.uColor.value.copy(sunLight.color);
     renderer.render(this._sunScene, camera);
 
     const ndcX = this._tempV4.x / this._tempV4.w;
