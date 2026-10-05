@@ -131,6 +131,53 @@ export class EditorUI {
             Stormy Weather
           </label>
         </div>
+
+        <h4>Paper Shader Tweaks</h4>
+        <div style="margin-bottom: 10px; color: white; font-size: 14px;">
+          <label style="display:flex; align-items:center;">
+            <input type="checkbox" id="paper-shader-check" checked style="margin-right: 8px;">
+            Enable Paper Shader
+          </label>
+        </div>
+        <div style="margin-bottom: 10px; color: white; font-size: 14px;">
+          <label style="display:flex; justify-content:space-between;">
+            Shading Style: 
+            <select id="paper-style-select" style="background:#222; color:white; border:1px solid #555;">
+              <option value="0">Hatching</option>
+              <option value="1">Kuwahara (Painterly)</option>
+            </select>
+          </label>
+        </div>
+        <div style="margin-bottom: 10px; color: white; font-size: 14px;">
+          <label style="display:flex; justify-content:space-between;">
+            Hatch Scale: <span id="paper-hatch-val">10.0</span>
+          </label>
+          <input type="range" id="paper-hatch-slider" min="1" max="50" step="0.5" value="10.0" style="width:100%; margin-top: 5px;">
+        </div>
+        <div style="margin-bottom: 10px; color: white; font-size: 14px;">
+          <label style="display:flex; justify-content:space-between;">
+            Kuwahara Radius: <span id="paper-kuwahara-val">3</span>
+          </label>
+          <input type="range" id="paper-kuwahara-slider" min="1" max="5" step="1" value="3" style="width:100%; margin-top: 5px;">
+        </div>
+        <div style="margin-bottom: 10px; color: white; font-size: 14px;">
+          <label style="display:flex; justify-content:space-between;">
+            Color Preservation: <span id="paper-color-val">0.40</span>
+          </label>
+          <input type="range" id="paper-color-slider" min="0" max="1" step="0.01" value="0.40" style="width:100%; margin-top: 5px;">
+        </div>
+        <div style="margin-bottom: 10px; color: white; font-size: 14px;">
+          <label style="display:flex; justify-content:space-between;">
+            Edge Threshold: <span id="paper-edge-val">0.30</span>
+          </label>
+          <input type="range" id="paper-edge-slider" min="0" max="1" step="0.01" value="0.30" style="width:100%; margin-top: 5px;">
+        </div>
+        <div style="margin-bottom: 10px; color: white; font-size: 14px;">
+          <label style="display:flex; justify-content:space-between;">
+            Wobble Intensity: <span id="paper-wobble-val">0.0005</span>
+          </label>
+          <input type="range" id="paper-wobble-slider" min="0" max="0.01" step="0.0001" value="0.0005" style="width:100%; margin-top: 5px;">
+        </div>
       </div>
 
       <div class="editor-footer">
@@ -225,6 +272,71 @@ export class EditorUI {
     if (stormCheck) {
       stormCheck.onchange = (e) => {
         emit('editorSetStormy', { isStormy: e.target.checked });
+      };
+    }
+
+    // Handle Paper Shader Tweaks
+    const paperCheck = this._el.querySelector('#paper-shader-check');
+    if (paperCheck) {
+      paperCheck.onchange = (e) => {
+        emit('editorTogglePaperShader', { enabled: e.target.checked });
+      };
+    }
+
+    const styleSelect = this._el.querySelector('#paper-style-select');
+    if (styleSelect) {
+      styleSelect.onchange = (e) => {
+        emit('editorSetPaperStyle', { style: parseInt(e.target.value, 10) });
+      };
+    }
+
+    const hatchSlider = this._el.querySelector('#paper-hatch-slider');
+    const hatchVal = this._el.querySelector('#paper-hatch-val');
+    if (hatchSlider) {
+      hatchSlider.oninput = (e) => {
+        const val = parseFloat(e.target.value);
+        hatchVal.innerText = val.toFixed(1);
+        emit('editorSetHatchScale', { scale: val });
+      };
+    }
+
+    const kuwaharaSlider = this._el.querySelector('#paper-kuwahara-slider');
+    const kuwaharaVal = this._el.querySelector('#paper-kuwahara-val');
+    if (kuwaharaSlider) {
+      kuwaharaSlider.oninput = (e) => {
+        const val = parseInt(e.target.value, 10);
+        kuwaharaVal.innerText = val;
+        emit('editorSetKuwaharaRadius', { radius: val });
+      };
+    }
+
+    const colorSlider = this._el.querySelector('#paper-color-slider');
+    const colorVal = this._el.querySelector('#paper-color-val');
+    if (colorSlider) {
+      colorSlider.oninput = (e) => {
+        const val = parseFloat(e.target.value);
+        colorVal.innerText = val.toFixed(2);
+        emit('editorSetPaperColor', { amount: val });
+      };
+    }
+
+    const edgeSlider = this._el.querySelector('#paper-edge-slider');
+    const edgeVal = this._el.querySelector('#paper-edge-val');
+    if (edgeSlider) {
+      edgeSlider.oninput = (e) => {
+        const val = parseFloat(e.target.value);
+        edgeVal.innerText = val.toFixed(2);
+        emit('editorSetPaperEdge', { threshold: val });
+      };
+    }
+
+    const wobbleSlider = this._el.querySelector('#paper-wobble-slider');
+    const wobbleVal = this._el.querySelector('#paper-wobble-val');
+    if (wobbleSlider) {
+      wobbleSlider.oninput = (e) => {
+        const val = parseFloat(e.target.value);
+        wobbleVal.innerText = val.toFixed(4);
+        emit('editorSetPaperWobble', { intensity: val });
       };
     }
 

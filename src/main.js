@@ -6,6 +6,7 @@ import { BuildMenu }            from './ui/BuildMenu.js';
 import { DocketSheet }          from './ui/DocketSheet.js';
 import { DamageSystem }         from './shipyard/DamageSystem.js';
 import { GodRays }              from './environment/GodRays.js';
+import { PaperFilter }          from './environment/PaperFilter.js';
 import './ui/ui.css';
 
 // ---------------------------------------------------------------------------
@@ -45,6 +46,18 @@ scene.add(sun);
 const godRays = new GodRays(renderer, scene, camera);
 
 // ---------------------------------------------------------------------------
+// Paper Filter post-processing
+// ---------------------------------------------------------------------------
+
+const mainRT = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {
+  minFilter: THREE.LinearFilter,
+  magFilter: THREE.LinearFilter,
+  format: THREE.RGBAFormat,
+});
+const paperFilter = new PaperFilter(renderer);
+paperFilter.resize(window.innerWidth, window.innerHeight);
+
+// ---------------------------------------------------------------------------
 // Resize handler
 // ---------------------------------------------------------------------------
 
@@ -53,6 +66,8 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
   godRays.resize(window.innerWidth, window.innerHeight);
+  mainRT.setSize(window.innerWidth, window.innerHeight);
+  paperFilter.resize(window.innerWidth, window.innerHeight);
 });
 
 // ---------------------------------------------------------------------------
@@ -63,6 +78,8 @@ const clock      = new THREE.Clock();
 const gameState  = new GameState(scene, camera, renderer);
 const buildMenu  = new BuildMenu();
 const docket     = new DocketSheet();
+
+let paperShaderEnabled = true;
 
 let frameCount = 0;
 let lastFpsTime = performance.now();
@@ -91,7 +108,13 @@ function tick(now) {
 
   const delta = Math.min(clock.getDelta(), 0.05); // cap at 50ms to avoid spiral of death
   gameState.update(delta);
-  godRays.render(sun);
+  
+  if (paperShaderEnabled) {
+    godRays.render(sun, mainRT);
+    paperFilter.render(mainRT);
+  } else {
+    godRays.render(sun, null);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -191,6 +214,15 @@ async function boot() {
         });
       }
     });
+
+    // Wire up Paper Shader sliders
+    on('editorTogglePaperShader', d => paperShaderEnabled = d.enabled);
+    on('editorSetPaperStyle', d => paperFilter.setStyle(d.style));
+    on('editorSetHatchScale', d => paperFilter.setHatchScale(d.scale));
+    on('editorSetKuwaharaRadius', d => paperFilter.setKuwaharaRadius(d.radius));
+    on('editorSetPaperColor', d => paperFilter.setColorPreservation(d.amount));
+    on('editorSetPaperEdge', d => paperFilter.setEdgeThreshold(d.threshold));
+    on('editorSetPaperWobble', d => paperFilter.setWobbleIntensity(d.intensity));
 
     // Start at Shipyard for Day 1
     await gameState.transition(GamePhase.SHIPYARD, { shipDef, levelCfg, fishModels });

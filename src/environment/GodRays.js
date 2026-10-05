@@ -275,15 +275,16 @@ export class GodRays {
    * Call this INSTEAD of renderer.render(scene, camera).
    *
    * @param {THREE.DirectionalLight} sunLight  The scene's directional sun light
+   * @param {THREE.WebGLRenderTarget} [renderTarget=null] Optional target
    */
-  render(sunLight) {
+  render(sunLight, renderTarget = null) {
     const renderer = this._renderer;
     const scene    = this._scene;
     const camera   = this._camera;
 
     // Fallback: if no sun light, just render normally
     if (!sunLight) {
-      renderer.setRenderTarget(null);
+      renderer.setRenderTarget(renderTarget);
       renderer.render(scene, camera);
       return;
     }
@@ -292,7 +293,7 @@ export class GodRays {
 
     // Sun well below horizon — skip god rays for performance
     if (sunY < -5) {
-      renderer.setRenderTarget(null);
+      renderer.setRenderTarget(renderTarget);
       renderer.render(scene, camera);
       return;
     }
@@ -331,7 +332,7 @@ export class GodRays {
     // Pass 1: Render the normal scene DIRECTLY to the screen
     // =====================================================================
     const currentAutoClear = renderer.autoClear;
-    renderer.setRenderTarget(null);
+    renderer.setRenderTarget(renderTarget);
     renderer.autoClear = true;
     renderer.render(scene, camera);
 
@@ -410,7 +411,7 @@ export class GodRays {
     const sc = sunLight.color;
     this._additiveMat.uniforms.uTint.value.set(sc.r, sc.g, sc.b);
 
-    renderer.setRenderTarget(null);
+    renderer.setRenderTarget(renderTarget);
     renderer.autoClear = false; // Important: do not clear the base scene!
     renderer.render(this._additiveScene, this._orthoCamera);
     
