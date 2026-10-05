@@ -90,6 +90,10 @@ export class EditorUI {
         <button class="editor-btn tool-btn tool-active" data-tool="select">Cursor / Move</button>
         <button class="editor-btn tool-btn" data-tool="delete">🗑️ Delete (Click)</button>
         
+        <h4>Terraforming (Voxels)</h4>
+        <button class="editor-btn tool-btn" data-tool="terrain_raise">⛰️ Raise Terrain</button>
+        <button class="editor-btn tool-btn" data-tool="terrain_lower">⛏️ Lower Terrain</button>
+        
         <h4>World Settings</h4>
         <div style="margin-bottom: 10px; color: white; font-size: 14px;">
           <label style="display:flex; justify-content:space-between;">

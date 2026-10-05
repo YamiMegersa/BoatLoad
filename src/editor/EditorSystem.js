@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { emit, on, off } from '../core/EventBus.js';
 import { buildObstacle } from '../obstacle/ObstacleManager.js';
 import { EnvironmentManager } from '../environment/EnvironmentManager.js';
+import { VoxelTerrain } from './VoxelTerrain.js';
 
 export class EditorSystem {
   constructor() {
@@ -38,8 +39,11 @@ export class EditorSystem {
     this._boundaryVisual = null;
 
     // Bindings
+    this._isPointerDown = false;
+    this._lastTerraformPoint = null;
     this._boundPointerDown = this._onPointerDown.bind(this);
     this._boundPointerMove = this._onPointerMove.bind(this);
+    this._boundPointerUp = this._onPointerUp.bind(this);
     this._boundWheel = this._onWheel.bind(this);
     this._boundKeyDown = this._onKeyDown.bind(this);
     
@@ -124,6 +128,11 @@ export class EditorSystem {
     this._waveModels = waveModels;
     this._islandModels = islandModels;
 
+    this._voxelTerrain = new VoxelTerrain(this._scene);
+    if (this._levelCfg && this._levelCfg.voxels) {
+      this._voxelTerrain.deserialize(this._levelCfg.voxels);
+    }
+
     this._envManager = new EnvironmentManager();
     this._envManager.init(this._scene, [], this._levelCfg);
 
@@ -135,6 +144,7 @@ export class EditorSystem {
 
     this._renderer.domElement.addEventListener('pointerdown', this._boundPointerDown);
     this._renderer.domElement.addEventListener('pointermove', this._boundPointerMove);
+    window.addEventListener('pointerup', this._boundPointerUp);
     this._renderer.domElement.addEventListener('wheel', this._boundWheel, { passive: false });
     window.addEventListener('keydown', this._boundKeyDown);
     
@@ -172,6 +182,7 @@ export class EditorSystem {
   dispose() {
     this._renderer.domElement.removeEventListener('pointerdown', this._boundPointerDown);
     this._renderer.domElement.removeEventListener('pointermove', this._boundPointerMove);
+    window.removeEventListener('pointerup', this._boundPointerUp);
     this._renderer.domElement.removeEventListener('wheel', this._boundWheel);
     window.removeEventListener('keydown', this._boundKeyDown);
     
@@ -260,25 +271,33 @@ export class EditorSystem {
       
       // Update position immediately using last known mouse intersection
       if (this._previewMesh) {
-        this._previewMesh.mesh.position.set(this._intersection.x, this._currentY, this._intersection.z);
+        this._previewMesh.mesh.position.set(this._intersection.x, this._intersection.y + this._currentY, this._intersection.z);
       }
     }
   }
 
   _onKeyDown(event) {
-    if (this._activeTool === 'place' && this._activeType) {
+    const isPlaceTool = this._activeTool === 'place' && this._activeType;
+    const isTerrainTool = this._activeTool === 'terrain_raise' || this._activeTool === 'terrain_lower';
+
+    if (isPlaceTool || isTerrainTool) {
       if (event.code === 'KeyO' || event.code === 'KeyP') {
-        const delta = event.code === 'KeyO' ? 0.1 : -0.1;
-        this._currentScale = Math.max(0.1, Math.min(10.0, this._currentScale + delta));
-        this._updatePreview();
-        if (this._previewMesh) {
-          this._previewMesh.mesh.position.set(this._intersection.x, this._currentY, this._intersection.z);
+        const delta = event.code === 'KeyO' ? 0.5 : -0.5; // Faster scaling for terrain
+        this._currentScale = Math.max(0.1, Math.min(20.0, this._currentScale + delta));
+        
+        if (isPlaceTool) {
+          this._updatePreview();
+          if (this._previewMesh) {
+            this._previewMesh.mesh.position.set(this._intersection.x, this._intersection.y + this._currentY, this._intersection.z);
+          }
         }
       } else if (event.code === 'BracketLeft' || event.code === 'BracketRight') {
-        const deltaRot = event.code === 'BracketLeft' ? Math.PI / 8 : -Math.PI / 8;
-        this._currentRotation += deltaRot;
-        if (this._previewMesh) {
-          this._previewMesh.mesh.rotation.y = this._currentRotation;
+        if (isPlaceTool) {
+          const deltaRot = event.code === 'BracketLeft' ? Math.PI / 8 : -Math.PI / 8;
+          this._currentRotation += deltaRot;
+          if (this._previewMesh) {
+            this._previewMesh.mesh.rotation.y = this._currentRotation;
+          }
         }
       }
     }
@@ -292,8 +311,72 @@ export class EditorSystem {
     this._raycaster.setFromCamera(this._mouse, this._camera);
     this._raycaster.ray.intersectPlane(this._plane, this._intersection);
 
+    const checkObjects = [];
+    if (this._voxelTerrain) checkObjects.push(this._voxelTerrain.meshGroup);
+    if (this._placedObstacles.length > 0) {
+      checkObjects.push(...this._placedObstacles.map(o => o.mesh));
+    }
+    if (checkObjects.length > 0) {
+      const intersects = this._raycaster.intersectObjects(checkObjects, true);
+      if (intersects.length > 0) {
+        this._intersection.copy(intersects[0].point);
+      }
+    }
+
     if (this._previewMesh) {
-      this._previewMesh.mesh.position.set(this._intersection.x, this._currentY, this._intersection.z);
+      this._previewMesh.mesh.position.set(this._intersection.x, this._intersection.y + this._currentY, this._intersection.z);
+    }
+
+    const isTerrainTool = this._activeTool === 'terrain_raise' || this._activeTool === 'terrain_lower';
+    if (isTerrainTool) {
+      if (this._voxelTerrain) {
+        const type = this._activeTool === 'terrain_raise' ? 'raise' : 'lower';
+        const radius = Math.max(1, Math.floor(this._currentScale * 2));
+        this._voxelTerrain.updatePreview(this._intersection.x, this._intersection.z, radius, type, this._intersection.y);
+      }
+      
+      if (this._isPointerDown) {
+        this._applyTerraform(this._intersection);
+      }
+    } else {
+      if (this._voxelTerrain) this._voxelTerrain.hidePreview();
+    }
+  }
+
+  _onPointerUp(event) {
+    if (event.button === 0) {
+      this._isPointerDown = false;
+      this._lastTerraformPoint = null;
+    }
+  }
+
+  _applyTerraform(hitPoint) {
+    if (this._voxelTerrain) {
+      const type = this._activeTool === 'terrain_raise' ? 'raise' : 'lower';
+      const radius = Math.max(1, Math.floor(this._currentScale * 2));
+
+      
+      const currentPt = new THREE.Vector2(hitPoint.x, hitPoint.z);
+
+      if (this._lastTerraformPoint) {
+        const dist = this._lastTerraformPoint.distanceTo(currentPt);
+        const stepDist = Math.max(1, radius / 2);
+        
+        if (dist > stepDist) {
+            const steps = Math.ceil(dist / stepDist);
+            for (let i = 1; i <= steps; i++) {
+                const lerped = this._lastTerraformPoint.clone().lerp(currentPt, i / steps);
+                this._voxelTerrain.applyBrush(lerped.x, lerped.y, radius, type, hitPoint.y);
+            }
+        } else {
+            this._voxelTerrain.applyBrush(currentPt.x, currentPt.y, radius, type, hitPoint.y);
+        }
+      } else {
+        this._voxelTerrain.applyBrush(currentPt.x, currentPt.y, radius, type, hitPoint.y);
+      }
+      
+      this._lastTerraformPoint = currentPt;
+      this._voxelTerrain.updateDirtyMeshes();
     }
   }
 
@@ -301,10 +384,12 @@ export class EditorSystem {
     // Left click only
     if (event.button !== 0) return;
     
+    this._isPointerDown = true;
+    this._lastTerraformPoint = null;
     this._onPointerMove(event);
 
     if (this._activeTool === 'place' && this._activeType) {
-      this._spawnObstacle(this._activeType, this._activeUrl, this._intersection.x, this._currentY, this._intersection.z, this._currentScale, this._currentRotation);
+      this._spawnObstacle(this._activeType, this._activeUrl, this._intersection.x, this._intersection.y + this._currentY, this._intersection.z, this._currentScale, this._currentRotation);
     } else if (this._activeTool === 'delete') {
       // Use raycasting to find the exactly clicked mesh
       const meshes = this._placedObstacles.map(o => o.mesh);
@@ -353,6 +438,7 @@ export class EditorSystem {
       fogDensity: this._levelCfg?.fogDensity !== undefined ? this._levelCfg.fogDensity : 0.006,
       timeOfDay: this._levelCfg?.timeOfDay !== undefined ? this._levelCfg.timeOfDay : 8.0,
       isStormy: this._levelCfg?.isStormy || false,
+      voxels: this._voxelTerrain ? this._voxelTerrain.serialize() : null,
       obstacles: this._placedObstacles.map(obs => ({
         type: obs.type,
         assetUrl: obs.assetUrl,

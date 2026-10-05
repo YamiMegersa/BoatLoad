@@ -181,11 +181,19 @@ async function boot() {
       if (gameState._grid) {
         hp = DamageSystem.getSummary(gameState._grid).integrityPct;
       }
-      gameState.transition(GamePhase.OBSTACLE, { shipDef, levelCfg, shipStats: { hullHP: hp }, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels });
+      gameState.transition(GamePhase.OBSTACLE, { 
+        shipDef, 
+        levelCfg: gameState._levelCfg || levelCfg, 
+        shipStats: { hullHP: hp }, 
+        rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels 
+      });
     };
     document.getElementById('btn-editor').onclick = () => {
       logEvent('Transitioning to Level Editor...');
-      gameState.transition(GamePhase.EDITOR, { levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels });
+      gameState.transition(GamePhase.EDITOR, { 
+        levelCfg: gameState._levelCfg || levelCfg, 
+        rockModels, pickupModels, seaweedModels, waveModels, islandModels 
+      });
     };
 
     // Listen for UI events

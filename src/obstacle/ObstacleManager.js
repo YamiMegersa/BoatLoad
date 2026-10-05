@@ -335,7 +335,39 @@ export class ObstacleManager {
    * @param {import('./PlayerShip.js').PlayerShip} playerShip
    * @param {import('../environment/WindManager.js').WindManager} windManager
    */
-  update(delta, playerShip, windManager) {
+  update(delta, playerShip, windManager, voxelTerrain) {
+    if (voxelTerrain && playerShip) {
+      const px = playerShip.mesh.position.x;
+      const pz = playerShip.mesh.position.z;
+      let hit = false;
+      let hitX = px, hitZ = pz;
+      
+      for(let dx=-2; dx<=2; dx++) {
+        for(let dz=-2; dz<=2; dz++) {
+          if (voxelTerrain.hasCollision(px + dx, pz + dz)) {
+            hit = true;
+            hitX = px + dx;
+            hitZ = pz + dz;
+            break;
+          }
+        }
+        if (hit) break;
+      }
+
+      if (hit && !playerShip.isImmune()) {
+         playerShip.takeDamage(50, 'island');
+         playerShip.setImmune(2.0);
+         const dx = px - hitX || (Math.random() - 0.5);
+         const dz = pz - hitZ || (Math.random() - 0.5);
+         const dist = Math.hypot(dx, dz) || 0.001;
+         playerShip.mesh.position.x += (dx / dist) * 3.0;
+         playerShip.mesh.position.z += (dz / dist) * 3.0;
+         playerShip.applyKnockback(new THREE.Vector3((dx / dist) * 40, 0, (dz / dist) * 40));
+         emit('obstacleHit', { type: 'island', damage: 50 });
+         emit('playSound', { sound: 'collision' });
+      }
+    }
+
     for (const obs of this._obstacles) {
       if (!obs.active) continue;
 

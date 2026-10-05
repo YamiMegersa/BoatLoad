@@ -16,6 +16,7 @@ import { Minimap }        from '../ui/Minimap.js';
 import { HUD }            from '../ui/HUD.js';
 import { EditorUI }       from '../ui/EditorUI.js';
 import { EditorSystem }   from '../editor/EditorSystem.js';
+import { VoxelTerrain }   from '../editor/VoxelTerrain.js';
 import { WindManager }        from '../environment/WindManager.js';
 import { emit, on, off, clear } from './EventBus.js';
 
@@ -433,12 +434,19 @@ export class GameState {
   // =========================================================================
 
   _enterObstacle({ levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels }) {
+    this._levelCfg = levelCfg;
+
     // Chase camera initial position
     this._camera.position.set(0, 5, 16);
     this._camera.lookAt(0, 0, -5);
 
     if (this._ocean) {
       this._ocean.setWorldSize(levelCfg?.worldSize || 200);
+    }
+
+    if (levelCfg && levelCfg.voxels) {
+      this._voxelTerrain = new VoxelTerrain(this._scene);
+      this._voxelTerrain.deserialize(levelCfg.voxels);
     }
 
     this._playerShip = new PlayerShip(shipStats ?? {}, this._scene, this._chunkRenderer, this._grid);
@@ -469,7 +477,7 @@ export class GameState {
   _updateObstacle(delta) {
     // Pass WindManager instead of static windDir
     this._playerShip?.update(delta, this._ocean, this._windManager);
-    this._obstacleManager?.update(delta, this._playerShip, this._windManager);
+    this._obstacleManager?.update(delta, this._playerShip, this._windManager, this._voxelTerrain);
     this._environmentManager?.update(delta, this._windManager, this._playerShip?.mesh.position);
 
     if (this._playerShip) {
@@ -543,6 +551,14 @@ export class GameState {
     this._chunkRenderer   = null;
     this._grid            = null;
 
+    if (this._voxelTerrain) {
+       this._scene.remove(this._voxelTerrain.meshGroup);
+       for (const chunkMesh of this._voxelTerrain.meshGroup.children) {
+         if (chunkMesh.geometry) chunkMesh.geometry.dispose();
+       }
+       this._voxelTerrain = null;
+    }
+
     emit('uiUnmount', { screen: 'obstacle' });
   }
 
@@ -560,6 +576,8 @@ export class GameState {
   // =========================================================================
 
   _enterEditor({ levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels }) {
+    this._levelCfg = levelCfg;
+
     this._camera.position.set(0, 30, 0);
     this._camera.lookAt(0, 0, -5);
     
@@ -568,6 +586,11 @@ export class GameState {
     }
     
     this._orbitControls = new OrbitControls(this._camera, this._renderer.domElement);
+    this._orbitControls.mouseButtons = {
+      LEFT: THREE.MOUSE.NONE,
+      MIDDLE: THREE.MOUSE.PAN,
+      RIGHT: THREE.MOUSE.ROTATE
+    };
     this._orbitControls.target.set(0, 0, -5);
     this._orbitControls.update();
 
