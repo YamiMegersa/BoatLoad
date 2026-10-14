@@ -421,9 +421,8 @@ export class KrakenBoss {
       tentacle.activate(this._playerShip);
     }
 
-    // Restart the race timer
-    this._waypointRace?.reset();
-    this._waypointRace?.start();
+    // Resume the race maintaining progress (do not reset waypoints already cleared)
+    this._waypointRace?.resumeAfterHit();
 
     this._state = BossState.RACE_ACTIVE;
   }

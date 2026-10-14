@@ -30,8 +30,9 @@ export class WaypointRace {
     this._expired = false;
     this._active = false;
 
-    // Gate meshes
-    /** @type {THREE.Mesh[]} */
+    // Gate visual records and meshes
+    this._gateVisuals = [];
+    /** @type {THREE.Object3D[]} */
     this._gateMeshes = [];
 
     // Trail line connecting waypoints
@@ -42,10 +43,13 @@ export class WaypointRace {
 
   /**
    * Start the race timer.
+   * @param {boolean} [maintainProgress=false]
    */
-  start() {
+  start(maintainProgress = false) {
     this._active = true;
-    this._currentIdx = 0;
+    if (!maintainProgress) {
+      this._currentIdx = 0;
+    }
     this._timeRemaining = this._timeLimit;
     this._complete = false;
     this._expired = false;
@@ -55,6 +59,25 @@ export class WaypointRace {
       tentacleIdx: 0, // overridden by KrakenBoss
       waypoints: this._waypoints.length,
       timeLimit: this._timeLimit,
+    });
+  }
+
+  /**
+   * Resume the race after the player is hit by a tentacle.
+   * Progress is maintained: current waypoint index is preserved,
+   * the timer is refreshed, and visuals/events are re-emitted.
+   */
+  resumeAfterHit() {
+    this._active = true;
+    this._expired = false;
+    this._complete = false;
+    this._timeRemaining = this._timeLimit;
+    this._updateGateColors();
+
+    emit('krakenRaceTimerUpdate', { timeRemaining: this._timeRemaining });
+    emit('krakenWaypointProgress', {
+      current: this._currentIdx,
+      total: this._waypoints.length,
     });
   }
 
@@ -103,15 +126,22 @@ export class WaypointRace {
       this._updateGateColors();
     }
 
-    // Animate gate meshes — gentle bob
-    for (let i = 0; i < this._gateMeshes.length; i++) {
-      const mesh = this._gateMeshes[i];
-      mesh.rotation.y += delta * 0.5;
+    // Animate gate visuals — GTA:SA yellow cylinder rotation and target pulse
+    const now = performance.now() / 1000;
+    for (let i = 0; i < this._gateVisuals.length; i++) {
+      const visual = this._gateVisuals[i];
+
+      // Slow cylinder rotation
+      visual.cylinder.rotation.y += delta * 0.25;
 
       // Pulse the current target gate
-      if (i === this._currentIdx) {
-        const pulse = 1.0 + Math.sin(performance.now() / 1000 * 4) * 0.15;
-        mesh.scale.setScalar(pulse);
+      if (i === this._currentIdx && this._active) {
+        const pulse = 1.0 + Math.sin(now * 4.0) * 0.04;
+        visual.cylinder.scale.set(pulse, 1.0, pulse);
+        visual.baseRing.scale.set(pulse, pulse, 1.0);
+      } else {
+        visual.cylinder.scale.set(1, 1, 1);
+        visual.baseRing.scale.set(1, 1, 1);
       }
     }
   }
@@ -155,10 +185,13 @@ export class WaypointRace {
 
   /**
    * Stop and reset the race.
+   * @param {boolean} [maintainProgress=false]
    */
-  reset() {
+  reset(maintainProgress = false) {
     this._active = false;
-    this._currentIdx = 0;
+    if (!maintainProgress) {
+      this._currentIdx = 0;
+    }
     this._timeRemaining = this._timeLimit;
     this._complete = false;
     this._expired = false;
@@ -166,11 +199,18 @@ export class WaypointRace {
   }
 
   dispose() {
-    for (const mesh of this._gateMeshes) {
-      mesh.geometry.dispose();
-      mesh.material.dispose();
-      this._scene?.remove(mesh);
+    for (const visual of this._gateVisuals) {
+      visual.cylinder.geometry.dispose();
+      visual.cylinder.material.dispose();
+      visual.baseRing.geometry.dispose();
+      visual.baseRing.material.dispose();
+      if (visual.sprite) {
+        visual.sprite.material.map?.dispose();
+        visual.sprite.material.dispose();
+      }
+      this._scene?.remove(visual.group);
     }
+    this._gateVisuals.length = 0;
     this._gateMeshes.length = 0;
 
     if (this._trailLine) {
@@ -181,36 +221,58 @@ export class WaypointRace {
     }
   }
 
-  // -----------------------------------------------------------------------
-  // Internal
-  // -----------------------------------------------------------------------
-
   _buildVisuals() {
-    // Waypoint gate torus rings
+    const cylinderHeight = 24;
+
     for (let i = 0; i < this._waypoints.length; i++) {
       const wp = this._waypoints[i];
-      const radius = wp.radius ?? 8;
+      const radius = (wp.radius ?? 8) * 0.9;
+      const wpY = wp.position.y ?? 0;
 
-      const torusGeo = new THREE.TorusGeometry(radius * 0.8, 0.4, 8, 24);
-      const torusMat = new THREE.MeshPhongMaterial({
-        color: 0x666666,
-        emissive: 0x222222,
+      const gateGroup = new THREE.Group();
+      gateGroup.position.set(wp.position.x, wpY, wp.position.z);
+
+      // 1. Tall transparent yellow GTA cylinder
+      const cylGeo = new THREE.CylinderGeometry(radius, radius, cylinderHeight, 32, 1, true);
+      const cylMat = new THREE.MeshPhongMaterial({
+        color: 0xffea00,
+        emissive: 0x886600,
+        emissiveIntensity: 0.5,
         transparent: true,
-        opacity: 0.7,
+        opacity: 0.45,
         side: THREE.DoubleSide,
+        depthWrite: false,
+        shininess: 40,
       });
+      const cylinder = new THREE.Mesh(cylGeo, cylMat);
+      cylinder.position.y = cylinderHeight / 2;
+      gateGroup.add(cylinder);
 
-      const torus = new THREE.Mesh(torusGeo, torusMat);
-      torus.position.set(wp.position.x, (wp.position.y ?? 0) + 2, wp.position.z);
-      torus.rotation.x = Math.PI / 2; // lay flat horizontally
+      // 2. Base ground/water yellow corona ring
+      const ringGeo = new THREE.RingGeometry(radius * 0.88, radius * 1.02, 32);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: 0xffea00,
+        transparent: true,
+        opacity: 0.8,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      });
+      const baseRing = new THREE.Mesh(ringGeo, ringMat);
+      baseRing.rotation.x = -Math.PI / 2;
+      baseRing.position.y = 0.2;
+      gateGroup.add(baseRing);
 
-      // Add number label (simple sprite)
+      // 3. Number label badge sprite (bright yellow disc with high-contrast numeral)
       const canvas = document.createElement('canvas');
       canvas.width = 64;
       canvas.height = 64;
       const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 48px monospace';
+      ctx.fillStyle = '#ffea00';
+      ctx.beginPath();
+      ctx.arc(32, 32, 28, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#111111';
+      ctx.font = 'bold 36px monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(`${i + 1}`, 32, 32);
@@ -222,25 +284,31 @@ export class WaypointRace {
         depthWrite: false,
       });
       const sprite = new THREE.Sprite(spriteMat);
-      sprite.scale.set(3, 3, 1);
-      sprite.position.y = 4;
-      torus.add(sprite);
+      sprite.scale.set(3.5, 3.5, 1);
+      sprite.position.y = 6.0;
+      gateGroup.add(sprite);
 
-      this._scene.add(torus);
-      this._gateMeshes.push(torus);
+      this._scene.add(gateGroup);
+      this._gateMeshes.push(gateGroup);
+      this._gateVisuals.push({
+        group: gateGroup,
+        cylinder,
+        baseRing,
+        sprite,
+      });
     }
 
-    // Trail line connecting waypoints
+    // Trail line connecting waypoints (bright dashed yellow)
     const points = this._waypoints.map(
-      wp => new THREE.Vector3(wp.position.x, (wp.position.y ?? 0) + 2, wp.position.z)
+      wp => new THREE.Vector3(wp.position.x, (wp.position.y ?? 0) + 0.3, wp.position.z)
     );
     const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
     const lineMat = new THREE.LineDashedMaterial({
-      color: 0xffaa00,
-      dashSize: 2,
-      gapSize: 1,
+      color: 0xffea00,
+      dashSize: 3,
+      gapSize: 1.5,
       transparent: true,
-      opacity: 0.5,
+      opacity: 0.65,
     });
     this._trailLine = new THREE.Line(lineGeo, lineMat);
     this._trailLine.computeLineDistances();
@@ -248,24 +316,35 @@ export class WaypointRace {
   }
 
   _updateGateColors() {
-    for (let i = 0; i < this._gateMeshes.length; i++) {
-      const mat = this._gateMeshes[i].material;
+    for (let i = 0; i < this._gateVisuals.length; i++) {
+      const visual = this._gateVisuals[i];
+      const cylMat = visual.cylinder.material;
+      const ringMat = visual.baseRing.material;
 
       if (i < this._currentIdx) {
-        // Already reached — green
-        mat.color.setHex(0x00cc44);
-        mat.emissive.setHex(0x004411);
-        mat.opacity = 0.4;
+        // Already cleared — faint green beacon
+        cylMat.color.setHex(0x00cc44);
+        cylMat.emissive.setHex(0x003311);
+        cylMat.opacity = 0.10;
+        ringMat.color.setHex(0x00cc44);
+        ringMat.opacity = 0.15;
+        if (visual.sprite) visual.sprite.material.opacity = 0.25;
       } else if (i === this._currentIdx && this._active) {
-        // Current target — bright yellow/orange
-        mat.color.setHex(0xffaa00);
-        mat.emissive.setHex(0x553300);
-        mat.opacity = 0.9;
+        // Current active target — bright vibrant yellow cylinder
+        cylMat.color.setHex(0xffea00);
+        cylMat.emissive.setHex(0x997700);
+        cylMat.opacity = 0.48;
+        ringMat.color.setHex(0xffea00);
+        ringMat.opacity = 0.85;
+        if (visual.sprite) visual.sprite.material.opacity = 1.0;
       } else {
-        // Upcoming — grey
-        mat.color.setHex(0x666666);
-        mat.emissive.setHex(0x222222);
-        mat.opacity = 0.5;
+        // Upcoming waypoint — semi-transparent pale yellow
+        cylMat.color.setHex(0xddbb00);
+        cylMat.emissive.setHex(0x332800);
+        cylMat.opacity = 0.20;
+        ringMat.color.setHex(0xddbb00);
+        ringMat.opacity = 0.35;
+        if (visual.sprite) visual.sprite.material.opacity = 0.6;
       }
     }
   }

@@ -385,12 +385,22 @@ export class EditorSystem {
       this._previewMesh = { mesh };
       this._scene.add(mesh);
     } else if (this._activeTool === 'place_waypoint') {
-      const geo = new THREE.TorusGeometry(6.4, 0.4, 8, 24);
-      geo.rotateX(Math.PI / 2);
-      const mat = new THREE.MeshBasicMaterial({ color: 0x00ffff, wireframe: true });
-      const mesh = new THREE.Mesh(geo, mat);
-      this._previewMesh = { mesh };
-      this._scene.add(mesh);
+      const group = new THREE.Group();
+      const cylGeo = new THREE.CylinderGeometry(7.2, 7.2, 20, 16, 1, true);
+      const cylMat = new THREE.MeshBasicMaterial({ color: 0xffea00, wireframe: true, transparent: true, opacity: 0.6 });
+      const cylMesh = new THREE.Mesh(cylGeo, cylMat);
+      cylMesh.position.y = 10;
+      group.add(cylMesh);
+
+      const ringGeo = new THREE.RingGeometry(6.8, 7.6, 24);
+      ringGeo.rotateX(-Math.PI / 2);
+      const ringMat = new THREE.MeshBasicMaterial({ color: 0xffea00, side: THREE.DoubleSide });
+      const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+      ringMesh.position.y = 0.2;
+      group.add(ringMesh);
+
+      this._previewMesh = { mesh: group };
+      this._scene.add(group);
     }
   }
 
@@ -786,28 +796,47 @@ export class EditorSystem {
       const waypoints = tent.waypoints || [];
 
       if (waypoints.length > 0) {
-        // Waypoint gates
+        // Waypoint gates — GTA:SA style transparent vertical yellow cylinders
         waypoints.forEach((wp, wIdx) => {
           const wpGroup = new THREE.Group();
-          wpGroup.position.set(wp.position.x, (wp.position.y ?? 0) + 1.5, wp.position.z);
+          wpGroup.position.set(wp.position.x, wp.position.y ?? 0, wp.position.z);
 
-          const r = wp.radius || 8;
-          const torusGeo = new THREE.TorusGeometry(r * 0.8, isActive ? 0.5 : 0.25, 8, 24);
-          const torusMat = new THREE.MeshPhongMaterial({
-            color: colHex,
-            emissive: isActive ? colHex : 0x000000,
-            emissiveIntensity: isActive ? 0.5 : 0,
+          const r = (wp.radius || 8) * 0.9;
+          const cylinderHeight = 20;
+          const wpColor = isActive ? 0xffea00 : colHex;
+
+          // 1. Tall transparent cylinder
+          const cylGeo = new THREE.CylinderGeometry(r, r, cylinderHeight, 24, 1, true);
+          const cylMat = new THREE.MeshPhongMaterial({
+            color: wpColor,
+            emissive: isActive ? 0x886600 : 0x000000,
+            emissiveIntensity: isActive ? 0.4 : 0,
             transparent: true,
-            opacity: isActive ? 0.9 : 0.35,
-            side: THREE.DoubleSide
+            opacity: isActive ? 0.45 : 0.18,
+            side: THREE.DoubleSide,
+            depthWrite: false,
           });
-          const torus = new THREE.Mesh(torusGeo, torusMat);
-          torus.rotation.x = Math.PI / 2;
-          wpGroup.add(torus);
+          const cylinder = new THREE.Mesh(cylGeo, cylMat);
+          cylinder.position.y = cylinderHeight / 2;
+          wpGroup.add(cylinder);
 
-          // Number label sprite
-          const badge = this._createNumberSprite(`${wIdx + 1}`, isActive ? '#ffffff' : '#aaaaaa', colHex);
-          badge.position.y = 3.5;
+          // 2. Base ground ring
+          const ringGeo = new THREE.RingGeometry(r * 0.88, r * 1.02, 24);
+          const ringMat = new THREE.MeshBasicMaterial({
+            color: wpColor,
+            transparent: true,
+            opacity: isActive ? 0.75 : 0.25,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+          });
+          const baseRing = new THREE.Mesh(ringGeo, ringMat);
+          baseRing.rotation.x = -Math.PI / 2;
+          baseRing.position.y = 0.2;
+          wpGroup.add(baseRing);
+
+          // 3. Number label sprite
+          const badge = this._createNumberSprite(`${wIdx + 1}`, isActive ? '#111111' : '#ffffff', wpColor);
+          badge.position.y = 6.0;
           badge.scale.set(4, 4, 1);
           wpGroup.add(badge);
 
