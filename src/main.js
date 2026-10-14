@@ -206,6 +206,34 @@ async function boot() {
       }
     });
 
+    on('requestPhaseChange', ({ phase }) => {
+      if (phase === GamePhase.MAIN_MENU) {
+        logEvent('Main Menu requested...');
+        gameState.transition(GamePhase.MAIN_MENU);
+      } else if (phase === GamePhase.DOCK) {
+        logEvent('Setting Sail -> Arriving at Dock...');
+        gameState.transition(GamePhase.DOCK, { levelCfg });
+      } else if (phase === GamePhase.SHIPYARD) {
+        logEvent('Entering Shipyard...');
+        gameState.transition(GamePhase.SHIPYARD, { shipDef, levelCfg, fishModels });
+      } else if (phase === GamePhase.OBSTACLE) {
+        logEvent('Setting Sail -> Heading to High Seas...');
+        let hp = 100;
+        if (gameState._grid) {
+          hp = DamageSystem.getSummary(gameState._grid).integrityPct;
+        }
+        gameState.transition(GamePhase.OBSTACLE, { 
+          shipDef, 
+          levelCfg, 
+          shipStats: { hullHP: hp }, 
+          rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels 
+        });
+      } else if (phase === GamePhase.EDITOR) {
+        logEvent('Opening Map Maker / Level Editor...');
+        gameState.transition(GamePhase.EDITOR, { levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels });
+      }
+    });
+
     // Start at Main Menu
     await gameState.transition(GamePhase.MAIN_MENU, { shipDef, levelCfg, fishModels });
 
