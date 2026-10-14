@@ -420,19 +420,22 @@ body {
   font-size: 22px;
 }
 
+/* #hud is position:absolute, so these must be fixed to be placed against the
+   screen. As absolute they were placed against the small HUD panel instead,
+   which put the +points text on top of the Hull HP / Water box. */
 #hud-bonus-container {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
+  width: 100vw;
+  height: 100vh;
   pointer-events: none;
   z-index: 200;
 }
 
 .floating-bonus-text {
   position: absolute;
-  top: 40%;
+  top: 30%;
   left: 50%;
   color: #ffd700;
   font-weight: 900;
@@ -557,7 +560,7 @@ body {
 
 /* Interactive QTE Reticle Prompt */
 #hud-qte {
-  position: absolute;
+  position: fixed;
   top: 45%;
   left: 50%;
   transform: translate(-50%, -50%);
@@ -625,6 +628,136 @@ body {
   stroke-dashoffset: 0;
   transform: rotate(-90deg);
   transform-origin: 50% 50%;
+}
+
+#hud-qte-meter {
+  position: relative;
+  width: min(260px, 70vw);
+  height: 16px;
+  margin-top: 8px;
+  overflow: hidden;
+  border: 2px solid #f5dfaa;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.75);
+}
+
+#hud-qte-meter .qte-sweet-spot {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: #4caf50;
+}
+
+#hud-qte-meter .qte-indicator {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+  background: #fff;
+  box-shadow: 0 0 6px #fff;
+}
+
+#hud-qte-meter.mash .qte-sweet-spot {
+  display: none;
+}
+
+#hud-qte-meter.mash .qte-indicator {
+  width: 0;
+  background: linear-gradient(90deg, #ff9800, #ffeb3b);
+  box-shadow: none;
+  transition: width 80ms ease-out;
+}
+
+#hud-qte-progress {
+  min-height: 18px;
+  margin-top: 4px;
+  color: #fff;
+  font-weight: 800;
+  font-size: 14px;
+}
+
+#hud-qte-debug {
+  color: #fff;
+  font-size: 12px;
+}
+
+#hud-qte-debug button {
+  min-height: 32px;
+  margin: 2px;
+  padding: 4px 7px;
+  border: 1px solid #f5dfaa;
+  border-radius: 4px;
+  background: #3d4a61;
+  color: #fff;
+  touch-action: manipulation;
+}
+
+#results-ui {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: grid;
+  place-content: center;
+  min-height: 100dvh;
+  padding: 24px;
+  color: #fff7dd;
+  text-align: center;
+  background: rgba(8, 15, 29, 0.88);
+  pointer-events: auto;
+}
+
+#results-ui h1,
+#results-ui h2 {
+  margin: 0 0 12px;
+}
+
+#results-ui ul {
+  margin: 0 0 20px;
+  padding: 0;
+  list-style: none;
+  line-height: 1.6;
+}
+
+.results-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.results-actions button {
+  min-height: 48px;
+  padding: 10px 18px;
+  border: 2px solid #f5dfaa;
+  border-radius: 6px;
+  background: #9a5b2e;
+  color: #fff;
+  font: inherit;
+  touch-action: manipulation;
+}
+
+@media (max-width: 600px) {
+  #hud-qte {
+    top: 36%;
+    width: min(340px, 88vw);
+  }
+
+  #hud-qte-key {
+    font-size: 15px;
+    text-align: center;
+  }
+
+  #hud-mobile-harpoon {
+    left: 20px;
+    bottom: max(20px, env(safe-area-inset-bottom));
+  }
+
+  #btn-mobile-harpoon {
+    width: 104px;
+    height: 104px;
+    touch-action: manipulation;
+  }
 }
 
 /* Pause Menu */

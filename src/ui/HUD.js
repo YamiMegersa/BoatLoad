@@ -20,7 +20,8 @@ export class HUD {
     this._hpBar       = null;
     this._waterBar    = null;
     this._qteEl       = null;
-    this._qteTimer    = null;
+    this._qteMeter    = null;
+    this._qteIndicator = null;
     this._mobileBtnEl = null;
     this._scoreEl     = null;
     this._bonusBoxEl  = null;
@@ -33,6 +34,7 @@ export class HUD {
     on('playerHealth',     d => this._updateHP(d.hp, d.max));
     on('playerWaterLevel', d => this._updateWater(d.level, d.max));
     on('qteStart',          d => this._showQTE(d));
+    on('qteUpdate',         d => this._updateQTE(d));
     on('qteSuccess',        () => this._hideQTE());
     on('qteFail',           () => this._hideQTE());
     on('scoreAdded',       this._onScore);
@@ -75,6 +77,13 @@ export class HUD {
           <input type="checkbox" id="chk-densefog"> Dense Fog (F)
         </label>
       </div>
+      <div id="hud-qte-debug" style="margin-top: 10px; pointer-events: auto;">
+        <span>QTE Debug:</span>
+        <button type="button" data-qte-type="SHOOT">Shoot</button>
+        <button type="button" data-qte-type="HARPOON">Harpoon</button>
+        <button type="button" data-qte-type="BAIL">Bail</button>
+        <button type="button" data-qte-type="SIREN">Siren</button>
+      </div>
 
       <!-- Interactive QTE Reticle Prompt -->
       <div id="hud-qte" style="display:none">
@@ -84,6 +93,11 @@ export class HUD {
           <circle class="track" cx="18" cy="18" r="16"/>
           <circle class="fill"  cx="18" cy="18" r="16" stroke-dasharray="100 100"/>
         </svg>
+        <div id="hud-qte-meter" class="timing">
+          <div class="qte-sweet-spot"></div>
+          <div class="qte-indicator"></div>
+        </div>
+        <div id="hud-qte-progress"></div>
       </div>
 
       <!-- Dedicated Mobile Harpoon Button for left thumb -->
@@ -108,6 +122,8 @@ export class HUD {
     this._hpBar = this._el.querySelector('#hud-hp-bar');
     this._waterBar = this._el.querySelector('#hud-water-bar');
     this._qteEl = this._el.querySelector('#hud-qte');
+    this._qteMeter = this._el.querySelector('#hud-qte-meter');
+    this._qteIndicator = this._el.querySelector('.qte-indicator');
     this._wheel = this._el.querySelector('#hud-wheel');
     this._mobileBtnEl = this._el.querySelector('#hud-mobile-harpoon');
     this._scoreEl = this._el.querySelector('#hud-score-val');
@@ -212,6 +228,13 @@ export class HUD {
       on('denseFogChanged', this._onDenseFogChanged);
     }
 
+    this._el.querySelectorAll('[data-qte-type]').forEach(button => {
+      button.addEventListener('pointerdown', (event) => {
+        event.preventDefault();
+        emit('qteDebugTrigger', { type: button.dataset.qteType });
+      });
+    });
+
     document.getElementById('ui-root')?.appendChild(this._el);
   }
 
@@ -220,12 +243,13 @@ export class HUD {
       off('denseFogChanged', this._onDenseFogChanged);
       this._onDenseFogChanged = null;
     }
-    clearInterval(this._qteTimer);
     this._el?.remove();
     this._el          = null;
     this._hpBar       = null;
     this._waterBar    = null;
     this._qteEl       = null;
+    this._qteMeter    = null;
+    this._qteIndicator = null;
     this._mobileBtnEl = null;
     this._scoreEl     = null;
     this._bonusBoxEl  = null;
@@ -265,41 +289,50 @@ export class HUD {
     if (valEl) valEl.textContent = `${Math.floor(pct)}%`;
   }
 
-  _showQTE({ type, windowMs, key }) {
+  _showQTE({ input, key, label, prompt, sweetSpot }) {
     if (!this._qteEl) return;
     this._qteEl.style.display = 'flex';
 
     const actionEl = this._qteEl.querySelector('#hud-qte-action');
     const keyEl    = this._qteEl.querySelector('#hud-qte-key');
     const keyLabel = (key || '').replace(/^Key/, '').replace(/^Digit/, '');
+    const sweetSpotEl = this._qteEl.querySelector('.qte-sweet-spot');
+    const progressEl = this._qteEl.querySelector('#hud-qte-progress');
+    const mobileLabel = this._el?.querySelector('.harpoon-text');
 
-    if (type === 'HARPOON') {
-      if (actionEl) actionEl.textContent = '🎯 HARPOON!';
-      if (keyEl) keyEl.textContent = `Press [ ${keyLabel || 'H'} ] or TAP`;
-      if (this._mobileBtnEl) this._mobileBtnEl.style.display = 'block';
-    } else if (type === 'RESIST') {
-      if (actionEl) actionEl.textContent = '⚠️ BAIL WATER!';
-      if (keyEl) keyEl.textContent = `Press [ ${keyLabel || 'Shift'} ] or TAP`;
-      if (this._mobileBtnEl) this._mobileBtnEl.style.display = 'none';
-    } else {
-      if (actionEl) actionEl.textContent = `${type}!`;
-      if (keyEl) keyEl.textContent = `Press [ ${keyLabel} ] or TAP`;
-      if (this._mobileBtnEl) this._mobileBtnEl.style.display = 'none';
+    if (actionEl) actionEl.textContent = label;
+    if (keyEl) keyEl.textContent = `${prompt} [ ${keyLabel} ] or TAP`;
+    if (mobileLabel) mobileLabel.textContent = input === 'mash' ? 'TAP!' : 'ACTION';
+    if (this._mobileBtnEl) this._mobileBtnEl.style.display = 'block';
+    if (this._qteMeter) this._qteMeter.className = input;
+    if (sweetSpotEl && sweetSpot) {
+      sweetSpotEl.style.left = `${sweetSpot[0] * 100}%`;
+      sweetSpotEl.style.width = `${(sweetSpot[1] - sweetSpot[0]) * 100}%`;
     }
+    if (progressEl) progressEl.textContent = '';
+  }
 
+  _updateQTE({ input, windowMs, remainingMs, progress, mashTarget, sweetSpot }) {
+    if (!this._qteEl) return;
     const ring = this._qteEl.querySelector('.fill');
-    const start = Date.now();
-    clearInterval(this._qteTimer);
-    this._qteTimer = setInterval(() => {
-      const elapsed = Date.now() - start;
-      const pct     = Math.max(0, 100 - (elapsed / windowMs) * 100);
-      ring.setAttribute('stroke-dasharray', `${pct} 100`);
-      if (elapsed >= windowMs) clearInterval(this._qteTimer);
-    }, 33);
+    const remainingPct = Math.max(0, (remainingMs / windowMs) * 100);
+    ring?.setAttribute('stroke-dasharray', `${remainingPct} 100`);
+
+    const progressEl = this._qteEl.querySelector('#hud-qte-progress');
+    if (input === 'mash') {
+      if (this._qteIndicator) this._qteIndicator.style.width = `${(progress / mashTarget) * 100}%`;
+      if (progressEl) progressEl.textContent = `${progress} / ${mashTarget}`;
+    } else {
+      const elapsedPct = 100 - remainingPct;
+      if (this._qteIndicator) {
+        this._qteIndicator.style.width = '3px';
+        this._qteIndicator.style.left = `${elapsedPct}%`;
+      }
+      if (progressEl && sweetSpot) progressEl.textContent = 'Hit the green zone';
+    }
   }
 
   _hideQTE() {
-    clearInterval(this._qteTimer);
     if (this._qteEl) this._qteEl.style.display = 'none';
     if (this._mobileBtnEl) this._mobileBtnEl.style.display = 'none';
   }
@@ -309,7 +342,7 @@ export class HUD {
     off('uiMount'); off('uiUnmount');
     off('playerHealth');
     off('playerWaterLevel');
-    off('qteStart'); off('qteSuccess'); off('qteFail');
+    off('qteStart'); off('qteUpdate'); off('qteSuccess'); off('qteFail');
     off('scoreAdded', this._onScore);
   }
 }
