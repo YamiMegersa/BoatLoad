@@ -435,11 +435,8 @@ export class GameState {
 
     // Sync renderer on dirty events
     on('gridDirty', () => {
-      if (this._windManager) {
-        const localWind = this._windManager.getWindAt(this._playerShip.mesh.position.x, this._playerShip.mesh.position.z);
-        
-        document.getElementById('ui-hud-wind-dir').textContent = 
-          `Wind: ${localWind.x.toFixed(1)}, ${localWind.z.toFixed(1)}`;
+      if (this._grid && this._chunkRenderer) {
+        this._chunkRenderer.sync(this._grid);
       }
     });
 
@@ -563,15 +560,15 @@ export class GameState {
       this._voxelTerrain.deserialize(levelCfg.voxels);
     }
 
-    this._playerShip = new PlayerShip(shipStats ?? {}, this._scene, this._chunkRenderer, this._grid);
+    this._qteSystem = new QTESystem();
+
+    this._playerShip = new PlayerShip(shipStats ?? {}, this._scene, this._chunkRenderer, this._grid, this._qteSystem);
     this._obstacleManager = new ObstacleManager();
     this._obstacleManager.init(levelCfg, this._scene, rockModels, pickupModels, seaweedModels, waveModels, islandModels);
     this._environmentManager = new EnvironmentManager();
-    this._environmentManager.init(this._scene, fishModels, levelCfg);
+    this._environmentManager.init(this._scene, fishModels, levelCfg, this._qteSystem);
     
     this._windManager = new WindManager(levelCfg);
-
-    this._qteSystem = new QTESystem();
 
     this._onSteer = (d) => {
       if (this._playerShip) {
@@ -592,7 +589,7 @@ export class GameState {
     // Pass WindManager instead of static windDir
     this._playerShip?.update(delta, this._ocean, this._windManager);
     this._obstacleManager?.update(delta, this._playerShip, this._windManager, this._voxelTerrain);
-    this._environmentManager?.update(delta, this._windManager, this._playerShip?.mesh.position);
+    this._environmentManager?.update(delta, this._windManager, this._playerShip);
 
     if (this._playerShip) {
       const p = this._playerShip.mesh.position;

@@ -192,8 +192,8 @@ export class HUD {
 
   _showQTE({ type, windowMs, key }) {
     if (!this._qteEl) return;
-    this._qteEl.style.display = 'flex';
-    this._qteEl.querySelector('#hud-qte-key').textContent = `Press ${key}`;
+    const keyLabel = (key || '').replace(/^Key/, '').replace(/^Digit/, '');
+    this._qteEl.querySelector('#hud-qte-key').textContent = `Press [ ${keyLabel} ]`;
 
     const ring = this._qteEl.querySelector('.fill');
     const start = Date.now();
