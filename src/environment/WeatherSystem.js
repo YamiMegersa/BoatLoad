@@ -191,6 +191,30 @@ export class WeatherSystem {
       sky.mesh.material.uniforms.uTop.value.set(w.skyTop);
       sky.mesh.material.uniforms.uHorizon.value.set(w.skyHorizon);
       sky.mesh.material.uniforms.uSunColor.value.set(w.sunColor);
+      if (sky.mesh.material.uniforms.uNightFactor) {
+        sky.mesh.material.uniforms.uNightFactor.value = (weatherName === 'night') ? 1.0 : 0.0;
+      }
+      if (sky.mesh.material.uniforms.uMoonDir) {
+        sky.mesh.material.uniforms.uMoonDir.value.set(0.4, 0.75, 0.5).normalize();
+      }
+    }
+
+    // Configure Moon light if in scene
+    const moon = scene ? scene.getObjectByName('moonLight') : null;
+    if (moon) {
+      if (weatherName === 'night') {
+        const moonDir = new THREE.Vector3(0.4, 0.75, 0.5).normalize();
+        moon.position.copy(moonDir).multiplyScalar(60);
+        moon.color.set(0x9bc0f5);
+        moon.intensity = 0.35;
+        if (sun) {
+          sun.position.set(-20, -50, -20);
+          sun.intensity = 0.05;
+        }
+      } else {
+        moon.position.set(0, -60, 0);
+        moon.intensity = 0.0;
+      }
     }
     
     if (ocean && ocean.mesh) {

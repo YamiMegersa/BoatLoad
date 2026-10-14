@@ -52,6 +52,7 @@ export class EnvironmentManager {
     this._isStormy = false;
     this._ambientLight = null;
     this._sunLight = null;
+    this._moonLight = null;
     this._sunRadius = 60;
   }
 
@@ -68,8 +69,17 @@ export class EnvironmentManager {
     this.qteSystem   = qteSystem;
     this._ocean      = ocean ?? null;
     this._sharks     = [];
-    this._ambientLight = scene.children.find(c => c.isAmbientLight);
-    this._sunLight = scene.children.find(c => c.isDirectionalLight);
+    this._ambientLight = scene.children.find(c => c.isAmbientLight || c.isHemisphereLight);
+    this._sunLight = scene.getObjectByName('sunLight') || scene.children.find(c => c.isDirectionalLight && c.name !== 'moonLight');
+    this._moonLight = scene.getObjectByName('moonLight');
+
+    if (!this._moonLight) {
+      this._moonLight = new THREE.DirectionalLight(0x9bc0f5, 0.35);
+      this._moonLight.name = 'moonLight';
+      this._moonLight.position.set(-10, -20, -10);
+      this._moonLight.castShadow = true;
+      scene.add(this._moonLight);
+    }
 
     
     const initialDensity = levelCfg && levelCfg.fogDensity !== undefined ? levelCfg.fogDensity : 0.006;
@@ -389,18 +399,44 @@ export class EnvironmentManager {
       cFog.lerp(new THREE.Color(STORM_COLORS.fog), 0.8);
     }
 
+    // Celestial trajectories:
+    // Sun rises at 6h, peaks at 12h, sets at 18h
+    const sunTheta = ((this._timeOfDay - 6) / 12) * Math.PI; 
+    const sunX = Math.cos(sunTheta) * this._sunRadius;
+    const sunY = Math.sin(sunTheta) * this._sunRadius;
+    const sunZ = Math.sin(sunTheta) * 20;
+
+    // Moon is 180 degrees in orbital opposition (rises at 18h, peaks at 24/0h, sets at 6h)
+    const moonTheta = sunTheta + Math.PI;
+    const moonX = Math.cos(moonTheta) * this._sunRadius;
+    const moonY = Math.sin(moonTheta) * this._sunRadius;
+    const moonZ = Math.sin(moonTheta) * 20;
+
+    // Night factor: 0.0 at full daytime, ramps smoothly to 1.0 when sun sets
+    const nightFactor = THREE.MathUtils.clamp((this._sunRadius * 0.1 - sunY) / (this._sunRadius * 0.7), 0.0, 1.0);
+    const moonAltitude = THREE.MathUtils.clamp((moonY + 5) / (this._sunRadius + 5), 0.0, 1.0);
+
     if (this._sunLight) {
       this._sunLight.color.copy(cSun);
-      const theta = ((this._timeOfDay - 6) / 12) * Math.PI; 
-      this._sunLight.position.set(
-        Math.cos(theta) * this._sunRadius,
-        Math.sin(theta) * this._sunRadius,
-        Math.sin(theta) * 20
-      );
+      this._sunLight.position.set(sunX, sunY, sunZ);
+      const sunAlt = THREE.MathUtils.clamp((sunY + 5) / (this._sunRadius + 5), 0.0, 1.0);
+      this._sunLight.intensity = sunAlt * (this._isStormy ? 0.3 : 1.2);
+    }
+
+    if (this._moonLight) {
+      this._moonLight.position.set(moonX, moonY, moonZ);
+      const moonCol = new THREE.Color(0x9bc0f5).lerp(new THREE.Color(0xc2daf8), moonAltitude);
+      if (this._isStormy) {
+        moonCol.lerp(new THREE.Color(0x334455), 0.75);
+      }
+      this._moonLight.color.copy(moonCol);
+      this._moonLight.intensity = moonAltitude * (this._isStormy ? 0.12 : 0.35);
     }
 
     if (this._ambientLight) {
-      this._ambientLight.color.copy(cAmb);
+      const nightAmb = new THREE.Color(0x0e172a);
+      const blendedAmb = cAmb.clone().lerp(nightAmb, nightFactor * 0.6);
+      this._ambientLight.color.copy(blendedAmb);
     }
 
     if (this._scene) {
@@ -409,6 +445,29 @@ export class EnvironmentManager {
       }
       if (!this._isDenseFog) {
          this._scene.background = cSky;
+      }
+
+      // Update Sky Shader uniforms
+      const skyMesh = this._scene.getObjectByName('skyMesh');
+      if (skyMesh && skyMesh.material && skyMesh.material.uniforms) {
+        const u = skyMesh.material.uniforms;
+        if (u.uSunDir) u.uSunDir.value.set(sunX, sunY, sunZ).normalize();
+        if (u.uMoonDir) u.uMoonDir.value.set(moonX, moonY, moonZ).normalize();
+        if (u.uNightFactor) u.uNightFactor.value = nightFactor;
+        if (u.uMoonColor) u.uMoonColor.value.set(0x9bc0f5);
+        if (u.uSunColor) u.uSunColor.value.copy(cSun);
+      }
+    }
+
+    // Update Ocean specular highlight direction
+    if (this._ocean && this._ocean.mesh && this._ocean.mesh.material && this._ocean.mesh.material.uniforms) {
+      const ou = this._ocean.mesh.material.uniforms;
+      if (ou.uSunDir) {
+        if (nightFactor > 0.5) {
+          ou.uSunDir.value.set(moonX, moonY, moonZ).normalize();
+        } else {
+          ou.uSunDir.value.set(sunX, sunY, sunZ).normalize();
+        }
       }
     }
   }

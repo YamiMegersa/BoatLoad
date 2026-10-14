@@ -41,9 +41,16 @@ const ambient = new THREE.HemisphereLight(0xffffff, 0xffffff, 1.0);
 scene.add(ambient);
 
 const sun = new THREE.DirectionalLight(0xffffff, 1.0);
+sun.name = 'sunLight';
 sun.position.set(10, 20, 10);
 sun.castShadow = true;
 scene.add(sun);
+
+const moon = new THREE.DirectionalLight(0x9bc0f5, 0.35);
+moon.name = 'moonLight';
+moon.position.set(-10, -20, -10);
+moon.castShadow = true;
+scene.add(moon);
 
 // ---------------------------------------------------------------------------
 // God Rays post-processing
@@ -74,6 +81,7 @@ let userPaperStyle = 0;
 const gameState = new GameState(scene, camera, renderer);
 gameState._ambient = ambient;
 gameState._sun = sun;
+gameState._moon = moon;
 window.gameState = gameState;
 window.exportToGLB = exportToGLB;
 
@@ -158,10 +166,10 @@ function tick() {
     } else {
       paperFilter.setStyle(userPaperStyle);
     }
-    godRays.render(sun, mainRT);
+    godRays.render(sun, moon, mainRT);
     paperFilter.render(mainRT);
   } else {
-    godRays.render(sun, null);
+    godRays.render(sun, moon, null);
   }
 }
 

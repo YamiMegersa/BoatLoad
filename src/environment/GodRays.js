@@ -1,29 +1,31 @@
 import * as THREE from 'three';
 
 // ---------------------------------------------------------------------------
-// Screen-Space Volumetric Light Scattering (God Rays)
+// Screen-Space Volumetric Light Scattering (God Rays for Sun & Moon)
 //
 // Pipeline:
-//  1. Render an OCCLUSION MASK at quarter-resolution:
+//  1. Render base beauty pass
+//  2. Render celestial billboards (Sun and/or Moon)
+//  3. Render OCCLUSION MASK at quarter-resolution:
 //     - Everything in the scene is rendered pure black
-//     - A bright sun disc is rendered where the directional light is
-//  2. Run a RADIAL BLUR shader that smears the bright sun outward
-//  3. COMPOSITE the blurred rays additively onto the beauty render
+//     - A bright radial glow is rendered where the active celestial body is
+//  4. Run a RADIAL BLUR shader that smears the bright light outward
+//  5. COMPOSITE the blurred rays additively onto the beauty render
 // ---------------------------------------------------------------------------
 
 /**
  * Radial-blur shader for light scattering.
- * Samples along a ray from each pixel toward the sun's screen-space position.
+ * Samples along a ray from each pixel toward the celestial body's screen-space position.
  */
 const VolumetricScatterShader = {
   uniforms: {
     tDiffuse:   { value: null },
     uSunScreen: { value: new THREE.Vector2(0.5, 0.5) },
-    uDensity:   { value: 1.2 },   // Increased density for wider spread
-    uWeight:    { value: 0.15 },  // Increased weight for stronger initial rays
-    uDecay:     { value: 0.98 },  // 0.98 makes rays stretch much further across the screen
+    uDensity:   { value: 1.2 },   // Spread
+    uWeight:    { value: 0.15 },  // Ray weight
+    uDecay:     { value: 0.98 },  // Stretch across screen
     uSamples:   { value: 64 },
-    uExposure:  { value: 2.5 },   // Blinding exposure multiplier
+    uExposure:  { value: 2.5 },   // Exposure multiplier
   },
   vertexShader: /* glsl */`
     varying vec2 vUv;
@@ -51,7 +53,6 @@ const VolumetricScatterShader = {
       float illuminationDecay = 1.0;
       vec3 color = vec3(0.0);
 
-      // Increased loop bound from 32 to 64 to allow more samples
       for (int i = 0; i < 64; i++) {
         if (i >= uSamples) break;
         texCoord -= delta;
@@ -98,20 +99,19 @@ const AdditiveOverlayShader = {
 
 /**
  * Screen-space radial glow for the occlusion pass.
- * This guarantees that even if the sun is physically off-screen, a massive
- * radial glow bleeds into the screen, giving the radial blur something to streak.
  */
 const GlowShader = {
   uniforms: {
-    uSunScreen: { value: new THREE.Vector2(0.5, 0.5) },
-    uAspect:    { value: 1.0 },
-    uRadius:    { value: 2.5 },
+    uSunScreen:  { value: new THREE.Vector2(0.5, 0.5) },
+    uAspect:     { value: 1.0 },
+    uRadius:     { value: 0.5 },
+    uCoreRadius: { value: 0.08 },
+    uCorePower:  { value: 3.0 },
   },
   vertexShader: /* glsl */`
     varying vec2 vUv;
     void main() {
       vUv = uv;
-      // Render in the background (z=1.0)
       gl_Position = vec4(position.xy, 1.0, 1.0);
     }
   `,
@@ -119,6 +119,8 @@ const GlowShader = {
     uniform vec2 uSunScreen;
     uniform float uAspect;
     uniform float uRadius;
+    uniform float uCoreRadius;
+    uniform float uCorePower;
     varying vec2 vUv;
 
     void main() {
@@ -126,13 +128,107 @@ const GlowShader = {
       d.x *= uAspect;
       float dist = length(d);
       
-      // Massive soft glow that bleeds into the screen
-      float intensity = pow(clamp(1.0 - dist / uRadius, 0.0, 1.0), 2.5);
+      // Zero out anything outside uRadius so rays never flood or wash out the entire screen
+      if (dist >= uRadius) {
+        gl_FragColor = vec4(0.0);
+        return;
+      }
       
-      // Hot core - made wider and smoother to prevent sudden flashbangs when entering screen
-      intensity += pow(clamp(1.0 - dist / (uRadius * 0.15), 0.0, 1.0), 3.0) * 5.0;
+      float normDist = dist / uRadius;
+      float falloff = (1.0 - normDist);
+      float intensity = falloff * falloff * falloff;
+      
+      // Focused core around the celestial disc
+      if (dist < uCoreRadius) {
+        float coreT = 1.0 - dist / uCoreRadius;
+        intensity += pow(coreT, 2.5) * uCorePower;
+      }
       
       gl_FragColor = vec4(vec3(intensity), 1.0);
+    }
+  `
+};
+
+/**
+ * High-quality procedural lunar disc shader.
+ * Renders an ethereal, luminous Moon with spherical shading, basalt maria, crater contours, and a soft corona halo.
+ */
+const MoonShader = {
+  uniforms: {
+    uColor:     { value: new THREE.Color(0xdceaff) },
+    uGlowColor: { value: new THREE.Color(0x73a5e8) },
+    uOpacity:   { value: 1.0 }
+  },
+  vertexShader: /* glsl */`
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: /* glsl */`
+    uniform vec3 uColor;
+    uniform vec3 uGlowColor;
+    uniform float uOpacity;
+    varying vec2 vUv;
+
+    float hash(vec2 p) {
+      return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+    }
+    float noise(vec2 p) {
+      vec2 i = floor(p);
+      vec2 f = fract(p);
+      vec2 u = f * f * (3.0 - 2.0 * f);
+      return mix(mix(hash(i + vec2(0.0,0.0)), hash(i + vec2(1.0,0.0)), u.x),
+                 mix(hash(i + vec2(0.0,1.0)), hash(i + vec2(1.0,1.0)), u.x), u.y);
+    }
+    float fbm(vec2 p) {
+      float v = 0.0;
+      float a = 0.5;
+      for (int i = 0; i < 4; i++) {
+        v += a * noise(p);
+        p *= 2.0;
+        a *= 0.5;
+      }
+      return v;
+    }
+
+    void main() {
+      vec2 center = vUv - vec2(0.5);
+      float dist = length(center) * 2.0; // 0 at center, 1 at edge of quad
+
+      float discR = 0.58; // Lunar physical radius
+
+      if (dist <= discR) {
+        float normDist = dist / discR;
+        float z = sqrt(max(0.0, 1.0 - normDist * normDist));
+        vec2 sphereCoord = center / discR * 0.95;
+
+        // Maria (lunar seas) and crater texture
+        float maria = fbm(sphereCoord * 4.2 + vec2(1.5, 0.8));
+        float craters = fbm(sphereCoord * 11.5 + vec2(0.3, 0.4));
+
+        vec3 highlandCol = uColor * 0.85;
+        vec3 mareCol = uColor * vec3(0.36, 0.44, 0.56);
+
+        vec3 surface = mix(highlandCol, mareCol, smoothstep(0.38, 0.65, maria));
+        surface -= (1.0 - smoothstep(0.25, 0.65, craters)) * 0.15;
+
+        // Spherical limb darkening
+        float limb = pow(z, 0.4);
+        surface *= (0.65 + 0.35 * limb);
+
+        // Smooth antialiased outer rim
+        float alpha = smoothstep(discR, discR - 0.02, dist) * uOpacity;
+        gl_FragColor = vec4(surface, alpha);
+      } else {
+        // Ethereal lunar atmospheric corona / halo
+        float haloDist = (dist - discR) / (1.0 - discR);
+        float haloAlpha = pow(clamp(1.0 - haloDist, 0.0, 1.0), 3.2) * 0.35 * uOpacity;
+        float rimGlow = pow(clamp(1.0 - haloDist * 3.0, 0.0, 1.0), 3.5) * 0.25 * uOpacity;
+        vec3 haloCol = mix(uGlowColor, uColor, rimGlow);
+        gl_FragColor = vec4(haloCol, (haloAlpha + rimGlow) * uOpacity);
+      }
     }
   `
 };
@@ -140,7 +236,6 @@ const GlowShader = {
 // Reusable fullscreen triangle (more efficient than a quad)
 function createFSQuad(material) {
   const geo = new THREE.BufferGeometry();
-  // A single triangle that covers the full clip-space [-1,1]
   const verts = new Float32Array([
     -1, -1, 0,   3, -1, 0,   -1, 3, 0
   ]);
@@ -153,7 +248,6 @@ function createFSQuad(material) {
   mesh.frustumCulled = false;
   return mesh;
 }
-
 
 export class GodRays {
   /**
@@ -173,8 +267,7 @@ export class GodRays {
     const qw   = Math.max(1, Math.floor(fw * 0.25));
     const qh   = Math.max(1, Math.floor(fh * 0.25));
 
-    // --- Sun billboard (rendered into both beauty pass and occlusion mask) ---
-    // Enormous billboard for exaggerated god rays
+    // --- Sun Billboard ---
     const sunGeo = new THREE.PlaneGeometry(120, 120);
     const sunMat = new THREE.ShaderMaterial({
       uniforms: {
@@ -191,7 +284,6 @@ export class GodRays {
         uniform vec3 uColor;
         varying vec2 vUv;
         void main() {
-          // Circular gradient
           float dist = length(vUv - 0.5) * 2.0;
           float alpha = pow(clamp(1.0 - dist, 0.0, 1.0), 2.0);
           gl_FragColor = vec4(uColor, alpha);
@@ -206,15 +298,30 @@ export class GodRays {
     });
     this._sunBillboard = new THREE.Mesh(sunGeo, sunMat);
     this._sunBillboard.frustumCulled = false;
-    // Render after most opaque objects
     this._sunBillboard.renderOrder = 999;
-
-    // A tiny scene that contains only the sun billboard
     this._sunScene = new THREE.Scene();
     this._sunScene.add(this._sunBillboard);
 
-    // --- Render Targets ---
-    // Only need quarter-res targets for the rays
+    // --- Moon Billboard ---
+    const moonGeo = new THREE.PlaneGeometry(65, 65);
+    const moonMat = new THREE.ShaderMaterial({
+      uniforms: THREE.UniformsUtils.clone(MoonShader.uniforms),
+      vertexShader: MoonShader.vertexShader,
+      fragmentShader: MoonShader.fragmentShader,
+      transparent: true,
+      blending: THREE.NormalBlending,
+      depthTest: true,
+      depthWrite: false,
+      fog: false,
+      side: THREE.DoubleSide,
+    });
+    this._moonBillboard = new THREE.Mesh(moonGeo, moonMat);
+    this._moonBillboard.frustumCulled = false;
+    this._moonBillboard.renderOrder = 998;
+    this._moonScene = new THREE.Scene();
+    this._moonScene.add(this._moonBillboard);
+
+    // --- Render Targets (Quarter resolution) ---
     this._occlusionRT = new THREE.WebGLRenderTarget(qw, qh, {
       minFilter: THREE.LinearFilter,
       magFilter: THREE.LinearFilter,
@@ -255,28 +362,23 @@ export class GodRays {
       blending: THREE.AdditiveBlending,
     });
 
-    // --- Fullscreen quads ---
-    this._glowQuad      = createFSQuad(this._glowMat);
-    this._scatterQuad   = createFSQuad(this._scatterMat);
-    this._additiveQuad  = createFSQuad(this._additiveMat);
+    // Fullscreen quads
+    this._glowQuad     = createFSQuad(this._glowMat);
+    this._scatterQuad  = createFSQuad(this._scatterMat);
+    this._additiveQuad = createFSQuad(this._additiveMat);
 
-    // Ortho camera for fullscreen passes
     this._orthoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
     this._glowScene = new THREE.Scene();
     this._glowScene.add(this._glowQuad);
-    this._scatterScene   = new THREE.Scene();
+    this._scatterScene = new THREE.Scene();
     this._scatterScene.add(this._scatterQuad);
     this._additiveScene = new THREE.Scene();
     this._additiveScene.add(this._additiveQuad);
 
-    // Temp vectors (avoid per-frame allocation)
     this._tempV4 = new THREE.Vector4();
   }
 
-  /**
-   * Resize all render targets when the window changes.
-   */
   resize(w, h) {
     const pr = this._renderer.getPixelRatio();
     const fw = Math.floor(w * pr);
@@ -290,151 +392,196 @@ export class GodRays {
   }
 
   /**
-   * Render the complete frame with god rays.
-   * Call this INSTEAD of renderer.render(scene, camera).
+   * Render the complete frame with God Rays for either Sun or Moon.
    *
-   * @param {THREE.DirectionalLight} sunLight  The scene's directional sun light
-   * @param {THREE.WebGLRenderTarget} [renderTarget=null] Optional target
+   * @param {THREE.DirectionalLight} sunLight
+   * @param {THREE.DirectionalLight|THREE.WebGLRenderTarget} [moonLightOrRT=null]
+   * @param {THREE.WebGLRenderTarget} [renderTarget=null]
    */
-  render(sunLight, renderTarget = null) {
+  render(sunLight, moonLightOrRT = null, renderTarget = null) {
     const renderer = this._renderer;
     const scene    = this._scene;
     const camera   = this._camera;
 
-    // Fallback: if no sun light, just render normally
-    if (!sunLight) {
-      renderer.setRenderTarget(renderTarget);
+    // Handle flexible argument signatures: render(sun, target) vs render(sun, moon, target)
+    let moonLight = null;
+    let target = renderTarget;
+
+    if (moonLightOrRT) {
+      if (moonLightOrRT.isWebGLRenderTarget || !moonLightOrRT.isDirectionalLight) {
+        target = moonLightOrRT;
+      } else {
+        moonLight = moonLightOrRT;
+      }
+    }
+
+    // Determine active celestial caster
+    const sunY = sunLight ? sunLight.position.y : -999;
+    const moonY = moonLight ? moonLight.position.y : -999;
+
+    let activeLight = null;
+    let isMoon = false;
+
+    // Sun takes precedence during day/dusk/dawn when above horizon
+    if (sunLight && sunY >= -2) {
+      activeLight = sunLight;
+      isMoon = false;
+    } else if (moonLight && moonY >= -5) {
+      activeLight = moonLight;
+      isMoon = true;
+    } else if (sunLight && sunY >= -5) {
+      activeLight = sunLight;
+      isMoon = false;
+    }
+
+    // If neither celestial body is visible above -5 Y, render standard scene and return
+    if (!activeLight) {
+      renderer.setRenderTarget(target);
       renderer.render(scene, camera);
       return;
     }
 
-    const sunY = sunLight.position.y;
+    const celestialY = activeLight.position.y;
+    const horizonFade = THREE.MathUtils.clamp((celestialY + 5) / 25, 0, 1);
 
-    // Sun well below horizon — skip god rays for performance
-    if (sunY < -5) {
-      renderer.setRenderTarget(renderTarget);
-      renderer.render(scene, camera);
-      return;
-    }
+    const celestialDir = activeLight.position.clone().normalize();
 
-    // Fade strength near horizon
-    const horizonFade = THREE.MathUtils.clamp(sunY / 20, 0, 1);
-
-    // --- Compute virtual sun position (infinitely far away) ---
-    const sunDir = sunLight.position.clone().normalize();
-
-    // --- Smoothly fade out when sun is near or off the edge of the screen ---
-    // IMPORTANT: compute the dot product BEFORE multiplyScalar mutates sunDir
+    // Check angle towards camera
     const cameraForward = new THREE.Vector3();
     camera.getWorldDirection(cameraForward);
-    const sunDot = cameraForward.dot(sunDir);  // both unit vectors → result in [-1, 1]
-    // God rays should be visible even when the sun is off-screen — the radial blur
-    // shader naturally streaks light in from the edge of the viewport.  We only need
-    // to fade out once the sun goes behind the camera (sunDot < 0).
-    // Fade: fully off at sunDot = -0.3  →  fully on at sunDot = 0.2
-    const angleFade = THREE.MathUtils.smoothstep(sunDot, -0.3, 0.2);
+    const celestialDot = cameraForward.dot(celestialDir);
+    const angleFade = THREE.MathUtils.smoothstep(celestialDot, -0.3, 0.2);
     const finalStrength = horizonFade * angleFade;
 
-    const virtualSunPos = camera.position.clone().add(sunDir.multiplyScalar(camera.far * 0.9));
+    const virtualCelestialPos = camera.position.clone().add(celestialDir.clone().multiplyScalar(camera.far * 0.9));
 
-    // --- Compute sun screen-space UV ---
+    // Project to screen space UV
     this._tempV4.set(
-      virtualSunPos.x,
-      virtualSunPos.y,
-      virtualSunPos.z,
+      virtualCelestialPos.x,
+      virtualCelestialPos.y,
+      virtualCelestialPos.z,
       1.0
     );
     this._tempV4.applyMatrix4(camera.matrixWorldInverse);
     this._tempV4.applyMatrix4(camera.projectionMatrix);
 
     // =====================================================================
-    // Pass 1: Render the normal scene DIRECTLY to the screen
+    // Pass 1: Render the normal scene DIRECTLY to the screen/target
     // =====================================================================
     const currentAutoClear = renderer.autoClear;
-    renderer.setRenderTarget(renderTarget);
+    renderer.setRenderTarget(target);
     renderer.autoClear = true;
     renderer.render(scene, camera);
 
-    // Position the sun billboard for both passes
-    this._sunBillboard.position.copy(virtualSunPos);
-    this._sunBillboard.lookAt(camera.position);
+    // Position and render celestial billboards into beauty pass
+    renderer.autoClear = false;
 
-    // If sun is behind the camera or too weak, we are done! 
-    // The scene is already on the screen perfectly.
+    // 1a. If Sun is above horizon, render sun billboard
+    if (sunLight && sunY > -5) {
+      const sunDir = sunLight.position.clone().normalize();
+      const virtualSunPos = camera.position.clone().add(sunDir.multiplyScalar(camera.far * 0.9));
+      this._sunBillboard.position.copy(virtualSunPos);
+      this._sunBillboard.lookAt(camera.position);
+      this._sunBillboard.material.uniforms.uColor.value.copy(sunLight.color);
+      renderer.render(this._sunScene, camera);
+    }
+
+    // 1b. If Moon is above horizon, render majestic moon billboard
+    if (moonLight && moonY > -5) {
+      const mDir = moonLight.position.clone().normalize();
+      const virtualMoonPos = camera.position.clone().add(mDir.multiplyScalar(camera.far * 0.9));
+      this._moonBillboard.position.copy(virtualMoonPos);
+      this._moonBillboard.lookAt(camera.position);
+
+      const moonAlt = THREE.MathUtils.clamp((moonY + 5) / 25, 0, 1);
+      this._moonBillboard.material.uniforms.uOpacity.value = moonAlt;
+      this._moonBillboard.material.uniforms.uColor.value.copy(moonLight.color);
+      renderer.render(this._moonScene, camera);
+    }
+
+    // If celestial body is behind camera or too weak, we are done!
     if (this._tempV4.w <= 0 || finalStrength <= 0.001) {
       renderer.autoClear = currentAutoClear;
       return;
     }
 
-    // Render the sun billboard into the beauty pass (tinted to sun color)
-    renderer.autoClear = false;
-    this._sunBillboard.material.uniforms.uColor.value.copy(sunLight.color);
-    renderer.render(this._sunScene, camera);
-
     const ndcX = this._tempV4.x / this._tempV4.w;
     const ndcY = this._tempV4.y / this._tempV4.w;
-    const sunUV_x = ndcX * 0.5 + 0.5;
-    const sunUV_y = ndcY * 0.5 + 0.5;
+    const screenUV_x = ndcX * 0.5 + 0.5;
+    const screenUV_y = ndcY * 0.5 + 0.5;
 
     // =====================================================================
     // Pass 2: Occlusion mask (quarter resolution)
-    //   - Glow rendered in background
-    //   - Scene rendered as black silhouettes on top
     // =====================================================================
     const savedBg       = scene.background;
     const savedFog      = scene.fog;
     const savedOverride = scene.overrideMaterial;
 
-    scene.background      = null;
-    scene.fog             = null;
+    scene.background       = null;
+    scene.fog              = null;
     scene.overrideMaterial = this._blackMat;
 
     renderer.setRenderTarget(this._occlusionRT);
     renderer.setClearColor(0x000000, 1);
     renderer.clear();
 
-    // 1. Render the 2D radial glow in the background
-    this._glowMat.uniforms.uSunScreen.value.set(sunUV_x, sunUV_y);
+    // 2a. Render radial glow centered on celestial body
+    this._glowMat.uniforms.uSunScreen.value.set(screenUV_x, screenUV_y);
+    if (isMoon) {
+      this._glowMat.uniforms.uRadius.value     = 0.30;
+      this._glowMat.uniforms.uCoreRadius.value = 0.05;
+      this._glowMat.uniforms.uCorePower.value  = 2.0;
+    } else {
+      this._glowMat.uniforms.uRadius.value     = 0.55;
+      this._glowMat.uniforms.uCoreRadius.value = 0.09;
+      this._glowMat.uniforms.uCorePower.value  = 4.0;
+    }
     renderer.autoClear = false;
     renderer.render(this._glowScene, this._orthoCamera);
 
-    // 2. Render the scene as black silhouettes on top
-    // They will draw black over the glow anywhere there is a solid object
+    // 2b. Render scene as black silhouettes on top
     renderer.render(scene, camera);
 
-    // Restore scene state immediately
-    scene.background      = savedBg;
-    scene.fog             = savedFog;
+    // Restore scene state
+    scene.background       = savedBg;
+    scene.fog              = savedFog;
     scene.overrideMaterial = savedOverride;
-
-    // Restore clear color
     renderer.setClearColor(0x000000, 0);
 
     // =====================================================================
     // Pass 3: Radial blur (quarter resolution)
     // =====================================================================
-    this._scatterMat.uniforms.tDiffuse.value    = this._occlusionRT.texture;
-    this._scatterMat.uniforms.uSunScreen.value.set(sunUV_x, sunUV_y);
+    this._scatterMat.uniforms.tDiffuse.value   = this._occlusionRT.texture;
+    this._scatterMat.uniforms.uSunScreen.value.set(screenUV_x, screenUV_y);
+    this._scatterMat.uniforms.uExposure.value = isMoon ? 0.85 : 1.8;
+    this._scatterMat.uniforms.uWeight.value   = isMoon ? 0.055 : 0.12;
+    this._scatterMat.uniforms.uDecay.value    = isMoon ? 0.965 : 0.975;
 
     renderer.setRenderTarget(this._scatterRT);
     renderer.clear();
     renderer.render(this._scatterScene, this._orthoCamera);
 
     // =====================================================================
-    // Pass 4: Overlay directly onto the screen (Additive Blending)
+    // Pass 4: Overlay directly onto beauty render (Additive Blending)
     // =====================================================================
     this._additiveMat.uniforms.tAdd.value      = this._scatterRT.texture;
-    this._additiveMat.uniforms.uStrength.value = finalStrength;
+    this._additiveMat.uniforms.uStrength.value = finalStrength * (isMoon ? 0.35 : 0.75);
 
-    // Tint the rays to match the directional light color
-    const sc = sunLight.color;
-    this._additiveMat.uniforms.uTint.value.set(sc.r, sc.g, sc.b);
+    if (isMoon) {
+      // Ethereal silver-blue lunar rays (soft and atmospheric)
+      const mc = activeLight.color;
+      this._additiveMat.uniforms.uTint.value.set(mc.r * 0.9, mc.g * 0.95, mc.b * 1.05);
+    } else {
+      // Warm golden sun rays
+      const sc = activeLight.color;
+      this._additiveMat.uniforms.uTint.value.set(sc.r, sc.g, sc.b);
+    }
 
-    renderer.setRenderTarget(renderTarget);
-    renderer.autoClear = false; // Important: do not clear the base scene!
+    renderer.setRenderTarget(target);
+    renderer.autoClear = false;
     renderer.render(this._additiveScene, this._orthoCamera);
-    
-    // Restore
+
+    // Restore renderer autoClear
     renderer.autoClear = currentAutoClear;
   }
 
@@ -443,6 +590,8 @@ export class GodRays {
     this._scatterRT?.dispose();
     this._sunBillboard?.geometry.dispose();
     this._sunBillboard?.material.dispose();
+    this._moonBillboard?.geometry.dispose();
+    this._moonBillboard?.material.dispose();
     this._blackMat?.dispose();
     this._scatterMat?.dispose();
     this._additiveMat?.dispose();
