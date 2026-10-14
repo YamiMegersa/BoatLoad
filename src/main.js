@@ -14,6 +14,7 @@ import { ParticleSystem } from './environment/ParticleSystem.js';
 import { DamageSystem } from './shipyard/DamageSystem.js';
 import { GodRays } from './environment/GodRays.js';
 import { PaperFilter } from './environment/PaperFilter.js';
+import { exportToGLB } from './utils/exportGLTF.js';
 import './ui/ui.css';
 
 // ---------------------------------------------------------------------------
@@ -73,6 +74,8 @@ let userPaperStyle = 0;
 const gameState = new GameState(scene, camera, renderer);
 gameState._ambient = ambient;
 gameState._sun = sun;
+window.gameState = gameState;
+window.exportToGLB = exportToGLB;
 
 const buildMenu = new BuildMenu();
 const docket = new DocketSheet();
