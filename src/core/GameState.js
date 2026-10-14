@@ -20,6 +20,10 @@ import { VoxelTerrain }   from '../editor/VoxelTerrain.js';
 import { WindManager }        from '../environment/WindManager.js';
 import { SirenManager }       from '../monsters/SirenManager.js';
 import { KrakenBoss }         from '../monsters/KrakenBoss.js';
+import { Sky }                from '../environment/Sky.js';
+import { DockStall }          from '../environment/DockStall.js';
+import { DockPlayerController } from '../environment/DockPlayerController.js';
+import { WeatherSystem }      from '../environment/WeatherSystem.js';
 import { emit, on, off, clear } from './EventBus.js';
 
 // ---------------------------------------------------------------------------
@@ -27,6 +31,7 @@ import { emit, on, off, clear } from './EventBus.js';
 // ---------------------------------------------------------------------------
 
 export const GamePhase = Object.freeze({
+  MAIN_MENU:'MAIN_MENU',
   DOCK:     'DOCK',
   SHIPYARD: 'SHIPYARD',
   OBSTACLE: 'OBSTACLE',
@@ -93,6 +98,11 @@ export class GameState {
     this._windManager     = null;
     this._sirenManager    = null;
     this._krakenBoss      = null;
+    this._time            = 0;
+    this._sky             = new Sky();
+    this._sky.init(this._scene);
+    this._weather         = new WeatherSystem();
+    this._dockStall       = new DockStall();
     
     // Global wind direction (e.g., blowing towards North-East)
     this.windDir = new THREE.Vector3(1, 0, -1).normalize();
@@ -164,9 +174,17 @@ export class GameState {
    * @param {number} delta  Seconds since last frame
    */
   update(delta) {
+    this._time += delta;
     this._ocean.update(delta);
+    if (this._weather) this._weather.update(delta);
 
     switch (this.currentPhase) {
+      case GamePhase.DOCK:
+        if (this._dockStall) this._dockStall.update(delta, this._time);
+        if (this._dockPlayerController) this._dockPlayerController.update(delta);
+        if (this._dockOrbitControls && this._dockOrbitControls.enabled) this._dockOrbitControls.update();
+        break;
+
       case GamePhase.SHIPYARD:
         this._updateShipyard(delta);
         break;
@@ -190,6 +208,10 @@ export class GameState {
 
   async _onEnter(phase, opts) {
     switch (phase) {
+      case GamePhase.MAIN_MENU:
+        await this._enterMainMenu(opts);
+        break;
+
       case GamePhase.DOCK:
         this._enterDock(opts);
         break;
@@ -221,6 +243,13 @@ export class GameState {
 
   async _onExit(phase) {
     switch (phase) {
+      case GamePhase.DOCK:
+        this._exitDock();
+        break;
+      case GamePhase.MAIN_MENU:
+        this._exitMainMenu();
+        break;
+
       case GamePhase.SHIPYARD:
         this._exitShipyard();
         break;
@@ -233,6 +262,10 @@ export class GameState {
         this._exitEditor();
         break;
 
+      case GamePhase.RESULTS:
+        emit('uiUnmount', { screen: 'results' });
+        break;
+
       default:
         break;
     }
@@ -242,12 +275,112 @@ export class GameState {
   // DOCK
   // =========================================================================
 
-  _enterDock(opts) {
+  async _enterDock(opts) {
+    if (this._chunkRenderer && this._chunkRenderer.container) {
+      this._chunkRenderer.container.visible = true;
+      this._chunkRenderer.container.position.set(15, -0.5, 0);
+    }
     // Set up fixed cinematic camera
     this._camera.position.set(0, 5, 20);
-    this._camera.lookAt(0, 0, 0);
-    emit('uiMount', { screen: 'dock' });
+    this._camera.lookAt(0, 2, 0);
+    
+    this._dockOrbitControls = new OrbitControls(this._camera, this._renderer.domElement);
+    this._dockOrbitControls.enableDamping = true;
+    this._dockOrbitControls.target.set(0, 2, 0);
+    
+    // Setup environment
+    const stallGroup = this._dockStall.build();
+    this._scene.add(stallGroup);
+    this._ocean.breakwaterEnabled = true;
+
+    // Load and apply weather
+    await this._weather.loadLevel(this.day, {
+      ambient: this._ambient,
+      sun: this._sun,
+      ocean: this._ocean,
+      sky: this._sky,
+      lanternLight: this._dockStall.lanternLight,
+      scene: this._scene
+    });
+
+    // Moveable Player Camera
+    this._dockPlayerController = new DockPlayerController(this._scene, this._camera, this._renderer.domElement, this._dockStall);
+    this.activeCamera = this._dockPlayerController.camera;
+
+    // Dev orbit controls (kept available for development purposes)
+    this._dockOrbitControls = new OrbitControls(this._camera, this._renderer.domElement);
+    this._dockOrbitControls.enableDamping = true;
+    this._dockOrbitControls.target.set(0, 2, 0);
+    this._dockOrbitControls.enabled = false;
+
+    emit('uiMount', { screen: 'dock', dockStall: this._dockStall, gameState: this, dockPlayerController: this._dockPlayerController });
   }
+
+  _exitDock() {
+    this._scene.remove(this._dockStall.group);
+    this._ocean.breakwaterEnabled = false;
+
+    if (this._dockPlayerController) {
+      this._dockPlayerController.dispose();
+      this._dockPlayerController = null;
+    }
+
+    if (this._dockOrbitControls) {
+      this._dockOrbitControls.dispose();
+      this._dockOrbitControls = null;
+    }
+    this.activeCamera = null;
+    emit('uiUnmount', { screen: 'dock' });
+  }
+
+  // =========================================================================
+  // MAIN MENU
+  // =========================================================================
+
+  async _enterMainMenu(opts) {
+    this.activeCamera = null;
+
+    // Ensure any loaded boat/vessel meshes are hidden and positioned well out of the camera's sightline
+    if (this._chunkRenderer && this._chunkRenderer.container) {
+      this._chunkRenderer.container.visible = false;
+      this._chunkRenderer.container.position.set(0, -999, 0);
+    }
+    if (this._playerShip && this._playerShip.mesh) {
+      this._playerShip.mesh.visible = false;
+      this._playerShip.mesh.position.set(0, -999, 0);
+    }
+    
+    // Set an unobstructed panoramic view of the open ocean and horizon
+    this._camera.position.set(0, 5, 20);
+    this._camera.lookAt(0, 5, -120);
+
+    // Ensure the ocean is active and visible with natural open waves
+    this._ocean.breakwaterEnabled = false;
+
+    // Use day 1 weather for the main menu by default
+    await this._weather.loadLevel(1, {
+      ambient: this._ambient,
+      sun: this._sun,
+      ocean: this._ocean,
+      sky: this._sky,
+      lanternLight: this._dockStall.lanternLight,
+      scene: this._scene
+    });
+
+    emit('uiMount', { screen: 'main-menu' });
+  }
+
+  _exitMainMenu() {
+    // Restore vessel visibility when transitioning out of the main menu into gameplay
+    if (this._chunkRenderer && this._chunkRenderer.container) {
+      this._chunkRenderer.container.visible = true;
+    }
+    if (this._playerShip && this._playerShip.mesh) {
+      this._playerShip.mesh.visible = true;
+    }
+    emit('uiUnmount', { screen: 'main-menu' });
+  }
+
 
   // =========================================================================
   // SHIPYARD
@@ -307,7 +440,6 @@ export class GameState {
       this._debugSharkBaseY = cy;
       this._debugSharkAnim  = new FishAnimator(
         this._debugShark,
-        repair?.tailBone ?? null,
         1.0
       );
     }
@@ -614,6 +746,7 @@ export class GameState {
     this._qteSystem       = null;
     this._chunkRenderer   = null;
     this._grid            = null;
+    this._windManager     = null;
 
     if (this._voxelTerrain) {
        this._scene.remove(this._voxelTerrain.meshGroup);
