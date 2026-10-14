@@ -34,13 +34,17 @@ const QTE_KEY_MAP = {
  */
 export class QTESystem {
   constructor() {
-    this._active   = false;
-    this._type     = null;
-    this._timer    = null;
+    this._active    = false;
+    this._type      = null;
+    this._timer     = null;
+    this._startTime = 0;
+    this._windowMs  = 0;
     this._onSuccess = null;
     this._onFail    = null;
 
     this._boundKey = this._onKeyDown.bind(this);
+    this._onTap = () => this.resolveTap();
+    on('qteTap', this._onTap);
   }
 
   // -------------------------------------------------------------------------
@@ -59,6 +63,8 @@ export class QTESystem {
 
     this._active    = true;
     this._type      = type;
+    this._startTime = Date.now();
+    this._windowMs  = windowMs;
     this._onSuccess = onSuccess ?? (() => {});
     this._onFail    = onFail    ?? (() => {});
 
@@ -69,6 +75,14 @@ export class QTESystem {
     this._timer = setTimeout(() => this._fail(), windowMs);
     
     return true;
+  }
+
+  /**
+   * Resolve active QTE via on-screen button tap or click.
+   */
+  resolveTap() {
+    if (!this._active) return;
+    this._succeed();
   }
 
   /**
@@ -83,6 +97,7 @@ export class QTESystem {
   dispose() {
     clearTimeout(this._timer);
     window.removeEventListener('keydown', this._boundKey);
+    off('qteTap', this._onTap);
     this._active = false;
   }
 
@@ -102,14 +117,21 @@ export class QTESystem {
     window.removeEventListener('keydown', this._boundKey);
 
     const type = this._type;
+    const elapsed = Date.now() - this._startTime;
+    const ratio = Math.min(1.0, elapsed / Math.max(1, this._windowMs));
+    const isPerfect = ratio <= 0.45; // reacted within first 45% of time window
+    const timing = { elapsed, ratio, isPerfect };
+
     this._active = false;
     this._type   = null;
 
-    console.log(`[QTE] Success ${type}`);
+    console.log(`[QTE] Success ${type} (${isPerfect ? 'PERFECT' : 'GOOD'}, ${elapsed}ms)`);
 
-    emit('qteSuccess', { type });
+    emit('qteSuccess', { type, ...timing });
     emit('playSound', { sound: 'qte_success' });
-    this._onSuccess();
+    if (this._onSuccess) {
+      this._onSuccess(timing);
+    }
     this._onSuccess = null;
     this._onFail    = null;
   }
@@ -125,7 +147,9 @@ export class QTESystem {
 
     emit('qteFail', { type });
     emit('playSound', { sound: 'qte_fail' });
-    this._onFail();
+    if (this._onFail) {
+      this._onFail();
+    }
     this._onSuccess = null;
     this._onFail    = null;
   }

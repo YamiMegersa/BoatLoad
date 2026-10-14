@@ -13,7 +13,6 @@ import { FishAnimator }       from '../environment/FishAnimator.js';
 import { Ocean }              from '../environment/Ocean.js';
 import { QTESystem }      from '../obstacle/QTESystem.js';
 import { Minimap }        from '../ui/Minimap.js';
-import { HUD }            from '../ui/HUD.js';
 import { EditorUI }       from '../ui/EditorUI.js';
 import { EditorSystem }   from '../editor/EditorSystem.js';
 import { VoxelTerrain }   from '../editor/VoxelTerrain.js';
@@ -89,7 +88,9 @@ export class GameState {
     this._environmentManager = null;
     this._qteSystem       = null;
     this._minimap         = new Minimap();
-    this._hud             = new HUD();
+    this.score            = 0;
+    this._onScoreAdded    = (d) => { this.score += (d.points || 0); };
+    on('scoreAdded', this._onScoreAdded);
     this._editorUI        = new EditorUI();
     this._editorSystem    = null;
     this._windManager     = null;
@@ -582,6 +583,7 @@ export class GameState {
       this.transition(GamePhase.RESULTS, { passed: false });
     });
 
+    this.score = 0;
     emit('uiMount', { screen: 'obstacle' });
   }
 
@@ -679,7 +681,7 @@ export class GameState {
   // =========================================================================
 
   _enterResults({ passed }) {
-    emit('uiMount', { screen: 'results', passed, day: this.day });
+    emit('uiMount', { screen: 'results', passed, day: this.day, score: this.score });
     if (passed) this.day++;
   }
 

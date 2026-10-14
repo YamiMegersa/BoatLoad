@@ -129,7 +129,7 @@ export class EnvironmentManager {
 
     // Place + orient randomly around the play area, or use provided school base
     const x = px !== null ? px : (Math.random() - 0.5) * 400;
-    const y = py !== null ? py : (isShark ? -1.0 : -4 - Math.random() * 4);
+    const y = py !== null ? py : (isShark ? -3.0 : -4 - Math.random() * 4);
     const z = pz !== null ? pz : (Math.random() - 0.5) * 400;
     const ry = yaw !== null ? yaw : Math.random() * Math.PI * 2;
     
@@ -197,25 +197,30 @@ export class EnvironmentManager {
         if (shark.hitDelay <= 0) {
           shark.hitPending = false;
           shark.flashing = true;
-          shark.flashTimer = 0.5;
+          shark.flashTimer = 0.8;
+
+          // Raise the shark above the surface so the red flash is visible
+          shark.baseY = 0.5;
 
           // Trigger particles
           emit('spawnParticles', { type: 'massiveSplash', position: shark.mesh.position.clone() });
           emit('spawnParticles', { type: 'bloodSplash', position: shark.mesh.position.clone() });
 
-          // Change emissive to red
+          // Change material to bright red glow
           shark.mesh.traverse(c => {
             if ((c.isMesh || c.isSkinnedMesh) && c.material) {
               if (!c.userData.hasClonedMaterial) {
                 c.material = c.material.clone();
                 c.userData.hasClonedMaterial = true;
               }
-              if (!c.userData.originalEmissive) {
-                c.userData.originalEmissive = c.material.emissive ? c.material.emissive.clone() : new THREE.Color(0x000000);
-              }
-              if (c.material.emissive) {
-                c.material.emissive.setHex(0xff0000);
-              }
+              c.userData.originalEmissive = c.material.emissive ? c.material.emissive.clone() : new THREE.Color(0x000000);
+              c.userData.originalEmissiveIntensity = c.material.emissiveIntensity ?? 1.0;
+              c.material.emissive = new THREE.Color(0xff0000);
+              c.material.emissiveIntensity = 3.0;
+              c.material.color.setHex(0xff2200);
+              // Render above water surface
+              c.renderOrder = 10;
+              c.material.depthTest = true;
             }
           });
         }
@@ -263,10 +268,20 @@ export class EnvironmentManager {
         if (dist2D < 22 && !shark.qteTriggered && this.qteSystem) {
           const success = this.qteSystem.trigger({
             type: 'HARPOON',
-            windowMs: 1800,
-            onSuccess: () => {
+            onSuccess: (timing = {}) => {
               shark.hitPending = true;
               shark.hitDelay = 0.3; // Matches harpoon travel time
+              const isPerfect = timing.isPerfect ?? false;
+              const bonusPoints = isPerfect ? 250 : 100;
+              const label = isPerfect ? 'PERFECT STRIKE!' : 'SHARK HARPOONED!';
+
+              emit('scoreAdded', {
+                points: bonusPoints,
+                label,
+                isPerfect,
+                position: shark.mesh.position.clone()
+              });
+
               emit('spawnParticles', {
                 type: 'harpoon',
                 start: playerShip.mesh.position.clone(),
