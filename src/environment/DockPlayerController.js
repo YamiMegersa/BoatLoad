@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { emit, on, off } from '../core/EventBus.js';
+import { VoxelArms } from './VoxelArms.js';
+import { EmoteWheelUI } from '../ui/EmoteWheelUI.js';
 
 export class DockPlayerController {
   /**
@@ -59,6 +61,14 @@ export class DockPlayerController {
     // UI elements
     this._createUI();
 
+    // Voxel first-person arms & props
+    this.voxelArms = new VoxelArms(this.camera);
+
+    // Emote Wheel UI
+    this.emoteWheel = new EmoteWheelUI({
+      onSelect: (emoteId) => this.playEmote(emoteId)
+    });
+
     // Event listeners
     this._bindEvents();
   }
@@ -113,6 +123,8 @@ export class DockPlayerController {
       <span><b>WASD</b> Walk</span>
       <span>|</span>
       <span><b>Shift</b> Sprint</span>
+      <span>|</span>
+      <span><b>Q</b> Emotes</span>
       <span>|</span>
       <span><b>Esc</b> Unlock Mouse</span>
     `;
@@ -197,6 +209,9 @@ export class DockPlayerController {
           this.toggleShop();
         }
         break;
+      case 'KeyQ':
+        this.toggleEmoteWheel();
+        break;
     }
   }
 
@@ -247,6 +262,7 @@ export class DockPlayerController {
   _onPointerDown(e) {
     // Left click
     if (e.button !== 0) return;
+    if (this.emoteWheel && this.emoteWheel.isOpen) return;
 
     if (this.hoveredDoor) {
       this.toggleShop();
@@ -256,6 +272,24 @@ export class DockPlayerController {
     // Otherwise lock pointer for smooth navigation
     if (!this.isLocked) {
       this.domElement.requestPointerLock();
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Emotes & Wheel
+  // ---------------------------------------------------------------------------
+
+  toggleEmoteWheel() {
+    if (!this.emoteWheel) return;
+    if (!this.emoteWheel.isOpen && this.isLocked) {
+      document.exitPointerLock();
+    }
+    this.emoteWheel.toggle();
+  }
+
+  playEmote(emoteId) {
+    if (this.voxelArms) {
+      this.voxelArms.playEmote(emoteId);
     }
   }
 
@@ -332,6 +366,10 @@ export class DockPlayerController {
     }
 
     this._updateInteractionRaycast();
+
+    if (this.voxelArms) {
+      this.voxelArms.update(delta);
+    }
   }
 
   _resolveObstacleCollisions(pos) {
@@ -534,6 +572,16 @@ export class DockPlayerController {
 
   dispose() {
     this._unbindEvents();
+
+    if (this.voxelArms) {
+      this.voxelArms.dispose();
+      this.voxelArms = null;
+    }
+
+    if (this.emoteWheel) {
+      this.emoteWheel.dispose();
+      this.emoteWheel = null;
+    }
 
     if (document.pointerLockElement === this.domElement) {
       document.exitPointerLock();
