@@ -532,12 +532,17 @@ export class KrakenBoss {
 
   _buildStartMarker() {
     this._startMarker = new THREE.Group();
+    this._startMarker.userData.noGodRays = true;
+    this._startMarker.userData.noOcclusion = true;
+    this._startMarker.userData.isRaceMarker = true;
 
     // Flag pole
     const poleGeo = new THREE.CylinderGeometry(0.15, 0.15, 8, 6);
     const poleMat = new THREE.MeshPhongMaterial({ color: 0xcccccc });
     const pole = new THREE.Mesh(poleGeo, poleMat);
     pole.position.y = 4;
+    pole.userData.noGodRays = true;
+    pole.userData.isRaceMarker = true;
     this._startMarker.add(pole);
 
     // Flag
@@ -549,6 +554,8 @@ export class KrakenBoss {
     });
     const flag = new THREE.Mesh(flagGeo, flagMat);
     flag.position.set(2, 7, 0);
+    flag.userData.noGodRays = true;
+    flag.userData.isRaceMarker = true;
     this._startMarker.add(flag);
 
     // Radius ring
@@ -567,7 +574,15 @@ export class KrakenBoss {
     const ring = new THREE.Mesh(ringGeo, ringMat);
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = 0.1;
+    ring.userData.noGodRays = true;
+    ring.userData.isRaceMarker = true;
     this._startMarker.add(ring);
+
+    this._startMarker.traverse(c => {
+      c.userData.noGodRays = true;
+      c.userData.noOcclusion = true;
+      c.userData.isRaceMarker = true;
+    });
 
     this._startMarker.position.copy(this._raceStartPos);
     this._scene.add(this._startMarker);

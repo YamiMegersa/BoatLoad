@@ -382,14 +382,20 @@ export class EditorSystem {
       geo.rotateX(-Math.PI / 2);
       const mat = new THREE.MeshBasicMaterial({ color: 0x00ff88, side: THREE.DoubleSide, transparent: true, opacity: 0.6 });
       const mesh = new THREE.Mesh(geo, mat);
+      mesh.userData.noGodRays = true;
+      mesh.userData.isRaceMarker = true;
       this._previewMesh = { mesh };
       this._scene.add(mesh);
     } else if (this._activeTool === 'place_waypoint') {
       const group = new THREE.Group();
+      group.userData.noGodRays = true;
+      group.userData.isRaceMarker = true;
       const cylGeo = new THREE.CylinderGeometry(7.2, 7.2, 20, 16, 1, true);
       const cylMat = new THREE.MeshBasicMaterial({ color: 0xffea00, wireframe: true, transparent: true, opacity: 0.6 });
       const cylMesh = new THREE.Mesh(cylGeo, cylMat);
       cylMesh.position.y = 10;
+      cylMesh.userData.noGodRays = true;
+      cylMesh.userData.isRaceMarker = true;
       group.add(cylMesh);
 
       const ringGeo = new THREE.RingGeometry(6.8, 7.6, 24);
@@ -397,6 +403,8 @@ export class EditorSystem {
       const ringMat = new THREE.MeshBasicMaterial({ color: 0xffea00, side: THREE.DoubleSide });
       const ringMesh = new THREE.Mesh(ringGeo, ringMat);
       ringMesh.position.y = 0.2;
+      ringMesh.userData.noGodRays = true;
+      ringMesh.userData.isRaceMarker = true;
       group.add(ringMesh);
 
       this._previewMesh = { mesh: group };
@@ -783,6 +791,13 @@ export class EditorSystem {
       sLabel.scale.set(14, 3.5, 1);
       startMarker.add(sLabel);
 
+      startMarker.userData.noGodRays = true;
+      startMarker.userData.isRaceMarker = true;
+      startMarker.traverse(c => {
+        c.userData.noGodRays = true;
+        c.userData.isRaceMarker = true;
+      });
+
       this._krakenVisualGroup.add(startMarker);
     }
 
@@ -840,6 +855,13 @@ export class EditorSystem {
           badge.scale.set(4, 4, 1);
           wpGroup.add(badge);
 
+          wpGroup.userData.noGodRays = true;
+          wpGroup.userData.isRaceMarker = true;
+          wpGroup.traverse(c => {
+            c.userData.noGodRays = true;
+            c.userData.isRaceMarker = true;
+          });
+
           this._krakenVisualGroup.add(wpGroup);
         });
 
@@ -855,10 +877,14 @@ export class EditorSystem {
         });
         const line = new THREE.Line(lineGeo, lineMat);
         line.computeLineDistances();
+        line.userData.noGodRays = true;
+        line.userData.isRaceMarker = true;
         this._krakenVisualGroup.add(line);
       }
     });
 
+    this._krakenVisualGroup.userData.noGodRays = true;
+    this._krakenVisualGroup.userData.isRaceMarker = true;
     this._scene.add(this._krakenVisualGroup);
   }
 

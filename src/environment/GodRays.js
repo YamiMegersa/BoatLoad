@@ -228,6 +228,9 @@ export class GodRays {
     // --- Black override material ---
     this._blackMat = new THREE.MeshBasicMaterial({ color: 0x000000, fog: false });
 
+    // Cache of objects hidden during the occlusion mask pass to prevent garbage allocation
+    this._hiddenForOcclusion = [];
+
     // --- Shader materials ---
     this._glowMat = new THREE.ShaderMaterial({
       uniforms: THREE.UniformsUtils.clone(GlowShader.uniforms),
@@ -398,9 +401,30 @@ export class GodRays {
     renderer.autoClear = false;
     renderer.render(this._glowScene, this._orthoCamera);
 
+    // Temporarily hide race markers and non-occluding objects so they do not block
+    // the sun or produce god ray streaks/shadows in the occlusion mask.
+    this._hiddenForOcclusion.length = 0;
+    scene.traverse(obj => {
+      if (
+        obj.visible &&
+        (obj.userData?.noGodRays ||
+         obj.userData?.noOcclusion ||
+         obj.userData?.isRaceMarker ||
+         obj.userData?.isWaypoint)
+      ) {
+        obj.visible = false;
+        this._hiddenForOcclusion.push(obj);
+      }
+    });
+
     // 2. Render the scene as black silhouettes on top
     // They will draw black over the glow anywhere there is a solid object
     renderer.render(scene, camera);
+
+    // Restore hidden objects immediately
+    for (let i = 0; i < this._hiddenForOcclusion.length; i++) {
+      this._hiddenForOcclusion[i].visible = true;
+    }
 
     // Restore scene state immediately
     scene.background      = savedBg;

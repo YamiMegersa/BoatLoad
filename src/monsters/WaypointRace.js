@@ -230,6 +230,10 @@ export class WaypointRace {
       const wpY = wp.position.y ?? 0;
 
       const gateGroup = new THREE.Group();
+      gateGroup.userData.noGodRays = true;
+      gateGroup.userData.noOcclusion = true;
+      gateGroup.userData.isRaceMarker = true;
+      gateGroup.userData.isWaypoint = true;
       gateGroup.position.set(wp.position.x, wpY, wp.position.z);
 
       // 1. Tall transparent yellow GTA cylinder
@@ -246,6 +250,8 @@ export class WaypointRace {
       });
       const cylinder = new THREE.Mesh(cylGeo, cylMat);
       cylinder.position.y = cylinderHeight / 2;
+      cylinder.userData.noGodRays = true;
+      cylinder.userData.isRaceMarker = true;
       gateGroup.add(cylinder);
 
       // 2. Base ground/water yellow corona ring
@@ -260,6 +266,8 @@ export class WaypointRace {
       const baseRing = new THREE.Mesh(ringGeo, ringMat);
       baseRing.rotation.x = -Math.PI / 2;
       baseRing.position.y = 0.2;
+      baseRing.userData.noGodRays = true;
+      baseRing.userData.isRaceMarker = true;
       gateGroup.add(baseRing);
 
       // 3. Number label badge sprite (bright yellow disc with high-contrast numeral)
@@ -286,7 +294,16 @@ export class WaypointRace {
       const sprite = new THREE.Sprite(spriteMat);
       sprite.scale.set(3.5, 3.5, 1);
       sprite.position.y = 6.0;
+      sprite.userData.noGodRays = true;
+      sprite.userData.isRaceMarker = true;
       gateGroup.add(sprite);
+
+      gateGroup.traverse(c => {
+        c.userData.noGodRays = true;
+        c.userData.noOcclusion = true;
+        c.userData.isRaceMarker = true;
+        c.userData.isWaypoint = true;
+      });
 
       this._scene.add(gateGroup);
       this._gateMeshes.push(gateGroup);
@@ -312,6 +329,10 @@ export class WaypointRace {
     });
     this._trailLine = new THREE.Line(lineGeo, lineMat);
     this._trailLine.computeLineDistances();
+    this._trailLine.userData.noGodRays = true;
+    this._trailLine.userData.noOcclusion = true;
+    this._trailLine.userData.isRaceMarker = true;
+    this._trailLine.userData.isWaypoint = true;
     this._scene.add(this._trailLine);
   }
 
