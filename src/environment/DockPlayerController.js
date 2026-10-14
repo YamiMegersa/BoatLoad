@@ -27,7 +27,7 @@ export class DockPlayerController {
 
     this.yawObject = new THREE.Object3D();
     this.yawObject.position.set(-3.5, 2.15 + this.eyeHeight, 0.5); // Initial spawn on dock
-    this.yawObject.rotation.y = -Math.PI / 2; // Face towards island ramp
+    this.yawObject.rotation.y = Math.PI / 2; // Face towards island ramp (world -X)
     this.yawObject.add(this.pitchObject);
     this.scene.add(this.yawObject);
 
@@ -313,8 +313,8 @@ export class DockPlayerController {
       this.yawObject.position.set(-2.1, 2.15 + this.eyeHeight, 4.35);
     }
 
-    // Face towards the island ramp (world -X)
-    this.yawObject.rotation.y = -Math.PI / 2;
+    // Face outward toward the island ramp (world -X, door is behind them)
+    this.yawObject.rotation.y = Math.PI / 2;
     this.pitchObject.rotation.x = 0;
     this.velocity.set(0, 0, 0);
 

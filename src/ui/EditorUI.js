@@ -140,7 +140,7 @@ export class EditorUI {
         <h4>Paper Shader Tweaks</h4>
         <div style="margin-bottom: 10px; color: white; font-size: 14px;">
           <label style="display:flex; align-items:center;">
-            <input type="checkbox" id="paper-shader-check" checked style="margin-right: 8px;">
+            <input type="checkbox" id="paper-shader-check" style="margin-right: 8px;">
             Enable Paper Shader
           </label>
         </div>
