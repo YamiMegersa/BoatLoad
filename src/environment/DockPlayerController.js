@@ -80,7 +80,7 @@ export class DockPlayerController {
   _createUI() {
     this.uiContainer = document.createElement('div');
     this.uiContainer.id = 'dock-player-ui';
-    this.uiContainer.style.cssText = 'position:absolute; inset:0; pointer-events:none; z-index:85; overflow:hidden;';
+    this.uiContainer.style.cssText = 'position:absolute; inset:0; pointer-events:none !important; z-index:85; overflow:hidden;';
 
     // Crosshair dot
     this.crosshair = document.createElement('div');

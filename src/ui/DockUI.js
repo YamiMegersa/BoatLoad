@@ -22,10 +22,10 @@ export class DockUI {
 
     this.root = document.createElement('div');
     this.root.className = 'dock-ui';
-    this.root.style.cssText = 'position:absolute; top:10px; left:50%; transform:translateX(-50%); display:flex; flex-direction: column; gap:10px; z-index:90; pointer-events: none;';
+    this.root.style.cssText = 'position:absolute; top:10px; left:50%; transform:translateX(-50%); display:flex; flex-direction: column; gap:10px; z-index:90; pointer-events: none !important;';
 
     const dayButtons = document.createElement('div');
-    dayButtons.style.cssText = 'display:flex; gap:10px; pointer-events: auto; justify-content: center;';
+    dayButtons.style.cssText = 'display:flex; gap:10px; pointer-events: auto !important; justify-content: center;';
     for (let i = 1; i <= 7; i++) {
       const btn = document.createElement('button');
       btn.innerText = `Day ${i}`;
@@ -47,7 +47,7 @@ export class DockUI {
 
     const camBtn = document.createElement('button');
     camBtn.innerText = 'Toggle Shopkeeper View';
-    camBtn.style.cssText = 'pointer-events: auto; padding:10px; cursor:pointer; background:rgba(0,0,0,0.7); color:white; border:none; border-radius:5px; font-family:sans-serif; align-self: center; transition: background 0.2s;';
+    camBtn.style.cssText = 'pointer-events: auto !important; padding:10px; cursor:pointer; background:rgba(0,0,0,0.7); color:white; border:none; border-radius:5px; font-family:sans-serif; align-self: center; transition: background 0.2s;';
     
     const updateBtnText = (mode) => {
       if (mode === 'shop') {

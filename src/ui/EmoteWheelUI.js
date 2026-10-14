@@ -57,19 +57,20 @@ export class EmoteWheelUI {
           position: absolute;
           inset: 0;
           z-index: 99;
-          display: flex;
+          display: none;
           align-items: center;
           justify-content: center;
           background: rgba(4, 8, 14, 0.45);
           backdrop-filter: blur(6px);
           opacity: 0;
-          pointer-events: none;
+          pointer-events: none !important;
           transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1);
           user-select: none;
         }
         .emote-wheel-overlay.open {
+          display: flex !important;
           opacity: 1;
-          pointer-events: auto;
+          pointer-events: auto !important;
         }
         .emote-wheel-container {
           position: relative;
@@ -194,6 +195,7 @@ export class EmoteWheelUI {
     // Outer Overlay
     this.overlay = document.createElement('div');
     this.overlay.className = 'emote-wheel-overlay';
+    this.overlay.style.display = 'none';
 
     // Wheel Container
     this.container = document.createElement('div');
@@ -305,6 +307,8 @@ export class EmoteWheelUI {
   open() {
     if (this.isOpen) return;
     this.isOpen = true;
+    this.overlay.style.display = 'flex';
+    this.overlay.offsetHeight; // force reflow for opacity transition
     this.overlay.classList.add('open');
 
     // Reset hub text
@@ -316,6 +320,7 @@ export class EmoteWheelUI {
     if (!this.isOpen) return;
     this.isOpen = false;
     this.overlay.classList.remove('open');
+    this.overlay.style.display = 'none';
     if (this.onClose) {
       this.onClose();
     }
