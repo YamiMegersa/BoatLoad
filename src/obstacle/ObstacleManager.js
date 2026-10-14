@@ -26,20 +26,18 @@ import { WhirlpoolParticles } from './WhirlpoolParticles.js';
 // ---------------------------------------------------------------------------
 
 const _geo = {
-  rock: new THREE.DodecahedronGeometry(0.9, 0),
-  barrel: new THREE.CylinderGeometry(0.4, 0.4, 0.8, 8),
+  rock:       new THREE.DodecahedronGeometry(0.9, 0),
+  barrel:     new THREE.CylinderGeometry(0.4, 0.4, 0.8, 8),
   wave_small: new THREE.BoxGeometry(2.5, 0.3, 0.8),
-  seaweed: new THREE.PlaneGeometry(3, 2),
-  whirlpool: new THREE.CylinderGeometry(1.5, 0.3, 0.5, 16, 1, true),
-  seaweed: new THREE.PlaneGeometry(3, 2),
-  whirlpool: new THREE.CylinderGeometry(12.0, 0.5, 2.0, 32, 1, true),
+  seaweed:    new THREE.PlaneGeometry(3, 2),
+  whirlpool:  new THREE.CylinderGeometry(12.0, 0.5, 2.0, 32, 1, true),
 };
 
 const _mat = {
-  rock: new THREE.MeshLambertMaterial({ color: 0x555566 }),
-  barrel: new THREE.MeshLambertMaterial({ color: 0x7a4f2a }),
+  rock:      new THREE.MeshLambertMaterial({ color: 0x555566 }),
+  barrel:    new THREE.MeshLambertMaterial({ color: 0x7a4f2a }),
   wave_small: new THREE.MeshPhongMaterial({ color: 0x474b6b, transparent: true, opacity: 0.7 }),
-  seaweed: new THREE.MeshLambertMaterial({ color: 0x2e6b3e, transparent: true, opacity: 0.5, side: THREE.DoubleSide }),
+  seaweed:   new THREE.MeshLambertMaterial({ color: 0x2e6b3e, transparent: true, opacity: 0.5, side: THREE.DoubleSide }),
   whirlpool: new THREE.MeshPhongMaterial({ color: 0x222233, transparent: true, opacity: 0.8, side: THREE.DoubleSide }),
 };
 
@@ -55,793 +53,566 @@ const _mat = {
  */
 export function buildObstacle(type, pos, url, scale, rockModels, pickupModels, seaweedModels, waveModels, islandModels) {
   let mesh;
-  if (type === 'rock' && rockModels && rockModels.length > 0) {
-    const randomGltf = rockModels[Math.floor(Math.random() * rockModels.length)];
-    const cloned = randomGltf.scene.clone(true);
-
-    let selectedModel = null;
-    const targetScale = scale || 1.0;
-    if (type === 'wind_zone') {
-      mesh = new THREE.Group();
-      // Ring
-      const ringGeo = new THREE.RingGeometry(9.5, 10.0, 32);
-      const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, side: THREE.DoubleSide, transparent: true, opacity: 0.5 });
-      const ring = new THREE.Mesh(ringGeo, ringMat);
-      ring.rotation.x = -Math.PI / 2;
-      mesh.add(ring);
-
-      // Arrow pointing -Z
-      const arrowGeo = new THREE.ConeGeometry(1, 3, 8);
-      const arrowMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.8 });
-      const arrow = new THREE.Mesh(arrowGeo, arrowMat);
-      arrow.rotation.x = -Math.PI / 2;
-      arrow.position.z = -10;
-      mesh.add(arrow);
-      mesh.scale.setScalar(targetScale);
-    } else if (type === 'rock' && rockModels && rockModels.length > 0) {
-      if (url) {
-        selectedModel = rockModels.find(m => m.url === url) || rockModels[Math.floor(Math.random() * rockModels.length)];
-      } else {
-        selectedModel = rockModels[Math.floor(Math.random() * rockModels.length)];
-      }
-      const cloned = selectedModel.scene.clone(true);
-
-      cloned.rotation.y = Math.random() * Math.PI * 2;
-      cloned.rotation.z = (Math.random() - 0.5) * 0.2;
-
-      // Update matrix world before calculating Box3 bounds!
-      cloned.updateMatrixWorld(true);
-
-      // Compute bounds to normalize scale and center
-      const tempBox = new THREE.Box3().setFromObject(cloned);
-      const size = new THREE.Vector3();
-      tempBox.getSize(size);
-      const center = new THREE.Vector3();
-      tempBox.getCenter(center);
-
-      // Scale to fit ~1.8 max dimension
-      const maxDim = Math.max(size.x, size.y, size.z);
-      const scale = (maxDim > 0) ? (1.8 / maxDim) : 1;
-      cloned.scale.setScalar(scale);
-
-      // Center it locally
-      cloned.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
-
-      mesh = new THREE.Group();
-      mesh.add(cloned);
-    } else if (type === 'pickup' && pickupModels && pickupModels.length > 0) {
-      const randomGltf = pickupModels[Math.floor(Math.random() * pickupModels.length)];
-      const cloned = randomGltf.scene.clone(true);
-
-      const normScale = (maxDim > 0) ? (1.8 / maxDim) : 1;
-      const finalScale = normScale * targetScale;
-      cloned.scale.setScalar(finalScale);
-
-      // Center it locally
-      cloned.position.set(-center.x * finalScale, -center.y * finalScale, -center.z * finalScale);
-
-      mesh = new THREE.Group();
-      mesh.add(cloned);
-    } else if (type === 'pickup' && pickupModels && pickupModels.length > 0) {
-      if (url) {
-        selectedModel = pickupModels.find(m => m.url === url) || pickupModels[Math.floor(Math.random() * pickupModels.length)];
-      } else {
-        selectedModel = pickupModels[Math.floor(Math.random() * pickupModels.length)];
-      }
-      const cloned = selectedModel.scene.clone(true);
-
-      // Pickups bob/spin, but we just set base rotation
-      cloned.rotation.y = Math.random() * Math.PI * 2;
-      cloned.updateMatrixWorld(true);
-
-      const tempBox = new THREE.Box3().setFromObject(cloned);
-      const size = new THREE.Vector3();
-      tempBox.getSize(size);
-      const center = new THREE.Vector3();
-      tempBox.getCenter(center);
-
-      // Scale to fit ~1.2 max dimension
-      const maxDim = Math.max(size.x, size.y, size.z);
-      const scale = (maxDim > 0) ? (1.2 / maxDim) : 1;
-      cloned.scale.setScalar(scale);
-
-      cloned.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
-
-      mesh = new THREE.Group();
-      mesh.add(cloned);
-    } else if (type === 'seaweed' && seaweedModels && seaweedModels.length > 0) {
-      const randomGltf = seaweedModels[Math.floor(Math.random() * seaweedModels.length)];
-      const cloned = randomGltf.scene.clone(true);
-
-      const normScale = (maxDim > 0) ? (1.2 / maxDim) : 1;
-      const finalScale = normScale * targetScale;
-      cloned.scale.setScalar(finalScale);
-
-      cloned.position.set(-center.x * finalScale, -center.y * finalScale, -center.z * finalScale);
-
-      mesh = new THREE.Group();
-      mesh.add(cloned);
-    } else if (type === 'seaweed' && seaweedModels && seaweedModels.length > 0) {
-      if (url) {
-        selectedModel = seaweedModels.find(m => m.url === url) || seaweedModels[Math.floor(Math.random() * seaweedModels.length)];
-      } else {
-        selectedModel = seaweedModels[Math.floor(Math.random() * seaweedModels.length)];
-      }
-      const cloned = selectedModel.scene.clone(true);
-
-      cloned.rotation.y = Math.random() * Math.PI * 2;
-      cloned.updateMatrixWorld(true);
-
-      const tempBox = new THREE.Box3().setFromObject(cloned);
-      const size = new THREE.Vector3();
-      tempBox.getSize(size);
-      const center = new THREE.Vector3();
-      tempBox.getCenter(center);
-
-      const maxDim = Math.max(size.x, size.z); // Seaweed spreads mostly horizontally
-      const scale = (maxDim > 0) ? (3.0 / maxDim) : 1;
-      cloned.scale.setScalar(scale);
-      cloned.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
-
-      mesh = new THREE.Group();
-      mesh.add(cloned);
-    } else if (type === 'wave_small' && waveModels && waveModels.length > 0) {
-      const randomGltf = waveModels[Math.floor(Math.random() * waveModels.length)];
-      const cloned = randomGltf.scene.clone(true);
-
-      const normScale = (maxDim > 0) ? (3.0 / maxDim) : 1;
-      const finalScale = normScale * targetScale;
-      cloned.scale.setScalar(finalScale);
-      cloned.position.set(-center.x * finalScale, -center.y * finalScale, -center.z * finalScale);
-
-      mesh = new THREE.Group();
-      mesh.add(cloned);
-    } else if (type === 'wave_small' && waveModels && waveModels.length > 0) {
-      if (url) {
-        selectedModel = waveModels.find(m => m.url === url) || waveModels[Math.floor(Math.random() * waveModels.length)];
-      } else {
-        selectedModel = waveModels[Math.floor(Math.random() * waveModels.length)];
-      }
-      const cloned = selectedModel.scene.clone(true);
-
-      // Make wave face the ship (rotated 90 degrees)
-      cloned.rotation.y = Math.PI / 2;
-      cloned.updateMatrixWorld(true);
-
-      const tempBox = new THREE.Box3().setFromObject(cloned);
-      const size = new THREE.Vector3();
-      tempBox.getSize(size);
-      const center = new THREE.Vector3();
-      tempBox.getCenter(center);
-
-      const maxDim = Math.max(size.x, size.y, size.z);
-      const scale = (maxDim > 0) ? (2.5 / maxDim) : 1;
-      cloned.scale.setScalar(scale);
-      cloned.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
-
-      const normScale = (maxDim > 0) ? (2.5 / maxDim) : 1;
-      const finalScale = normScale * targetScale;
-      cloned.scale.setScalar(finalScale);
-      cloned.position.set(-center.x * finalScale, -center.y * finalScale, -center.z * finalScale);
-
-      mesh = new THREE.Group();
-      mesh.add(cloned);
-    } else if (type === 'island' && islandModels && islandModels.length > 0) {
-      if (url) {
-        selectedModel = islandModels.find(m => m.url === url) || islandModels[Math.floor(Math.random() * islandModels.length)];
-      } else {
-        selectedModel = islandModels[Math.floor(Math.random() * islandModels.length)];
-      }
-      const cloned = selectedModel.scene.clone(true);
-
-      cloned.rotation.y = Math.random() * Math.PI * 2;
-      cloned.updateMatrixWorld(true);
-
-      const tempBox = new THREE.Box3().setFromObject(cloned);
-      const size = new THREE.Vector3();
-      tempBox.getSize(size);
-      const center = new THREE.Vector3();
-      tempBox.getCenter(center);
-
-      const maxDim = Math.max(size.x, size.y, size.z);
-      const normScale = (maxDim > 0) ? (40.0 / maxDim) : 1;
-      const finalScale = normScale * targetScale;
-      cloned.scale.setScalar(finalScale);
-      cloned.position.set(-center.x * finalScale, -center.y * finalScale, -center.z * finalScale);
-
-      mesh = new THREE.Group();
-      mesh.add(cloned);
+  let selectedModel = null;
+  const targetScale = scale || 1.0;
+  if (type === 'wind_zone') {
+    mesh = new THREE.Group();
+    // Ring
+    const ringGeo = new THREE.RingGeometry(9.5, 10.0, 32);
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, side: THREE.DoubleSide, transparent: true, opacity: 0.5 });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = -Math.PI / 2;
+    mesh.add(ring);
+    
+    // Arrow pointing -Z
+    const arrowGeo = new THREE.ConeGeometry(1, 3, 8);
+    const arrowMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.8 });
+    const arrow = new THREE.Mesh(arrowGeo, arrowMat);
+    arrow.rotation.x = -Math.PI / 2;
+    arrow.position.z = -10;
+    mesh.add(arrow);
+    mesh.scale.setScalar(targetScale);
+  } else if (type === 'rock' && rockModels && rockModels.length > 0) {
+    if (url) {
+      selectedModel = rockModels.find(m => m.url === url) || rockModels[Math.floor(Math.random() * rockModels.length)];
     } else {
-      mesh = new THREE.Mesh(_geo[type] ?? _geo.rock, _mat[type] ?? _mat.rock);
-      mesh.scale.setScalar(targetScale);
+      selectedModel = rockModels[Math.floor(Math.random() * rockModels.length)];
     }
+    const cloned = selectedModel.scene.clone(true);
+    
+    cloned.rotation.y = Math.random() * Math.PI * 2;
+    cloned.rotation.z = (Math.random() - 0.5) * 0.2;
 
-    let particles = null;
-    if (type === 'whirlpool') {
-      particles = new WhirlpoolParticles(12, 150);
-      mesh.add(particles.mesh);
+    // Update matrix world before calculating Box3 bounds!
+    cloned.updateMatrixWorld(true);
+
+    // Compute bounds to normalize scale and center
+    const tempBox = new THREE.Box3().setFromObject(cloned);
+    const size = new THREE.Vector3();
+    tempBox.getSize(size);
+    const center = new THREE.Vector3();
+    tempBox.getCenter(center);
+    
+    // Scale to fit ~1.8 max dimension
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const normScale = (maxDim > 0) ? (1.8 / maxDim) : 1;
+    const finalScale = normScale * targetScale;
+    cloned.scale.setScalar(finalScale);
+    
+    // Center it locally
+    cloned.position.set(-center.x * finalScale, -center.y * finalScale, -center.z * finalScale);
+    
+    mesh = new THREE.Group();
+    mesh.add(cloned);
+  } else if (type === 'pickup' && pickupModels && pickupModels.length > 0) {
+    if (url) {
+      selectedModel = pickupModels.find(m => m.url === url) || pickupModels[Math.floor(Math.random() * pickupModels.length)];
+    } else {
+      selectedModel = pickupModels[Math.floor(Math.random() * pickupModels.length)];
     }
+    const cloned = selectedModel.scene.clone(true);
+    
+    // Pickups bob/spin, but we just set base rotation
+    cloned.rotation.y = Math.random() * Math.PI * 2;
+    cloned.updateMatrixWorld(true);
 
-    // Position at origin to calculate local bounds
-    mesh.position.set(0, 0, 0);
-    mesh.updateMatrixWorld(true);
+    const tempBox = new THREE.Box3().setFromObject(cloned);
+    const size = new THREE.Vector3();
+    tempBox.getSize(size);
+    const center = new THREE.Vector3();
+    tempBox.getCenter(center);
 
-    const localBox = new THREE.Box3().setFromObject(mesh);
-    const baseOBB = new OBB();
-    localBox.getCenter(baseOBB.center);
-    localBox.getSize(baseOBB.halfSize).multiplyScalar(0.5);
-
-    // HITBOX VISUALIZATION
-    if (type === 'barrel') {
-      const sphereGeo = new THREE.WireframeGeometry(new THREE.SphereGeometry(0.5, 8, 8));
-      const sphereMesh = new THREE.LineSegments(sphereGeo, new THREE.LineBasicMaterial({ color: 0xff0000 }));
-      mesh.add(sphereMesh);
-    } else if (type !== 'island') { // Don't draw giant AABB for islands since they use BVH
-      const wireMat = new THREE.LineBasicMaterial({ color: 0xff0000 });
-      const wireGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(baseOBB.halfSize.x * 2, baseOBB.halfSize.y * 2, baseOBB.halfSize.z * 2));
-      const wireMesh = new THREE.LineSegments(wireGeo, wireMat);
-      wireMesh.position.copy(baseOBB.center);
-      mesh.add(wireMesh);
+    // Scale to fit ~1.2 max dimension
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const normScale = (maxDim > 0) ? (1.2 / maxDim) : 1;
+    const finalScale = normScale * targetScale;
+    cloned.scale.setScalar(finalScale);
+    
+    cloned.position.set(-center.x * finalScale, -center.y * finalScale, -center.z * finalScale);
+    
+    mesh = new THREE.Group();
+    mesh.add(cloned);
+  } else if (type === 'seaweed' && seaweedModels && seaweedModels.length > 0) {
+    if (url) {
+      selectedModel = seaweedModels.find(m => m.url === url) || seaweedModels[Math.floor(Math.random() * seaweedModels.length)];
+    } else {
+      selectedModel = seaweedModels[Math.floor(Math.random() * seaweedModels.length)];
     }
+    const cloned = selectedModel.scene.clone(true);
+    
+    cloned.rotation.y = Math.random() * Math.PI * 2;
+    cloned.updateMatrixWorld(true);
 
-    // Now place it at actual position
-    mesh.position.set(pos.x, pos.y !== undefined ? pos.y : 0.5, pos.z);
-    mesh.updateMatrixWorld(true);
+    const tempBox = new THREE.Box3().setFromObject(cloned);
+    const size = new THREE.Vector3();
+    tempBox.getSize(size);
+    const center = new THREE.Vector3();
+    tempBox.getCenter(center);
 
-    const obb = new OBB();
-    obb.copy(baseOBB).applyMatrix4(mesh.matrixWorld);
+    const maxDim = Math.max(size.x, size.z); // Seaweed spreads mostly horizontally
+    const normScale = (maxDim > 0) ? (3.0 / maxDim) : 1;
+    const finalScale = normScale * targetScale;
+    cloned.scale.setScalar(finalScale);
+    cloned.position.set(-center.x * finalScale, -center.y * finalScale, -center.z * finalScale);
+    
+    mesh = new THREE.Group();
+    mesh.add(cloned);
+  } else if (type === 'wave_small' && waveModels && waveModels.length > 0) {
+    if (url) {
+      selectedModel = waveModels.find(m => m.url === url) || waveModels[Math.floor(Math.random() * waveModels.length)];
+    } else {
+      selectedModel = waveModels[Math.floor(Math.random() * waveModels.length)];
+    }
+    const cloned = selectedModel.scene.clone(true);
+    
+    // Make wave face the ship (rotated 90 degrees)
+    cloned.rotation.y = Math.PI / 2; 
+    cloned.updateMatrixWorld(true);
 
-    const sphere = type === 'barrel'
-      ? new THREE.Sphere(mesh.position.clone(), 0.5)
-      : null;
+    const tempBox = new THREE.Box3().setFromObject(cloned);
+    const size = new THREE.Vector3();
+    tempBox.getSize(size);
+    const center = new THREE.Vector3();
+    tempBox.getCenter(center);
 
-    return {
-      type,
-      mesh,
-      baseOBB,
-      obb,
-      sphere,
-      scrollSpeed: getScrollSpeed(type),
-      active: true,
-      qteResolved: false,
-      damage: getDamage(type),
-      pullForce: type === 'whirlpool' ? 2.0 : null,
-      assetUrl: selectedModel ? selectedModel.url : null,
-      scale: targetScale,
-      scrollSpeed: getScrollSpeed(type),
-      active: true,
-      qteResolved: false,
-      damage: getDamage(type),
-      pullForce: type === 'whirlpool' ? 8.0 : null,
-      particles: particles,
-    };
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const normScale = (maxDim > 0) ? (2.5 / maxDim) : 1;
+    const finalScale = normScale * targetScale;
+    cloned.scale.setScalar(finalScale);
+    cloned.position.set(-center.x * finalScale, -center.y * finalScale, -center.z * finalScale);
+    
+    mesh = new THREE.Group();
+    mesh.add(cloned);
+  } else if (type === 'island' && islandModels && islandModels.length > 0) {
+    if (url) {
+      selectedModel = islandModels.find(m => m.url === url) || islandModels[Math.floor(Math.random() * islandModels.length)];
+    } else {
+      selectedModel = islandModels[Math.floor(Math.random() * islandModels.length)];
+    }
+    const cloned = selectedModel.scene.clone(true);
+    
+    cloned.rotation.y = Math.random() * Math.PI * 2;
+    cloned.updateMatrixWorld(true);
+
+    const tempBox = new THREE.Box3().setFromObject(cloned);
+    const size = new THREE.Vector3();
+    tempBox.getSize(size);
+    const center = new THREE.Vector3();
+    tempBox.getCenter(center);
+
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const normScale = (maxDim > 0) ? (40.0 / maxDim) : 1;
+    const finalScale = normScale * targetScale;
+    cloned.scale.setScalar(finalScale);
+    cloned.position.set(-center.x * finalScale, -center.y * finalScale, -center.z * finalScale);
+    
+    mesh = new THREE.Group();
+    mesh.add(cloned);
+  } else {
+    mesh = new THREE.Mesh(_geo[type] ?? _geo.rock, _mat[type] ?? _mat.rock);
+    mesh.scale.setScalar(targetScale);
   }
 
-  function getScrollSpeed(type) {
-    const map = { rock: 8, barrel: 10, wave_small: 12, seaweed: 7, whirlpool: 6, pickup: 10, island: 0 };
-    return map[type] ?? 8;
+  let particles = null;
+  if (type === 'whirlpool') {
+    particles = new WhirlpoolParticles(12, 150);
+    mesh.add(particles.mesh);
   }
 
-  function getDamage(type) {
-    const map = { rock: 20, barrel: 30, wave_small: 5, seaweed: 0, whirlpool: 10, pickup: 0, island: 50 };
-    return map[type] ?? 10;
+  // Position at origin to calculate local bounds
+  mesh.position.set(0, 0, 0);
+  mesh.updateMatrixWorld(true);
+
+  const localBox = new THREE.Box3().setFromObject(mesh);
+  const baseOBB = new OBB();
+  localBox.getCenter(baseOBB.center);
+  localBox.getSize(baseOBB.halfSize).multiplyScalar(0.5);
+
+  // HITBOX VISUALIZATION
+  if (type === 'barrel') {
+    const sphereGeo = new THREE.WireframeGeometry(new THREE.SphereGeometry(0.5, 8, 8));
+    const sphereMesh = new THREE.LineSegments(sphereGeo, new THREE.LineBasicMaterial({ color: 0xff0000 }));
+    mesh.add(sphereMesh);
+  } else if (type !== 'island') { // Don't draw giant AABB for islands since they use BVH
+    const wireMat = new THREE.LineBasicMaterial({ color: 0xff0000 });
+    const wireGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(baseOBB.halfSize.x * 2, baseOBB.halfSize.y * 2, baseOBB.halfSize.z * 2));
+    const wireMesh = new THREE.LineSegments(wireGeo, wireMat);
+    wireMesh.position.copy(baseOBB.center);
+    mesh.add(wireMesh);
   }
 
-  // ---------------------------------------------------------------------------
-  // ObstacleManager
-  // ---------------------------------------------------------------------------
+  // Now place it at actual position
+  mesh.position.set(pos.x, pos.y !== undefined ? pos.y : 0.5, pos.z);
+  mesh.updateMatrixWorld(true);
+
+  const obb = new OBB();
+  obb.copy(baseOBB).applyMatrix4(mesh.matrixWorld);
+
+  const sphere = type === 'barrel'
+    ? new THREE.Sphere(mesh.position.clone(), 0.5)
+    : null;
+
+  return {
+    type,
+    mesh,
+    baseOBB,
+    obb,
+    sphere,
+    assetUrl:     selectedModel ? selectedModel.url : null,
+    scale:        targetScale,
+    scrollSpeed:  getScrollSpeed(type),
+    active:       true,
+    qteResolved:  false,
+    damage:       getDamage(type),
+    pullForce:    type === 'whirlpool' ? 8.0 : null,
+    particles:    particles,
+  };
+}
+
+function getScrollSpeed(type) {
+  const map = { rock: 8, barrel: 10, wave_small: 12, seaweed: 7, whirlpool: 6, pickup: 10, island: 0 };
+  return map[type] ?? 8;
+}
+
+function getDamage(type) {
+  const map = { rock: 20, barrel: 30, wave_small: 5, seaweed: 0, whirlpool: 10, pickup: 0, island: 50 };
+  return map[type] ?? 10;
+}
+
+// ---------------------------------------------------------------------------
+// ObstacleManager
+// ---------------------------------------------------------------------------
+
+/**
+ * ObstacleManager — spawns, updates, and collides obstacles during the
+ * Obstacle Trial phase.
+ *
+ * Collision strategy:
+ *   - Rectangular obstacles (rocks, waves): Box3.intersectsBox
+ *   - Round obstacles (barrels):            Box3.intersectsSphere
+ *   - Whirlpool:                            pull force applied per-frame, Box3 collision for damage
+ *   - Seaweed:                              Box3 collision → speed debuff, no damage
+ *
+ * Max active obstacles: 30 (per proposal performance target).
+ */
+export class ObstacleManager {
+  constructor() {
+    /** @type {ObstacleDesc[]} */
+    this._obstacles = [];
+    this._scene     = null;
+    this.playRadius = 200;
+  }
+
+  // -------------------------------------------------------------------------
+  // Lifecycle
+  // -------------------------------------------------------------------------
 
   /**
-   * ObstacleManager — spawns, updates, and collides obstacles during the
-   * Obstacle Trial phase.
-   *
-   * Collision strategy:
-   *   - Rectangular obstacles (rocks, waves): Box3.intersectsBox
-   *   - Round obstacles (barrels):            Box3.intersectsSphere
-   *   - Whirlpool:                            pull force applied per-frame, Box3 collision for damage
-   *   - Seaweed:                              Box3 collision → speed debuff, no damage
-   *
-   * Max active obstacles: 30 (per proposal performance target).
+   * @param {object} levelCfg
+   * @param {THREE.Scene} scene
+   * @param {object[]} rockModels
+   * @param {object[]} pickupModels
+   * @param {object[]} seaweedModels
+   * @param {object[]} waveModels
+   * @param {object[]} islandModels
    */
-  export class ObstacleManager {
-    constructor() {
-      /** @type {ObstacleDesc[]} */
-      this._obstacles = [];
-      this._scene = null;
-      this._spawnZ = -40; // Start Z for new obstacles
-      this._despawnZ = 15; // Remove obstacles that scroll past this Z
+  init(levelCfg, scene, rockModels, pickupModels, seaweedModels, waveModels, islandModels) {
+    this._scene = scene;
+    this._rockModels = rockModels;
+    this._pickupModels = pickupModels;
+    this._seaweedModels = seaweedModels;
+    this._waveModels = waveModels;
+    this._islandModels = islandModels;
+    this._obstacles = [];
+    this.playRadius = levelCfg.worldSize || 200;
+    
+    this._spawnAllRandomly(levelCfg.obstacles || []);
+  }
 
-      /** Queued spawn definitions from the level config. */
-      this._spawnQueue = [];
-      this._spawnTimer = 0;
-      this._spawnInterval = 2.5; // seconds between spawns
-      this._scene = null;
-      this.playRadius = 200;
-    }
-
-    // -------------------------------------------------------------------------
-    // Lifecycle
-    // -------------------------------------------------------------------------
-
-    /**
-     * @param {object} levelCfg
-     * @param {THREE.Scene} scene
-     * @param {object[]} rockModels
-     * @param {object[]} pickupModels
-     * @param {object[]} seaweedModels
-     * @param {object[]} waveModels
-     * @param {object[]} islandModels
-     */
-    init(obstacleConfigs, scene, rockModels, pickupModels, seaweedModels, waveModels, qteSystem) {
-      init(levelCfg, scene, rockModels, pickupModels, seaweedModels, waveModels, islandModels) {
-        this._scene = scene;
-        this._rockModels = rockModels;
-        this._pickupModels = pickupModels;
-        this._seaweedModels = seaweedModels;
-        this._waveModels = waveModels;
-        this.qteSystem = qteSystem;
-        this._islandModels = islandModels;
-        this._obstacles = [];
-        this.playRadius = levelCfg.worldSize || 200;
-
-        this._spawnAllRandomly(levelCfg.obstacles || []);
+  /**
+   * Update all obstacles. Call once per frame.
+   * @param {number} delta         Seconds since last frame
+   * @param {import('./PlayerShip.js').PlayerShip} playerShip
+   * @param {import('../environment/WindManager.js').WindManager} windManager
+   */
+  update(delta, playerShip, windManager, voxelTerrain) {
+    if (voxelTerrain && playerShip) {
+      const px = playerShip.mesh.position.x;
+      const pz = playerShip.mesh.position.z;
+      let hit = false;
+      let hitX = px, hitZ = pz;
+      
+      for(let dx=-2; dx<=2; dx++) {
+        for(let dz=-2; dz<=2; dz++) {
+          if (voxelTerrain.hasCollision(px + dx, pz + dz)) {
+            hit = true;
+            hitX = px + dx;
+            hitZ = pz + dz;
+            break;
+          }
+        }
+        if (hit) break;
       }
 
-      /**
-       * Update all obstacles. Call once per frame.
-       * @param {number} delta         Seconds since last frame
-       * @param {import('./PlayerShip.js').PlayerShip} playerShip
-       */
-      update(delta, playerShip) {
-        // Spawn next obstacle
-        this._spawnTimer += delta;
-        if (this._spawnTimer >= this._spawnInterval && this._spawnQueue.length > 0) {
-          this._spawnTimer = 0;
-          this._spawnNext(playerShip);
+      if (hit && !playerShip.isImmune()) {
+         playerShip.takeDamage(50, 'island');
+         playerShip.setImmune(2.0);
+         const dx = px - hitX || (Math.random() - 0.5);
+         const dz = pz - hitZ || (Math.random() - 0.5);
+         const dist = Math.hypot(dx, dz) || 0.001;
+         playerShip.mesh.position.x += (dx / dist) * 3.0;
+         playerShip.mesh.position.z += (dz / dist) * 3.0;
+         playerShip.applyKnockback(new THREE.Vector3((dx / dist) * 40, 0, (dz / dist) * 40));
+         emit('obstacleHit', { type: 'island', damage: 50 });
+         emit('playSound', { sound: 'collision' });
+      }
+    }
+
+    for (const obs of this._obstacles) {
+      if (!obs.active) continue;
+
+      // Only waves move, according to wind direction
+      if (obs.type === 'wave_small' && windManager) {
+        if (!this._tempWind) this._tempWind = new THREE.Vector3();
+        const localWind = windManager.getWindAt(obs.mesh.position.x, obs.mesh.position.z, this._tempWind);
+        obs.mesh.position.x += localWind.x * obs.scrollSpeed * delta;
+        obs.mesh.position.z += localWind.z * obs.scrollSpeed * delta;
+        
+        // Wrap around bounds
+        if (Math.abs(obs.mesh.position.x) > this.playRadius || Math.abs(obs.mesh.position.z) > this.playRadius) {
+          obs.mesh.position.x = -localWind.x * this.playRadius;
+          obs.mesh.position.z = -localWind.z * this.playRadius;
         }
+      }
 
-        // Update existing obstacles
-        const toRemove = [];
-        for (const obs of this._obstacles) {
-          // Scroll toward camera
-          obs.mesh.position.z += obs.scrollSpeed * delta;
+      if (obs.particles) {
+        obs.particles.update(delta);
+      }
 
-          // Update bounding volumes
-          obs.mesh.updateMatrixWorld(true);
-          obs.obb.copy(obs.baseOBB).applyMatrix4(obs.mesh.matrixWorld);
-          if (obs.sphere) obs.sphere.center.copy(obs.mesh.position);
+      // Update bounding volumes
+      obs.mesh.updateMatrixWorld(true);
+      obs.obb.copy(obs.baseOBB).applyMatrix4(obs.mesh.matrixWorld);
+      if (obs.sphere) obs.sphere.center.copy(obs.mesh.position);
 
-          // Check collision
-          if (obs.active) {
-            this._checkCollision(obs, playerShip, delta);
+      // Check collision
+      this._checkCollision(obs, playerShip, delta);
+    }
+  }
+
+  /**
+   * Free all GPU resources. Call on phase exit.
+   */
+  dispose() {
+    for (const obs of this._obstacles) {
+      this._scene?.remove(obs.mesh);
+      // For procedural geometries, we dispose. For groups (rocks), we might need to dispose children's geometries/materials
+      // if not cached. Since models are cached by LevelConfig, we don't dispose their geometries to avoid breaking clones later.
+      if (obs.mesh.geometry) obs.mesh.geometry.dispose();
+    }
+    this._obstacles.length = 0;
+    this._scene = null;
+    this._rockModels = null;
+  }
+
+  // -------------------------------------------------------------------------
+  // Collision resolution
+  // -------------------------------------------------------------------------
+
+  /**
+   * @param {ObstacleDesc} obs
+   * @param {import('./PlayerShip.js').PlayerShip} ship
+   * @param {number} delta
+   */
+  _checkCollision(obs, ship, delta) {
+    // Ignore hazards while immune (pickups can still be collected)
+    if (ship.isImmune() && obs.type !== 'pickup') return;
+
+    // Ignore wind zones for collision
+    if (obs.type === 'wind_zone') return;
+
+    // Whirlpool applies a continuous radial pull
+    if (obs.type === 'whirlpool') {
+      const dx = obs.mesh.position.x - ship.mesh.position.x;
+      const dz = obs.mesh.position.z - ship.mesh.position.z;
+      const dist = Math.hypot(dx, dz) || 0.001;
+      const pullRadius = 12.0 * obs.scale;
+
+      if (dist < pullRadius) {
+        // Stronger pull as you get closer to the center
+        const pullSpeed = obs.pullForce * Math.max(0.2, (1.0 - (dist / pullRadius))); 
+        
+        const dirX = dx / dist;
+        const dirZ = dz / dist;
+        
+        // Radial pull
+        ship.mesh.position.x += dirX * pullSpeed * delta;
+        ship.mesh.position.z += dirZ * pullSpeed * delta;
+        
+        // Tangential spiral pull
+        ship.mesh.position.x += -dirZ * pullSpeed * 0.6 * delta;
+        ship.mesh.position.z += dirX * pullSpeed * 0.6 * delta;
+
+        // Take continuous water damage at the center
+        if (dist < 2.5 * obs.scale) {
+          if (typeof ship.takeWaterDamage === 'function') {
+            ship.takeWaterDamage(obs.damage * delta);
           }
+        }
+      }
+      return;
+    }
 
-          // Despawn off-screen
-          if (obs.mesh.position.z > this._despawnZ) {
-            toRemove.push(obs);
-            /**
-             * Update all obstacles. Call once per frame.
-             * @param {number} delta         Seconds since last frame
-             * @param {import('./PlayerShip.js').PlayerShip} playerShip
-             * @param {import('../environment/WindManager.js').WindManager} windManager
-             */
-            update(delta, playerShip, windManager) {
-              for (const obs of this._obstacles) {
-                if (!obs.active) continue;
+    // Seaweed — speed debuff zone, no damage
+    if (obs.type === 'seaweed') {
+      if (ship.obb.intersectsOBB(obs.obb)) {
+        ship.applySpeedModifier(0.5, 3);
+        obs.active = false; // fire once
+      }
+      return;
+    }
 
-                // Only waves move, according to wind direction
-                if (obs.type === 'wave_small' && windManager) {
-                  const localWind = windManager.getWindAt(obs.mesh.position.x, obs.mesh.position.z);
-                  obs.mesh.position.x += localWind.x * obs.scrollSpeed * delta;
-                  obs.mesh.position.z += localWind.z * obs.scrollSpeed * delta;
+    // Pickup — heals the ship
+    if (obs.type === 'pickup') {
+      if (ship.obb.intersectsOBB(obs.obb)) {
+        obs.active = false;
+        if (typeof ship.healDamage === 'function') {
+          ship.healDamage(1);
+        }
+        emit('playSound', { sound: 'success' }); // positive feedback
+        obs.mesh.position.z = this._despawnZ + 1; // remove next frame
+      }
+      return;
+    }
 
-                  // Wrap around bounds
-                  if (Math.abs(obs.mesh.position.x) > this.playRadius || Math.abs(obs.mesh.position.z) > this.playRadius) {
-                    obs.mesh.position.x = -localWind.x * this.playRadius;
-                    obs.mesh.position.z = -localWind.z * this.playRadius;
-                  }
-                }
+    // Barrel — sphere collision; skip if QTE resolved
+    if (obs.type === 'barrel') {
+      if (obs.qteResolved) { obs.active = false; return; }
+      if (ship.obb.intersectsSphere(obs.sphere)) {
+        this._resolveHit(obs, ship);
+      }
+      return;
+    }
 
-                if (obs.particles) {
-                  obs.particles.update(delta);
-                }
+    // Default OBB collision (rock, wave_small)
+    if (ship.obb.intersectsOBB(obs.obb)) {
+      if (obs.type === 'island') {
+        // Narrowphase Mesh BVH
+        const shipBox = new THREE.Box3().setFromObject(ship.mesh);
+        let meshHit = false;
+        const invMat = new THREE.Matrix4();
+        obs.mesh.traverse(child => {
+          if (meshHit || !child.isMesh || !child.geometry.boundsTree) return;
+          invMat.copy(child.matrixWorld).invert();
+          if (child.geometry.boundsTree.intersectsBox(shipBox, invMat)) {
+            meshHit = true;
+          }
+        });
+        if (meshHit) {
+          this._resolveHit(obs, ship);
+        }
+      } else {
+        this._resolveHit(obs, ship);
+      }
+    }
+  }
 
-                // Update bounding volumes
-                obs.mesh.updateMatrixWorld(true);
-                obs.obb.copy(obs.baseOBB).applyMatrix4(obs.mesh.matrixWorld);
-                if (obs.sphere) obs.sphere.center.copy(obs.mesh.position);
+  /**
+   * Handle a confirmed collision hit.
+   * @param {ObstacleDesc} obs
+   * @param {import('./PlayerShip.js').PlayerShip} ship
+   */
+  _resolveHit(obs, ship) {
+    if (obs.type !== 'rock' && obs.type !== 'island') {
+      obs.active = false;
+      obs.mesh.visible = false;
+    }
 
-                // Check collision
-                this._checkCollision(obs, playerShip, delta);
-              }
-            }
+    ship.takeDamage(obs.damage, obs.type);
+    ship.setImmune(2.0); // 2 seconds of immunity after getting hit
 
-            /**
-             * Free all GPU resources. Call on phase exit.
-             */
-            dispose() {
-              for (const obs of this._obstacles) {
-                this._scene?.remove(obs.mesh);
-                // For procedural geometries, we dispose. For groups (rocks), we might need to dispose children's geometries/materials
-                // if not cached. Since models are cached by LevelConfig, we don't dispose their geometries to avoid breaking clones later.
-                if (obs.mesh.geometry) obs.mesh.geometry.dispose();
-              }
-              this._obstacles.length = 0;
-              this._scene = null;
-              this._rockModels = null;
-            }
+    const dx = ship.mesh.position.x - obs.mesh.position.x;
+    const dz = ship.mesh.position.z - obs.mesh.position.z;
+    ship.bounceBack(dx, dz, obs.type);
 
-            // -------------------------------------------------------------------------
-            // Collision resolution
-            // -------------------------------------------------------------------------
+    if (obs.type === 'rock' || obs.type === 'island') {
+      // Act as a static obstacle: push the ship away so it doesn't pass through
+      const dx = ship.mesh.position.x - obs.mesh.position.x;
+      const dz = ship.mesh.position.z - obs.mesh.position.z;
+      const dist = Math.hypot(dx, dz);
+      if (dist > 0.001) {
+        // Immediate static resolve to avoid sticking
+        ship.mesh.position.x += (dx / dist) * 2.5;
+        ship.mesh.position.z += (dz / dist) * 2.5;
+        
+        // Pinball knockback velocity
+        ship.applyKnockback(new THREE.Vector3((dx / dist) * 40, 0, (dz / dist) * 40));
+      }
+    }
 
-            /**
-             * @param {ObstacleDesc} obs
-             * @param {import('./PlayerShip.js').PlayerShip} ship
-             * @param {number} delta
-             */
-            _checkCollision(obs, ship, delta) {
-              // Ignore hazards while immune (pickups can still be collected)
-              if (ship.isImmune() && obs.type !== 'pickup') return;
+    emit('obstacleHit', { type: obs.type, damage: obs.damage });
+    emit('playSound', { sound: 'collision' });
+  }
 
-              // Ignore wind zones for collision
-              if (obs.type === 'wind_zone') return;
+  // -------------------------------------------------------------------------
+  // Spawning
+  // -------------------------------------------------------------------------
 
-              // Whirlpool applies a continuous radial pull
-              if (obs.type === 'whirlpool') {
-                const dx = obs.mesh.position.x - ship.mesh.position.x;
-                const dz = obs.mesh.position.z - ship.mesh.position.z;
-                const dist = Math.hypot(dx, dz) || 0.001;
-                const pullRadius = 12.0 * obs.scale;
+  _spawnAllRandomly(configs) {
+    // Determine counts per type and collect explicit positions
+    const counts = { pickup: 10 }; // always sprinkle some random pickups
+    const explicitSpawns = [];
 
-                if (dist < pullRadius) {
-                  // Stronger pull as you get closer to the center
-                  const pullSpeed = obs.pullForce * Math.max(0.2, (1.0 - (dist / pullRadius)));
+    for (const cfg of configs) {
+      if (cfg.position) {
+        // Explicitly placed obstacle
+        explicitSpawns.push(cfg);
+      } else {
+        // Randomly placed obstacle
+        const count = cfg.count ?? 3;
+        counts[cfg.type] = (counts[cfg.type] || 0) + count * 5; // Multiply by 5 for a larger 2D area
+      }
+    }
+    
+    // Spawn explicit obstacles first
+    for (const cfg of explicitSpawns) {
+      const obs = buildObstacle(
+        cfg.type,
+        { x: cfg.position.x, y: cfg.position.y, z: cfg.position.z },
+        cfg.assetUrl,
+        cfg.scale || 1.0,
+        this._rockModels,
+        this._pickupModels,
+        this._seaweedModels,
+        this._waveModels,
+        this._islandModels
+      );
+      this._scene.add(obs.mesh);
+      this._obstacles.push(obs);
+    }
 
-                  const dirX = dx / dist;
-                  const dirZ = dz / dist;
+    // Spawn random obstacles
+    for (const [type, count] of Object.entries(counts)) {
+      for (let i = 0; i < count; i++) {
+        // Random position within radius (avoiding the immediate center r<30)
+        let r = 30 + Math.random() * (this.playRadius - 30);
+        let theta = Math.random() * Math.PI * 2;
+        let px = Math.cos(theta) * r;
+        let pz = Math.sin(theta) * r;
 
-                  // Radial pull
-                  ship.mesh.position.x += dirX * pullSpeed * delta;
-                  ship.mesh.position.z += dirZ * pullSpeed * delta;
-
-                  // Tangential spiral pull
-                  ship.mesh.position.x += -dirZ * pullSpeed * 0.6 * delta;
-                  ship.mesh.position.z += dirX * pullSpeed * 0.6 * delta;
-
-                  // Take continuous water damage at the center
-                  if (dist < 2.5 * obs.scale) {
-                    if (typeof ship.takeWaterDamage === 'function') {
-                      ship.takeWaterDamage(obs.damage * delta);
-                    }
-                  }
-                }
-                return;
-              }
-
-              // Seaweed — speed debuff zone, no damage
-              if (obs.type === 'seaweed') {
-                if (ship.obb.intersectsOBB(obs.obb)) {
-                  ship.applySpeedModifier(0.5, 3);
-                  obs.active = false; // fire once
-                }
-                return;
-              }
-
-              // Pickup — heals the ship
-              if (obs.type === 'pickup') {
-                if (ship.obb.intersectsOBB(obs.obb)) {
-                  obs.active = false;
-                  if (typeof ship.healDamage === 'function') {
-                    ship.healDamage(1);
-                  }
-                }
-
-                // Remove despawned obstacles
-                for (const obs of toRemove) {
-                  this._remove(obs);
-                }
-              }
-
-              /**
-               * Free all GPU resources. Call on phase exit.
-               */
-              dispose() {
-                for (const obs of this._obstacles) {
-                  this._scene?.remove(obs.mesh);
-                  // For procedural geometries, we dispose. For groups (rocks), we might need to dispose children's geometries/materials
-                  // if not cached. Since models are cached by LevelConfig, we don't dispose their geometries to avoid breaking clones later.
-                  if (obs.mesh.geometry) obs.mesh.geometry.dispose();
-                }
-                this._obstacles.length = 0;
-                this._scene = null;
-                this._rockModels = null;
-              }
-
-              // -------------------------------------------------------------------------
-              // Collision resolution
-              // -------------------------------------------------------------------------
-
-              /**
-               * @param {ObstacleDesc} obs
-               * @param {import('./PlayerShip.js').PlayerShip} ship
-               * @param {number} delta
-               */
-              _checkCollision(obs, ship, delta) {
-                // Whirlpool applies a continuous lateral pull
-                if (obs.type === 'whirlpool') {
-                  const hit = ship.obb.intersectsOBB(obs.obb);
-                  if (hit) {
-                    const sign = obs.mesh.position.x < ship.mesh.position.x ? -1 : 1;
-                    ship.mesh.position.x += sign * obs.pullForce * delta;
-                    ship.takeDamage(obs.damage * delta, obs.type); // continuous trickle damage
-                  }
-                  return;
-                }
-
-                // Seaweed — speed debuff zone, no damage
-                if (obs.type === 'seaweed') {
-                  if (ship.obb.intersectsOBB(obs.obb)) {
-                    ship.applySpeedModifier(0.5, 3);
-                    obs.active = false; // fire once
-                  }
-                  return;
-                }
-
-                // Pickup — heals the ship
-                if (obs.type === 'pickup') {
-                  if (ship.obb.intersectsOBB(obs.obb)) {
-                    obs.active = false;
-                    if (typeof ship.healDamage === 'function') {
-                      ship.healDamage(1);
-                    }
-                    emit('playSound', { sound: 'success' }); // positive feedback
-                    obs.mesh.position.z = this._despawnZ + 1; // remove next frame
-                  }
-                  return;
-                }
-
-                // Barrel — sphere collision; skip if QTE resolved
-                if (obs.type === 'barrel') {
-                  if (obs.qteResolved) { obs.active = false; return; }
-                  if (ship.obb.intersectsSphere(obs.sphere)) {
-                    this._resolveHit(obs, ship);
-                  }
-                  return;
-                }
-
-                // Default OBB collision (rock, wave_small)
-                if (ship.obb.intersectsOBB(obs.obb)) {
-                  this._resolveHit(obs, ship);
-                }
-              }
-
-              /**
-               * Handle a confirmed collision hit.
-               * @param {ObstacleDesc} obs
-               * @param {import('./PlayerShip.js').PlayerShip} ship
-               */
-              _resolveHit(obs, ship) {
-                obs.active = false;
-
-                ship.takeDamage(obs.damage, obs.type);
-
-                // Bounce ship away from the obstacle centre
-                const dir = ship.mesh.position.x >= obs.mesh.position.x ? 1 : -1;
-                ship.bounceBack(dir);
-
-                emit('obstacleHit', { type: obs.type, damage: obs.damage });
-                emit('playSound', { sound: 'collision' });
-
-                // Spawn visual feedback for the collision
-                emit('spawnParticles', { type: 'splash', position: obs.mesh.position.clone() });
-                if (obs.type === 'rock' || obs.type === 'barrel') {
-                  emit('spawnParticles', { type: 'explosion', position: obs.mesh.position.clone() });
-                }
-
-                // Visually remove on next frame — flag it; the update loop will despawn
-                obs.mesh.position.z = this._despawnZ + 1;
-              }
-
-              // -------------------------------------------------------------------------
-              // Spawning
-              // -------------------------------------------------------------------------
-
-              _spawnNext(playerShip) {
-                if (this._obstacles.length >= 30) return; // performance cap
-
-                // Check if we should inject a pickup spawn
-                if (playerShip && playerShip.numLeaks > 0) {
-                  this._obstaclesSinceLastPickup++;
-                  if (this._obstaclesSinceLastPickup >= 4) {
-                    this._obstaclesSinceLastPickup = 0;
-                    const lanes = [-4, -2, 0, 2, 4];
-                    const laneX = lanes[Math.floor(Math.random() * lanes.length)];
-                    const obs = buildObstacle('pickup', { x: laneX, z: this._spawnZ }, null, this._pickupModels, null, null);
-                    this._scene.add(obs.mesh);
-                    this._obstacles.push(obs);
-                    return; // We used this interval to spawn a pickup instead
-                  }
-                } else {
-                  this._obstaclesSinceLastPickup = 0;
-                }
-
-                const def = this._spawnQueue.shift();
-                if (!def) return;
-
-                const obs = buildObstacle(def.type, { x: def.laneX, z: this._spawnZ }, this._rockModels, this._pickupModels, this._seaweedModels, this._waveModels);
-                this._scene.add(obs.mesh);
-                this._obstacles.push(obs);
-
-                if (obs.type === 'barrel' && this.qteSystem) {
-                  this.qteSystem.trigger({
-                    type: 'SHOOT',
-                    windowMs: 2000,
-                    onSuccess: () => {
-                      obs.qteResolved = true;
-                      emit('playSound', { sound: 'explosion' });
-                      emit('spawnParticles', { type: 'explosion', position: obs.mesh.position });
-                      this._remove(obs);
-                    }
-                  });
-                }
-              }
-
-              _remove(obs) {
-                this._scene?.remove(obs.mesh);
-                if (obs.mesh.geometry) obs.mesh.geometry.dispose();
-                const i = this._obstacles.indexOf(obs);
-                if (i !== -1) this._obstacles.splice(i, 1);
-              }
-
-              /**
-               * Convert level config obstacle array into a flat spawn queue.
-               * @param {object[]} configs
-               * @returns {Array<{type:string, laneX:number}>}
-               */
-              _buildSpawnQueue(configs) {
-                const lanes = [-4, -2, 0, 2, 4]; // 5 lanes on X axis
-                const queue = [];
-
-                for (const cfg of configs) {
-                  const count = cfg.count ?? 3;
-                  for (let i = 0; i < count; i++) {
-                    let laneX;
-                    if (cfg.lanePattern === 'alternating') {
-                      laneX = lanes[i % lanes.length];
-                    } else {
-                      laneX = lanes[Math.floor(Math.random() * lanes.length)];
-                    }
-                    queue.push({ type: cfg.type, laneX });
-                  }
-                }
-
-                // Shuffle to avoid all of one type spawning consecutively
-                for (let i = queue.length - 1; i > 0; i--) {
-                  const j = Math.floor(Math.random() * (i + 1));
-                  [queue[i], queue[j]] = [queue[j], queue[i]];
-                }
-
-                return queue;
-                // Default OBB collision (rock, wave_small)
-                if (ship.obb.intersectsOBB(obs.obb)) {
-                  if (obs.type === 'island') {
-                    // Narrowphase Mesh BVH
-                    const shipBox = new THREE.Box3().setFromObject(ship.mesh);
-                    let meshHit = false;
-                    const invMat = new THREE.Matrix4();
-                    obs.mesh.traverse(child => {
-                      if (meshHit || !child.isMesh || !child.geometry.boundsTree) return;
-                      invMat.copy(child.matrixWorld).invert();
-                      if (child.geometry.boundsTree.intersectsBox(shipBox, invMat)) {
-                        meshHit = true;
-                      }
-                    });
-                    if (meshHit) {
-                      this._resolveHit(obs, ship);
-                    }
-                  } else {
-                    this._resolveHit(obs, ship);
-                  }
-                }
-              }
-
-              /**
-               * Handle a confirmed collision hit.
-               * @param {ObstacleDesc} obs
-               * @param {import('./PlayerShip.js').PlayerShip} ship
-               */
-              _resolveHit(obs, ship) {
-                if (obs.type !== 'rock' && obs.type !== 'island') {
-                  obs.active = false;
-                  obs.mesh.visible = false;
-                }
-
-                ship.takeDamage(obs.damage, obs.type);
-                ship.setImmune(2.0); // 2 seconds of immunity after getting hit
-
-                const dx = ship.mesh.position.x - obs.mesh.position.x;
-                const dz = ship.mesh.position.z - obs.mesh.position.z;
-                ship.bounceBack(dx, dz, obs.type);
-
-                if (obs.type === 'rock' || obs.type === 'island') {
-                  // Act as a static obstacle: push the ship away so it doesn't pass through
-                  const dx = ship.mesh.position.x - obs.mesh.position.x;
-                  const dz = ship.mesh.position.z - obs.mesh.position.z;
-                  const dist = Math.hypot(dx, dz);
-                  if (dist > 0.001) {
-                    // Immediate static resolve to avoid sticking
-                    ship.mesh.position.x += (dx / dist) * 2.5;
-                    ship.mesh.position.z += (dz / dist) * 2.5;
-
-                    // Pinball knockback velocity
-                    ship.applyKnockback(new THREE.Vector3((dx / dist) * 40, 0, (dz / dist) * 40));
-                  }
-                }
-
-                emit('obstacleHit', { type: obs.type, damage: obs.damage });
-                emit('playSound', { sound: 'collision' });
-              }
-
-              // -------------------------------------------------------------------------
-              // Spawning
-              // -------------------------------------------------------------------------
-
-              _spawnAllRandomly(configs) {
-                // Determine counts per type and collect explicit positions
-                const counts = { pickup: 10 }; // always sprinkle some random pickups
-                const explicitSpawns = [];
-
-                for (const cfg of configs) {
-                  if (cfg.position) {
-                    // Explicitly placed obstacle
-                    explicitSpawns.push(cfg);
-                  } else {
-                    // Randomly placed obstacle
-                    const count = cfg.count ?? 3;
-                    counts[cfg.type] = (counts[cfg.type] || 0) + count * 5; // Multiply by 5 for a larger 2D area
-                  }
-                }
-
-                // Spawn explicit obstacles first
-                for (const cfg of explicitSpawns) {
-                  const obs = buildObstacle(
-                    cfg.type,
-                    { x: cfg.position.x, y: cfg.position.y, z: cfg.position.z },
-                    cfg.assetUrl,
-                    cfg.scale || 1.0,
-                    this._rockModels,
-                    this._pickupModels,
-                    this._seaweedModels,
-                    this._waveModels,
-                    this._islandModels
-                  );
-                  this._scene.add(obs.mesh);
-                  this._obstacles.push(obs);
-                }
-
-                // Spawn random obstacles
-                for (const [type, count] of Object.entries(counts)) {
-                  for (let i = 0; i < count; i++) {
-                    // Random position within radius (avoiding the immediate center r<30)
-                    let r = 30 + Math.random() * (this.playRadius - 30);
-                    let theta = Math.random() * Math.PI * 2;
-                    let px = Math.cos(theta) * r;
-                    let pz = Math.sin(theta) * r;
-
-                    const obs = buildObstacle(
-                      type,
-                      { x: px, y: 0.5, z: pz },
-                      null, // Random url
-                      1.0,  // Default scale for random spawns
-                      this._rockModels,
-                      this._pickupModels,
-                      this._seaweedModels,
-                      this._waveModels,
-                      this._islandModels
-                    );
-                    this._scene.add(obs.mesh);
-                    this._obstacles.push(obs);
-                  }
-                }
-              }
+        const obs = buildObstacle(
+          type,
+          { x: px, y: 0.5, z: pz },
+          null, // Random url
+          1.0,  // Default scale for random spawns
+          this._rockModels,
+          this._pickupModels,
+          this._seaweedModels,
+          this._waveModels,
+          this._islandModels
+        );
+        this._scene.add(obs.mesh);
+        this._obstacles.push(obs);
+      }
+    }
+  }
+}

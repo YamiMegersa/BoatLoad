@@ -836,3 +836,417 @@ body {
 #btn-editor-export:hover {
   background: #45a049;
 }
+
+/* =========================================================================
+   Pirate-Themed Main Menu UI
+   ========================================================================= */
+
+.main-menu-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 95;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(12, 22, 34, 0.15) 0%, rgba(5, 10, 16, 0.65) 75%, rgba(2, 4, 8, 0.88) 100%);
+  animation: menuFadeIn 0.6s ease-out;
+  overflow: hidden;
+}
+
+@keyframes menuFadeIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes seaBob {
+  0% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-7px) rotate(0.4deg); }
+  100% { transform: translateY(0px) rotate(0deg); }
+}
+
+@keyframes crestShine {
+  0%, 100% { filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.35)); }
+  50% { filter: drop-shadow(0 0 22px rgba(255, 225, 80, 0.75)); }
+}
+
+.main-menu-plaque {
+  position: relative;
+  width: 540px;
+  max-width: 92vw;
+  padding: 40px 45px 32px;
+  background: linear-gradient(180deg, rgba(32, 20, 14, 0.94) 0%, rgba(20, 12, 8, 0.97) 100%);
+  border: 3px solid #c59b27;
+  border-radius: 16px;
+  box-shadow: 
+    0 0 0 2px #3c1e0b,
+    0 20px 50px rgba(0, 0, 0, 0.85),
+    inset 0 0 40px rgba(0, 0, 0, 0.8),
+    0 0 30px rgba(197, 155, 39, 0.25);
+  pointer-events: auto;
+  text-align: center;
+  animation: seaBob 7s ease-in-out infinite;
+  backdrop-filter: blur(10px);
+}
+
+/* Wood grain plank lines */
+.main-menu-plaque::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 13px;
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 42px,
+    rgba(0, 0, 0, 0.35) 43px,
+    rgba(255, 255, 255, 0.03) 44px
+  );
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+/* Ornate brass corner brackets */
+.plaque-corner {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  pointer-events: none;
+}
+.plaque-corner.top-left {
+  top: 8px; left: 8px;
+  border-top: 3px solid #e5a729;
+  border-left: 3px solid #e5a729;
+}
+.plaque-corner.top-right {
+  top: 8px; right: 8px;
+  border-top: 3px solid #e5a729;
+  border-right: 3px solid #e5a729;
+}
+.plaque-corner.bottom-left {
+  bottom: 8px; left: 8px;
+  border-bottom: 3px solid #e5a729;
+  border-left: 3px solid #e5a729;
+}
+.plaque-corner.bottom-right {
+  bottom: 8px; right: 8px;
+  border-bottom: 3px solid #e5a729;
+  border-right: 3px solid #e5a729;
+}
+
+/* Brass Rivets */
+.rivet {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: radial-gradient(circle at 35% 35%, #ffe680, #c59b27 60%, #4a3008);
+  border-radius: 50%;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.8), inset 0 0 1px rgba(0,0,0,0.8);
+}
+.rivet.tl { top: 18px; left: 18px; }
+.rivet.tr { top: 18px; right: 18px; }
+.rivet.bl { bottom: 18px; left: 18px; }
+.rivet.br { bottom: 18px; right: 18px; }
+
+/* Crest Header */
+.main-menu-crest {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 6px;
+  animation: crestShine 4s ease-in-out infinite;
+}
+
+.main-menu-crest svg {
+  width: 84px;
+  height: 84px;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.7));
+}
+
+/* Title Styling */
+.main-menu-title {
+  margin: 0;
+  font-family: 'Pirata One', cursive, serif;
+  font-size: 80px;
+  line-height: 0.95;
+  letter-spacing: 5px;
+  text-transform: uppercase;
+  background: linear-gradient(180deg, #fff9dc 0%, #ffd043 32%, #e59a18 64%, #874e04 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 4px 0 #2a1302) drop-shadow(0 8px 16px rgba(0, 0, 0, 0.9));
+  user-select: none;
+}
+
+/* Subtitle ribbon */
+.main-menu-ribbon {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin: 10px 0 22px 0;
+  padding: 5px 24px;
+  background: linear-gradient(90deg, transparent, rgba(90, 20, 20, 0.8) 25%, rgba(90, 20, 20, 0.8) 75%, transparent);
+  border-top: 1px solid rgba(212, 175, 55, 0.5);
+  border-bottom: 1px solid rgba(212, 175, 55, 0.5);
+}
+
+.main-menu-subtitle {
+  font-family: 'IM Fell English', serif;
+  font-size: 18px;
+  font-style: italic;
+  letter-spacing: 3px;
+  color: #fae6b8;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
+  user-select: none;
+}
+
+.ribbon-icon {
+  color: #ffd700;
+  font-size: 14px;
+}
+
+/* Button Container */
+.main-menu-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  margin-top: 6px;
+}
+
+/* Pirate Menu Buttons */
+.pirate-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  padding: 13px 20px;
+  background: linear-gradient(180deg, #382416 0%, #20130a 100%);
+  color: #fce7ba;
+  font-family: 'Cinzel', serif;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  border: 2px solid #947125;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 235, 170, 0.2);
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.2, 0, 0, 1);
+  overflow: hidden;
+  user-select: none;
+}
+
+.pirate-btn::before {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%;
+  width: 100%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 230, 140, 0.25), transparent);
+  transition: all 0.5s ease;
+}
+
+.pirate-btn:hover {
+  background: linear-gradient(180deg, #4a301c 0%, #2e1b0f 100%);
+  border-color: #ffd700;
+  color: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.8), 0 0 14px rgba(255, 215, 0, 0.35);
+}
+
+.pirate-btn:hover::before {
+  left: 100%;
+}
+
+.pirate-btn:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.pirate-btn-icon {
+  font-size: 18px;
+  color: #ffd700;
+  display: inline-block;
+  transition: transform 0.25s ease;
+}
+
+.pirate-btn:hover .pirate-btn-icon {
+  transform: scale(1.2) rotate(-8deg);
+}
+
+/* Primary "SET SAIL" Button */
+.pirate-btn.primary {
+  padding: 16px 24px;
+  font-size: 19px;
+  letter-spacing: 3px;
+  background: linear-gradient(180deg, #842314 0%, #4a0f07 100%);
+  border: 2px solid #ffcc33;
+  color: #fff9e6;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.7), 0 0 20px rgba(230, 60, 30, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+}
+
+.pirate-btn.primary:hover {
+  background: linear-gradient(180deg, #a42c19 0%, #611309 100%);
+  border-color: #ffe680;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.85), 0 0 28px rgba(255, 200, 50, 0.6), inset 0 0 10px rgba(255, 230, 100, 0.3);
+  transform: translateY(-3px) scale(1.02);
+}
+
+/* Secondary Button Grid */
+.menu-btn-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+/* Utility Footer */
+.main-menu-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 22px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(197, 155, 39, 0.3);
+  font-family: 'Cinzel', serif;
+  font-size: 12px;
+  color: #a89476;
+}
+
+.menu-util-btn {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid #5a4022;
+  color: #d1b88e;
+  padding: 5px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+  transition: all 0.2s;
+}
+
+.menu-util-btn:hover {
+  background: #3c2415;
+  border-color: #ffd700;
+  color: #fff;
+}
+
+.menu-version {
+  font-size: 10px;
+  letter-spacing: 1px;
+  opacity: 0.7;
+}
+
+/* Codex Modal */
+.codex-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  animation: menuFadeIn 0.3s ease-out;
+  backdrop-filter: blur(6px);
+}
+
+.codex-scroll {
+  position: relative;
+  width: 620px;
+  max-width: 90vw;
+  max-height: 85vh;
+  background: #eeddbb;
+  background-image: 
+    radial-gradient(circle at 50% 50%, rgba(255,255,255,0.45) 0%, rgba(0,0,0,0.12) 100%),
+    repeating-linear-gradient(0deg, transparent, transparent 28px, rgba(160, 120, 80, 0.12) 29px);
+  color: #2b180d;
+  padding: 35px 42px;
+  border-radius: 10px;
+  box-shadow: 0 15px 45px rgba(0, 0, 0, 0.95), inset 0 0 50px rgba(130, 90, 50, 0.45);
+  border: 10px solid #3c2010;
+  outline: 2px solid #c59b27;
+  overflow-y: auto;
+  font-family: 'IM Fell English', serif;
+}
+
+.codex-header {
+  text-align: center;
+  border-bottom: 2px solid #7c4824;
+  padding-bottom: 12px;
+  margin-bottom: 18px;
+}
+
+.codex-header h2 {
+  font-family: 'Pirata One', cursive;
+  font-size: 44px;
+  margin: 0;
+  color: #4a1f0a;
+  letter-spacing: 3px;
+}
+
+.codex-header p {
+  margin: 4px 0 0;
+  font-style: italic;
+  font-size: 16px;
+  color: #63361a;
+}
+
+.codex-section {
+  margin-bottom: 18px;
+}
+
+.codex-section h3 {
+  font-family: 'Cinzel', serif;
+  font-size: 18px;
+  color: #602509;
+  margin: 0 0 6px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px dashed rgba(120, 70, 30, 0.4);
+  padding-bottom: 4px;
+}
+
+.codex-section p, .codex-section ul {
+  font-size: 15px;
+  line-height: 1.5;
+  margin: 4px 0;
+}
+
+.codex-section ul {
+  padding-left: 20px;
+}
+
+.codex-key {
+  display: inline-block;
+  padding: 1px 7px;
+  background: #3c2010;
+  color: #fce7ba;
+  font-family: monospace;
+  font-weight: bold;
+  font-size: 12px;
+  border-radius: 3px;
+  box-shadow: 0 2px 0 #1e0e06;
+}
+
+.codex-close-btn {
+  display: block;
+  width: 100%;
+  margin-top: 24px;
+  padding: 12px;
+  background: #5a2512;
+  color: #f7e6c4;
+  border: 2px solid #8e441f;
+  border-radius: 6px;
+  font-family: 'Cinzel', serif;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.codex-close-btn:hover {
+  background: #7a3219;
+  border-color: #ffd700;
+  color: #fff;
+}

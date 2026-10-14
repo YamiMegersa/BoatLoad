@@ -62,8 +62,9 @@ export class EditorUI {
     `;
 
     this._el.innerHTML = `
-      <div class="editor-header">
-        <h3>Level Editor</h3>
+      <div class="editor-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="margin: 0;">Level Editor</h3>
+        <button id="btn-editor-toggle" style="background: none; border: none; color: white; cursor: pointer; font-size: 16px;">◀</button>
       </div>
       
       <div class="editor-tools">
@@ -90,12 +91,97 @@ export class EditorUI {
         <button class="editor-btn tool-btn tool-active" data-tool="select">Cursor / Move</button>
         <button class="editor-btn tool-btn" data-tool="delete">🗑️ Delete (Click)</button>
         
+        <h4>Terraforming (Voxels)</h4>
+        <button class="editor-btn tool-btn" data-tool="terrain_raise">⛰️ Raise Terrain</button>
+        <button class="editor-btn tool-btn" data-tool="terrain_lower">⛏️ Lower Terrain</button>
+        
         <h4>World Settings</h4>
         <div style="margin-bottom: 10px; color: white; font-size: 14px;">
           <label style="display:flex; justify-content:space-between;">
             World Radius: <span id="world-size-val">${worldSize}</span>
           </label>
           <input type="range" id="world-size-slider" min="50" max="1000" step="10" value="${worldSize}" style="width:100%; margin-top: 5px;">
+        </div>
+        
+        <div style="margin-bottom: 10px; color: white; font-size: 14px;">
+          <label style="display:flex; justify-content:space-between; align-items:center;">
+            Global Wind Dir: 
+            <div style="display:flex; align-items:center;">
+              <span id="wind-dir-val" style="margin-right: 8px;">${levelCfg.globalWindDir || 0}°</span>
+              <svg id="wind-dir-arrow" width="16" height="16" viewBox="0 0 24 24" style="transform: rotate(${levelCfg.globalWindDir || 0}deg); transition: transform 0.1s;">
+                <path fill="currentColor" d="M12 2L15 8H13V22H11V8H9L12 2Z"/>
+              </svg>
+            </div>
+          </label>
+          <input type="range" id="wind-dir-slider" min="0" max="360" step="1" value="${levelCfg.globalWindDir || 0}" style="width:100%; margin-top: 5px;">
+        </div>
+
+        <div style="margin-bottom: 10px; color: white; font-size: 14px;">
+          <label style="display:flex; justify-content:space-between;">
+            Fog Density: <span id="fog-density-val">${levelCfg.fogDensity !== undefined ? levelCfg.fogDensity : 0.006}</span>
+          </label>
+          <input type="range" id="fog-density-slider" min="0" max="0.1" step="0.001" value="${levelCfg.fogDensity !== undefined ? levelCfg.fogDensity : 0.006}" style="width:100%; margin-top: 5px;">
+        </div>
+        
+        <div style="margin-bottom: 10px; color: white; font-size: 14px;">
+          <label style="display:flex; justify-content:space-between;">
+            Time of Day: <span id="time-val">${levelCfg.timeOfDay !== undefined ? levelCfg.timeOfDay.toFixed(1) : "8.0"}</span>
+          </label>
+          <input type="range" id="time-slider" min="0" max="24" step="0.1" value="${levelCfg.timeOfDay !== undefined ? levelCfg.timeOfDay : 8.0}" style="width:100%; margin-top: 5px;">
+        </div>
+
+        <div style="margin-bottom: 10px; color: white; font-size: 14px;">
+          <label style="display:flex; align-items:center;">
+            <input type="checkbox" id="storm-check" ${levelCfg.isStormy ? 'checked' : ''} style="margin-right: 8px;">
+            Stormy Weather
+          </label>
+        </div>
+
+        <h4>Paper Shader Tweaks</h4>
+        <div style="margin-bottom: 10px; color: white; font-size: 14px;">
+          <label style="display:flex; align-items:center;">
+            <input type="checkbox" id="paper-shader-check" checked style="margin-right: 8px;">
+            Enable Paper Shader
+          </label>
+        </div>
+        <div style="margin-bottom: 10px; color: white; font-size: 14px;">
+          <label style="display:flex; justify-content:space-between;">
+            Shading Style: 
+            <select id="paper-style-select" style="background:#222; color:white; border:1px solid #555;">
+              <option value="0">Hatching</option>
+              <option value="1">Kuwahara (Painterly)</option>
+            </select>
+          </label>
+        </div>
+        <div style="margin-bottom: 10px; color: white; font-size: 14px;">
+          <label style="display:flex; justify-content:space-between;">
+            Hatch Scale: <span id="paper-hatch-val">10.0</span>
+          </label>
+          <input type="range" id="paper-hatch-slider" min="1" max="50" step="0.5" value="10.0" style="width:100%; margin-top: 5px;">
+        </div>
+        <div style="margin-bottom: 10px; color: white; font-size: 14px;">
+          <label style="display:flex; justify-content:space-between;">
+            Kuwahara Radius: <span id="paper-kuwahara-val">3</span>
+          </label>
+          <input type="range" id="paper-kuwahara-slider" min="1" max="5" step="1" value="3" style="width:100%; margin-top: 5px;">
+        </div>
+        <div style="margin-bottom: 10px; color: white; font-size: 14px;">
+          <label style="display:flex; justify-content:space-between;">
+            Color Preservation: <span id="paper-color-val">0.40</span>
+          </label>
+          <input type="range" id="paper-color-slider" min="0" max="1" step="0.01" value="0.40" style="width:100%; margin-top: 5px;">
+        </div>
+        <div style="margin-bottom: 10px; color: white; font-size: 14px;">
+          <label style="display:flex; justify-content:space-between;">
+            Edge Threshold: <span id="paper-edge-val">0.30</span>
+          </label>
+          <input type="range" id="paper-edge-slider" min="0" max="1" step="0.01" value="0.30" style="width:100%; margin-top: 5px;">
+        </div>
+        <div style="margin-bottom: 10px; color: white; font-size: 14px;">
+          <label style="display:flex; justify-content:space-between;">
+            Wobble Intensity: <span id="paper-wobble-val">0.0005</span>
+          </label>
+          <input type="range" id="paper-wobble-slider" min="0" max="0.01" step="0.0001" value="0.0005" style="width:100%; margin-top: 5px;">
         </div>
       </div>
 
@@ -146,6 +232,132 @@ export class EditorUI {
         const val = parseInt(e.target.value, 10);
         sizeVal.innerText = val;
         emit('editorSetWorldSize', { size: val });
+      };
+    }
+
+    // Handle Wind Dir
+    const windSlider = this._el.querySelector('#wind-dir-slider');
+    const windVal = this._el.querySelector('#wind-dir-val');
+    const windArrow = this._el.querySelector('#wind-dir-arrow');
+    if (windSlider) {
+      windSlider.oninput = (e) => {
+        const val = parseInt(e.target.value, 10);
+        windVal.innerText = val + '°';
+        if (windArrow) {
+          windArrow.style.transform = `rotate(${val}deg)`;
+        }
+        emit('editorSetWindDir', { dir: val });
+      };
+    }
+
+    // Handle Fog Density
+    const fogSlider = this._el.querySelector('#fog-density-slider');
+    const fogVal = this._el.querySelector('#fog-density-val');
+    if (fogSlider) {
+      fogSlider.oninput = (e) => {
+        const val = parseFloat(e.target.value);
+        fogVal.innerText = val.toFixed(3);
+        emit('editorSetFogDensity', { density: val });
+      };
+    }
+
+    // Handle Time of Day
+    const timeSlider = this._el.querySelector('#time-slider');
+    const timeVal = this._el.querySelector('#time-val');
+    if (timeSlider) {
+      timeSlider.oninput = (e) => {
+        const val = parseFloat(e.target.value);
+        timeVal.innerText = val.toFixed(1);
+        emit('editorSetTimeOfDay', { time: val });
+      };
+    }
+
+    // Handle Storm Checkbox
+    const stormCheck = this._el.querySelector('#storm-check');
+    if (stormCheck) {
+      stormCheck.onchange = (e) => {
+        emit('editorSetStormy', { isStormy: e.target.checked });
+      };
+    }
+
+    // Handle Paper Shader Tweaks
+    const paperCheck = this._el.querySelector('#paper-shader-check');
+    if (paperCheck) {
+      paperCheck.onchange = (e) => {
+        emit('editorTogglePaperShader', { enabled: e.target.checked });
+      };
+    }
+
+    const styleSelect = this._el.querySelector('#paper-style-select');
+    if (styleSelect) {
+      styleSelect.onchange = (e) => {
+        emit('editorSetPaperStyle', { style: parseInt(e.target.value, 10) });
+      };
+    }
+
+    const hatchSlider = this._el.querySelector('#paper-hatch-slider');
+    const hatchVal = this._el.querySelector('#paper-hatch-val');
+    if (hatchSlider) {
+      hatchSlider.oninput = (e) => {
+        const val = parseFloat(e.target.value);
+        hatchVal.innerText = val.toFixed(1);
+        emit('editorSetHatchScale', { scale: val });
+      };
+    }
+
+    const kuwaharaSlider = this._el.querySelector('#paper-kuwahara-slider');
+    const kuwaharaVal = this._el.querySelector('#paper-kuwahara-val');
+    if (kuwaharaSlider) {
+      kuwaharaSlider.oninput = (e) => {
+        const val = parseInt(e.target.value, 10);
+        kuwaharaVal.innerText = val;
+        emit('editorSetKuwaharaRadius', { radius: val });
+      };
+    }
+
+    const colorSlider = this._el.querySelector('#paper-color-slider');
+    const colorVal = this._el.querySelector('#paper-color-val');
+    if (colorSlider) {
+      colorSlider.oninput = (e) => {
+        const val = parseFloat(e.target.value);
+        colorVal.innerText = val.toFixed(2);
+        emit('editorSetPaperColor', { amount: val });
+      };
+    }
+
+    const edgeSlider = this._el.querySelector('#paper-edge-slider');
+    const edgeVal = this._el.querySelector('#paper-edge-val');
+    if (edgeSlider) {
+      edgeSlider.oninput = (e) => {
+        const val = parseFloat(e.target.value);
+        edgeVal.innerText = val.toFixed(2);
+        emit('editorSetPaperEdge', { threshold: val });
+      };
+    }
+
+    const wobbleSlider = this._el.querySelector('#paper-wobble-slider');
+    const wobbleVal = this._el.querySelector('#paper-wobble-val');
+    if (wobbleSlider) {
+      wobbleSlider.oninput = (e) => {
+        const val = parseFloat(e.target.value);
+        wobbleVal.innerText = val.toFixed(4);
+        emit('editorSetPaperWobble', { intensity: val });
+      };
+    }
+
+    const toggleBtn = this._el.querySelector('#btn-editor-toggle');
+    if (toggleBtn) {
+      toggleBtn.onclick = () => {
+        const isCollapsed = this._el.style.width === '40px';
+        if (!isCollapsed) {
+          this._el.style.width = '40px';
+          toggleBtn.innerText = '▶';
+          this._el.querySelectorAll('.editor-tools, .editor-footer, .editor-header h3').forEach(el => el.style.display = 'none');
+        } else {
+          this._el.style.width = '250px';
+          toggleBtn.innerText = '◀';
+          this._el.querySelectorAll('.editor-tools, .editor-footer, .editor-header h3').forEach(el => el.style.display = '');
+        }
       };
     }
 

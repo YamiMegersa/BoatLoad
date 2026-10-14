@@ -125,7 +125,7 @@ export class FogVolume {
       depthWrite: false, // Don't occlude other transparent objects badly
       uniforms: {
         uTime: { value: 0 },
-        uWindDirection: { value: new THREE.Vector3(0, 0, -1) },
+        uDisplacement: { value: new THREE.Vector3() },
         uShipPos: { value: new THREE.Vector3() },
         uColor: { value: new THREE.Color(0x99aacc) },
         uDensity: { value: 1.0 }
@@ -141,7 +141,7 @@ export class FogVolume {
       fragmentShader: `
         varying vec3 vWorldPosition;
         uniform float uTime;
-        uniform vec3 uWindDirection;
+        uniform vec3 uDisplacement;
         uniform vec3 uShipPos;
         uniform vec3 uColor;
         uniform float uDensity;
@@ -150,7 +150,7 @@ export class FogVolume {
         
         void main() {
           // World coordinates offset by wind over time
-          vec3 noisePos = vWorldPosition * 0.01 + uWindDirection * uTime * 0.2;
+          vec3 noisePos = vWorldPosition * 0.01 + uDisplacement;
           
           // Generate 3D noise
           float n = snoise(noisePos) * 0.5 + 0.5;
@@ -184,8 +184,15 @@ export class FogVolume {
   update(delta, shipPosition, windDir) {
     this._time += delta;
     if (this.mesh) {
+      if (!this._displacement) this._displacement = new THREE.Vector3();
+      this._displacement.addScaledVector(windDir, delta * 0.2);
+
       this.mesh.material.uniforms.uTime.value = this._time;
-      this.mesh.material.uniforms.uWindDirection.value.copy(windDir);
+      
+      if (!this.mesh.material.uniforms.uDisplacement) {
+        this.mesh.material.uniforms.uDisplacement = { value: new THREE.Vector3() };
+      }
+      this.mesh.material.uniforms.uDisplacement.value.copy(this._displacement);
       
       if (shipPosition) {
         this.mesh.material.uniforms.uShipPos.value.copy(shipPosition);
