@@ -66,7 +66,8 @@ paperFilter.resize(window.innerWidth, window.innerHeight);
 // ---------------------------------------------------------------------------
 
 let isPaused = false;
-let paperShaderEnabled = true;
+let paperShaderEnabled = false;
+let userPaperStyle = 0;
 
 const gameState = new GameState(scene, camera, renderer);
 gameState._ambient = ambient;
@@ -143,7 +144,15 @@ function tick() {
   const activeCam = gameState.activeCamera || camera;
   godRays._camera = activeCam;
 
-  if (paperShaderEnabled) {
+  const isMainMenu = gameState.currentPhase === GamePhase.MAIN_MENU;
+  const usePaperShader = isMainMenu || paperShaderEnabled;
+
+  if (usePaperShader) {
+    if (isMainMenu) {
+      paperFilter.setStyle(1); // Kuwahara (Painterly) permanently on for Main Menu
+    } else {
+      paperFilter.setStyle(userPaperStyle);
+    }
     godRays.render(sun, mainRT);
     paperFilter.render(mainRT);
   } else {
@@ -273,7 +282,10 @@ async function boot() {
 
     // Wire up Paper Shader sliders
     on('editorTogglePaperShader', d => paperShaderEnabled = d.enabled);
-    on('editorSetPaperStyle', d => paperFilter.setStyle(d.style));
+    on('editorSetPaperStyle', d => {
+      userPaperStyle = d.style;
+      paperFilter.setStyle(d.style);
+    });
     on('editorSetHatchScale', d => paperFilter.setHatchScale(d.scale));
     on('editorSetKuwaharaRadius', d => paperFilter.setKuwaharaRadius(d.radius));
     on('editorSetPaperColor', d => paperFilter.setColorPreservation(d.amount));

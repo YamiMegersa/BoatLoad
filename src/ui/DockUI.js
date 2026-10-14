@@ -22,10 +22,10 @@ export class DockUI {
 
     this.root = document.createElement('div');
     this.root.className = 'dock-ui';
-    this.root.style.cssText = 'position:absolute; top:10px; left:50%; transform:translateX(-50%); display:flex; flex-direction: column; gap:10px; z-index:90; pointer-events: none;';
+    this.root.style.cssText = 'position:absolute; top:10px; left:50%; transform:translateX(-50%); display:flex; flex-direction: column; gap:10px; z-index:90; pointer-events: none !important;';
 
     const dayButtons = document.createElement('div');
-    dayButtons.style.cssText = 'display:flex; gap:10px; pointer-events: auto; justify-content: center;';
+    dayButtons.style.cssText = 'display:flex; gap:10px; pointer-events: auto !important; justify-content: center;';
     for (let i = 1; i <= 7; i++) {
       const btn = document.createElement('button');
       btn.innerText = `Day ${i}`;
@@ -47,42 +47,35 @@ export class DockUI {
 
     const camBtn = document.createElement('button');
     camBtn.innerText = 'Toggle Shopkeeper View';
-    camBtn.style.cssText = 'pointer-events: auto; padding:10px; cursor:pointer; background:rgba(0,0,0,0.7); color:white; border:none; border-radius:5px; font-family:sans-serif; align-self: center;';
-    let isShopCam = false;
-    camBtn.onclick = () => {
-      isShopCam = !isShopCam;
-      if (isShopCam) {
-        this.gameState.activeCamera = null;
-        this.dockStall.group.updateMatrixWorld(true);
-        const pos = new THREE.Vector3();
-        const quat = new THREE.Quaternion();
-        const scale = new THREE.Vector3();
-        this.dockStall.shopCam.matrixWorld.decompose(pos, quat, scale);
-
-        this.gameState._camera.position.copy(pos);
-        this.gameState._camera.quaternion.copy(quat);
-
-        if (this.gameState._dockOrbitControls) {
-          const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(quat);
-          this.gameState._dockOrbitControls.target.copy(pos).add(forward.multiplyScalar(0.01));
-          this.gameState._dockOrbitControls.enableZoom = false;
-          this.gameState._dockOrbitControls.enablePan = false;
-          this.gameState._dockOrbitControls.update();
-        }
+    camBtn.style.cssText = 'pointer-events: auto !important; padding:10px; cursor:pointer; background:rgba(0,0,0,0.7); color:white; border:none; border-radius:5px; font-family:sans-serif; align-self: center; transition: background 0.2s;';
+    
+    const updateBtnText = (mode) => {
+      if (mode === 'shop') {
+        camBtn.innerText = 'Toggle World View (Outside)';
+        camBtn.style.background = 'rgba(70, 50, 30, 0.9)';
       } else {
+        camBtn.innerText = 'Toggle Shopkeeper View';
+        camBtn.style.background = 'rgba(0, 0, 0, 0.7)';
+      }
+    };
+
+    camBtn.onclick = () => {
+      if (this.gameState._dockPlayerController) {
+        this.gameState._dockPlayerController.toggleShop();
+        updateBtnText(this.gameState._dockPlayerController.mode);
+      } else {
+        // Fallback if player controller not loaded
         this.gameState.activeCamera = null;
-        // reset main camera
         this.gameState._camera.position.set(0, 5, 20);
         this.gameState._camera.lookAt(0, 2, 0);
-        if (this.gameState._dockOrbitControls) {
-          this.gameState._dockOrbitControls.target.set(0, 2, 0);
-          this.gameState._dockOrbitControls.enableZoom = true;
-          this.gameState._dockOrbitControls.enablePan = true;
-          this.gameState._dockOrbitControls.update();
-        }
       }
     };
     this.root.appendChild(camBtn);
+
+    this._onModeChange = ({ mode }) => {
+      updateBtnText(mode);
+    };
+    on('dockPlayerModeChanged', this._onModeChange);
 
     const uiRoot = document.getElementById('ui-root');
     if (uiRoot) {
@@ -93,6 +86,10 @@ export class DockUI {
   }
 
   unmount() {
+    if (this._onModeChange) {
+      off('dockPlayerModeChanged', this._onModeChange);
+      this._onModeChange = null;
+    }
     if (this.root && this.root.parentNode) {
       this.root.parentNode.removeChild(this.root);
     }

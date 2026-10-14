@@ -19,6 +19,7 @@ import { VoxelTerrain }   from '../editor/VoxelTerrain.js';
 import { WindManager }        from '../environment/WindManager.js';
 import { Sky }                from '../environment/Sky.js';
 import { DockStall }          from '../environment/DockStall.js';
+import { DockPlayerController } from '../environment/DockPlayerController.js';
 import { WeatherSystem }      from '../environment/WeatherSystem.js';
 import { emit, on, off, clear } from './EventBus.js';
 
@@ -177,7 +178,8 @@ export class GameState {
     switch (this.currentPhase) {
       case GamePhase.DOCK:
         if (this._dockStall) this._dockStall.update(delta, this._time);
-        if (this._dockOrbitControls) this._dockOrbitControls.update();
+        if (this._dockPlayerController) this._dockPlayerController.update(delta);
+        if (this._dockOrbitControls && this._dockOrbitControls.enabled) this._dockOrbitControls.update();
         break;
 
       case GamePhase.SHIPYARD:
@@ -298,17 +300,33 @@ export class GameState {
       scene: this._scene
     });
 
-    emit('uiMount', { screen: 'dock', dockStall: this._dockStall, gameState: this });
+    // Moveable Player Camera
+    this._dockPlayerController = new DockPlayerController(this._scene, this._camera, this._renderer.domElement, this._dockStall);
+    this.activeCamera = this._dockPlayerController.camera;
+
+    // Dev orbit controls (kept available for development purposes)
+    this._dockOrbitControls = new OrbitControls(this._camera, this._renderer.domElement);
+    this._dockOrbitControls.enableDamping = true;
+    this._dockOrbitControls.target.set(0, 2, 0);
+    this._dockOrbitControls.enabled = false;
+
+    emit('uiMount', { screen: 'dock', dockStall: this._dockStall, gameState: this, dockPlayerController: this._dockPlayerController });
   }
 
   _exitDock() {
     this._scene.remove(this._dockStall.group);
     this._ocean.breakwaterEnabled = false;
 
+    if (this._dockPlayerController) {
+      this._dockPlayerController.dispose();
+      this._dockPlayerController = null;
+    }
+
     if (this._dockOrbitControls) {
       this._dockOrbitControls.dispose();
       this._dockOrbitControls = null;
     }
+    this.activeCamera = null;
     emit('uiUnmount', { screen: 'dock' });
   }
 
