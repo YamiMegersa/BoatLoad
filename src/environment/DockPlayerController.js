@@ -31,6 +31,8 @@ export class DockPlayerController {
     this.yawObject.add(this.pitchObject);
     this.scene.add(this.yawObject);
 
+    this.playerRadius = 0.45;
+
     // Movement state
     this.keys = {
       forward: false,
@@ -332,6 +334,43 @@ export class DockPlayerController {
     this._updateInteractionRaycast();
   }
 
+  _resolveObstacleCollisions(pos) {
+    const r = this.playerRadius;
+    const obstacles = [
+      // Main shop building and front counter
+      { minX: -1.05, maxX: 5.25, minZ: 1.10, maxZ: 6.65 },
+      // Crates stacked beside shop on the dock
+      { minX: -2.1, maxX: -1.2, minZ: 2.1, maxZ: 3.1 }
+    ];
+
+    for (let i = 0; i < obstacles.length; i++) {
+      const box = obstacles[i];
+      if (
+        pos.x > box.minX - r &&
+        pos.x < box.maxX + r &&
+        pos.z > box.minZ - r &&
+        pos.z < box.maxZ + r
+      ) {
+        const dLeft   = pos.x - (box.minX - r);
+        const dRight  = (box.maxX + r) - pos.x;
+        const dFront  = pos.z - (box.minZ - r);
+        const dBack   = (box.maxZ + r) - pos.z;
+
+        const minD = Math.min(dLeft, dRight, dFront, dBack);
+
+        if (minD === dLeft) {
+          pos.x = box.minX - r;
+        } else if (minD === dRight) {
+          pos.x = box.maxX + r;
+        } else if (minD === dFront) {
+          pos.z = box.minZ - r;
+        } else {
+          pos.z = box.maxZ + r;
+        }
+      }
+    }
+  }
+
   _updatePlayerMovement(delta) {
     const moveDir = new THREE.Vector3();
 
@@ -349,28 +388,38 @@ export class DockPlayerController {
       moveDir.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yawObject.rotation.y);
 
       // Candidate position
-      const candidateX = this.yawObject.position.x + moveDir.x;
-      const candidateZ = this.yawObject.position.z + moveDir.z;
+      const candidate = new THREE.Vector3(
+        this.yawObject.position.x + moveDir.x,
+        this.yawObject.position.y,
+        this.yawObject.position.z + moveDir.z
+      );
+
+      // Resolve obstacle collisions against shop walls, door, and counter
+      this._resolveObstacleCollisions(candidate);
 
       // Ground raycast check to ensure player stays on solid land / dock
-      const groundHit = this._getGroundHeightAt(candidateX, candidateZ);
+      const groundHit = this._getGroundHeightAt(candidate.x, candidate.z);
       if (groundHit !== null) {
-        this.yawObject.position.x = candidateX;
-        this.yawObject.position.z = candidateZ;
+        this.yawObject.position.x = candidate.x;
+        this.yawObject.position.z = candidate.z;
         // Smooth vertical ground alignment
         const targetY = groundHit + this.eyeHeight;
         this.yawObject.position.y += (targetY - this.yawObject.position.y) * Math.min(1.0, delta * 14.0);
       } else {
         // Fallback: test sliding along X
-        const slideXHit = this._getGroundHeightAt(candidateX, this.yawObject.position.z);
+        const candX = new THREE.Vector3(candidate.x, this.yawObject.position.y, this.yawObject.position.z);
+        this._resolveObstacleCollisions(candX);
+        const slideXHit = this._getGroundHeightAt(candX.x, this.yawObject.position.z);
         if (slideXHit !== null) {
-          this.yawObject.position.x = candidateX;
+          this.yawObject.position.x = candX.x;
           this.yawObject.position.y += (slideXHit + this.eyeHeight - this.yawObject.position.y) * Math.min(1.0, delta * 14.0);
         } else {
           // Slide along Z
-          const slideZHit = this._getGroundHeightAt(this.yawObject.position.x, candidateZ);
+          const candZ = new THREE.Vector3(this.yawObject.position.x, this.yawObject.position.y, candidate.z);
+          this._resolveObstacleCollisions(candZ);
+          const slideZHit = this._getGroundHeightAt(this.yawObject.position.x, candZ.z);
           if (slideZHit !== null) {
-            this.yawObject.position.z = candidateZ;
+            this.yawObject.position.z = candZ.z;
             this.yawObject.position.y += (slideZHit + this.eyeHeight - this.yawObject.position.y) * Math.min(1.0, delta * 14.0);
           }
         }
@@ -390,7 +439,7 @@ export class DockPlayerController {
       return 2.15; // default dock level
     }
 
-    const rayOrigin = new THREE.Vector3(x, 8.0, z);
+    const rayOrigin = new THREE.Vector3(x, 10.0, z);
     this.downRaycaster.set(rayOrigin, new THREE.Vector3(0, -1, 0));
 
     // Intersect terrain and dock objects
@@ -404,6 +453,18 @@ export class DockPlayerController {
 
       // Make sure the hit object isn't the door or ceiling
       if (hit.object && hit.object.userData && hit.object.userData.isShopDoor) continue;
+
+      // Exclude any part of the shop stall (counter, floor, desk, apron, roof)
+      let parent = hit.object;
+      let isShopPart = false;
+      while (parent) {
+        if (parent === this.dockStall.shopGroup) {
+          isShopPart = true;
+          break;
+        }
+        parent = parent.parent;
+      }
+      if (isShopPart) continue;
 
       return hit.point.y;
     }
