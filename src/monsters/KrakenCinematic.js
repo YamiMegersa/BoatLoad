@@ -66,24 +66,54 @@ export class KrakenCinematic {
     // Approximate current look target from camera direction
     const dir = new THREE.Vector3();
     camera.getWorldDirection(dir);
-    this._savedCamTarget.copy(camera.position).addScaledVector(dir, 20);
+    this._savedCamTarget.copy(camera.position).addScaledVector(dir, 30);
 
     if (krakenMesh) {
       this._originalKrakenPos.copy(krakenMesh.position);
     }
 
-    // Build fly-to Bezier: player → lift up → arc → close-up on kraken
+    // Dynamic flight calculation:
+    // Relative vector and distance between player camera and Kraken
+    const toKraken = new THREE.Vector3().subVectors(krakenPos, fromPos);
+    const totalDist = toKraken.length();
+    const travelDir = toKraken.clone().normalize();
+
+    // Direction from Kraken back towards camera approach angle
+    const fromKrakenDir = travelDir.clone().negate();
+    fromKrakenDir.y = 0;
+    if (fromKrakenDir.lengthSq() < 0.001) fromKrakenDir.set(0, 0, 1);
+    else fromKrakenDir.normalize();
+
+    // Framing close-up position in front of Kraken (elevated for good view)
     const P0 = fromPos.clone();
-    const P1 = fromPos.clone().add(new THREE.Vector3(0, 15, 0));
-    const P2 = krakenPos.clone().add(new THREE.Vector3(0, 20, 30));
-    const P3 = krakenPos.clone().add(new THREE.Vector3(0, 8, 15));
+    const P3 = krakenPos.clone()
+      .addScaledVector(fromKrakenDir, 22)
+      .add(new THREE.Vector3(0, 7, 0));
+
+    // Smooth tangent control points
+    const liftY = Math.min(22, Math.max(10, totalDist * 0.15));
+    const forwardStep = Math.min(totalDist * 0.35, 35);
+
+    // P1: Smoothly carries camera forward and upward along initial trajectory
+    const P1 = P0.clone()
+      .addScaledVector(travelDir, forwardStep)
+      .add(new THREE.Vector3(0, liftY, 0));
+
+    // P2: Deceleration arc approaching framing position in front of Kraken
+    const P2 = P3.clone()
+      .addScaledVector(fromKrakenDir, Math.min(totalDist * 0.3, 25))
+      .add(new THREE.Vector3(0, liftY * 0.75, 0));
 
     this._curve = new THREE.CubicBezierCurve3(P0, P1, P2, P3);
 
-    // Build return Bezier: kraken close-up → back to saved camera position
+    // Return curve: mirror the smooth flight path back to player camera
     const R0 = P3.clone();
-    const R1 = P3.clone().add(new THREE.Vector3(0, 10, 5));
-    const R2 = this._savedCamPos.clone().add(new THREE.Vector3(0, 8, 0));
+    const R1 = P3.clone()
+      .addScaledVector(fromKrakenDir, 25)
+      .add(new THREE.Vector3(0, liftY * 0.6, 0));
+    const R2 = this._savedCamPos.clone()
+      .addScaledVector(fromKrakenDir, -forwardStep * 0.6)
+      .add(new THREE.Vector3(0, liftY * 0.5, 0));
     const R3 = this._savedCamPos.clone();
 
     this._returnCurve = new THREE.CubicBezierCurve3(R0, R1, R2, R3);
@@ -121,7 +151,14 @@ export class KrakenCinematic {
 
     const pos = this._curve.getPoint(eased);
     this._camera.position.copy(pos);
-    this._camera.lookAt(this._krakenPos);
+
+    // Smoothly transition look-at target from player's view towards Kraken (no sudden snap!)
+    const lookTarget = new THREE.Vector3().lerpVectors(
+      this._savedCamTarget,
+      this._krakenPos,
+      eased
+    );
+    this._camera.lookAt(lookTarget);
 
     if (t >= 1.0) {
       this._phase = 'hold';
@@ -209,11 +246,12 @@ export class KrakenCinematic {
   }
 
   /**
-   * Smoothstep ease in/out.
+   * Smootherstep ease (Ken Perlin): 6t^5 - 15t^4 + 10t^3.
+   * Continuous 1st and 2nd derivatives ensure zero jerk and silky smooth acceleration/deceleration.
    * @param {number} t  0–1
    * @returns {number}
    */
   _easeInOut(t) {
-    return t * t * (3 - 2 * t);
+    return t * t * t * (t * (t * 6 - 15) + 10);
   }
 }
