@@ -4,6 +4,8 @@ import { LevelConfig }          from './core/LevelConfig.js';
 import { on }                   from './core/EventBus.js';
 import { BuildMenu }            from './ui/BuildMenu.js';
 import { DocketSheet }          from './ui/DocketSheet.js';
+import { DockUI }               from './ui/DockUI.js';
+import { MainMenuUI }           from './ui/MainMenuUI.js';
 import { DamageSystem }         from './shipyard/DamageSystem.js';
 import { GodRays }              from './environment/GodRays.js';
 import { PaperFilter }          from './environment/PaperFilter.js';
@@ -29,10 +31,10 @@ camera.position.set(0, 10, 30);
 // Lighting
 // ---------------------------------------------------------------------------
 
-const ambient = new THREE.AmbientLight(0xf3e3b4, 0.6);
+const ambient = new THREE.HemisphereLight(0xffffff, 0xffffff, 1.0);
 scene.add(ambient);
 
-const sun = new THREE.DirectionalLight(0xfff5e0, 1.2);
+const sun = new THREE.DirectionalLight(0xffffff, 1.0);
 sun.position.set(10, 20, 10);
 sun.castShadow = true;
 scene.add(sun);
@@ -64,6 +66,12 @@ paperFilter.resize(window.innerWidth, window.innerHeight);
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
+
+  if (gameState.activeCamera && gameState.activeCamera !== camera) {
+    gameState.activeCamera.aspect = window.innerWidth / window.innerHeight;
+    gameState.activeCamera.updateProjectionMatrix();
+  }
+
   renderer.setSize(window.innerWidth, window.innerHeight);
   godRays.resize(window.innerWidth, window.innerHeight);
   mainRT.setSize(window.innerWidth, window.innerHeight);
@@ -76,8 +84,12 @@ window.addEventListener('resize', () => {
 
 const clock      = new THREE.Clock();
 const gameState  = new GameState(scene, camera, renderer);
+gameState._ambient = ambient;
+gameState._sun     = sun;
 const buildMenu  = new BuildMenu();
 const docket     = new DocketSheet();
+const dockUI     = new DockUI();
+const mainMenuUI = new MainMenuUI();
 
 let paperShaderEnabled = true;
 
@@ -108,7 +120,9 @@ function tick(now) {
 
   const delta = Math.min(clock.getDelta(), 0.05); // cap at 50ms to avoid spiral of death
   gameState.update(delta);
-  
+  const activeCam = gameState.activeCamera || camera;
+  godRays._camera = activeCam;
+
   if (paperShaderEnabled) {
     godRays.render(sun, mainRT);
     paperFilter.render(mainRT);
@@ -131,7 +145,9 @@ demoUI.style.cssText = `
 `;
 demoUI.innerHTML = `
   <h3 style="margin-bottom: 10px; font-family: sans-serif;">BoatLoad Demo</h3>
-  <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+  <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px;">
+    <button id="btn-main-menu" style="flex:1; padding: 8px; cursor: pointer; background: #9A5B2E; color: white; border: 1px solid #4a2a10;">Menu</button>
+    <button id="btn-dock" style="flex:1; padding: 8px; cursor: pointer;">Dock</button>
     <button id="btn-shipyard" style="flex:1; padding: 8px; cursor: pointer;">Shipyard</button>
     <button id="btn-obstacle" style="flex:1; padding: 8px; cursor: pointer;">Sailing</button>
     <button id="btn-editor" style="flex:1; padding: 8px; cursor: pointer; background: #474b6b; color: white; border: 1px solid #556;">Editor</button>
@@ -171,6 +187,14 @@ async function boot() {
     }
 
     // Wire buttons
+    document.getElementById('btn-main-menu').onclick = () => {
+      logEvent('Transitioning to Main Menu...');
+      gameState.transition(GamePhase.MAIN_MENU);
+    };
+    document.getElementById('btn-dock').onclick = () => {
+      logEvent('Transitioning to Dock...');
+      gameState.transition(GamePhase.DOCK, { levelCfg });
+    };
     document.getElementById('btn-shipyard').onclick = () => {
       logEvent('Transitioning to Shipyard...');
       gameState.transition(GamePhase.SHIPYARD, { shipDef, levelCfg, fishModels });
@@ -232,8 +256,36 @@ async function boot() {
     on('editorSetPaperEdge', d => paperFilter.setEdgeThreshold(d.threshold));
     on('editorSetPaperWobble', d => paperFilter.setWobbleIntensity(d.intensity));
 
-    // Start at Shipyard for Day 1
-    await gameState.transition(GamePhase.SHIPYARD, { shipDef, levelCfg, fishModels });
+    on('requestPhaseChange', ({ phase }) => {
+      if (phase === GamePhase.MAIN_MENU) {
+        logEvent('Main Menu requested...');
+        gameState.transition(GamePhase.MAIN_MENU);
+      } else if (phase === GamePhase.DOCK) {
+        logEvent('Setting Sail -> Arriving at Dock...');
+        gameState.transition(GamePhase.DOCK, { levelCfg });
+      } else if (phase === GamePhase.SHIPYARD) {
+        logEvent('Entering Shipyard...');
+        gameState.transition(GamePhase.SHIPYARD, { shipDef, levelCfg, fishModels });
+      } else if (phase === GamePhase.OBSTACLE) {
+        logEvent('Setting Sail -> Heading to High Seas...');
+        let hp = 100;
+        if (gameState._grid) {
+          hp = DamageSystem.getSummary(gameState._grid).integrityPct;
+        }
+        gameState.transition(GamePhase.OBSTACLE, { 
+          shipDef, 
+          levelCfg, 
+          shipStats: { hullHP: hp }, 
+          rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels 
+        });
+      } else if (phase === GamePhase.EDITOR) {
+        logEvent('Opening Map Maker / Level Editor...');
+        gameState.transition(GamePhase.EDITOR, { levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels });
+      }
+    });
+
+    // Start at Main Menu
+    await gameState.transition(GamePhase.MAIN_MENU, { shipDef, levelCfg, fishModels });
 
     tick();
   } catch (err) {
