@@ -658,12 +658,14 @@ export class GameState {
 
       // 4. Move camera smoothly towards the spring-loaded target
       // The spring logic in P3 provides the curved sweep and overshoot.
-      this._camera.position.lerp(P3, 5.0 * delta);
+      if (!this.directorModeActive) {
+        this._camera.position.lerp(P3, 5.0 * delta);
 
-      // 6. Look Target (delayed)
-      // Lerp look target so it sweeps across the hull slightly
-      this._camLookTarget.lerp(p, 8.0 * delta);
-      this._camera.lookAt(this._camLookTarget);
+        // 6. Look Target (delayed)
+        // Lerp look target so it sweeps across the hull slightly
+        this._camLookTarget.lerp(p, 8.0 * delta);
+        this._camera.lookAt(this._camLookTarget);
+      }
       
       // Update Minimap
       this._minimap?.update(

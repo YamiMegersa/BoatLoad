@@ -23,6 +23,7 @@ export class PauseMenu {
       <h1 style="font-family: serif; color: #f3e3b4; font-size: 3rem; margin-bottom: 2rem;">Paused</h1>
       <div style="display: flex; flex-direction: column; gap: 1rem; width: 250px;">
         <button id="btn-resume" class="pause-btn">Resume</button>
+        <button id="btn-director" class="pause-btn" style="background: rgba(13, 23, 38, 0.9); border-color: #d4af37; color: #ffe082;">🎬 Director Mode (F8)</button>
         <button id="btn-restart" class="pause-btn">Restart Phase</button>
         <button id="btn-shipyard" class="pause-btn">Back to Shipyard</button>
         <button id="btn-title" class="pause-btn" style="background: #a33; border-color: #f55;">Quit to Title</button>
@@ -31,6 +32,12 @@ export class PauseMenu {
 
     this._el.querySelector('#btn-resume').addEventListener('click', () => {
       emit('resumeGame');
+    });
+    this._el.querySelector('#btn-director').addEventListener('click', () => {
+      emit('resumeGame');
+      if (window.directorMode) {
+        window.directorMode.activate();
+      }
     });
     this._el.querySelector('#btn-restart').addEventListener('click', () => {
       emit('resumeGame');
