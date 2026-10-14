@@ -171,11 +171,10 @@ export class ShipBuilder {
       const targetState = stateMap[entry.state] ?? CellState.DAMAGED;
       for (const [cx, cy, cz] of entry.cells) {
         if (grid.inBounds(cx, cy, cz)) {
-          // If we voxelized from a GLB, only damage cells that actually exist.
-          // If using the fallback, the bounds apply universally.
-          if (grid.getState(cx, cy, cz) === CellState.INTACT) {
-            grid.setState(cx, cy, cz, targetState);
-          }
+          grid.setState(cx, cy, cz, targetState);
+          console.log(`[DEBUG _applyDamage] Applied ${targetState} at ${cx},${cy},${cz} (zone: ${entry.zone})`);
+        } else {
+          console.log(`[DEBUG _applyDamage] OOB ${cx},${cy},${cz} (zone: ${entry.zone})`);
         }
       }
     }

@@ -13,7 +13,6 @@ import { FishAnimator }       from '../environment/FishAnimator.js';
 import { Ocean }              from '../environment/Ocean.js';
 import { QTESystem }      from '../obstacle/QTESystem.js';
 import { Minimap }        from '../ui/Minimap.js';
-import { HUD }            from '../ui/HUD.js';
 import { EditorUI }       from '../ui/EditorUI.js';
 import { EditorSystem }   from '../editor/EditorSystem.js';
 import { VoxelTerrain }   from '../editor/VoxelTerrain.js';
@@ -22,6 +21,7 @@ import { Sky }                from '../environment/Sky.js';
 import { DockStall }          from '../environment/DockStall.js';
 import { DockPlayerController } from '../environment/DockPlayerController.js';
 import { WeatherSystem }      from '../environment/WeatherSystem.js';
+import { SirenManager }       from '../environment/SirenManager.js';
 import { emit, on, off, clear } from './EventBus.js';
 
 // ---------------------------------------------------------------------------
@@ -90,10 +90,13 @@ export class GameState {
     this._environmentManager = null;
     this._qteSystem       = null;
     this._minimap         = new Minimap();
-    this._hud             = new HUD();
+    this.score            = 0;
+    this._onScoreAdded    = (d) => { this.score += (d.points || 0); };
+    on('scoreAdded', this._onScoreAdded);
     this._editorUI        = new EditorUI();
     this._editorSystem    = null;
     this._windManager     = null;
+    this._sirenManager    = null;
     this._time            = 0;
     this._sky             = new Sky();
     this._sky.init(this._scene);
@@ -453,11 +456,8 @@ export class GameState {
 
     // Sync renderer on dirty events
     on('gridDirty', () => {
-      if (this._windManager) {
-        const localWind = this._windManager.getWindAt(this._playerShip.mesh.position.x, this._playerShip.mesh.position.z);
-        
-        document.getElementById('ui-hud-wind-dir').textContent = 
-          `Wind: ${localWind.x.toFixed(1)}, ${localWind.z.toFixed(1)}`;
+      if (this._grid && this._chunkRenderer) {
+        this._chunkRenderer.sync(this._grid);
       }
     });
 
@@ -581,15 +581,19 @@ export class GameState {
       this._voxelTerrain.deserialize(levelCfg.voxels);
     }
 
-    this._playerShip = new PlayerShip(shipStats ?? {}, this._scene, this._chunkRenderer, this._grid);
+    const qteTuning = { ...(levelCfg?.qte ?? {}) };
+    if (levelCfg?.tutorialPrompts) qteTuning.windowScale = (qteTuning.windowScale ?? 1) * 1.25;
+    this._qteSystem = new QTESystem(qteTuning, levelCfg?.rewardAbilities);
+
+    this._playerShip = new PlayerShip(shipStats ?? {}, this._scene, this._chunkRenderer, this._grid, this._qteSystem);
     this._obstacleManager = new ObstacleManager();
-    this._obstacleManager.init(levelCfg, this._scene, rockModels, pickupModels, seaweedModels, waveModels, islandModels);
+    this._obstacleManager.init(levelCfg, this._scene, rockModels, pickupModels, seaweedModels, waveModels, islandModels, this._qteSystem);
     this._environmentManager = new EnvironmentManager();
-    this._environmentManager.init(this._scene, fishModels, levelCfg);
+    this._environmentManager.init(this._scene, fishModels, levelCfg, this._qteSystem, this._ocean);
+    this._sirenManager = new SirenManager();
+    this._sirenManager.init(levelCfg, this._scene, this._qteSystem);
     
     this._windManager = new WindManager(levelCfg);
-
-    this._qteSystem = new QTESystem();
 
     this._onSteer = (d) => {
       if (this._playerShip) {
@@ -597,20 +601,25 @@ export class GameState {
       }
     };
     on('steer', this._onSteer);
+    this._onDebugQTE = ({ type }) => this._qteSystem?.trigger({ type, metadata: { source: 'debug' } });
+    on('qteDebugTrigger', this._onDebugQTE);
 
     // When player sinks, transition to results
     on('playerSunk', () => {
       this.transition(GamePhase.RESULTS, { passed: false });
     });
 
+    this.score = 0;
     emit('uiMount', { screen: 'obstacle' });
   }
 
   _updateObstacle(delta) {
+    this._qteSystem?.update(delta);
     // Pass WindManager instead of static windDir
     this._playerShip?.update(delta, this._ocean, this._windManager);
     this._obstacleManager?.update(delta, this._playerShip, this._windManager, this._voxelTerrain);
-    this._environmentManager?.update(delta, this._windManager, this._playerShip?.mesh.position);
+    this._environmentManager?.update(delta, this._windManager, this._playerShip);
+    this._sirenManager?.update(delta, this._playerShip);
 
     if (this._playerShip) {
       const p = this._playerShip.mesh.position;
@@ -668,17 +677,21 @@ export class GameState {
 
   _exitObstacle() {
     off('steer', this._onSteer);
+    off('qteDebugTrigger', this._onDebugQTE);
     off('playerSunk');
 
     this._playerShip?.dispose(this._scene);
     this._obstacleManager?.dispose();
     this._environmentManager?.dispose();
+    this._sirenManager?.dispose();
+    this._qteStats = this._qteSystem?.getStats() ?? null;
     this._qteSystem?.dispose();
     this._chunkRenderer?.dispose(this._scene);
 
     this._playerShip      = null;
     this._obstacleManager = null;
     this._environmentManager = null;
+    this._sirenManager       = null;
     this._qteSystem       = null;
     this._chunkRenderer   = null;
     this._grid            = null;
@@ -700,7 +713,7 @@ export class GameState {
   // =========================================================================
 
   _enterResults({ passed }) {
-    emit('uiMount', { screen: 'results', passed, day: this.day });
+    emit('uiMount', { screen: 'results', passed, day: this.day, score: this.score, qteStats: this._qteStats });
     if (passed) this.day++;
   }
 

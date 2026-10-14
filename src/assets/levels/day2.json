@@ -1,7 +1,11 @@
 {
   "day": 2,
+  "sirens": [
+    { "position": { "x": -18, "z": -55 }, "intensity": 0.75, "attractRadius": 24 }
+  ],
   "ship": "sloop",
   "weather": "overcast",
+  "qte": { "windowScale": 0.95 },
   "damage": [
     { "zone": "hull", "cells": [[2,0,2],[3,0,2],[2,1,2]], "state": "MISSING" },
     { "zone": "sail", "cells": [[9,6,2]],                  "state": "DAMAGED" },

@@ -1,27 +1,32 @@
 import * as THREE from 'three';
 import { GameState, GamePhase } from './core/GameState.js';
-import { LevelConfig }          from './core/LevelConfig.js';
-import { on }                   from './core/EventBus.js';
-import { BuildMenu }            from './ui/BuildMenu.js';
-import { DocketSheet }          from './ui/DocketSheet.js';
-import { DockUI }               from './ui/DockUI.js';
-import { MainMenuUI }           from './ui/MainMenuUI.js';
-import { DamageSystem }         from './shipyard/DamageSystem.js';
-import { GodRays }              from './environment/GodRays.js';
-import { PaperFilter }          from './environment/PaperFilter.js';
+import { LevelConfig } from './core/LevelConfig.js';
+import { on, emit } from './core/EventBus.js';
+import { BuildMenu } from './ui/BuildMenu.js';
+import { DocketSheet } from './ui/DocketSheet.js';
+import { HUD } from './ui/HUD.js';
+import { DialogueBox } from './ui/DialogueBox.js';
+import { PauseMenu } from './ui/PauseMenu.js';
+import { DockUI } from './ui/DockUI.js';
+import { MainMenuUI } from './ui/MainMenuUI.js';
+import { ResultsUI } from './ui/ResultsUI.js';
+import { ParticleSystem } from './environment/ParticleSystem.js';
+import { DamageSystem } from './shipyard/DamageSystem.js';
+import { GodRays } from './environment/GodRays.js';
+import { PaperFilter } from './environment/PaperFilter.js';
 import './ui/ui.css';
 
 // ---------------------------------------------------------------------------
 // Scene setup
 // ---------------------------------------------------------------------------
 
-const canvas   = document.querySelector('#canvas');
+const canvas = document.querySelector('#canvas');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 
-const scene  = new THREE.Scene();
+const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x222233);
 
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 500);
@@ -38,8 +43,6 @@ const sun = new THREE.DirectionalLight(0xffffff, 1.0);
 sun.position.set(10, 20, 10);
 sun.castShadow = true;
 scene.add(sun);
-
-// Helpers for debugging scale and orientation (Removed)
 
 // ---------------------------------------------------------------------------
 // God Rays post-processing
@@ -58,6 +61,28 @@ const mainRT = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight
 });
 const paperFilter = new PaperFilter(renderer);
 paperFilter.resize(window.innerWidth, window.innerHeight);
+
+// ---------------------------------------------------------------------------
+// Global Managers and UI
+// ---------------------------------------------------------------------------
+
+let isPaused = false;
+let paperShaderEnabled = false;
+let userPaperStyle = 0;
+
+const gameState = new GameState(scene, camera, renderer);
+gameState._ambient = ambient;
+gameState._sun = sun;
+
+const buildMenu = new BuildMenu();
+const docket = new DocketSheet();
+const dockUI = new DockUI();
+const mainMenuUI = new MainMenuUI();
+const resultsUI = new ResultsUI();
+const hud = new HUD();
+const dialogue = new DialogueBox();
+const pauseMenu = new PauseMenu();
+const particles = new ParticleSystem(scene);
 
 // ---------------------------------------------------------------------------
 // Resize handler
@@ -79,20 +104,8 @@ window.addEventListener('resize', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Game loop
+// FPS counter
 // ---------------------------------------------------------------------------
-
-const clock      = new THREE.Clock();
-const gameState  = new GameState(scene, camera, renderer);
-gameState._ambient = ambient;
-gameState._sun     = sun;
-const buildMenu  = new BuildMenu();
-const docket     = new DocketSheet();
-const dockUI     = new DockUI();
-const mainMenuUI = new MainMenuUI();
-
-let paperShaderEnabled = false;
-let userPaperStyle = 0;
 
 let frameCount = 0;
 let lastFpsTime = performance.now();
@@ -107,20 +120,29 @@ fpsCounter.style.cssText = `
 fpsCounter.innerText = 'FPS: 0';
 document.getElementById('ui-root')?.appendChild(fpsCounter);
 
-function tick(now) {
+// ---------------------------------------------------------------------------
+// Game loop
+// ---------------------------------------------------------------------------
+
+const clock = new THREE.Clock();
+
+function tick() {
   requestAnimationFrame(tick);
-  
-  if (now) {
-    frameCount++;
-    if (now - lastFpsTime >= 1000) {
-      fpsCounter.innerText = `FPS: ${frameCount}`;
-      frameCount = 0;
-      lastFpsTime = now;
-    }
+  const now = performance.now();
+  const delta = Math.min(clock.getDelta(), 0.05); // cap at 50ms to avoid spiral of death
+
+  if (!isPaused) {
+    gameState.update(delta);
+    particles.update(delta);
   }
 
-  const delta = Math.min(clock.getDelta(), 0.05); // cap at 50ms to avoid spiral of death
-  gameState.update(delta);
+  frameCount++;
+  if (now - lastFpsTime >= 1000) {
+    fpsCounter.innerText = `FPS: ${frameCount}`;
+    frameCount = 0;
+    lastFpsTime = now;
+  }
+
   const activeCam = gameState.activeCamera || camera;
   godRays._camera = activeCam;
 
@@ -140,7 +162,6 @@ function tick(now) {
   }
 }
 
-// ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
 // Demo UI Overlay
 // ---------------------------------------------------------------------------
@@ -169,6 +190,7 @@ document.getElementById('ui-root')?.appendChild(demoUI);
 
 const logDiv = demoUI.querySelector('#demo-log');
 function logEvent(msg) {
+  if (!logDiv) return;
   logDiv.innerHTML += `> ${msg}<br>`;
   logDiv.scrollTop = logDiv.scrollHeight;
 }
@@ -181,19 +203,9 @@ async function boot() {
   try {
     // Load Day 1 data
     const { shipDef, levelCfg, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels } = await LevelConfig.load(1);
-    
+
     // Expose to window for debugging if needed
     window.__DEBUG_ROCK_MODELS = rockModels;
-
-    // Log the rock models status
-    const logDiv = document.querySelector('#demo-log');
-    if (logDiv) {
-      logDiv.innerHTML += `> Loaded ${rockModels ? rockModels.length : 0} rock models.<br>`;
-      if (fishModels) {
-        logDiv.innerHTML += `> Loaded ${fishModels.length} fish models.<br>`;
-      }
-      logDiv.scrollTop = logDiv.scrollHeight;
-    }
 
     // Wire buttons
     document.getElementById('btn-main-menu').onclick = () => {
@@ -214,18 +226,18 @@ async function boot() {
       if (gameState._grid) {
         hp = DamageSystem.getSummary(gameState._grid).integrityPct;
       }
-      gameState.transition(GamePhase.OBSTACLE, { 
-        shipDef, 
-        levelCfg: gameState._levelCfg || levelCfg, 
-        shipStats: { hullHP: hp }, 
-        rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels 
+      gameState.transition(GamePhase.OBSTACLE, {
+        shipDef,
+        levelCfg: gameState._levelCfg || levelCfg,
+        shipStats: { hullHP: hp },
+        rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels
       });
     };
     document.getElementById('btn-editor').onclick = () => {
       logEvent('Transitioning to Level Editor...');
-      gameState.transition(GamePhase.EDITOR, { 
-        levelCfg: gameState._levelCfg || levelCfg, 
-        rockModels, pickupModels, seaweedModels, waveModels, islandModels 
+      gameState.transition(GamePhase.EDITOR, {
+        levelCfg: gameState._levelCfg || levelCfg,
+        rockModels, pickupModels, seaweedModels, waveModels, islandModels
       });
     };
 
@@ -234,24 +246,38 @@ async function boot() {
     on('docketItemCompleted', d => logEvent(`[Docket] ✓ ${d.label}`));
     on('allRepairsDone',      () => logEvent('[Docket] ALL DONE — ready to sail'));
     on('obstacleHit',        d => logEvent(`[Obstacle] hit by ${d.type} -${d.damage} HP`));
-    on('playerDamaged',      d => logEvent(`[Collision] Hull breached!`));
+    on('playerDamaged',      () => logEvent(`[Collision] Hull breached!`));
     on('playerSunk',         () => logEvent('[SUNK] Game Over'));
+
+    // Start sailing from shipyard
+    on('startSailing', () => {
+      let hp = 100;
+      if (gameState._grid) {
+        hp = DamageSystem.getSummary(gameState._grid).integrityPct;
+      }
+      gameState.transition(GamePhase.OBSTACLE, {
+        shipDef,
+        levelCfg: gameState._levelCfg || levelCfg,
+        shipStats: { hullHP: hp },
+        rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels
+      });
+    });
 
     on('editorRequestPlay', () => {
       if (gameState.currentPhase === GamePhase.EDITOR && gameState._editorSystem) {
         logEvent('Playing Custom Level from Editor...');
         const customLevelCfg = gameState._editorSystem.getPlayableConfig();
-        
+
         let hp = 100;
         if (gameState._grid) {
           hp = DamageSystem.getSummary(gameState._grid).integrityPct;
         }
 
-        gameState.transition(GamePhase.OBSTACLE, { 
-          shipDef, 
-          levelCfg: customLevelCfg, 
-          shipStats: { hullHP: hp }, 
-          rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels 
+        gameState.transition(GamePhase.OBSTACLE, {
+          shipDef,
+          levelCfg: customLevelCfg,
+          shipStats: { hullHP: hp },
+          rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels
         });
       }
     });
@@ -268,6 +294,7 @@ async function boot() {
     on('editorSetPaperEdge', d => paperFilter.setEdgeThreshold(d.threshold));
     on('editorSetPaperWobble', d => paperFilter.setWobbleIntensity(d.intensity));
 
+    // Request phase changes from UI
     on('requestPhaseChange', ({ phase }) => {
       if (phase === GamePhase.MAIN_MENU) {
         logEvent('Main Menu requested...');
@@ -284,16 +311,54 @@ async function boot() {
         if (gameState._grid) {
           hp = DamageSystem.getSummary(gameState._grid).integrityPct;
         }
-        gameState.transition(GamePhase.OBSTACLE, { 
-          shipDef, 
-          levelCfg, 
-          shipStats: { hullHP: hp }, 
-          rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels 
+        gameState.transition(GamePhase.OBSTACLE, {
+          shipDef,
+          levelCfg: gameState._levelCfg || levelCfg,
+          shipStats: { hullHP: hp },
+          rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels
         });
       } else if (phase === GamePhase.EDITOR) {
         logEvent('Opening Map Maker / Level Editor...');
-        gameState.transition(GamePhase.EDITOR, { levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels });
+        gameState.transition(GamePhase.EDITOR, { levelCfg: gameState._levelCfg || levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels });
       }
+    });
+
+    // Pause handling
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Escape') {
+        if (gameState.currentPhase === GamePhase.DOCK || gameState.currentPhase === GamePhase.RESULTS || gameState.currentPhase === GamePhase.MAIN_MENU) return;
+        isPaused = !isPaused;
+        if (isPaused) {
+          emit('uiMount', { screen: 'pause' });
+        } else {
+          emit('uiUnmount', { screen: 'pause' });
+        }
+      }
+    });
+
+    on('resumeGame', () => {
+      isPaused = false;
+      emit('uiUnmount', { screen: 'pause' });
+    });
+
+    on('restartPhase', () => {
+      if (gameState.currentPhase === GamePhase.OBSTACLE) {
+        gameState.transition(GamePhase.OBSTACLE, { levelCfg: gameState._levelCfg || levelCfg, shipStats: {}, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels }, true);
+      } else if (gameState.currentPhase === GamePhase.SHIPYARD) {
+        gameState.transition(GamePhase.SHIPYARD, { shipDef, levelCfg, fishModels }, true);
+      }
+    });
+
+    on('gotoShipyard', () => {
+      isPaused = false;
+      emit('uiUnmount', { screen: 'pause' });
+      gameState.transition(GamePhase.SHIPYARD, { shipDef, levelCfg, fishModels });
+    });
+
+    on('gotoTitle', () => {
+      isPaused = false;
+      emit('uiUnmount', { screen: 'pause' });
+      gameState.transition(GamePhase.MAIN_MENU);
     });
 
     // Start at Main Menu

@@ -134,8 +134,8 @@ export class ShipRaycaster {
 
     const hit = hits[0];
     
-    // Shift the point slightly inward along the normal to reliably resolve the hit cell
-    const inwardPoint = hit.point.clone().sub(hit.face.normal.clone().multiplyScalar(0.001));
+    // Shift the point slightly forward along the ray direction to reliably resolve the hit cell
+    const inwardPoint = hit.point.clone().add(this._raycaster.ray.direction.clone().multiplyScalar(0.001));
     const cell = this._grid.fromWorldPos(inwardPoint);
     
     if (!cell) return null;
@@ -183,10 +183,10 @@ export class ShipRaycaster {
     const isHullCell = s =>
       s === CellState.INTACT ||
       s === CellState.DAMAGED ||
-      s === CellState.REPAIRED;
+      s === CellState.REPAIRED ||
+      s === CellState.MISSING;
 
-    const isVoid = s =>
-      s === CellState.EMPTY || s === CellState.MISSING;
+    const isVoid = s => s === CellState.EMPTY;
 
     grid.forEach((x, y, z, state) => {
       if (!isHullCell(state)) return;
