@@ -27,6 +27,9 @@ export class DockStall {
     this.shopCam = null;
     this.lanternLight = null;
     this.signPivot = null;
+    this.shopGroup = null;
+    this.shopDoor = null;
+    this.doorInteractables = [];
   }
 
   build() {
@@ -181,6 +184,7 @@ export class DockStall {
             const shop = new THREE.Group();
             shop.position.set(2.1, 2.15, 4);
             shop.rotation.y = -Math.PI;
+            this.shopGroup = shop;
             this.group.add(shop);
 
             // Shared dimensions
@@ -305,65 +309,206 @@ export class DockStall {
             leftWall.castShadow = true; leftWall.receiveShadow = true;
             shop.add(leftWall);
 
-            const rightWall = new THREE.Mesh(sideGeo, facadeMat);
-            rightWall.position.set(shopW / 2, 0, 0);
-            rightWall.castShadow = true; rightWall.receiveShadow = true;
-            shop.add(rightWall);
+            // Left wall porthole frame and glass
+            const leftFrame = new THREE.Mesh(new THREE.TorusGeometry(portholeR, 0.06, 16, 32), brassMat);
+            leftFrame.rotation.y = Math.PI / 2;
+            leftFrame.position.set(-shopW / 2 + 0.05, portholeY, portholeZ);
+            leftFrame.castShadow = true; leftFrame.receiveShadow = true;
+            shop.add(leftFrame);
 
-            // Porthole frames and glass
-            [-shopW / 2, shopW / 2].forEach((xPos, i) => {
-                const isLeft = i === 0;
-                const frame = new THREE.Mesh(new THREE.TorusGeometry(portholeR, 0.06, 16, 32), brassMat);
-                frame.rotation.y = Math.PI / 2;
-                frame.position.set(isLeft ? xPos + 0.05 : xPos - 0.05, portholeY, portholeZ);
-                frame.castShadow = true; frame.receiveShadow = true;
-                shop.add(frame);
+            const leftGlass = new THREE.Mesh(
+                new THREE.CylinderGeometry(portholeR - 0.02, portholeR - 0.02, 0.04, 32),
+                new THREE.MeshStandardMaterial({ color: 0x88ccff, transparent: true, opacity: 0.4, roughness: 0.1, metalness: 0.8 })
+            );
+            leftGlass.rotation.z = Math.PI / 2;
+            leftGlass.position.set(-shopW / 2, portholeY, portholeZ);
+            shop.add(leftGlass);
 
-                const glass = new THREE.Mesh(
-                    new THREE.CylinderGeometry(portholeR - 0.02, portholeR - 0.02, 0.04, 32),
-                    new THREE.MeshStandardMaterial({ color: 0x88ccff, transparent: true, opacity: 0.4, roughness: 0.1, metalness: 0.8 })
-                );
-                glass.rotation.z = Math.PI / 2;
-                glass.position.set(xPos, portholeY, portholeZ);
-                shop.add(glass);
-            });
-
-            // Plank grooves on side walls (skipping the portholes)
+            // Left wall plank grooves
             for (let i = 0; i < 6; i++) {
                 const grooveY = 0.8 + i * 0.85;
-                [-shopW / 2 - 0.01, shopW / 2 + 0.01].forEach(x => {
-                    const dy = Math.abs(grooveY - portholeY);
-                    if (dy < portholeR) {
-                        const dz = Math.sqrt(portholeR * portholeR - dy * dy);
-                        // Back piece
-                        const backStart = -shopD / 2;
-                        const backEnd = portholeZ - dz;
-                        const backLen = backEnd - backStart;
-                        if (backLen > 0) {
-                            const gBack = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.03, backLen), frameMat);
-                            gBack.position.set(x, grooveY, backStart + backLen / 2);
-                            shop.add(gBack);
-                        }
-
-                        // Front piece
-                        const frontStart = portholeZ + dz;
-                        const frontEnd = shopD / 2;
-                        const frontLen = frontEnd - frontStart;
-                        if (frontLen > 0) {
-                            const gFront = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.03, frontLen), frameMat);
-                            gFront.position.set(x, grooveY, frontStart + frontLen / 2);
-                            shop.add(gFront);
-                        }
-                    } else {
-                        const groove = new THREE.Mesh(
-                            new THREE.BoxGeometry(0.22, 0.03, shopD + 0.02),
-                            frameMat
-                        );
-                        groove.position.set(x, grooveY, 0);
-                        shop.add(groove);
+                const x = -shopW / 2 - 0.01;
+                const dy = Math.abs(grooveY - portholeY);
+                if (dy < portholeR) {
+                    const dz = Math.sqrt(portholeR * portholeR - dy * dy);
+                    const backStart = -shopD / 2;
+                    const backEnd = portholeZ - dz;
+                    const backLen = backEnd - backStart;
+                    if (backLen > 0) {
+                        const gBack = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.03, backLen), frameMat);
+                        gBack.position.set(x, grooveY, backStart + backLen / 2);
+                        shop.add(gBack);
                     }
-                });
+                    const frontStart = portholeZ + dz;
+                    const frontEnd = shopD / 2;
+                    const frontLen = frontEnd - frontStart;
+                    if (frontLen > 0) {
+                        const gFront = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.03, frontLen), frameMat);
+                        gFront.position.set(x, grooveY, frontStart + frontLen / 2);
+                        shop.add(gFront);
+                    }
+                } else {
+                    const groove = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.03, shopD + 0.02), frameMat);
+                    groove.position.set(x, grooveY, 0);
+                    shop.add(groove);
+                }
             }
+
+            // =======================================================================
+            // Right wall with Doorway & Interactive Shop Door (facing island ramp)
+            // =======================================================================
+            const doorW = 1.25;
+            const doorH = 2.50;
+            const doorZ = -0.5; // Center of door
+            const rightX = shopW / 2;
+
+            // 1. Back panel (from backZ to door start: -2.5 to -1.125)
+            const rwBackLen = (doorZ - doorW / 2) - (-shopD / 2);
+            const rwBack = new THREE.Mesh(new THREE.BoxGeometry(0.18, shopH, rwBackLen), facadeMat);
+            rwBack.position.set(rightX, shopH / 2, -shopD / 2 + rwBackLen / 2);
+            rwBack.castShadow = true; rwBack.receiveShadow = true;
+            shop.add(rwBack);
+
+            // 2. Front panel (from door end to frontZ: 0.125 to 2.5)
+            const rwFrontLen = (shopD / 2) - (doorZ + doorW / 2);
+            const rwFront = new THREE.Mesh(new THREE.BoxGeometry(0.18, shopH, rwFrontLen), facadeMat);
+            rwFront.position.set(rightX, shopH / 2, shopD / 2 - rwFrontLen / 2);
+            rwFront.castShadow = true; rwFront.receiveShadow = true;
+            shop.add(rwFront);
+
+            // 3. Lintel panel above door
+            const lintelH = shopH - doorH;
+            const rwLintel = new THREE.Mesh(new THREE.BoxGeometry(0.18, lintelH, doorW), facadeMat);
+            rwLintel.position.set(rightX, doorH + lintelH / 2, doorZ);
+            rwLintel.castShadow = true; rwLintel.receiveShadow = true;
+            shop.add(rwLintel);
+
+            // Transom porthole window above door in lintel
+            const transomY = doorH + 1.25;
+            const transomR = 0.36;
+            const transomFrame = new THREE.Mesh(new THREE.TorusGeometry(transomR, 0.045, 12, 24), brassMat);
+            transomFrame.rotation.y = Math.PI / 2;
+            transomFrame.position.set(rightX + 0.02, transomY, doorZ);
+            shop.add(transomFrame);
+
+            const transomGlass = new THREE.Mesh(
+                new THREE.CylinderGeometry(transomR - 0.02, transomR - 0.02, 0.04, 24),
+                new THREE.MeshStandardMaterial({ color: 0x88ccff, transparent: true, opacity: 0.45, roughness: 0.1, metalness: 0.7 })
+            );
+            transomGlass.rotation.z = Math.PI / 2;
+            transomGlass.position.set(rightX, transomY, doorZ);
+            shop.add(transomGlass);
+
+            // Door Frame (dark timber posts, header & threshold)
+            const frameGeoV = new THREE.BoxGeometry(0.24, doorH, 0.14);
+            const framePostBack = new THREE.Mesh(frameGeoV, frameMat);
+            framePostBack.position.set(rightX, doorH / 2, doorZ - doorW / 2 - 0.07);
+            framePostBack.castShadow = true;
+            shop.add(framePostBack);
+
+            const framePostFront = new THREE.Mesh(frameGeoV, frameMat);
+            framePostFront.position.set(rightX, doorH / 2, doorZ + doorW / 2 + 0.07);
+            framePostFront.castShadow = true;
+            shop.add(framePostFront);
+
+            const frameHeader = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.14, doorW + 0.28), frameMat);
+            frameHeader.position.set(rightX, doorH + 0.07, doorZ);
+            frameHeader.castShadow = true;
+            shop.add(frameHeader);
+
+            const threshold = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.08, doorW + 0.14), frameMat);
+            threshold.position.set(rightX, 0.04, doorZ);
+            shop.add(threshold);
+
+            // -----------------------------------------------------------------------
+            // Interactive Door Slab
+            // -----------------------------------------------------------------------
+            const doorGroup = new THREE.Group();
+            doorGroup.position.set(rightX, 0.07, doorZ);
+            shop.add(doorGroup);
+
+            // Door leaf
+            const doorLeafH = doorH - 0.06;
+            const doorLeafW = doorW - 0.04;
+            const doorLeafGeo = new THREE.BoxGeometry(0.08, doorLeafH, doorLeafW);
+            const doorLeafMat = new THREE.MeshStandardMaterial({
+                color: Palette.woodHi,
+                roughness: 0.75,
+                map: woodTexHi
+            });
+            const doorLeaf = new THREE.Mesh(doorLeafGeo, doorLeafMat);
+            doorLeaf.position.set(0, doorLeafH / 2, 0);
+            doorLeaf.castShadow = true;
+            doorLeaf.receiveShadow = true;
+            doorLeaf.userData = { isShopDoor: true, name: 'shopDoorLeaf' };
+            doorGroup.add(doorLeaf);
+
+            // Wood Z-braces / rails on exterior and interior
+            [-0.045, 0.045].forEach(offsetX => {
+                [0.3, doorLeafH / 2, doorLeafH - 0.3].forEach(railY => {
+                    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.12, doorLeafW - 0.06), frameMat);
+                    rail.position.set(offsetX, railY, 0);
+                    rail.userData = { isShopDoor: true };
+                    doorGroup.add(rail);
+                });
+            });
+
+            // Brass Door Handles on Exterior and Interior
+            const handleGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.18, 8);
+            const backPlateGeo = new THREE.BoxGeometry(0.02, 0.24, 0.06);
+
+            // Exterior handle (+X)
+            const extPlate = new THREE.Mesh(backPlateGeo, brassMat);
+            extPlate.position.set(0.055, 1.15, doorLeafW / 2 - 0.18);
+            extPlate.userData = { isShopDoor: true };
+            doorGroup.add(extPlate);
+
+            const extHandle = new THREE.Mesh(handleGeo, brassMat);
+            extHandle.position.set(0.08, 1.15, doorLeafW / 2 - 0.18);
+            extHandle.userData = { isShopDoor: true };
+            doorGroup.add(extHandle);
+
+            // Interior handle (-X)
+            const intPlate = new THREE.Mesh(backPlateGeo, brassMat);
+            intPlate.position.set(-0.055, 1.15, doorLeafW / 2 - 0.18);
+            intPlate.userData = { isShopDoor: true };
+            doorGroup.add(intPlate);
+
+            const intHandle = new THREE.Mesh(handleGeo, brassMat);
+            intHandle.position.set(-0.08, 1.15, doorLeafW / 2 - 0.18);
+            intHandle.userData = { isShopDoor: true };
+            doorGroup.add(intHandle);
+
+            // Carved "SHOP" sign plaque above the door on exterior
+            const signBacking = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.22, 0.85), frameMat);
+            signBacking.position.set(rightX + 0.10, doorH + 0.32, doorZ);
+            shop.add(signBacking);
+
+            const signCanvas = document.createElement('canvas');
+            signCanvas.width = 256; signCanvas.height = 64;
+            const sCtx = signCanvas.getContext('2d');
+            sCtx.fillStyle = '#e8dcc4';
+            sCtx.fillRect(0, 0, 256, 64);
+            sCtx.fillStyle = '#3a2211';
+            sCtx.font = 'bold 34px Georgia, serif';
+            sCtx.textAlign = 'center';
+            sCtx.textBaseline = 'middle';
+            sCtx.fillText('CHANDLERY', 128, 32);
+            sCtx.lineWidth = 4;
+            sCtx.strokeStyle = '#3a2211';
+            sCtx.strokeRect(4, 4, 248, 56);
+            const signTex = new THREE.CanvasTexture(signCanvas);
+
+            const signFace = new THREE.Mesh(
+                new THREE.BoxGeometry(0.02, 0.18, 0.81),
+                new THREE.MeshStandardMaterial({ map: signTex, roughness: 0.8 })
+            );
+            signFace.position.set(rightX + 0.125, doorH + 0.32, doorZ);
+            shop.add(signFace);
+
+            // Expose door and interactables for raycasting
+            this.shopDoor = doorLeaf;
+            this.doorInteractables = [doorLeaf, extHandle, extPlate, intHandle, intPlate];
 
             // Nail heads on back wall trim strips
             const nailMat = new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.5, roughness: 0.6 });
@@ -873,7 +1018,8 @@ export class DockStall {
     
     // Create the shopkeeper camera relative to the shop
     this.shopCam = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 500);
-    this.shopCam.position.set(0, 3.6, -1.2); 
+    this.shopCam.position.set(0, 3.2, -1.0); 
+    this.shopCam.rotation.set(-0.15, Math.PI, 0); // Looking out over the counter at the dock!
     shop.add(this.shopCam);
 
     return this.group;
