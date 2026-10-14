@@ -19,11 +19,11 @@ const VolumetricScatterShader = {
   uniforms: {
     tDiffuse:   { value: null },
     uSunScreen: { value: new THREE.Vector2(0.5, 0.5) },
-    uDensity:   { value: 1.2 },   // Increased density for wider spread
-    uWeight:    { value: 0.15 },  // Increased weight for stronger initial rays
-    uDecay:     { value: 0.98 },  // 0.98 makes rays stretch much further across the screen
+    uDensity:   { value: 1.05 },  // Generous spread for long dramatic streaks
+    uWeight:    { value: 0.085 }, // Punchy sample weight for clearly visible shafts
+    uDecay:     { value: 0.97 },  // Long streak retention across 64 samples
     uSamples:   { value: 64 },
-    uExposure:  { value: 2.5 },   // Blinding exposure multiplier
+    uExposure:  { value: 0.85 },  // Vibrant exposure so rays clearly cut through sky & sea
   },
   vertexShader: /* glsl */`
     varying vec2 vUv;
@@ -45,19 +45,31 @@ const VolumetricScatterShader = {
 
     void main() {
       vec2 texCoord = vUv;
-      vec2 delta    = (texCoord - uSunScreen);
-      delta *= 1.0 / float(uSamples) * uDensity;
+      vec2 rayDir = (texCoord - uSunScreen);
+      
+      // Step size along the light ray towards the sun position
+      vec2 delta = rayDir * (1.0 / float(uSamples)) * uDensity;
+      
+      // Limit maximum step length to prevent wild sampling jumps when sun is far away
+      float maxStep = 0.06;
+      float stepLen = length(delta);
+      if (stepLen > maxStep) {
+        delta *= (maxStep / stepLen);
+      }
 
       float illuminationDecay = 1.0;
       vec3 color = vec3(0.0);
 
-      // Increased loop bound from 32 to 64 to allow more samples
       for (int i = 0; i < 64; i++) {
         if (i >= uSamples) break;
         texCoord -= delta;
-        vec3 samp = texture2D(tDiffuse, texCoord).rgb;
-        samp *= illuminationDecay * uWeight;
-        color += samp;
+        
+        // Strict boundary check: never sample clamped render target borders
+        float inBounds = step(0.0, texCoord.x) * step(texCoord.x, 1.0) *
+                         step(0.0, texCoord.y) * step(texCoord.y, 1.0);
+        
+        vec3 samp = texture2D(tDiffuse, texCoord).rgb * inBounds;
+        color += samp * (illuminationDecay * uWeight);
         illuminationDecay *= uDecay;
       }
 
@@ -91,21 +103,32 @@ const AdditiveOverlayShader = {
 
     void main() {
       vec4 add  = texture2D(tAdd,  vUv);
-      gl_FragColor = vec4(add.rgb * uTint * uStrength, 1.0);
+      vec3 rays = add.rgb * uTint * uStrength;
+      
+      // Contrast shaping: sharpens light shafts against ambient sky and ocean
+      // Faint background scatter stays subtle while focused light shafts pop boldly
+      rays = pow(rays, vec3(1.12)) * 1.35;
+      
+      // Filmic soft-knee compression (Reinhard curve):
+      // Smoothly rolls off extreme core highlights so looking toward the sun
+      // never blows out the scene to flat white, while letting rays be punchy and clear
+      rays = rays / (1.0 + rays * 0.40);
+      
+      gl_FragColor = vec4(rays, 1.0);
     }
   `
 };
 
 /**
  * Screen-space radial glow for the occlusion pass.
- * This guarantees that even if the sun is physically off-screen, a massive
- * radial glow bleeds into the screen, giving the radial blur something to streak.
+ * Naturally centered on the sun disc with a generous corona that feeds
+ * long, prominent volumetric shafts without flooding the entire viewport.
  */
 const GlowShader = {
   uniforms: {
     uSunScreen: { value: new THREE.Vector2(0.5, 0.5) },
     uAspect:    { value: 1.0 },
-    uRadius:    { value: 2.5 },
+    uRadius:    { value: 0.85 },  // Broad radius for long, sweeping crepuscular rays
   },
   vertexShader: /* glsl */`
     varying vec2 vUv;
@@ -126,12 +149,15 @@ const GlowShader = {
       d.x *= uAspect;
       float dist = length(d);
       
-      // Massive soft glow that bleeds into the screen
-      float intensity = pow(clamp(1.0 - dist / uRadius, 0.0, 1.0), 2.5);
+      // Smooth radial corona that falls cleanly to zero at uRadius
+      float distNorm = clamp(dist / uRadius, 0.0, 1.0);
+      float glow = pow(1.0 - distNorm, 2.0);
       
-      // Hot core - made wider and smoother to prevent sudden flashbangs when entering screen
-      intensity += pow(clamp(1.0 - dist / (uRadius * 0.15), 0.0, 1.0), 3.0) * 5.0;
+      // Radiant core for distinct, high-contrast ray origin
+      float coreNorm = clamp(dist / (uRadius * 0.28), 0.0, 1.0);
+      float core = pow(1.0 - coreNorm, 2.0) * 2.2;
       
+      float intensity = glow + core;
       gl_FragColor = vec4(vec3(intensity), 1.0);
     }
   `
@@ -173,9 +199,9 @@ export class GodRays {
     const qw   = Math.max(1, Math.floor(fw * 0.25));
     const qh   = Math.max(1, Math.floor(fh * 0.25));
 
-    // --- Sun billboard (rendered into both beauty pass and occlusion mask) ---
-    // Enormous billboard for exaggerated god rays
-    const sunGeo = new THREE.PlaneGeometry(120, 120);
+    // --- Sun billboard (rendered into beauty pass) ---
+    // Radiant sun disc with soft edge falloff that illuminates the sky naturally
+    const sunGeo = new THREE.PlaneGeometry(76, 76);
     const sunMat = new THREE.ShaderMaterial({
       uniforms: {
         uColor: { value: new THREE.Color(0xffffff) }
@@ -191,9 +217,9 @@ export class GodRays {
         uniform vec3 uColor;
         varying vec2 vUv;
         void main() {
-          // Circular gradient
+          // Circular gradient with smooth falloff
           float dist = length(vUv - 0.5) * 2.0;
-          float alpha = pow(clamp(1.0 - dist, 0.0, 1.0), 2.0);
+          float alpha = pow(clamp(1.0 - dist, 0.0, 1.0), 2.5) * 0.85;
           gl_FragColor = vec4(uColor, alpha);
         }
       `,
@@ -321,21 +347,22 @@ export class GodRays {
     }
 
     // Fade strength near horizon
-    const horizonFade = THREE.MathUtils.clamp(sunY / 20, 0, 1);
+    const horizonFade = THREE.MathUtils.clamp(sunY / 15, 0, 1);
 
     // --- Compute virtual sun position (infinitely far away) ---
     const sunDir = sunLight.position.clone().normalize();
 
-    // --- Smoothly fade out when sun is near or off the edge of the screen ---
+    // --- Smoothly fade in/out as the sun enters/leaves the camera's forward view ---
     // IMPORTANT: compute the dot product BEFORE multiplyScalar mutates sunDir
     const cameraForward = new THREE.Vector3();
     camera.getWorldDirection(cameraForward);
     const sunDot = cameraForward.dot(sunDir);  // both unit vectors → result in [-1, 1]
-    // God rays should be visible even when the sun is off-screen — the radial blur
-    // shader naturally streaks light in from the edge of the viewport.  We only need
-    // to fade out once the sun goes behind the camera (sunDot < 0).
-    // Fade: fully off at sunDot = -0.3  →  fully on at sunDot = 0.2
-    const angleFade = THREE.MathUtils.smoothstep(sunDot, -0.3, 0.2);
+
+    // Smooth transition from side-view into forward-view:
+    // Reaches 0.0 at sunDot = 0.08 (sun is ~85° from camera forward, comfortably before w <= 0 at 90°)
+    // Reaches 1.0 at sunDot = 0.45 (sun is within ~63° of camera forward)
+    // Smoothstep guarantees zero velocity at boundaries, eliminating any sudden pop or flash
+    const angleFade = THREE.MathUtils.smoothstep(sunDot, 0.08, 0.45);
     const finalStrength = horizonFade * angleFade;
 
     const virtualSunPos = camera.position.clone().add(sunDir.multiplyScalar(camera.far * 0.9));
@@ -450,9 +477,13 @@ export class GodRays {
     this._additiveMat.uniforms.tAdd.value      = this._scatterRT.texture;
     this._additiveMat.uniforms.uStrength.value = finalStrength;
 
-    // Tint the rays to match the directional light color
+    // Tint the rays to match the directional light color with rich golden vibrance
     const sc = sunLight.color;
-    this._additiveMat.uniforms.uTint.value.set(sc.r, sc.g, sc.b);
+    this._additiveMat.uniforms.uTint.value.set(
+      Math.min(1.2, sc.r * 1.15),
+      Math.min(1.1, sc.g * 1.08),
+      Math.min(1.0, sc.b * 0.95)
+    );
 
     renderer.setRenderTarget(renderTarget);
     renderer.autoClear = false; // Important: do not clear the base scene!
