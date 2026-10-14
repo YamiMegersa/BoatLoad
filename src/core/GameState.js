@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { ShipBuilder }    from '../shipyard/ShipBuilder.js';
 import { ChunkRenderer }  from '../shipyard/ChunkRenderer.js';
+import { VoxelGrid }      from '../shipyard/VoxelGrid.js';
 import { ShipRaycaster }  from '../shipyard/ShipRaycaster.js';
 import { BuildSystem }    from '../shipyard/BuildSystem.js';
 import { DamageSystem }   from '../shipyard/DamageSystem.js';
@@ -154,15 +155,30 @@ export class GameState {
    * Switch to a new phase, tearing down the old one first.
    * @param {string} newPhase   GamePhase.*
    * @param {object} [opts]     Optional data passed to the entering phase
+   * @param {boolean} [force]   Re-enter the current phase instead of returning early
    */
-  async transition(newPhase, opts = {}) {
-    if (this.currentPhase === newPhase) return;
+  async transition(newPhase, opts = {}, force = false) {
+    if (this.currentPhase === newPhase && !force) return;
 
     await this._onExit(this.currentPhase);
     this.currentPhase = newPhase;
     await this._onEnter(newPhase, opts);
 
     emit('phaseChanged', { phase: newPhase });
+  }
+
+  /**
+   * Restart the sailing phase in the ship's Set Sail condition.
+   *
+   * The voxel snapshot captured on first entering OBSTACLE is restored into a
+   * fresh grid/renderer, while every sailing-runtime system (position, yaw,
+   * obstacles, score, QTE queue/streak, water, sharks, sirens) is rebuilt by
+   * the normal enter/exit flow.
+   */
+  async restartSailing() {
+    if (this.currentPhase !== GamePhase.OBSTACLE || !this._sailSnapshot) return;
+    const shipStats = { ...(this._obstacleOpts?.shipStats ?? {}) };
+    await this.transition(GamePhase.OBSTACLE, { ...this._obstacleOpts, shipStats }, true);
   }
 
   // -------------------------------------------------------------------------
@@ -387,6 +403,8 @@ export class GameState {
 
   async _enterShipyard({ shipDef, levelCfg, fishModels }) {
     this._levelCfg = levelCfg;
+    // A freshly built ship invalidates any earlier Set Sail snapshot.
+    this._sailSnapshot = null;
     if (this._ocean) {
       this._ocean.setWorldSize(levelCfg?.worldSize || 200);
     }
@@ -565,8 +583,10 @@ export class GameState {
   // OBSTACLE
   // =========================================================================
 
-  _enterObstacle({ levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels }) {
+  _enterObstacle(opts) {
+    const { levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels } = opts;
     this._levelCfg = levelCfg;
+    this._obstacleOpts = { levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels };
 
     // Chase camera initial position
     this._camera.position.set(0, 5, 16);
@@ -581,11 +601,28 @@ export class GameState {
       this._voxelTerrain.deserialize(levelCfg.voxels);
     }
 
+    // Ship state. On a fresh Set Sail the shipyard grid/renderer are still live,
+    // so capture the Set Sail condition as the restart snapshot. On Restart
+    // Level they were disposed by _exitObstacle, so rebuild the ship from that
+    // snapshot and derive hullHP from the restored integrity (never from {}).
+    let effectiveStats = shipStats ?? {};
+    if (!this._grid && this._sailSnapshot) {
+      this._grid = new VoxelGrid(this._sailSnapshot.width, this._sailSnapshot.height, this._sailSnapshot.depth);
+      this._grid.restore(this._sailSnapshot);
+      this._grid.consumeDirty();          // ChunkRenderer.init rebuilds everything
+      this._grid.consumeTopologyDirty();
+      this._chunkRenderer = new ChunkRenderer();
+      this._chunkRenderer.init(this._grid, this._scene);
+      effectiveStats = { ...effectiveStats, hullHP: DamageSystem.getSummary(this._grid).integrityPct };
+    } else if (this._grid) {
+      this._sailSnapshot = this._grid.snapshot();
+    }
+
     const qteTuning = { ...(levelCfg?.qte ?? {}) };
     if (levelCfg?.tutorialPrompts) qteTuning.windowScale = (qteTuning.windowScale ?? 1) * 1.25;
     this._qteSystem = new QTESystem(qteTuning, levelCfg?.rewardAbilities);
 
-    this._playerShip = new PlayerShip(shipStats ?? {}, this._scene, this._chunkRenderer, this._grid, this._qteSystem);
+    this._playerShip = new PlayerShip(effectiveStats, this._scene, this._chunkRenderer, this._grid, this._qteSystem);
     this._obstacleManager = new ObstacleManager();
     this._obstacleManager.init(levelCfg, this._scene, rockModels, pickupModels, seaweedModels, waveModels, islandModels, this._qteSystem);
     this._environmentManager = new EnvironmentManager();
@@ -601,8 +638,13 @@ export class GameState {
       }
     };
     on('steer', this._onSteer);
-    this._onDebugQTE = ({ type }) => this._qteSystem?.trigger({ type, metadata: { source: 'debug' } });
+    this._onDebugQTE = ({ source }) => this._qteSystem?.trigger({ source, metadata: { source: 'debug' } });
     on('qteDebugTrigger', this._onDebugQTE);
+
+    // Subtle camera impulse when a harpooned shark is hit
+    this._camImpulse = 0;
+    this._onSharkHit = () => { this._camImpulse = 0.08; };
+    on('sharkHitConfirmed', this._onSharkHit);
 
     // When player sinks, transition to results
     on('playerSunk', () => {
@@ -656,6 +698,12 @@ export class GameState {
       // 3. Final Target P3
       const P3 = baseTarget.clone().add(rightDir.clone().multiplyScalar(this._camOvershoot));
 
+      // Brief vertical impulse on shark impact (60-80 ms, kept subtle for mobile)
+      if (this._camImpulse > 0) {
+        this._camImpulse = Math.max(0, this._camImpulse - delta);
+        P3.y += (this._camImpulse / 0.08) * 0.35;
+      }
+
       // 4. Move camera smoothly towards the spring-loaded target
       // The spring logic in P3 provides the curved sweep and overshoot.
       this._camera.position.lerp(P3, 5.0 * delta);
@@ -678,6 +726,7 @@ export class GameState {
   _exitObstacle() {
     off('steer', this._onSteer);
     off('qteDebugTrigger', this._onDebugQTE);
+    off('sharkHitConfirmed', this._onSharkHit);
     off('playerSunk');
 
     this._playerShip?.dispose(this._scene);

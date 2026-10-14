@@ -178,6 +178,8 @@ export class EnvironmentManager {
       shrinking: false,
       hitPending: false,
       hitDelay: 0,
+      hitPoints: 0,
+      hitMaterials: [],
       flashing: false,
       flashTimer: 0,
       sinking: false,
@@ -220,18 +222,26 @@ export class EnvironmentManager {
           emit('spawnParticles', { type: 'massiveSplash', position: shark.mesh.position.clone() });
           emit('spawnParticles', { type: 'bloodSplash', position: shark.mesh.position.clone() });
 
-          // Change material to bright red glow
+          // Distinct hit audio and a top-of-screen confirmation for the player.
+          // (The QTE success itself already plays the harpoon launch sound.)
+          emit('playSound', { sound: 'shark_hit' });
+          emit('sharkHitConfirmed', { points: shark.hitPoints ?? 0 });
+
+          // Replace the flat emissive wash with a fresnel rim glow plus a
+          // noise dissolve while the shark sinks. Rim/dissolve are driven by
+          // per-material uniforms animated in the flashing/sinking branches.
+          shark.hitMaterials = [];
           shark.mesh.traverse(c => {
             if ((c.isMesh || c.isSkinnedMesh) && c.material) {
               if (!c.userData.hasClonedMaterial) {
                 c.material = c.material.clone();
                 c.userData.hasClonedMaterial = true;
               }
-              c.userData.originalEmissive = c.material.emissive ? c.material.emissive.clone() : new THREE.Color(0x000000);
-              c.userData.originalEmissiveIntensity = c.material.emissiveIntensity ?? 1.0;
-              c.material.emissive = new THREE.Color(0xff0000);
-              c.material.emissiveIntensity = 3.0;
               c.material.color.setHex(0xff2200);
+              if (c.material.emissive) {
+                c.material.emissive = new THREE.Color(0x330000);
+                c.material.emissiveIntensity = 1.0;
+              }
               // The ocean is a transparent material, so it is drawn after every opaque
               // object and washes a shark out to ~15%. Making the shark transparent too
               // puts it in the same list, and renderOrder 10 draws it after the ocean
@@ -240,17 +250,48 @@ export class EnvironmentManager {
               c.material.depthWrite = true;
               c.material.depthTest = true;
               c.renderOrder = 10;
+
+              const supportsRimShader = (c.material.isMeshStandardMaterial || c.material.isMeshPhongMaterial || c.material.isMeshLambertMaterial) && !c.material.flatShading;
+              if (supportsRimShader) {
+                const hitUniforms = {
+                  uRimIntensity: { value: 2.5 },
+                  uDissolve: { value: 0 },
+                };
+                c.material.onBeforeCompile = (shader) => {
+                  shader.uniforms.uRimIntensity = hitUniforms.uRimIntensity;
+                  shader.uniforms.uDissolve = hitUniforms.uDissolve;
+                  shader.vertexShader = `varying vec3 vHitLocal;\n${shader.vertexShader}`.replace(
+                    '#include <begin_vertex>',
+                    '#include <begin_vertex>\n  vHitLocal = position;'
+                  );
+                  shader.fragmentShader = `uniform float uRimIntensity;\nuniform float uDissolve;\nvarying vec3 vHitLocal;\n${shader.fragmentShader}`.replace(
+                    '#include <emissivemap_fragment>',
+                    `#include <emissivemap_fragment>
+          float hitNoise = fract(sin(dot(floor(vHitLocal * 6.0), vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+          if (uDissolve > 0.0 && hitNoise < uDissolve) discard;
+          float hitRim = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.5);
+          totalEmissiveRadiance += vec3(1.0, 0.12, 0.05) * hitRim * uRimIntensity;
+          if (uDissolve > 0.0 && hitNoise < uDissolve + 0.06) totalEmissiveRadiance += vec3(1.0, 0.4, 0.1) * 2.0;`
+                  );
+                };
+                c.material.needsUpdate = true;
+                shark.hitMaterials.push(hitUniforms);
+              }
             }
           });
         }
       } else if (shark.flashing) {
         shark.baseY = this._surfaceY(shark.mesh.position) + SHARK_BREACH_LIFT;
         shark.flashTimer -= delta;
+        const flashRatio = Math.max(0, shark.flashTimer / 0.8);
+        for (const uniforms of shark.hitMaterials ?? []) uniforms.uRimIntensity.value = flashRatio * 2.5;
         if (shark.flashTimer <= 0) {
           shark.flashing = false;
           shark.sinking = true;
+          for (const uniforms of shark.hitMaterials ?? []) uniforms.uRimIntensity.value = 0;
         }
       } else if (shark.sinking) {
+        for (const uniforms of shark.hitMaterials ?? []) uniforms.uDissolve.value = Math.min(1, uniforms.uDissolve.value + delta * 1.1);
         shark.baseY -= 15.0 * delta; // Sink rapidly
         shark.mesh.position.y = shark.baseY + shark.animator.bobOffset;
         if (shark.baseY <= -15) {
@@ -287,17 +328,17 @@ export class EnvironmentManager {
         // Trigger HARPOON QTE if within 22 units
         if (dist2D < 22 && !shark.qteTriggered && this.qteSystem) {
           const success = this.qteSystem.trigger({
-            type: 'HARPOON',
+            source: 'shark',
             onSuccess: (timing = {}) => {
               shark.hitPending = true;
               shark.hitDelay = 0.3; // Matches harpoon travel time
+              shark.hitPoints = timing.points ?? 0;
 
               emit('spawnParticles', {
                 type: 'harpoon',
                 start: playerShip.mesh.position.clone(),
                 end: shark.mesh.position.clone()
               });
-              emit('playSound', { sound: 'collision' });
             },
             onFail: () => {
               console.log('[Shark] Harpoon missed! Shark attacks the ship.');

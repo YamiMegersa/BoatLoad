@@ -435,7 +435,7 @@ body {
 
 .floating-bonus-text {
   position: absolute;
-  top: 30%;
+  top: 16%;
   left: 50%;
   color: #ffd700;
   font-weight: 900;
@@ -472,6 +472,41 @@ body {
   }
 }
 
+/* Shark harpoon confirmation — top of the screen, clear of the shark */
+.shark-confirm-text {
+  position: absolute;
+  top: 9%;
+  left: 50%;
+  color: #ff5252;
+  font-weight: 900;
+  font-size: 30px;
+  letter-spacing: 2px;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.95), 0 0 18px rgba(255, 60, 40, 0.9);
+  pointer-events: none;
+  font-family: sans-serif;
+  white-space: nowrap;
+  animation: sharkConfirmPop 1s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+@keyframes sharkConfirmPop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 12px) scale(0.8);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1.1);
+  }
+  65% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -16px) scale(1);
+  }
+}
+
 /* Steering Wheel responsive container */
 #hud-wheel-container {
   position: fixed;
@@ -489,6 +524,12 @@ body {
   user-select: none;
   cursor: grab;
   filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.5));
+}
+
+/* Siren pull: the wheel takes on a violet glow scaled by pull intensity */
+#hud-wheel-container.siren-pull #hud-wheel {
+  filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.5))
+          drop-shadow(0 0 calc(8px + var(--siren-pull, 0) * 22px) rgba(255, 102, 204, 0.9));
 }
 
 @media (max-width: 768px) {
@@ -558,10 +599,91 @@ body {
   100% { transform: scale(1.08); box-shadow: 0 0 28px rgba(255, 235, 59, 0.95); }
 }
 
+/* Siren pull edge cues */
+.hud-siren-edge {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  width: 8vw;
+  max-width: 140px;
+  pointer-events: none;
+  z-index: 140;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.hud-siren-edge.left {
+  left: 0;
+  background: linear-gradient(90deg, rgba(255, 102, 204, 0.55), rgba(255, 102, 204, 0));
+}
+
+.hud-siren-edge.right {
+  right: 0;
+  background: linear-gradient(270deg, rgba(255, 102, 204, 0.55), rgba(255, 102, 204, 0));
+}
+
+/* Pause button — clear of the minimap (top-right) and HUD panel */
+#hud-pause-btn {
+  position: fixed;
+  top: 236px;
+  right: 20px;
+  width: 48px;
+  height: 48px;
+  min-width: 44px;
+  min-height: 44px;
+  z-index: 150;
+  pointer-events: auto;
+  border-radius: 10px;
+  border: 2px solid #9A5B2E;
+  background: rgba(10, 15, 25, 0.75);
+  color: #f3e3b4;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#hud-pause-btn:active {
+  transform: scale(0.94);
+  filter: brightness(1.25);
+}
+
+/* Non-blocking banner (siren warning, grace notice) */
+#hud-banner {
+  position: fixed;
+  top: 8%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: none;
+  z-index: 160;
+  max-width: min(640px, 90vw);
+  padding: 10px 22px;
+  background: rgba(20, 6, 28, 0.85);
+  border: 2px solid #ff66cc;
+  border-radius: 10px;
+  color: #ffd9f3;
+  font-weight: 900;
+  font-size: 16px;
+  letter-spacing: 1.5px;
+  text-align: center;
+  text-transform: uppercase;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.9);
+  box-shadow: 0 0 24px rgba(255, 102, 204, 0.45);
+  pointer-events: none;
+  transition: opacity 240ms ease;
+  opacity: 1;
+}
+
+#hud-banner.hidden {
+  opacity: 0;
+}
+
 /* Interactive QTE Reticle Prompt */
 #hud-qte {
   position: fixed;
-  top: 45%;
+  top: 70%;
   left: 50%;
   transform: translate(-50%, -50%);
   display: flex;
@@ -579,7 +701,14 @@ body {
   border: 2px solid rgba(255, 152, 0, 0.8);
   box-shadow: 0 0 25px rgba(255, 152, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.8);
   backdrop-filter: blur(4px);
-  transition: transform 0.1s, box-shadow 0.1s;
+  transition: transform 0.1s, box-shadow 0.1s, opacity 0.12s;
+}
+
+/* Rapid fade-out on success/failure so the prompt clears the hit reaction */
+#hud-qte.qte-hiding {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.85);
+  pointer-events: none;
 }
 
 #hud-qte:hover {
@@ -594,7 +723,7 @@ body {
 #hud-qte-action {
   font-size: 22px;
   font-weight: 900;
-  color: #ff9800;
+  color: var(--qte-theme, #ff9800);
   text-transform: uppercase;
   letter-spacing: 2px;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
@@ -669,6 +798,34 @@ body {
   transition: width 80ms ease-out;
 }
 
+#hud-qte-meter.alternate .qte-sweet-spot {
+  display: none;
+}
+
+#hud-qte-meter.alternate .qte-indicator {
+  width: 0;
+  background: linear-gradient(90deg, #d36cff, #ff66cc);
+  box-shadow: none;
+  transition: width 80ms ease-out;
+}
+
+#hud-qte-alternate {
+  width: min(300px, 80vw);
+  gap: 12px;
+  margin-top: 10px;
+}
+
+#hud-qte-alternate button {
+  flex: 1;
+  min-height: 60px;
+  border: 2px solid #ffb5e6;
+  border-radius: 8px;
+  background: #6b285f;
+  color: #fff;
+  font-weight: 900;
+  touch-action: manipulation;
+}
+
 #hud-qte-progress {
   min-height: 18px;
   margin-top: 4px;
@@ -739,7 +896,7 @@ body {
 
 @media (max-width: 600px) {
   #hud-qte {
-    top: 36%;
+    top: 60%;
     width: min(340px, 88vw);
   }
 

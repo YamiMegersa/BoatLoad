@@ -22,10 +22,9 @@ export class PauseMenu {
     this._el.innerHTML = `
       <h1 style="font-family: serif; color: #f3e3b4; font-size: 3rem; margin-bottom: 2rem;">Paused</h1>
       <div style="display: flex; flex-direction: column; gap: 1rem; width: 250px;">
-        <button id="btn-resume" class="pause-btn">Resume</button>
-        <button id="btn-restart" class="pause-btn">Restart Phase</button>
-        <button id="btn-shipyard" class="pause-btn">Back to Shipyard</button>
-        <button id="btn-title" class="pause-btn" style="background: #a33; border-color: #f55;">Quit to Title</button>
+        <button id="btn-resume" class="pause-btn">Resume Game</button>
+        <button id="btn-restart" class="pause-btn">Restart Level</button>
+        <button id="btn-title" class="pause-btn" style="background: #a33; border-color: #f55;">Main Menu</button>
       </div>
     `;
 
@@ -35,10 +34,6 @@ export class PauseMenu {
     this._el.querySelector('#btn-restart').addEventListener('click', () => {
       emit('resumeGame');
       emit('restartPhase');
-    });
-    this._el.querySelector('#btn-shipyard').addEventListener('click', () => {
-      emit('resumeGame');
-      emit('gotoShipyard');
     });
     this._el.querySelector('#btn-title').addEventListener('click', () => {
       emit('resumeGame');

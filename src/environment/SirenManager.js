@@ -11,6 +11,10 @@ export class SirenManager {
   init(levelCfg, scene, qteSystem) {
     this._scene = scene;
     this._qteSystem = qteSystem;
+    // First-encounter grace: while enabled (tutorial levels by default, or an
+    // explicit "sirenGrace" flag in level data), the first failed siren QTE
+    // deals no damage.
+    this._graceAvailable = levelCfg?.sirenGrace ?? Boolean(levelCfg?.tutorialPrompts);
     for (const definition of levelCfg?.sirens ?? []) this._spawn(definition);
   }
 
@@ -26,6 +30,12 @@ export class SirenManager {
       const distance = Math.hypot(dx, dz) || 0.001;
       const radius = siren.definition.attractRadius ?? 24;
 
+      // Teach before punishing: warn once, the first time a siren has the ship in range.
+      if (distance < radius && !siren.warned) {
+        siren.warned = true;
+        emit('sirenWarning', { label: 'SIREN SONG — STEER AWAY AND BREAK THE SPELL' });
+      }
+
       if (distance < radius && siren.cooldown <= 0) {
         const pull = (1 - distance / radius) * (siren.definition.intensity ?? 0.8);
         const targetYaw = Math.atan2(-dx, -dz);
@@ -34,10 +44,11 @@ export class SirenManager {
         while (angle < -Math.PI) angle += Math.PI * 2;
         playerShip.yawVelocity += Math.sign(angle) * Math.min(Math.abs(angle), 1) * pull * 2.4 * delta;
         emit('sirenPulling', { intensity: pull, steerPull: -Math.sign(angle) * pull });
+        siren.wasPulling = true;
 
         if (!siren.qteTriggered && distance < radius * 0.7) {
           const accepted = this._qteSystem?.trigger({
-            type: 'SIREN',
+            source: 'siren',
             metadata: { source: 'siren' },
             onSuccess: () => {
               siren.cooldown = 7;
@@ -47,11 +58,21 @@ export class SirenManager {
             onFail: () => {
               siren.cooldown = 4;
               siren.qteTriggered = false;
+              if (this._graceAvailable) {
+                // Tutorial mercy: the first failure teaches instead of punishing.
+                this._graceAvailable = false;
+                emit('sirenWarning', { label: "THE SONG LOOSENS ITS GRIP — IT WON'T BE SO MERCIFUL NEXT TIME" });
+                return;
+              }
               playerShip.takeDamage(10, 'siren');
             },
           });
           if (accepted) siren.qteTriggered = true;
         }
+      } else if (siren.wasPulling) {
+        // Leaving range (or entering cooldown) clears the wheel tint and edge glow.
+        siren.wasPulling = false;
+        emit('sirenPulling', { intensity: 0, steerPull: 0 });
       }
     }
   }
@@ -87,6 +108,6 @@ export class SirenManager {
     group.add(idol);
 
     this._scene.add(group);
-    this._sirens.push({ definition, group, idol, cooldown: 0, qteTriggered: false });
+    this._sirens.push({ definition, group, idol, cooldown: 0, qteTriggered: false, warned: false, wasPulling: false });
   }
 }

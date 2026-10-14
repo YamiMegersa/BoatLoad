@@ -527,7 +527,7 @@ export class ObstacleManager {
     if (distance > 10) return;
 
     const accepted = this._qteSystem.trigger({
-      type: 'SHOOT',
+      source: 'barrel',
       metadata: { source: 'barrel' },
       onSuccess: () => {
         obs.qteResolved = true;

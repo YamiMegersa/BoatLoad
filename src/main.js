@@ -324,40 +324,48 @@ async function boot() {
     });
 
     // Pause handling
-    window.addEventListener('keydown', (e) => {
-      if (e.code === 'Escape') {
-        if (gameState.currentPhase === GamePhase.DOCK || gameState.currentPhase === GamePhase.RESULTS || gameState.currentPhase === GamePhase.MAIN_MENU) return;
-        isPaused = !isPaused;
-        if (isPaused) {
-          emit('uiMount', { screen: 'pause' });
-        } else {
-          emit('uiUnmount', { screen: 'pause' });
-        }
+    function setPaused(paused) {
+      if (isPaused === paused) return;
+      isPaused = paused;
+      emit('gamePaused', { paused });
+      if (paused) {
+        emit('uiMount', { screen: 'pause' });
+      } else {
+        emit('uiUnmount', { screen: 'pause' });
       }
+    }
+
+    function togglePause() {
+      if (gameState.currentPhase === GamePhase.DOCK || gameState.currentPhase === GamePhase.RESULTS || gameState.currentPhase === GamePhase.MAIN_MENU) return;
+      setPaused(!isPaused);
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Escape') togglePause();
     });
 
+    // HUD pause button emits the same request as Esc
+    on('pauseRequest', togglePause);
+
     on('resumeGame', () => {
-      isPaused = false;
-      emit('uiUnmount', { screen: 'pause' });
+      setPaused(false);
     });
 
     on('restartPhase', () => {
       if (gameState.currentPhase === GamePhase.OBSTACLE) {
-        gameState.transition(GamePhase.OBSTACLE, { levelCfg: gameState._levelCfg || levelCfg, shipStats: {}, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels }, true);
+        gameState.restartSailing();
       } else if (gameState.currentPhase === GamePhase.SHIPYARD) {
         gameState.transition(GamePhase.SHIPYARD, { shipDef, levelCfg, fishModels }, true);
       }
     });
 
     on('gotoShipyard', () => {
-      isPaused = false;
-      emit('uiUnmount', { screen: 'pause' });
+      setPaused(false);
       gameState.transition(GamePhase.SHIPYARD, { shipDef, levelCfg, fishModels });
     });
 
     on('gotoTitle', () => {
-      isPaused = false;
-      emit('uiUnmount', { screen: 'pause' });
+      setPaused(false);
       gameState.transition(GamePhase.MAIN_MENU);
     });
 

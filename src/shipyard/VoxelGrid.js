@@ -261,4 +261,45 @@ export class VoxelGrid {
   get cellCount() {
     return this.width * this.height * this.depth;
   }
+
+  // -------------------------------------------------------------------------
+  // Snapshot / restore
+  // -------------------------------------------------------------------------
+
+  /**
+   * Capture the full cell state and colour data.
+   * Used to preserve the ship's Set Sail condition across a level restart.
+   * @returns {{ width: number, height: number, depth: number, data: Uint8Array, colorData: Uint32Array }}
+   */
+  snapshot() {
+    return {
+      width: this.width,
+      height: this.height,
+      depth: this.depth,
+      data: this.data.slice(),
+      colorData: this.colorData.slice(),
+    };
+  }
+
+  /**
+   * Restore a snapshot taken with snapshot(). The grid dimensions must match.
+   * Marks every cell dirty so a renderer can rebuild from the restored data.
+   * @param {{ width: number, height: number, depth: number, data: Uint8Array, colorData: Uint32Array }} snapshot
+   */
+  restore(snapshot) {
+    if (snapshot.width !== this.width || snapshot.height !== this.height || snapshot.depth !== this.depth) {
+      throw new RangeError('VoxelGrid.restore: snapshot dimensions do not match this grid');
+    }
+    this.data.set(snapshot.data);
+    this.colorData.set(snapshot.colorData);
+    this.markAllDirty();
+  }
+
+  /**
+   * Flag every cell as dirty and mark the hull topology as changed.
+   */
+  markAllDirty() {
+    for (let i = 0; i < this.data.length; i++) this.dirtySet.add(i);
+    this.topologyDirty = true;
+  }
 }

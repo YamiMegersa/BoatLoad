@@ -205,7 +205,7 @@ export class PlayerShip {
     // Trigger sinking QTE
     if (this.waterLevel > this.maxWaterLevel * 0.75 && !this._bailingWater && this.qteSystem) {
       const accepted = this.qteSystem.trigger({
-        type: 'BAIL',
+        source: 'bail',
         windowMs: 2500,
         onSuccess: () => {
           this.waterLevel = Math.max(0, this.waterLevel - 25);
