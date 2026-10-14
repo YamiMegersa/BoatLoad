@@ -5,6 +5,7 @@ import { on }                   from './core/EventBus.js';
 import { BuildMenu }            from './ui/BuildMenu.js';
 import { DocketSheet }          from './ui/DocketSheet.js';
 import { DockUI }               from './ui/DockUI.js';
+import { MainMenuUI }           from './ui/MainMenuUI.js';
 import { DamageSystem }         from './shipyard/DamageSystem.js';
 import './ui/ui.css';
 
@@ -65,6 +66,7 @@ gameState._sun     = sun;
 const buildMenu  = new BuildMenu();
 const docket     = new DocketSheet();
 const dockUI     = new DockUI();
+const mainMenuUI = new MainMenuUI();
 
 let frameCount = 0;
 let lastFpsTime = performance.now();
@@ -111,6 +113,7 @@ demoUI.style.cssText = `
 demoUI.innerHTML = `
   <h3 style="margin-bottom: 10px; font-family: sans-serif;">BoatLoad Demo</h3>
   <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px;">
+    <button id="btn-main-menu" style="flex:1; padding: 8px; cursor: pointer; background: #9A5B2E; color: white; border: 1px solid #4a2a10;">Menu</button>
     <button id="btn-dock" style="flex:1; padding: 8px; cursor: pointer;">Dock</button>
     <button id="btn-shipyard" style="flex:1; padding: 8px; cursor: pointer;">Shipyard</button>
     <button id="btn-obstacle" style="flex:1; padding: 8px; cursor: pointer;">Sailing</button>
@@ -151,6 +154,10 @@ async function boot() {
     }
 
     // Wire buttons
+    document.getElementById('btn-main-menu').onclick = () => {
+      logEvent('Transitioning to Main Menu...');
+      gameState.transition(GamePhase.MAIN_MENU);
+    };
     document.getElementById('btn-dock').onclick = () => {
       logEvent('Transitioning to Dock...');
       gameState.transition(GamePhase.DOCK, { levelCfg });
@@ -199,8 +206,8 @@ async function boot() {
       }
     });
 
-    // Start at Shipyard for Day 1
-    await gameState.transition(GamePhase.SHIPYARD, { shipDef, levelCfg, fishModels });
+    // Start at Main Menu
+    await gameState.transition(GamePhase.MAIN_MENU, { shipDef, levelCfg, fishModels });
 
     tick();
   } catch (err) {

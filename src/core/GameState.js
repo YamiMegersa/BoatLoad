@@ -27,6 +27,7 @@ import { emit, on, off, clear } from './EventBus.js';
 // ---------------------------------------------------------------------------
 
 export const GamePhase = Object.freeze({
+  MAIN_MENU:'MAIN_MENU',
   DOCK:     'DOCK',
   SHIPYARD: 'SHIPYARD',
   OBSTACLE: 'OBSTACLE',
@@ -194,6 +195,10 @@ export class GameState {
 
   async _onEnter(phase, opts) {
     switch (phase) {
+      case GamePhase.MAIN_MENU:
+        await this._enterMainMenu(opts);
+        break;
+
       case GamePhase.DOCK:
         this._enterDock(opts);
         break;
@@ -227,6 +232,9 @@ export class GameState {
     switch (phase) {
       case GamePhase.DOCK:
         this._exitDock();
+        break;
+      case GamePhase.MAIN_MENU:
+        this._exitMainMenu();
         break;
 
       case GamePhase.SHIPYARD:
@@ -294,6 +302,40 @@ export class GameState {
     }
     emit('uiUnmount', { screen: 'dock' });
   }
+
+  // =========================================================================
+  // MAIN MENU
+  // =========================================================================
+
+  async _enterMainMenu(opts) {
+    if (this._chunkRenderer && this._chunkRenderer.container) {
+      this._chunkRenderer.container.position.set(15, -0.5, 0);
+    }
+    
+    // Set a cinematic view for the main menu background
+    this._camera.position.set(0, 5, 20);
+    this._camera.lookAt(0, 5, -100);
+
+    // Ensure the ocean is active and visible
+    this._ocean.breakwaterEnabled = false;
+
+    // Use day 1 weather for the main menu by default
+    await this._weather.loadLevel(1, {
+      ambient: this._ambient,
+      sun: this._sun,
+      ocean: this._ocean,
+      sky: this._sky,
+      lanternLight: this._dockStall.lanternLight,
+      scene: this._scene
+    });
+
+    emit('uiMount', { screen: 'main-menu' });
+  }
+
+  _exitMainMenu() {
+    emit('uiUnmount', { screen: 'main-menu' });
+  }
+
 
   // =========================================================================
   // SHIPYARD
