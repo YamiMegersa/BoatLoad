@@ -264,6 +264,7 @@ export class GameState {
 
   async _enterDock(opts) {
     if (this._chunkRenderer && this._chunkRenderer.container) {
+      this._chunkRenderer.container.visible = true;
       this._chunkRenderer.container.position.set(15, -0.5, 0);
     }
     // Set up fixed cinematic camera
@@ -308,15 +309,23 @@ export class GameState {
   // =========================================================================
 
   async _enterMainMenu(opts) {
+    this.activeCamera = null;
+
+    // Ensure any loaded boat/vessel meshes are hidden and positioned well out of the camera's sightline
     if (this._chunkRenderer && this._chunkRenderer.container) {
-      this._chunkRenderer.container.position.set(15, -0.5, 0);
+      this._chunkRenderer.container.visible = false;
+      this._chunkRenderer.container.position.set(0, -999, 0);
+    }
+    if (this._playerShip && this._playerShip.mesh) {
+      this._playerShip.mesh.visible = false;
+      this._playerShip.mesh.position.set(0, -999, 0);
     }
     
-    // Set a cinematic view for the main menu background
+    // Set an unobstructed panoramic view of the open ocean and horizon
     this._camera.position.set(0, 5, 20);
-    this._camera.lookAt(0, 5, -100);
+    this._camera.lookAt(0, 5, -120);
 
-    // Ensure the ocean is active and visible
+    // Ensure the ocean is active and visible with natural open waves
     this._ocean.breakwaterEnabled = false;
 
     // Use day 1 weather for the main menu by default
@@ -333,6 +342,13 @@ export class GameState {
   }
 
   _exitMainMenu() {
+    // Restore vessel visibility when transitioning out of the main menu into gameplay
+    if (this._chunkRenderer && this._chunkRenderer.container) {
+      this._chunkRenderer.container.visible = true;
+    }
+    if (this._playerShip && this._playerShip.mesh) {
+      this._playerShip.mesh.visible = true;
+    }
     emit('uiUnmount', { screen: 'main-menu' });
   }
 
