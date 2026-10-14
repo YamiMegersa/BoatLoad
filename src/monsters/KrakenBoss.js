@@ -19,13 +19,14 @@ import { KrakenCinematic } from './KrakenCinematic.js';
  *   DEFEATED        — player died during the fight
  */
 const BossState = Object.freeze({
-  IDLE:             'IDLE',
-  RACE_ACTIVE:      'RACE_ACTIVE',
-  TENTACLE_CAUGHT:  'TENTACLE_CAUGHT',
-  CINEMATIC:        'CINEMATIC',
-  RACE_COOLDOWN:    'RACE_COOLDOWN',
-  VICTORY:          'VICTORY',
-  DEFEATED:         'DEFEATED',
+  IDLE:               'IDLE',
+  RACE_ACTIVE:        'RACE_ACTIVE',
+  TENTACLE_ATTACKING: 'TENTACLE_ATTACKING',
+  TENTACLE_CAUGHT:    'TENTACLE_CAUGHT',
+  CINEMATIC:          'CINEMATIC',
+  RACE_COOLDOWN:      'RACE_COOLDOWN',
+  VICTORY:            'VICTORY',
+  DEFEATED:           'DEFEATED',
 });
 
 export { BossState };
@@ -162,6 +163,10 @@ export class KrakenBoss {
         this._updateRaceActive(delta);
         break;
 
+      case BossState.TENTACLE_ATTACKING:
+        this._updateTentacleAttacking(delta);
+        break;
+
       case BossState.TENTACLE_CAUGHT:
         this._updateTentacleCaught(delta);
         break;
@@ -253,24 +258,20 @@ export class KrakenBoss {
     // Update the waypoint race
     this._waypointRace?.update(delta, this._playerShip);
 
-    // Update the active tentacle
+    const timeRatio = this._waypointRace ? this._waypointRace.getTimeRatio() : 1.0;
+
+    // Update the active tentacle with approach distance tied to time remaining
     const tentacle = this._tentacles[this._currentTentacleIdx];
     if (tentacle) {
-      tentacle.update(delta, this._playerShip);
+      tentacle.update(delta, this._playerShip, timeRatio);
     }
 
-    // Check race outcomes (handled via events, but also check directly)
+    // Check race outcomes
     if (this._waypointRace?.isComplete()) {
       this._transitionTo(BossState.TENTACLE_CAUGHT);
     } else if (this._waypointRace?.isExpired()) {
-      // Tentacle attacks — player failed
-      const t = this._tentacles[this._currentTentacleIdx];
-      if (t) t.startAttack();
-
-      // Give the player a chance to survive — race restarts after a brief attack
-      this._attackTimer = 0;
-      this._attackDuration = 4.0; // 4 seconds of tentacle attack
-      this._state = 'TENTACLE_ATTACKING';
+      // Time ran out! Transition to attack state so tentacle impacts the ship
+      this._transitionTo(BossState.TENTACLE_ATTACKING);
     }
   }
 
@@ -280,16 +281,18 @@ export class KrakenBoss {
    * @param {number} delta
    */
   _updateTentacleAttacking(delta) {
-    // Update the attacking tentacle
+    // Update the attacking tentacle (timeRatio is 0 in attack mode)
     const tentacle = this._tentacles[this._currentTentacleIdx];
     if (tentacle) {
-      tentacle.update(delta, this._playerShip);
+      tentacle.update(delta, this._playerShip, 0);
     }
 
     this._attackTimer += delta;
     if (this._attackTimer >= this._attackDuration) {
-      // Reset the tentacle and restart the race
-      this._restartCurrentRace();
+      // After attack and impact recoil, restart race if player survived
+      if (this._playerShip && !this._playerShip.sunk) {
+        this._restartCurrentRace();
+      }
     }
   }
 
@@ -325,6 +328,15 @@ export class KrakenBoss {
     this._state = newState;
 
     switch (newState) {
+      case BossState.TENTACLE_ATTACKING:
+        {
+          const t = this._tentacles[this._currentTentacleIdx];
+          if (t) t.startAttack();
+          this._attackTimer = 0;
+          this._attackDuration = 3.0; // 3 seconds for surge, impact, and recoil
+        }
+        break;
+
       case BossState.TENTACLE_CAUGHT:
         this._onTentacleCaught();
         break;
@@ -386,11 +398,11 @@ export class KrakenBoss {
     );
     this._waypointRace.start();
 
-    // Activate the tentacle
+    // Activate the tentacle trailing behind player
     const tentacle = this._tentacles[this._currentTentacleIdx];
     if (tentacle) {
       tentacle.setVisible(true);
-      tentacle.activate();
+      tentacle.activate(this._playerShip);
     }
 
     this._state = BossState.RACE_ACTIVE;
@@ -403,10 +415,10 @@ export class KrakenBoss {
   }
 
   _restartCurrentRace() {
-    // Reset tentacle to pursuing
+    // Reset tentacle to pursuing behind player
     const tentacle = this._tentacles[this._currentTentacleIdx];
     if (tentacle) {
-      tentacle.activate(); // back to pursuing
+      tentacle.activate(this._playerShip);
     }
 
     // Restart the race timer

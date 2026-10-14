@@ -125,6 +125,14 @@ export class WaypointRace {
   /** @returns {boolean} Race is actively running */
   isActive() { return this._active; }
 
+  /** @returns {number} Current seconds remaining */
+  getTimeRemaining() { return Math.max(0, this._timeRemaining); }
+
+  /** @returns {number} Ratio of time remaining from 1.0 (start) down to 0.0 (expired) */
+  getTimeRatio() {
+    return Math.max(0, Math.min(1, this._timeRemaining / (this._timeLimit || 1)));
+  }
+
   /**
    * Get the position of the last reached waypoint (for tentacle wrapping).
    * @returns {THREE.Vector3|null}

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { emit } from '../core/EventBus.js';
 
 // ---------------------------------------------------------------------------
 // TentacleFollower — procedural segmented tentacle that chases the player
@@ -29,10 +30,11 @@ export class TentacleFollower {
   constructor(config, scene, ocean) {
     this._scene = scene;
     this._ocean = ocean;
-    this._speed = config.speed;
-    this._attackSpeed = config.speed * 2.5;
+    this._speed = config.speed ?? 12;
+    this._attackSpeed = Math.max(35, this._speed * 2.5);
     this._state = 'idle';
     this._time = 0;
+    this._hasImpacted = false;
 
     const segCount = config.segmentCount ?? 10;
     const segLen = config.segmentLen ?? 2.5;
@@ -82,9 +84,43 @@ export class TentacleFollower {
 
   /**
    * Activate the tentacle — start pursuing.
+   * @param {import('../obstacle/PlayerShip.js').PlayerShip} [playerShip]
    */
-  activate() {
+  activate(playerShip) {
     this._state = 'pursuing';
+    this._hasImpacted = false;
+    if (playerShip) {
+      this.resetBehind(playerShip, 30);
+    }
+  }
+
+  /**
+   * Position the tentacle chain trailing behind the player boat.
+   * @param {import('../obstacle/PlayerShip.js').PlayerShip} playerShip
+   * @param {number} [distance=30]
+   */
+  resetBehind(playerShip, distance = 30) {
+    const shipPos = playerShip.mesh.position;
+    const yaw = playerShip.yaw ?? 0;
+    // Behind direction in world coordinates:
+    const behindX = Math.sin(yaw);
+    const behindZ = Math.cos(yaw);
+
+    for (let i = 0; i < this._segmentCount; i++) {
+      const segDist = distance + i * this._segmentLen;
+      const px = shipPos.x + behindX * segDist;
+      const pz = shipPos.z + behindZ * segDist;
+      let py = 0;
+      if (this._ocean) {
+        py = this._ocean.getWaveInfo(px, pz).height + 0.3;
+      }
+      this._segments[i].position.set(px, py, pz);
+      if (i > 0) {
+        this._segments[i].lookAt(this._segments[i - 1].position);
+      } else {
+        this._segments[0].lookAt(shipPos.x, py, shipPos.z);
+      }
+    }
   }
 
   /**
@@ -92,6 +128,7 @@ export class TentacleFollower {
    */
   startAttack() {
     this._state = 'attacking';
+    this._hasImpacted = false;
   }
 
   /**
@@ -105,8 +142,9 @@ export class TentacleFollower {
    * Per-frame update.
    * @param {number} delta
    * @param {import('../obstacle/PlayerShip.js').PlayerShip} playerShip
+   * @param {number} [timeRatio=1.0] Ratio of time remaining (1.0 = start, 0.0 = expired)
    */
-  update(delta, playerShip) {
+  update(delta, playerShip, timeRatio = 1.0) {
     if (this._state === 'idle' || this._state === 'caught') return;
 
     this._time += delta;
@@ -114,25 +152,90 @@ export class TentacleFollower {
     const head = this._segments[0];
     const shipPos = playerShip.mesh.position;
 
-    // Determine effective speed
-    const speed = this._state === 'attacking' ? this._attackSpeed : this._speed;
-
-    // Head chases the player
+    // Direction vector from tentacle head to player ship
     const dx = shipPos.x - head.position.x;
     const dz = shipPos.z - head.position.z;
     const dist = Math.hypot(dx, dz) || 0.001;
+    const dirX = dx / dist;
+    const dirZ = dz / dist;
 
-    head.position.x += (dx / dist) * speed * delta;
-    head.position.z += (dz / dist) * speed * delta;
+    if (this._state === 'pursuing') {
+      // Approach relative to time remaining:
+      // When timeRatio = 1.0 (start), distance is 30.0 units.
+      // When timeRatio = 0.0 (near end), distance is 5.2 units (close menace, strictly no premature intersection).
+      const clampedRatio = Math.max(0, Math.min(1, timeRatio));
+      const desiredDist = 5.2 + 24.8 * clampedRatio;
 
-    // Ride ocean surface
-    if (this._ocean) {
-      const waveInfo = this._ocean.getWaveInfo(head.position.x, head.position.z);
-      head.position.y = waveInfo.height + 0.3;
+      if (dist < desiredDist) {
+        // Enforce safe boundary so tentacle never intersects boat before time is up
+        head.position.x = shipPos.x - dirX * desiredDist;
+        head.position.z = shipPos.z - dirZ * desiredDist;
+      } else {
+        // Smoothly close distance towards desiredDist, scaling speed to match or catch boat
+        const followSpeed = Math.max(this._speed, 20.0);
+        const step = Math.min(dist - desiredDist, followSpeed * delta);
+        head.position.x += dirX * step;
+        head.position.z += dirZ * step;
+      }
+
+      // Ride ocean surface with slight menacing bob
+      if (this._ocean) {
+        const waveInfo = this._ocean.getWaveInfo(head.position.x, head.position.z);
+        head.position.y = waveInfo.height + 0.4;
+      }
+
+      head.lookAt(shipPos.x, head.position.y, shipPos.z);
+    } else if (this._state === 'attacking') {
+      // Time is up! Tentacle accelerates and slams into the boat
+      if (!this._hasImpacted) {
+        const surgeStep = Math.min(dist, this._attackSpeed * delta);
+        head.position.x += dirX * surgeStep;
+        head.position.z += dirZ * surgeStep;
+
+        // Arch up menacingly out of the water like a striking strike
+        if (this._ocean) {
+          const waveInfo = this._ocean.getWaveInfo(head.position.x, head.position.z);
+          const arch = Math.sin(Math.min(1.0, dist / 8.0) * Math.PI) * 2.5;
+          head.position.y = waveInfo.height + 0.5 + arch;
+        }
+
+        head.lookAt(shipPos.x, head.position.y, shipPos.z);
+
+        // Check for boat impact
+        if (dist < 3.2 && !playerShip.isImmune()) {
+          this._hasImpacted = true;
+          const rockDamage = 20; // Identical damage to rock collision
+
+          // Deal damage: punches holes in hull, updates HP and HUD
+          playerShip.takeDamage(rockDamage, 'kraken_tentacle');
+          playerShip.setImmune(2.0);
+
+          // Physical rock collision response: violent pitch and roll impulse
+          playerShip.bounceBack(dx, dz, 'rock');
+
+          // Static push away from impact direction
+          playerShip.mesh.position.x += dirX * 3.0;
+          playerShip.mesh.position.z += dirZ * 3.0;
+
+          // Pinball knockback velocity
+          playerShip.applyKnockback(new THREE.Vector3(dirX * 45, 0, dirZ * 45));
+
+          // Audio and screen shake feedback
+          emit('obstacleHit', { type: 'rock', damage: rockDamage });
+          emit('playSound', { sound: 'collision' });
+
+          // Recoil tentacle head back so it doesn't clip through the hull
+          head.position.x = shipPos.x - dirX * 10.0;
+          head.position.z = shipPos.z - dirZ * 10.0;
+        }
+      } else {
+        // Lingering at recoil distance in water after impact
+        if (this._ocean) {
+          const waveInfo = this._ocean.getWaveInfo(head.position.x, head.position.z);
+          head.position.y = waveInfo.height - 0.2;
+        }
+      }
     }
-
-    // Orient head toward player
-    head.lookAt(shipPos.x, head.position.y, shipPos.z);
 
     // IK chain — each segment follows the previous
     for (let i = 1; i < this._segmentCount; i++) {
@@ -162,22 +265,6 @@ export class TentacleFollower {
       const phase = i * 0.7;
       const undulate = Math.sin(this._time * 3.5 - phase) * 0.4 * (i / this._segmentCount);
       curr.position.y += undulate;
-    }
-
-    // Attack damage check — if attacking and head is close to player
-    if (this._state === 'attacking') {
-      if (dist < 3.0 && !playerShip.isImmune()) {
-        playerShip.takeDamage(15, 'kraken_tentacle');
-        playerShip.setImmune(1.5);
-
-        // Knockback away from tentacle
-        const kx = shipPos.x - head.position.x;
-        const kz = shipPos.z - head.position.z;
-        const kd = Math.hypot(kx, kz) || 0.001;
-        playerShip.applyKnockback(
-          new THREE.Vector3((kx / kd) * 30, 0, (kz / kd) * 30)
-        );
-      }
     }
   }
 
