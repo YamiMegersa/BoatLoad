@@ -53,6 +53,14 @@ export class DockStall {
                 plank.receiveShadow = true; plank.castShadow = true;
                 dockGroup.add(plank);
             }
+
+            // Invisible solid collision deck over dock to ensure smooth walking without catching plank gaps
+            const dockCollisionDeck = new THREE.Mesh(
+                new THREE.BoxGeometry(dockLength, 0.35, dockWidth),
+                new THREE.MeshBasicMaterial({ visible: false })
+            );
+            dockCollisionDeck.position.set(0, 0.5, 0);
+            dockGroup.add(dockCollisionDeck);
             const postMat = new THREE.MeshStandardMaterial({ color: Palette.woodDark, roughness: 0.95 });
             [[-8, -4.5], [-8, 4.5], [0, -4.5], [0, 4.5], [8, -4.5], [8, 4.5]].forEach(([x, z]) => {
                 const post = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.3, 5.5, 8), postMat);
@@ -357,19 +365,19 @@ export class DockStall {
             // =======================================================================
             // Right wall with Doorway & Interactive Shop Door (facing island ramp)
             // =======================================================================
-            const doorW = 1.25;
-            const doorH = 2.50;
-            const doorZ = -0.5; // Center of door
+            const doorW = 1.65;
+            const doorH = 3.65;
+            const doorZ = -0.35; // Center of door
             const rightX = shopW / 2;
 
-            // 1. Back panel (from backZ to door start: -2.5 to -1.125)
+            // 1. Back panel (from backZ to door start: -2.5 to doorZ - doorW / 2)
             const rwBackLen = (doorZ - doorW / 2) - (-shopD / 2);
             const rwBack = new THREE.Mesh(new THREE.BoxGeometry(0.18, shopH, rwBackLen), facadeMat);
             rwBack.position.set(rightX, shopH / 2, -shopD / 2 + rwBackLen / 2);
             rwBack.castShadow = true; rwBack.receiveShadow = true;
             shop.add(rwBack);
 
-            // 2. Front panel (from door end to frontZ: 0.125 to 2.5)
+            // 2. Front panel (from door end to frontZ: doorZ + doorW / 2 to 2.5)
             const rwFrontLen = (shopD / 2) - (doorZ + doorW / 2);
             const rwFront = new THREE.Mesh(new THREE.BoxGeometry(0.18, shopH, rwFrontLen), facadeMat);
             rwFront.position.set(rightX, shopH / 2, shopD / 2 - rwFrontLen / 2);
@@ -384,8 +392,8 @@ export class DockStall {
             shop.add(rwLintel);
 
             // Transom porthole window above door in lintel
-            const transomY = doorH + 1.25;
-            const transomR = 0.36;
+            const transomY = doorH + 0.85;
+            const transomR = 0.32;
             const transomFrame = new THREE.Mesh(new THREE.TorusGeometry(transomR, 0.045, 12, 24), brassMat);
             transomFrame.rotation.y = Math.PI / 2;
             transomFrame.position.set(rightX + 0.02, transomY, doorZ);
@@ -400,23 +408,23 @@ export class DockStall {
             shop.add(transomGlass);
 
             // Door Frame (dark timber posts, header & threshold)
-            const frameGeoV = new THREE.BoxGeometry(0.24, doorH, 0.14);
+            const frameGeoV = new THREE.BoxGeometry(0.26, doorH, 0.16);
             const framePostBack = new THREE.Mesh(frameGeoV, frameMat);
-            framePostBack.position.set(rightX, doorH / 2, doorZ - doorW / 2 - 0.07);
+            framePostBack.position.set(rightX, doorH / 2, doorZ - doorW / 2 - 0.08);
             framePostBack.castShadow = true;
             shop.add(framePostBack);
 
             const framePostFront = new THREE.Mesh(frameGeoV, frameMat);
-            framePostFront.position.set(rightX, doorH / 2, doorZ + doorW / 2 + 0.07);
+            framePostFront.position.set(rightX, doorH / 2, doorZ + doorW / 2 + 0.08);
             framePostFront.castShadow = true;
             shop.add(framePostFront);
 
-            const frameHeader = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.14, doorW + 0.28), frameMat);
-            frameHeader.position.set(rightX, doorH + 0.07, doorZ);
+            const frameHeader = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.16, doorW + 0.32), frameMat);
+            frameHeader.position.set(rightX, doorH + 0.08, doorZ);
             frameHeader.castShadow = true;
             shop.add(frameHeader);
 
-            const threshold = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.08, doorW + 0.14), frameMat);
+            const threshold = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.08, doorW + 0.16), frameMat);
             threshold.position.set(rightX, 0.04, doorZ);
             shop.add(threshold);
 
@@ -428,9 +436,9 @@ export class DockStall {
             shop.add(doorGroup);
 
             // Door leaf
-            const doorLeafH = doorH - 0.06;
-            const doorLeafW = doorW - 0.04;
-            const doorLeafGeo = new THREE.BoxGeometry(0.08, doorLeafH, doorLeafW);
+            const doorLeafH = doorH - 0.08;
+            const doorLeafW = doorW - 0.06;
+            const doorLeafGeo = new THREE.BoxGeometry(0.09, doorLeafH, doorLeafW);
             const doorLeafMat = new THREE.MeshStandardMaterial({
                 color: Palette.woodHi,
                 roughness: 0.75,
@@ -443,10 +451,10 @@ export class DockStall {
             doorLeaf.userData = { isShopDoor: true, name: 'shopDoorLeaf' };
             doorGroup.add(doorLeaf);
 
-            // Wood Z-braces / rails on exterior and interior
-            [-0.045, 0.045].forEach(offsetX => {
-                [0.3, doorLeafH / 2, doorLeafH - 0.3].forEach(railY => {
-                    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.12, doorLeafW - 0.06), frameMat);
+            // Wood Z-braces / horizontal rails on exterior and interior
+            [-0.05, 0.05].forEach(offsetX => {
+                [0.4, doorLeafH * 0.45, doorLeafH - 0.4].forEach(railY => {
+                    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.15, doorLeafW - 0.06), frameMat);
                     rail.position.set(offsetX, railY, 0);
                     rail.userData = { isShopDoor: true };
                     doorGroup.add(rail);
@@ -454,34 +462,34 @@ export class DockStall {
             });
 
             // Brass Door Handles on Exterior and Interior
-            const handleGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.18, 8);
-            const backPlateGeo = new THREE.BoxGeometry(0.02, 0.24, 0.06);
+            const handleGeo = new THREE.CylinderGeometry(0.025, 0.025, 0.22, 8);
+            const backPlateGeo = new THREE.BoxGeometry(0.025, 0.30, 0.07);
 
-            // Exterior handle (+X)
+            // Exterior handle (+X) at height 1.65m
             const extPlate = new THREE.Mesh(backPlateGeo, brassMat);
-            extPlate.position.set(0.055, 1.15, doorLeafW / 2 - 0.18);
+            extPlate.position.set(0.06, 1.65, doorLeafW / 2 - 0.22);
             extPlate.userData = { isShopDoor: true };
             doorGroup.add(extPlate);
 
             const extHandle = new THREE.Mesh(handleGeo, brassMat);
-            extHandle.position.set(0.08, 1.15, doorLeafW / 2 - 0.18);
+            extHandle.position.set(0.09, 1.65, doorLeafW / 2 - 0.22);
             extHandle.userData = { isShopDoor: true };
             doorGroup.add(extHandle);
 
-            // Interior handle (-X)
+            // Interior handle (-X) at height 1.65m
             const intPlate = new THREE.Mesh(backPlateGeo, brassMat);
-            intPlate.position.set(-0.055, 1.15, doorLeafW / 2 - 0.18);
+            intPlate.position.set(-0.06, 1.65, doorLeafW / 2 - 0.22);
             intPlate.userData = { isShopDoor: true };
             doorGroup.add(intPlate);
 
             const intHandle = new THREE.Mesh(handleGeo, brassMat);
-            intHandle.position.set(-0.08, 1.15, doorLeafW / 2 - 0.18);
+            intHandle.position.set(-0.09, 1.65, doorLeafW / 2 - 0.22);
             intHandle.userData = { isShopDoor: true };
             doorGroup.add(intHandle);
 
             // Carved "SHOP" sign plaque above the door on exterior
-            const signBacking = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.22, 0.85), frameMat);
-            signBacking.position.set(rightX + 0.10, doorH + 0.32, doorZ);
+            const signBacking = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.26, 0.95), frameMat);
+            signBacking.position.set(rightX + 0.10, doorH + 0.35, doorZ);
             shop.add(signBacking);
 
             const signCanvas = document.createElement('canvas');
@@ -500,10 +508,10 @@ export class DockStall {
             const signTex = new THREE.CanvasTexture(signCanvas);
 
             const signFace = new THREE.Mesh(
-                new THREE.BoxGeometry(0.02, 0.18, 0.81),
+                new THREE.BoxGeometry(0.02, 0.22, 0.91),
                 new THREE.MeshStandardMaterial({ map: signTex, roughness: 0.8 })
             );
-            signFace.position.set(rightX + 0.125, doorH + 0.32, doorZ);
+            signFace.position.set(rightX + 0.125, doorH + 0.35, doorZ);
             shop.add(signFace);
 
             // Expose door and interactables for raycasting
@@ -899,7 +907,7 @@ export class DockStall {
 
             [{ x: -shopW / 2 - 0.7, z: -0.5, h: 1.2, r: 0.35 },
             { x: -shopW / 2 - 0.6, z: 0.6, h: 1.0, r: 0.3 },
-            { x: shopW / 2 + 0.7, z: -0.8, h: 1.3, r: 0.38 }
+            { x: shopW / 2 + 0.65, z: -2.0, h: 1.3, r: 0.38 }
             ].forEach(b => {
                 const barrel = new THREE.Mesh(
                     new THREE.CylinderGeometry(b.r * 0.9, b.r, b.h, 12), barrelMat
@@ -918,27 +926,27 @@ export class DockStall {
                 });
             });
 
-            // Stacked crates beside shop
+            // Stacked crates beside shop (moved clear of the doorway)
             const crateMat = new THREE.MeshStandardMaterial({ color: Palette.woodHi, roughness: 0.9 });
             const crate1 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.6, 0.7), crateMat);
-            crate1.position.set(shopW / 2 + 0.7, 0.3, 0.8);
+            crate1.position.set(shopW / 2 + 0.7, 0.3, 1.4);
             crate1.rotation.y = 0.15;
             crate1.castShadow = true;
             shop.add(crate1);
 
             const crate2 = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.5, 0.55), crateMat);
-            crate2.position.set(shopW / 2 + 0.6, 0.85, 0.85);
+            crate2.position.set(shopW / 2 + 0.6, 0.85, 1.45);
             crate2.rotation.y = -0.3;
             crate2.castShadow = true;
             shop.add(crate2);
 
-            // Rope coils hanging on the right side wall
+            // Rope coils hanging on the left side wall (away from the door)
             [1.5, 2.8].forEach(y => {
                 const hangRope = new THREE.Mesh(
                     new THREE.TorusGeometry(0.22, 0.05, 8, 16), ropeMat
                 );
                 hangRope.rotation.z = Math.PI / 2;
-                hangRope.position.set(shopW / 2 + 0.1, y, -0.4);
+                hangRope.position.set(-shopW / 2 - 0.1, y, -0.4);
                 shop.add(hangRope);
             });
 
@@ -1018,8 +1026,8 @@ export class DockStall {
     
     // Create the shopkeeper camera relative to the shop
     this.shopCam = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 500);
-    this.shopCam.position.set(0, 3.2, -1.0); 
-    this.shopCam.rotation.set(-0.15, Math.PI, 0); // Looking out over the counter at the dock!
+    this.shopCam.position.set(0, 2.85, -0.6); 
+    this.shopCam.rotation.set(0, 0, 0);
     shop.add(this.shopCam);
 
     return this.group;

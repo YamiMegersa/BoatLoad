@@ -19,7 +19,7 @@ export class DockPlayerController {
 
     // Camera setup
     this.camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 500);
-    this.eyeHeight = 1.65;
+    this.eyeHeight = 2.85; // Proportional to dock and shop scale
 
     // Camera Rig (Yaw -> Pitch -> Camera)
     this.pitchObject = new THREE.Object3D();
@@ -39,24 +39,20 @@ export class DockPlayerController {
       right: false,
       sprint: false
     };
-    this.walkSpeed = 5.5;
-    this.sprintSpeed = 9.5;
+    this.walkSpeed = 6.0;
+    this.sprintSpeed = 10.5;
     this.velocity = new THREE.Vector3();
 
     // Raycasters for terrain following & interaction
     this.downRaycaster = new THREE.Raycaster();
-    this.downRaycaster.far = 8.0;
+    this.downRaycaster.far = 10.0;
     this.interactRaycaster = new THREE.Raycaster();
-    this.interactRaycaster.far = 4.2;
+    this.interactRaycaster.far = 5.2;
 
     // Mouse & Pointer Lock
     this.isLocked = false;
     this.mouseCoords = new THREE.Vector2(-999, -999);
     this.hoveredDoor = null;
-
-    // Shopkeeper view constraints (relative yaw/pitch limits when in shop)
-    this.shopYaw = Math.PI; // Default facing towards counter (+Z in shop)
-    this.shopPitch = -0.12;
 
     // UI elements
     this._createUI();
@@ -234,23 +230,10 @@ export class DockPlayerController {
 
       const sensitivity = 0.0022;
 
-      if (this.mode === 'player') {
-        this.yawObject.rotation.y -= movementX * sensitivity;
-        this.pitchObject.rotation.x -= movementY * sensitivity;
-        this.pitchObject.rotation.x = Math.max(-1.45, Math.min(1.45, this.pitchObject.rotation.x));
-      } else if (this.mode === 'shop') {
-        // Shopkeeper view: restricted yaw so player can turn to look at counter and door
-        this.shopYaw -= movementX * sensitivity;
-        this.shopPitch -= movementY * sensitivity;
-
-        // Clamp inside shop (face dock is around Math.PI, door is around Math.PI - 1.2)
-        const baseFacing = Math.PI;
-        this.shopYaw = Math.max(baseFacing - 1.6, Math.min(baseFacing + 1.6, this.shopYaw));
-        this.shopPitch = Math.max(-0.6, Math.min(0.5, this.shopPitch));
-
-        this.yawObject.rotation.y = this.shopYaw;
-        this.pitchObject.rotation.x = this.shopPitch;
-      }
+      // Allow full 360-degree rotation both outside and inside the shop!
+      this.yawObject.rotation.y -= movementX * sensitivity;
+      this.pitchObject.rotation.x -= movementY * sensitivity;
+      this.pitchObject.rotation.x = Math.max(-1.45, Math.min(1.45, this.pitchObject.rotation.x));
     } else {
       // Track mouse NDC coordinates for unlocked clicking
       const rect = this.domElement.getBoundingClientRect();
@@ -289,13 +272,13 @@ export class DockPlayerController {
   enterShop() {
     this.mode = 'shop';
 
-    // Store outside exit position just outside the door on the dock
-    // Shop local (3.7, 0, -0.5) in world coords:
-    const exitPos = new THREE.Vector3(3.7, 0, -0.5);
+    // Store outside exit position just outside the enlarged door on the dock
+    // Shop local (x = 3.0 + 1.2, y = 0, z = -0.35)
+    const exitPos = new THREE.Vector3(4.2, 0, -0.35);
     if (this.dockStall && this.dockStall.shopGroup) {
       this.dockStall.shopGroup.localToWorld(exitPos);
     } else {
-      exitPos.set(-1.6, 2.15, 4.5);
+      exitPos.set(-2.1, 2.15, 4.35);
     }
     this.savedExitPosition = exitPos;
 
@@ -304,15 +287,13 @@ export class DockPlayerController {
     if (this.dockStall && this.dockStall.shopCam) {
       this.dockStall.shopCam.getWorldPosition(shopCamWorldPos);
     } else {
-      shopCamWorldPos.set(2.1, 2.15 + 1.45, 4.0 - (-1.0));
+      shopCamWorldPos.set(2.1, 2.15 + this.eyeHeight, 4.6);
     }
 
     this.yawObject.position.copy(shopCamWorldPos);
-    // Face out over the counter (local +Z in shop -> world -Z)
-    this.shopYaw = Math.PI;
-    this.shopPitch = -0.12;
-    this.yawObject.rotation.y = this.shopYaw;
-    this.pitchObject.rotation.x = this.shopPitch;
+    // Face forward through the counter out toward the dock (world -Z)
+    this.yawObject.rotation.y = 0;
+    this.pitchObject.rotation.x = -0.05;
 
     this.velocity.set(0, 0, 0);
 
@@ -327,7 +308,7 @@ export class DockPlayerController {
     if (this.savedExitPosition) {
       this.yawObject.position.set(this.savedExitPosition.x, this.savedExitPosition.y + this.eyeHeight, this.savedExitPosition.z);
     } else {
-      this.yawObject.position.set(-1.6, 2.15 + this.eyeHeight, 4.5);
+      this.yawObject.position.set(-2.1, 2.15 + this.eyeHeight, 4.35);
     }
 
     // Face towards the island ramp (world -X)
