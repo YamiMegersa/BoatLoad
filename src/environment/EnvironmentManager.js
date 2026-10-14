@@ -19,6 +19,14 @@ const TIME_STOPS = [
   { time: 24, sun: 0x111122, amb: 0x050511, sky: 0x020511, fog: 0x020511 }, // Midnight
 ];
 
+// Sharks patrol fully hidden underwater (the ocean is 85% opaque, so a submerged
+// shark otherwise shows as a ghostly silhouette with its dorsal fin visible).
+// They only appear when harpooned, breaching the surface. Set to false to make
+// patrolling sharks visible through the water again.
+const HIDE_SHARKS_UNTIL_HIT = true;
+// How far the shark's origin sits above the water surface while breached.
+const SHARK_BREACH_LIFT = 0.9;
+
 const STORM_COLORS = {
   sun: 0x445566,
   amb: 0x223344,
@@ -32,6 +40,7 @@ export class EnvironmentManager {
     this._fishModels = null;
     this._sharks     = [];
     this.qteSystem   = null;
+    this._ocean      = null;
     this._windParticles = null;
     this._rainManager = null;
     this._fogVolume = null;
@@ -51,11 +60,13 @@ export class EnvironmentManager {
    * @param {object[]}    fishModels  - Array of GLTF objects from LevelConfig
    * @param {object}      levelCfg    - The level configuration
    * @param {object}      [qteSystem] - QTESystem instance
+   * @param {object}      [ocean]     - Ocean instance (used to find the live water height)
    */
-  init(scene, fishModels, levelCfg, qteSystem) {
+  init(scene, fishModels, levelCfg, qteSystem, ocean) {
     this._scene      = scene;
     this._fishModels = fishModels;
     this.qteSystem   = qteSystem;
+    this._ocean      = ocean ?? null;
     this._sharks     = [];
     this._ambientLight = scene.children.find(c => c.isAmbientLight);
     this._sunLight = scene.children.find(c => c.isDirectionalLight);
@@ -149,6 +160,8 @@ export class EnvironmentManager {
       }
     });
 
+    if (isShark && HIDE_SHARKS_UNTIL_HIT) mesh.visible = false;
+
     this._scene.add(mesh);
 
     const speed     = 2.0 + Math.random() * 2.5;
@@ -199,8 +212,9 @@ export class EnvironmentManager {
           shark.flashing = true;
           shark.flashTimer = 0.8;
 
-          // Raise the shark above the surface so the red flash is visible
-          shark.baseY = 0.5;
+          // Breach at the real water surface (waves move it between about -1.5 and 0.5)
+          shark.mesh.visible = true;
+          shark.baseY = this._surfaceY(shark.mesh.position) + SHARK_BREACH_LIFT;
 
           // Trigger particles
           emit('spawnParticles', { type: 'massiveSplash', position: shark.mesh.position.clone() });
@@ -218,13 +232,19 @@ export class EnvironmentManager {
               c.material.emissive = new THREE.Color(0xff0000);
               c.material.emissiveIntensity = 3.0;
               c.material.color.setHex(0xff2200);
-              // Render above water surface
-              c.renderOrder = 10;
+              // The ocean is a transparent material, so it is drawn after every opaque
+              // object and washes a shark out to ~15%. Making the shark transparent too
+              // puts it in the same list, and renderOrder 10 draws it after the ocean
+              // (renderOrder 0). Depth testing still hides the part below the surface.
+              c.material.transparent = true;
+              c.material.depthWrite = true;
               c.material.depthTest = true;
+              c.renderOrder = 10;
             }
           });
         }
       } else if (shark.flashing) {
+        shark.baseY = this._surfaceY(shark.mesh.position) + SHARK_BREACH_LIFT;
         shark.flashTimer -= delta;
         if (shark.flashTimer <= 0) {
           shark.flashing = false;
@@ -271,16 +291,6 @@ export class EnvironmentManager {
             onSuccess: (timing = {}) => {
               shark.hitPending = true;
               shark.hitDelay = 0.3; // Matches harpoon travel time
-              const isPerfect = timing.isPerfect ?? false;
-              const bonusPoints = isPerfect ? 250 : 100;
-              const label = isPerfect ? 'PERFECT STRIKE!' : 'SHARK HARPOONED!';
-
-              emit('scoreAdded', {
-                points: bonusPoints,
-                label,
-                isPerfect,
-                position: shark.mesh.position.clone()
-              });
 
               emit('spawnParticles', {
                 type: 'harpoon',
@@ -309,8 +319,10 @@ export class EnvironmentManager {
       shark.mesh.position.y = shark.baseY + shark.animator.bobOffset;
       shark.mesh.rotation.y = shark.baseYaw + shark.animator.yawOffset;
 
-      // Swim forward
-      shark.mesh.translateZ(shark.speed * delta);
+      // Swim forward (hold position while being harpooned so it stays where the spear lands)
+      if (!shark.hitPending && !shark.flashing) {
+        shark.mesh.translateZ(shark.speed * delta);
+      }
 
       // Wrap around the play area (200 radius = -200 to 200)
       const p = shark.mesh.position;
@@ -343,6 +355,11 @@ export class EnvironmentManager {
     }
 
     this._updateTimeAndLighting(delta);
+  }
+
+  /** Live world-space water height at a position (falls back to the flat level). */
+  _surfaceY(pos) {
+    return this._ocean ? this._ocean.getWaveInfo(pos.x, pos.z).height : -0.5;
   }
 
   _updateTimeAndLighting(delta) {
@@ -451,6 +468,7 @@ export class EnvironmentManager {
   }
 
   dispose() {
+    this._ocean = null;
     for (const shark of this._sharks) {
       this._scene?.remove(shark.mesh);
     }
