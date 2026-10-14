@@ -746,6 +746,25 @@ export class GameState {
       levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels
     );
 
+    this._onEditorCameraPreset = (d) => {
+      if (!this._camera || !this._orbitControls) return;
+      if (d?.preset === 'top') {
+        this._camera.position.set(0, 100, 0.01);
+        this._orbitControls.target.set(0, 0, 0);
+      } else if (d?.preset === 'horizon') {
+        this._camera.position.set(0, 8, 30);
+        this._orbitControls.target.set(0, 4, -40);
+      } else if (d?.preset === 'isometric') {
+        this._camera.position.set(50, 60, 50);
+        this._orbitControls.target.set(0, 0, 0);
+      } else { // default
+        this._camera.position.set(0, 30, 20);
+        this._orbitControls.target.set(0, 0, -5);
+      }
+      this._orbitControls.update();
+    };
+    on('editorCameraPreset', this._onEditorCameraPreset);
+
     emit('uiMount', { screen: 'editor', levelCfg });
   }
 
@@ -786,6 +805,11 @@ export class GameState {
   }
 
   _exitEditor() {
+    if (this._onEditorCameraPreset) {
+      off('editorCameraPreset', this._onEditorCameraPreset);
+      this._onEditorCameraPreset = null;
+    }
+
     this._editorSystem?.dispose();
     this._editorSystem = null;
     
