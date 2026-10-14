@@ -208,6 +208,23 @@ export function buildObstacle(type, pos, url, scale, rockModels, pickupModels, s
     
     mesh = new THREE.Group();
     mesh.add(cloned);
+  } else if (type === 'siren') {
+    mesh = new THREE.Group();
+    // Purple glowing rock
+    const sirenRock = new THREE.Mesh(
+      new THREE.DodecahedronGeometry(1.2, 1),
+      new THREE.MeshPhongMaterial({ color: 0x553377, emissive: 0x331155, emissiveIntensity: 0.4 })
+    );
+    sirenRock.position.y = 0.6;
+    mesh.add(sirenRock);
+    // Attraction radius ring
+    const sirenRadius = targetScale * 20; // scale controls radius visually
+    const ringGeo = new THREE.RingGeometry(sirenRadius - 0.3, sirenRadius, 48);
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0xff66cc, transparent: true, opacity: 0.15, side: THREE.DoubleSide, depthWrite: false });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.1;
+    mesh.add(ring);
   } else {
     mesh = new THREE.Mesh(_geo[type] ?? _geo.rock, _mat[type] ?? _mat.rock);
     mesh.scale.setScalar(targetScale);

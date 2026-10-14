@@ -18,6 +18,8 @@ import { EditorUI }       from '../ui/EditorUI.js';
 import { EditorSystem }   from '../editor/EditorSystem.js';
 import { VoxelTerrain }   from '../editor/VoxelTerrain.js';
 import { WindManager }        from '../environment/WindManager.js';
+import { SirenManager }       from '../monsters/SirenManager.js';
+import { KrakenBoss }         from '../monsters/KrakenBoss.js';
 import { emit, on, off, clear } from './EventBus.js';
 
 // ---------------------------------------------------------------------------
@@ -89,6 +91,8 @@ export class GameState {
     this._editorUI        = new EditorUI();
     this._editorSystem    = null;
     this._windManager     = null;
+    this._sirenManager    = null;
+    this._krakenBoss      = null;
     
     // Global wind direction (e.g., blowing towards North-East)
     this.windDir = new THREE.Vector3(1, 0, -1).normalize();
@@ -459,6 +463,20 @@ export class GameState {
 
     this._qteSystem = new QTESystem();
 
+    // Sirens
+    this._sirenManager = new SirenManager();
+    this._sirenManager.init(levelCfg, this._scene);
+
+    // Kraken Boss (only if level defines one)
+    if (levelCfg.kraken) {
+      this._krakenBoss = new KrakenBoss();
+      this._krakenBoss.init(
+        levelCfg.kraken,
+        this._scene, this._camera,
+        this._playerShip, this._ocean
+      );
+    }
+
     this._onSteer = (d) => {
       if (this._playerShip) {
         this._playerShip.steerInput = d.value;
@@ -479,6 +497,16 @@ export class GameState {
     this._playerShip?.update(delta, this._ocean, this._windManager);
     this._obstacleManager?.update(delta, this._playerShip, this._windManager, this._voxelTerrain);
     this._environmentManager?.update(delta, this._windManager, this._playerShip?.mesh.position);
+
+    // Sirens — continuous pull force
+    this._sirenManager?.update(delta, this._playerShip);
+
+    // Kraken boss — FSM + tentacles + cinematics
+    if (this._krakenBoss) {
+      this._krakenBoss.update(delta);
+      // During cinematic, skip normal camera updates
+      if (this._krakenBoss.isCinematicActive()) return;
+    }
 
     if (this._playerShip) {
       const p = this._playerShip.mesh.position;
@@ -537,6 +565,11 @@ export class GameState {
   _exitObstacle() {
     off('steer', this._onSteer);
     off('playerSunk');
+
+    this._sirenManager?.dispose();
+    this._sirenManager = null;
+    this._krakenBoss?.dispose();
+    this._krakenBoss = null;
 
     this._playerShip?.dispose(this._scene);
     this._obstacleManager?.dispose();

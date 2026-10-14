@@ -92,6 +92,118 @@
       }
     }
   ],
+  "sirens": [
+    {
+      "type": "siren",
+      "position": {
+        "x": 45,
+        "y": 0,
+        "z": -60
+      },
+      "intensity": 0.7,
+      "attractRadius": 40
+    }
+  ],
+  "kraken": {
+    "krakenPosition": {
+      "x": 0,
+      "y": -5,
+      "z": -180
+    },
+    "raceStartPosition": {
+      "x": 0,
+      "y": 0,
+      "z": -35
+    },
+    "raceStartRadius": 18,
+    "totalHP": 100,
+    "tentacles": [
+      {
+        "spawnOffset": {
+          "x": -25,
+          "y": 0,
+          "z": -20
+        },
+        "speed": 11,
+        "raceDuration": 30,
+        "damagePerTentacle": 34,
+        "waypoints": [
+          {
+            "position": { "x": -25, "y": 0, "z": -60 },
+            "radius": 10
+          },
+          {
+            "position": { "x": -55, "y": 0, "z": -95 },
+            "radius": 10
+          },
+          {
+            "position": { "x": -45, "y": 0, "z": -135 },
+            "radius": 10
+          },
+          {
+            "position": { "x": -15, "y": 0, "z": -115 },
+            "radius": 10
+          }
+        ]
+      },
+      {
+        "spawnOffset": {
+          "x": 25,
+          "y": 0,
+          "z": -20
+        },
+        "speed": 13,
+        "raceDuration": 25,
+        "damagePerTentacle": 33,
+        "waypoints": [
+          {
+            "position": { "x": 20, "y": 0, "z": -75 },
+            "radius": 10
+          },
+          {
+            "position": { "x": 40, "y": 0, "z": -115 },
+            "radius": 10
+          },
+          {
+            "position": { "x": 20, "y": 0, "z": -155 },
+            "radius": 10
+          },
+          {
+            "position": { "x": -10, "y": 0, "z": -135 },
+            "radius": 10
+          }
+        ]
+      },
+      {
+        "spawnOffset": {
+          "x": 0,
+          "y": 0,
+          "z": -30
+        },
+        "speed": 15,
+        "raceDuration": 22,
+        "damagePerTentacle": 33,
+        "waypoints": [
+          {
+            "position": { "x": 0, "y": 0, "z": -55 },
+            "radius": 10
+          },
+          {
+            "position": { "x": -25, "y": 0, "z": -90 },
+            "radius": 10
+          },
+          {
+            "position": { "x": 25, "y": 0, "z": -125 },
+            "radius": 10
+          },
+          {
+            "position": { "x": 0, "y": 0, "z": -155 },
+            "radius": 10
+          }
+        ]
+      }
+    ]
+  },
   "rewardAbilities": [
     "practiced_hand",
     "seasoned_hull",

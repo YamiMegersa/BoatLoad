@@ -1,4 +1,4 @@
-import { emit, on } from '../core/EventBus.js';
+import { emit, on, off } from '../core/EventBus.js';
 import { LevelConfig } from '../core/LevelConfig.js';
 
 export class EditorUI {
@@ -61,6 +61,13 @@ export class EditorUI {
       </button>
     `;
 
+    // Siren (Hazard)
+    const sirenHtml = `
+      <button class="editor-btn asset-btn" data-type="siren" data-url="">
+        🧜 Siren (Hazard)
+      </button>
+    `;
+
     this._el.innerHTML = `
       <div class="editor-header">
         <h3>Level Editor</h3>
@@ -74,6 +81,7 @@ export class EditorUI {
         ${buildSubmenu('Waves', '🌊', 'wave_small', LevelConfig.waveUrls)}
         ${whirlpoolHtml}
         ${windZoneHtml}
+        ${sirenHtml}
         ${buildSubmenu('Pickups', '📦', 'pickup', LevelConfig.pickupUrls)}
         ${buildSubmenu('Islands', '🏝️', 'island', LevelConfig.islandUrls)}
       </div>
@@ -81,7 +89,7 @@ export class EditorUI {
       <div class="editor-help">
         <p><strong>Controls:</strong></p>
         <p>Mouse Wheel: Adjust Height</p>
-        <p>O/P: Adjust Scale (Radius for Wind)</p>
+        <p>O/P: Adjust Scale (Radius for Wind/Siren)</p>
         <p>[/]: Rotate Object (Direction for Wind)</p>
         <p>Click: Place</p>
       </div>
@@ -93,6 +101,43 @@ export class EditorUI {
         <h4>Terraforming (Voxels)</h4>
         <button class="editor-btn tool-btn" data-tool="terrain_raise">⛰️ Raise Terrain</button>
         <button class="editor-btn tool-btn" data-tool="terrain_lower">⛏️ Lower Terrain</button>
+
+        <h4>🐙 Boss Encounter (Kraken)</h4>
+        <button class="editor-btn tool-btn" data-tool="place_kraken">🐙 Place Kraken</button>
+        <button class="editor-btn tool-btn" data-tool="place_race_start">🏁 Place Race Start</button>
+
+        <div style="margin: 8px 0; color: white; font-size: 13px;">
+          <label style="display:flex; justify-content:space-between; align-items:center;">
+            Tentacle:
+            <select id="editor-tentacle-select" style="background:#222; color:white; border:1px solid #555; padding:2px 6px; border-radius:3px; max-width:140px;">
+              <option value="0">Tentacle 1 (0 pts)</option>
+            </select>
+          </label>
+        </div>
+        <div style="display:flex; gap:4px; margin-bottom:8px;">
+          <button class="editor-btn" id="btn-add-tentacle" style="flex:1; font-size:12px; padding:6px; text-align:center;">➕ Add</button>
+          <button class="editor-btn" id="btn-remove-tentacle" style="flex:1; font-size:12px; padding:6px; text-align:center; background:#552222;">❌ Del</button>
+        </div>
+
+        <div style="margin-bottom: 6px; color: white; font-size: 13px;">
+          <label style="display:flex; justify-content:space-between;">
+            Speed: <span id="tentacle-speed-val">12</span>
+          </label>
+          <input type="range" id="tentacle-speed-slider" min="6" max="25" step="1" value="12" style="width:100%; margin-top: 3px;">
+        </div>
+
+        <div style="margin-bottom: 8px; color: white; font-size: 13px;">
+          <label style="display:flex; justify-content:space-between;">
+            Duration: <span id="tentacle-duration-val">25s</span>
+          </label>
+          <input type="range" id="tentacle-duration-slider" min="10" max="60" step="1" value="25" style="width:100%; margin-top: 3px;">
+        </div>
+
+        <button class="editor-btn tool-btn" data-tool="place_waypoint">🏳️ Place Waypoint</button>
+        <div style="display:flex; gap:4px; margin-top:4px;">
+          <button class="editor-btn" id="btn-clear-waypoints" style="flex:1; font-size:11px; padding:6px; text-align:center;">🧹 Clear WPs</button>
+          <button class="editor-btn" id="btn-remove-boss" style="flex:1; font-size:11px; padding:6px; text-align:center; background:#553333;">🗑️ Clear Boss</button>
+        </div>
         
         <h4>World Settings</h4>
         <div style="margin-bottom: 10px; color: white; font-size: 14px;">
@@ -344,6 +389,83 @@ export class EditorUI {
       };
     }
 
+    // Boss controls
+    const tentacleSelect = this._el.querySelector('#editor-tentacle-select');
+    if (tentacleSelect) {
+      tentacleSelect.onchange = (e) => {
+        emit('editorSelectTentacle', { index: parseInt(e.target.value, 10) });
+      };
+    }
+
+    const btnAddTentacle = this._el.querySelector('#btn-add-tentacle');
+    if (btnAddTentacle) {
+      btnAddTentacle.onclick = () => emit('editorAddTentacle');
+    }
+
+    const btnRemoveTentacle = this._el.querySelector('#btn-remove-tentacle');
+    if (btnRemoveTentacle) {
+      btnRemoveTentacle.onclick = () => emit('editorRemoveTentacle');
+    }
+
+    const tentacleSpeedSlider = this._el.querySelector('#tentacle-speed-slider');
+    const tentacleSpeedVal = this._el.querySelector('#tentacle-speed-val');
+    if (tentacleSpeedSlider) {
+      tentacleSpeedSlider.oninput = (e) => {
+        const val = parseInt(e.target.value, 10);
+        if (tentacleSpeedVal) tentacleSpeedVal.textContent = val;
+        emit('editorSetTentacleSpeed', { speed: val });
+      };
+    }
+
+    const tentacleDurationSlider = this._el.querySelector('#tentacle-duration-slider');
+    const tentacleDurationVal = this._el.querySelector('#tentacle-duration-val');
+    if (tentacleDurationSlider) {
+      tentacleDurationSlider.oninput = (e) => {
+        const val = parseInt(e.target.value, 10);
+        if (tentacleDurationVal) tentacleDurationVal.textContent = val + 's';
+        emit('editorSetTentacleDuration', { duration: val });
+      };
+    }
+
+    const btnClearWaypoints = this._el.querySelector('#btn-clear-waypoints');
+    if (btnClearWaypoints) {
+      btnClearWaypoints.onclick = () => emit('editorClearWaypoints');
+    }
+
+    const btnRemoveBoss = this._el.querySelector('#btn-remove-boss');
+    if (btnRemoveBoss) {
+      btnRemoveBoss.onclick = () => emit('editorRemoveBoss');
+    }
+
+    // Sync UI from EditorSystem boss updates
+    this._onBossConfigUpdated = (d) => {
+      if (!this._el) return;
+      const tSelect = this._el.querySelector('#editor-tentacle-select');
+      const sSlider = this._el.querySelector('#tentacle-speed-slider');
+      const sVal = this._el.querySelector('#tentacle-speed-val');
+      const dSlider = this._el.querySelector('#tentacle-duration-slider');
+      const dVal = this._el.querySelector('#tentacle-duration-val');
+
+      if (tSelect && d.tentacles) {
+        tSelect.innerHTML = d.tentacles.map((t, idx) => `
+          <option value="${idx}">Tentacle ${idx + 1} (${t.waypoints?.length || 0} pts)</option>
+        `).join('');
+        tSelect.value = String(d.activeIdx ?? 0);
+      }
+
+      if (d.currentTentacle) {
+        if (sSlider) {
+          sSlider.value = d.currentTentacle.speed ?? 12;
+          if (sVal) sVal.textContent = d.currentTentacle.speed ?? 12;
+        }
+        if (dSlider) {
+          dSlider.value = d.currentTentacle.raceDuration ?? 25;
+          if (dVal) dVal.textContent = (d.currentTentacle.raceDuration ?? 25) + 's';
+        }
+      }
+    };
+    on('editorBossConfigUpdated', this._onBossConfigUpdated);
+
     document.getElementById('ui-root')?.appendChild(this._el);
   }
 
@@ -353,6 +475,10 @@ export class EditorUI {
   }
 
   unmount() {
+    if (this._onBossConfigUpdated) {
+      off('editorBossConfigUpdated', this._onBossConfigUpdated);
+      this._onBossConfigUpdated = null;
+    }
     this._el?.remove();
     this._el = null;
   }
