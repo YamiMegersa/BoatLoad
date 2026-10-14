@@ -13,7 +13,9 @@ export class EditorSystem {
     this._pickupModels = [];
     this._seaweedModels = [];
     this._waveModels = [];
-
+    this._islandModels = [];
+    this._sirenModel = null;
+    this._krakenModel = null;
     // State
     this._activeType = null; // 'rock', 'barrel', etc. or null
     this._activeUrl = null;
@@ -189,7 +191,7 @@ export class EditorSystem {
     });
   }
 
-  init(scene, camera, renderer, levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels) {
+  init(scene, camera, renderer, levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel) {
     this._scene = scene;
     this._camera = camera;
     this._renderer = renderer;
@@ -199,6 +201,8 @@ export class EditorSystem {
     this._seaweedModels = seaweedModels;
     this._waveModels = waveModels;
     this._islandModels = islandModels;
+    this._sirenModel = sirenModel;
+    this._krakenModel = krakenModel;
 
     this._voxelTerrain = new VoxelTerrain(this._scene);
     if (this._levelCfg && this._levelCfg.voxels) {
@@ -357,7 +361,8 @@ export class EditorSystem {
         { x: 0, z: 0 }, 
         this._activeUrl,
         this._currentScale,
-        this._rockModels, this._pickupModels, this._seaweedModels, this._waveModels, this._islandModels
+        this._rockModels, this._pickupModels, this._seaweedModels, this._waveModels, this._islandModels,
+        this._sirenModel
       );
       
       // Make it slightly transparent
@@ -641,7 +646,8 @@ export class EditorSystem {
       { x, y, z }, 
       url,
       scale,
-      this._rockModels, this._pickupModels, this._seaweedModels, this._waveModels, this._islandModels
+      this._rockModels, this._pickupModels, this._seaweedModels, this._waveModels, this._islandModels,
+      this._sirenModel
     );
     obs.mesh.rotation.y = rotation;
     obs.rotation = rotation;
@@ -718,22 +724,37 @@ export class EditorSystem {
       const krakenMarker = new THREE.Group();
       krakenMarker.position.set(kPos.x, kPos.y ?? -5, kPos.z);
 
-      // Body dome
-      const bodyMesh = new THREE.Mesh(
-        new THREE.SphereGeometry(8, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.7),
-        new THREE.MeshPhongMaterial({ color: 0x331033, emissive: 0x220522, shininess: 30 })
-      );
-      bodyMesh.position.y = 4;
-      krakenMarker.add(bodyMesh);
+      // Body representation — Octopus 3D model
+      const kModel = this._krakenModel || (typeof LevelConfig !== 'undefined' ? LevelConfig._cache?.get('krakenModel') : null);
+      if (kModel && kModel.scene) {
+        const clone = kModel.scene.clone(true);
+        const box = new THREE.Box3().setFromObject(clone);
+        const center = new THREE.Vector3();
+        box.getCenter(center);
+        clone.position.set(-center.x, -box.min.y, -center.z);
 
-      // Glowing eyes
-      const eyeGeo = new THREE.SphereGeometry(0.8, 8, 8);
-      const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
-      const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
-      leftEye.position.set(-3, 6, 7);
-      const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
-      rightEye.position.set(3, 6, 7);
-      krakenMarker.add(leftEye, rightEye);
+        const wrapper = new THREE.Group();
+        wrapper.scale.setScalar(1.3);
+        wrapper.add(clone);
+        krakenMarker.add(wrapper);
+      } else {
+        // Fallback procedural dome
+        const bodyMesh = new THREE.Mesh(
+          new THREE.SphereGeometry(8, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.7),
+          new THREE.MeshPhongMaterial({ color: 0x331033, emissive: 0x220522, shininess: 30 })
+        );
+        bodyMesh.position.y = 4;
+        krakenMarker.add(bodyMesh);
+
+        // Glowing eyes
+        const eyeGeo = new THREE.SphereGeometry(0.8, 8, 8);
+        const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
+        const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+        leftEye.position.set(-3, 6, 7);
+        const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+        rightEye.position.set(3, 6, 7);
+        krakenMarker.add(leftEye, rightEye);
+      }
 
       // Sea level boundary ring
       const seaRing = new THREE.Mesh(

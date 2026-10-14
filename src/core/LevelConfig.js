@@ -66,12 +66,17 @@ export class LevelConfig {
     '/src/islands/Mountaintop by Matthew Burdette - 8mWDJgGcXSH.glb'
   ];
 
+  static _sirenUrl = '/src/assets/enemies/Siren.glb';
+  static _krakenUrl = '/src/assets/enemies/Octopus_mesh_Voxelized.glb';
+
   static get rockUrls() { return [...this._rockUrls]; }
   static get fishUrls() { return [...this._fishUrls]; }
   static get pickupUrls() { return [...this._pickupUrls]; }
   static get seaweedUrls() { return [...this._seaweedUrls]; }
   static get waveUrls() { return [...this._waveUrls]; }
   static get islandUrls() { return [...this._islandUrls]; }
+  static get sirenUrl() { return this._sirenUrl; }
+  static get krakenUrl() { return this._krakenUrl; }
 
   /**
    * Load the ship definition and level config for a given day.
@@ -189,6 +194,31 @@ export class LevelConfig {
     }
     const islandModels = LevelConfig._cache.get('islandModels');
 
+    if (!LevelConfig._cache.has('sirenModel')) {
+      const loader = new GLTFLoader();
+      const sirenModel = await new Promise((resolve, reject) => {
+        loader.load(LevelConfig._sirenUrl, resolve, undefined, reject);
+      });
+      sirenModel.url = LevelConfig._sirenUrl;
+      LevelConfig._cache.set('sirenModel', sirenModel);
+    }
+    const sirenModel = LevelConfig._cache.get('sirenModel');
+
+    if (!LevelConfig._cache.has('krakenModel')) {
+      const loader = new GLTFLoader();
+      const krakenModel = await new Promise((resolve, reject) => {
+        loader.load(LevelConfig._krakenUrl, resolve, undefined, reject);
+      });
+      krakenModel.url = LevelConfig._krakenUrl;
+      krakenModel.scene.traverse((child) => {
+        if (child.isMesh && child.geometry) {
+          LevelConfig.repairOctopusMesh(child);
+        }
+      });
+      LevelConfig._cache.set('krakenModel', krakenModel);
+    }
+    const krakenModel = LevelConfig._cache.get('krakenModel');
+
     return {
       shipDef,
       levelCfg,
@@ -197,8 +227,68 @@ export class LevelConfig {
       pickupModels,
       seaweedModels,
       waveModels,
-      islandModels
+      islandModels,
+      sirenModel,
+      krakenModel
     };
+  }
+
+  /**
+   * Reconstructs missing UV attributes and configures materials on the Octopus model
+   * so Three.js renders its full vibrant texture and colors instead of blank white.
+   * @param {THREE.Mesh} child
+   */
+  static repairOctopusMesh(child) {
+    const geo = child.geometry;
+    if (geo && !geo.attributes.uv) {
+      const pos = geo.attributes.position;
+      const norm = geo.attributes.normal;
+      const count = pos.count;
+      const uvs = new Float32Array(count * 2);
+
+      for (let i = 0; i < count; i++) {
+        const x = pos.getX(i);
+        const y = pos.getY(i);
+        const z = pos.getZ(i);
+        const ny = norm ? norm.getY(i) : 0;
+
+        const angle = Math.atan2(x - (-1.1), z - (-0.19));
+        let normAngle = (angle / (Math.PI * 2) + 0.5);
+        let normY = THREE.MathUtils.clamp((y - (-0.04)) / 10.16, 0, 1);
+
+        let u, v;
+        if (ny < -0.15 && y < 5.0) {
+          // Underside tentacles & suckers: sample from tan/cream region
+          u = 0.52 + (normAngle * 0.44);
+          v = 0.52 + (normY * 0.44);
+        } else {
+          // Mantle & upper skin: sample from rich mottled crimson region
+          u = 0.02 + (normAngle * 0.46);
+          v = 0.05 + (normY * 0.88);
+        }
+
+        uvs[i * 2] = u;
+        uvs[i * 2 + 1] = v;
+      }
+
+      geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+      geo.attributes.uv.needsUpdate = true;
+    }
+
+    if (child.material) {
+      if (!child.material.map) {
+        const tex = new THREE.TextureLoader().load('/src/assets/enemies/octopus_texture_extracted.png');
+        tex.colorSpace = THREE.SRGBColorSpace;
+        child.material.map = tex;
+      }
+      child.material.map.colorSpace = THREE.SRGBColorSpace;
+      child.material.map.needsUpdate = true;
+      child.material.color.setHex(0xffffff); // Pure white so natural texture colors show vividly
+      child.material.roughness = 0.35; // Wet marine skin sheen
+      child.material.metalness = 0.05;
+      child.material.emissive.setHex(0x180505);
+      child.material.needsUpdate = true;
+    }
   }
 
   static async _loadRockModels() {

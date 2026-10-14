@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { emit } from '../core/EventBus.js';
 import { OBB } from 'three/examples/jsm/math/OBB.js';
 import { WhirlpoolParticles } from './WhirlpoolParticles.js';
+import { LevelConfig } from '../core/LevelConfig.js';
 
 // ---------------------------------------------------------------------------
 // Obstacle descriptor
@@ -49,9 +50,11 @@ const _mat = {
  * @param {object[]} [pickupModels]
  * @param {object[]} [seaweedModels]
  * @param {object[]} [waveModels]
+ * @param {object[]} [islandModels]
+ * @param {object}   [sirenModel]
  * @returns {ObstacleDesc}
  */
-export function buildObstacle(type, pos, url, scale, rockModels, pickupModels, seaweedModels, waveModels, islandModels) {
+export function buildObstacle(type, pos, url, scale, rockModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel) {
   let mesh;
   let selectedModel = null;
   const targetScale = scale || 1.0;
@@ -210,20 +213,64 @@ export function buildObstacle(type, pos, url, scale, rockModels, pickupModels, s
     mesh.add(cloned);
   } else if (type === 'siren') {
     mesh = new THREE.Group();
-    // Purple glowing rock
-    const sirenRock = new THREE.Mesh(
-      new THREE.DodecahedronGeometry(1.2, 1),
-      new THREE.MeshPhongMaterial({ color: 0x553377, emissive: 0x331155, emissiveIntensity: 0.4 })
-    );
-    sirenRock.position.y = 0.6;
-    mesh.add(sirenRock);
-    // Attraction radius ring
+
+    // Use genuine obstacle rock model for the reef base
+    const rocks = rockModels || (typeof LevelConfig !== 'undefined' ? LevelConfig._cache?.get('rockModels') : null);
+    const selectedRock = rocks?.find(m => m.url?.includes('voxel_Cliff')) ||
+                         rocks?.find(m => m.url?.includes('voxel_Rock Large.glb')) ||
+                         rocks?.find(m => m.url?.includes('Rock Large')) ||
+                         rocks?.[0];
+
+    let rockTopY = 2.4;
+    if (selectedRock && selectedRock.scene) {
+      const rockClone = selectedRock.scene.clone(true);
+      rockClone.updateMatrixWorld(true);
+      const rBox = new THREE.Box3().setFromObject(rockClone);
+      const rSize = new THREE.Vector3();
+      rBox.getSize(rSize);
+      const rCenter = new THREE.Vector3();
+      rBox.getCenter(rCenter);
+
+      const maxXZ = Math.max(rSize.x, rSize.z) || 1;
+      const targetWidth = 4.5 * targetScale;
+      const rScale = targetWidth / maxXZ;
+      const rScaleY = (rSize.y * rScale < 2.5 * targetScale) ? (2.8 * targetScale / (rSize.y || 1)) : rScale;
+
+      rockClone.scale.set(rScale, rScaleY, rScale);
+      rockClone.position.set(
+        -rCenter.x * rScale,
+        -rBox.min.y * rScaleY - 0.4,
+        -rCenter.z * rScale
+      );
+      mesh.add(rockClone);
+      rockTopY = (rBox.max.y - rBox.min.y) * rScaleY - 0.4;
+    }
+
+    // Mount Siren.glb model atop the rock
+    const sModel = sirenModel || (typeof LevelConfig !== 'undefined' ? LevelConfig._cache?.get('sirenModel') : null);
+    if (sModel && sModel.scene) {
+      const clone = sModel.scene.clone(true);
+      const box = new THREE.Box3().setFromObject(clone);
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+      clone.position.set(-center.x, -box.min.y, -center.z);
+
+      const wrapper = new THREE.Group();
+      wrapper.scale.setScalar(2.4 * targetScale);
+      wrapper.position.set(0, rockTopY, 0);
+      wrapper.add(clone);
+      mesh.add(wrapper);
+    }
+
+    // Attraction radius ring (exclude from god ray occlusion)
     const sirenRadius = targetScale * 20; // scale controls radius visually
     const ringGeo = new THREE.RingGeometry(sirenRadius - 0.3, sirenRadius, 48);
-    const ringMat = new THREE.MeshBasicMaterial({ color: 0xff66cc, transparent: true, opacity: 0.15, side: THREE.DoubleSide, depthWrite: false });
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0xff66cc, transparent: true, opacity: 0.20, side: THREE.DoubleSide, depthWrite: false });
     const ring = new THREE.Mesh(ringGeo, ringMat);
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = 0.1;
+    ring.userData.noGodRays = true;
+    ring.userData.noOcclusion = true;
     mesh.add(ring);
   } else {
     mesh = new THREE.Mesh(_geo[type] ?? _geo.rock, _mat[type] ?? _mat.rock);
@@ -333,13 +380,14 @@ export class ObstacleManager {
    * @param {object[]} waveModels
    * @param {object[]} islandModels
    */
-  init(levelCfg, scene, rockModels, pickupModels, seaweedModels, waveModels, islandModels) {
+  init(levelCfg, scene, rockModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel) {
     this._scene = scene;
     this._rockModels = rockModels;
     this._pickupModels = pickupModels;
     this._seaweedModels = seaweedModels;
     this._waveModels = waveModels;
     this._islandModels = islandModels;
+    this._sirenModel = sirenModel;
     this._obstacles = [];
     this.playRadius = levelCfg.worldSize || 200;
     
@@ -599,7 +647,8 @@ export class ObstacleManager {
         this._pickupModels,
         this._seaweedModels,
         this._waveModels,
-        this._islandModels
+        this._islandModels,
+        this._sirenModel
       );
       this._scene.add(obs.mesh);
       this._obstacles.push(obs);
@@ -623,7 +672,8 @@ export class ObstacleManager {
           this._pickupModels,
           this._seaweedModels,
           this._waveModels,
-          this._islandModels
+          this._islandModels,
+          this._sirenModel
         );
         this._scene.add(obs.mesh);
         this._obstacles.push(obs);

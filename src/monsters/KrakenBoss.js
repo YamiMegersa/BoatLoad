@@ -3,6 +3,7 @@ import { emit, on, off } from '../core/EventBus.js';
 import { TentacleFollower } from './TentacleFollower.js';
 import { WaypointRace } from './WaypointRace.js';
 import { KrakenCinematic } from './KrakenCinematic.js';
+import { LevelConfig } from '../core/LevelConfig.js';
 
 // ---------------------------------------------------------------------------
 // KrakenBoss — multi-phase boss fight orchestrator
@@ -71,6 +72,8 @@ export class KrakenBoss {
     // Kraken body mesh
     /** @type {THREE.Group|null} */
     this._krakenMesh = null;
+    this._krakenModel = null;
+    this._time = 0;
 
     // Cooldown timer
     this._cooldownTimer = 0;
@@ -90,13 +93,16 @@ export class KrakenBoss {
    * @param {THREE.Camera} camera
    * @param {import('../obstacle/PlayerShip.js').PlayerShip} playerShip
    * @param {import('../environment/Ocean.js').Ocean} ocean
+   * @param {object} [krakenModel]
    */
-  init(config, scene, camera, playerShip, ocean) {
+  init(config, scene, camera, playerShip, ocean, krakenModel = null) {
     this._config = config;
     this._scene = scene;
     this._camera = camera;
     this._playerShip = playerShip;
     this._ocean = ocean;
+    this._krakenModel = krakenModel || (typeof LevelConfig !== 'undefined' ? LevelConfig._cache?.get('krakenModel') : null);
+    this._time = 0;
 
     this._krakenPos.set(
       config.krakenPosition.x,
@@ -130,7 +136,7 @@ export class KrakenBoss {
       );
 
       const tentacle = new TentacleFollower(
-        { spawnPos, speed: tentDef.speed ?? 12 },
+        { spawnPos, speed: tentDef.speed ?? 12, krakenPos: this._krakenPos },
         scene,
         ocean
       );
@@ -154,6 +160,12 @@ export class KrakenBoss {
    * @param {number} delta
    */
   update(delta) {
+    this._time += delta;
+    if (this._krakenMesh) {
+      const heave = Math.sin(this._time * 1.2) * 0.4;
+      this._krakenMesh.position.y = this._krakenPos.y + heave;
+    }
+
     switch (this._state) {
       case BossState.IDLE:
         this._updateIdle(delta);
@@ -198,6 +210,8 @@ export class KrakenBoss {
     if (this._onPlayerSunk) off('playerSunk', this._onPlayerSunk);
     if (this._onRaceComplete) off('krakenRaceComplete', this._onRaceComplete);
     if (this._onRaceExpired) off('krakenRaceExpired', this._onRaceExpired);
+
+    this._cinematic?.dispose?.();
 
     // Dispose tentacles
     for (const t of this._tentacles) t.dispose();
@@ -297,18 +311,20 @@ export class KrakenBoss {
   }
 
   _updateTentacleCaught(delta) {
-    // Play wrap animation on the caught tentacle
+    // Immediately transition to cinematic so camera tracks the sinking tentacle
     const tentacle = this._tentacles[this._currentTentacleIdx];
     if (tentacle) {
-      const stillAnimating = tentacle.updateWrapAnimation(delta);
-      if (!stillAnimating) {
-        // Wrap animation done — start cinematic
-        this._transitionTo(BossState.CINEMATIC);
-      }
+      tentacle.updateSinkAnimation(delta);
     }
+    this._transitionTo(BossState.CINEMATIC);
   }
 
   _updateCinematic(delta) {
+    // Sinking animation runs concurrently with the cinematic camera flight
+    const tentacle = this._tentacles[this._currentTentacleIdx];
+    if (tentacle) {
+      tentacle.updateSinkAnimation(delta);
+    }
     this._cinematic.update(delta);
     // Completion is handled by the callback in play()
   }
@@ -398,11 +414,16 @@ export class KrakenBoss {
     );
     this._waypointRace.start();
 
-    // Activate the tentacle trailing behind player
+    // Activate the tentacle reaching from kraken to player
     const tentacle = this._tentacles[this._currentTentacleIdx];
     if (tentacle) {
       tentacle.setVisible(true);
-      tentacle.activate(this._playerShip);
+      const tentOrigin = new THREE.Vector3(
+        this._krakenPos.x + (tentDef.spawnOffset?.x ?? 0),
+        this._krakenPos.y + 2.5,
+        this._krakenPos.z + (tentDef.spawnOffset?.z ?? 0)
+      );
+      tentacle.activate(this._playerShip, tentOrigin);
     }
 
     this._state = BossState.RACE_ACTIVE;
@@ -415,10 +436,16 @@ export class KrakenBoss {
   }
 
   _restartCurrentRace() {
-    // Reset tentacle to pursuing behind player
+    // Reset tentacle reaching from kraken to pursue player
+    const tentDef = this._config.tentacles[this._currentTentacleIdx];
     const tentacle = this._tentacles[this._currentTentacleIdx];
     if (tentacle) {
-      tentacle.activate(this._playerShip);
+      const tentOrigin = new THREE.Vector3(
+        this._krakenPos.x + (tentDef?.spawnOffset?.x ?? 0),
+        this._krakenPos.y + 2.5,
+        this._krakenPos.z + (tentDef?.spawnOffset?.z ?? 0)
+      );
+      tentacle.activate(this._playerShip, tentOrigin);
     }
 
     // Resume the race maintaining progress (do not reset waypoints already cleared)
@@ -430,16 +457,22 @@ export class KrakenBoss {
   _onTentacleCaught() {
     emit('krakenTentacleCaught', { tentacleIdx: this._currentTentacleIdx });
 
-    // Trigger wrap animation
+    // Smoothly coast the player ship to a halt so it stays in place during the cutscene
+    this._playerShip?.halt?.();
+
+    // Trigger sink animation on defeated tentacle
     const tentacle = this._tentacles[this._currentTentacleIdx];
-    if (tentacle && this._waypointRace) {
-      const anchor = this._waypointRace.getTerrainAnchor();
-      tentacle.playWrapAnimation(anchor);
+    if (tentacle) {
+      tentacle.playSinkAnimation();
     }
+
+    // Immediately start cinematic camera flight so player watches tentacle sink!
+    this._transitionTo(BossState.CINEMATIC);
   }
 
   _startCinematic() {
     const tentDef = this._config.tentacles[this._currentTentacleIdx];
+    const tentacle = this._tentacles[this._currentTentacleIdx];
     const damageAmount = tentDef?.damagePerTentacle ?? Math.floor(this._bossMaxHP / this._tentacles.length);
 
     emit('krakenCinematicStart', {});
@@ -449,9 +482,17 @@ export class KrakenBoss {
       this._camera.position.clone(),
       this._krakenPos,
       this._krakenMesh,
+      tentacle,
+      this._playerShip,
       () => {
         // Cinematic complete callback
         emit('krakenCinematicEnd', {});
+
+        // Resume sailing speed as player regains control
+        this._playerShip?.resumeSpeed?.();
+
+        // Hide defeated tentacle completely now that cinematic is finished
+        tentacle?.setVisible(false);
 
         // Apply damage to boss
         this._bossHP = Math.max(0, this._bossHP - damageAmount);
@@ -485,43 +526,81 @@ export class KrakenBoss {
   _buildKrakenMesh() {
     this._krakenMesh = new THREE.Group();
 
-    // Body — large elongated sphere
-    const bodyGeo = new THREE.SphereGeometry(6, 12, 10);
-    bodyGeo.scale(1.2, 0.6, 1.5);
-    const bodyMat = new THREE.MeshPhongMaterial({
-      color: 0x2a1a3a,
-      emissive: 0x0a0515,
-      shininess: 60,
-    });
-    const body = new THREE.Mesh(bodyGeo, bodyMat);
-    this._krakenMesh.add(body);
+    const kModel = this._krakenModel || (typeof LevelConfig !== 'undefined' ? LevelConfig._cache?.get('krakenModel') : null);
+    if (kModel && kModel.scene) {
+      const clone = kModel.scene.clone(true);
+      clone.traverse(child => {
+        if (child.isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+          if (child.geometry) {
+            LevelConfig.repairOctopusMesh(child);
+          }
+        }
+      });
+      const box = new THREE.Box3().setFromObject(clone);
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+      // Center in X and Z, align base at local Y = 0
+      clone.position.set(-center.x, -box.min.y, -center.z);
 
-    // Eyes — two glowing spheres
-    const eyeGeo = new THREE.SphereGeometry(0.8, 8, 8);
-    const eyeMat = new THREE.MeshPhongMaterial({
-      color: 0xff3300,
-      emissive: 0xff2200,
-      emissiveIntensity: 2.0,
-    });
+      const wrapper = new THREE.Group();
+      wrapper.scale.setScalar(1.3);
+      wrapper.add(clone);
 
-    const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
-    leftEye.position.set(-2.5, 1.5, 5);
-    this._krakenMesh.add(leftEye);
+      // Add glowing amber eyes on the octopus head
+      const eyeGeo = new THREE.SphereGeometry(0.55, 12, 12);
+      const eyeMat = new THREE.MeshBasicMaterial({
+        color: 0xffaa00,
+      });
+      const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+      leftEye.position.set(-1.4, 6.2, 1.8);
+      leftEye.userData.noGodRays = true;
+      wrapper.add(leftEye);
 
-    const rightEye = new THREE.Mesh(eyeGeo, eyeMat.clone());
-    rightEye.position.set(2.5, 1.5, 5);
-    this._krakenMesh.add(rightEye);
+      const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+      rightEye.position.set(1.4, 6.2, 1.8);
+      rightEye.userData.noGodRays = true;
+      wrapper.add(rightEye);
 
-    // Mantle — top dome
-    const mantleGeo = new THREE.SphereGeometry(5, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2);
-    const mantleMat = new THREE.MeshPhongMaterial({
-      color: 0x3a2050,
-      emissive: 0x150a20,
-      shininess: 30,
-    });
-    const mantle = new THREE.Mesh(mantleGeo, mantleMat);
-    mantle.position.y = 2;
-    this._krakenMesh.add(mantle);
+      this._krakenMesh.add(wrapper);
+    } else {
+      // Procedural fallback
+      const bodyGeo = new THREE.SphereGeometry(6, 12, 10);
+      bodyGeo.scale(1.2, 0.6, 1.5);
+      const bodyMat = new THREE.MeshPhongMaterial({
+        color: 0x2a1a3a,
+        emissive: 0x0a0515,
+        shininess: 60,
+      });
+      const body = new THREE.Mesh(bodyGeo, bodyMat);
+      this._krakenMesh.add(body);
+
+      const eyeGeo = new THREE.SphereGeometry(0.8, 8, 8);
+      const eyeMat = new THREE.MeshPhongMaterial({
+        color: 0xff3300,
+        emissive: 0xff2200,
+        emissiveIntensity: 2.0,
+      });
+
+      const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+      leftEye.position.set(-2.5, 1.5, 5);
+      this._krakenMesh.add(leftEye);
+
+      const rightEye = new THREE.Mesh(eyeGeo, eyeMat.clone());
+      rightEye.position.set(2.5, 1.5, 5);
+      this._krakenMesh.add(rightEye);
+
+      const mantleGeo = new THREE.SphereGeometry(5, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+      const mantleMat = new THREE.MeshPhongMaterial({
+        color: 0x3a2050,
+        emissive: 0x150a20,
+        shininess: 30,
+      });
+      const mantle = new THREE.Mesh(mantleGeo, mantleMat);
+      mantle.position.y = 2;
+      this._krakenMesh.add(mantle);
+    }
 
     // Position the whole thing
     this._krakenMesh.position.copy(this._krakenPos);

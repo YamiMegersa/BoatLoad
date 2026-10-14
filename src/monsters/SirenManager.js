@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { emit } from '../core/EventBus.js';
+import { LevelConfig } from '../core/LevelConfig.js';
 
 // ---------------------------------------------------------------------------
 // SirenParticles — vertical shimmer column
@@ -96,17 +97,25 @@ class SirenParticles {
  */
 export class SirenManager {
   constructor() {
-    /** @type {{ def: SirenDef, group: THREE.Group, particles: SirenParticles }[]} */
+    /** @type {{ def: SirenDef, group: THREE.Group, particles: SirenParticles, modelGroup?: THREE.Group|THREE.Mesh, isFallbackIdol?: boolean, seed: number }[]} */
     this._sirens = [];
     this._scene = null;
+    this._sirenModel = null;
+    this._rockModels = null;
+    this._time = 0;
   }
 
   /**
    * @param {object} levelCfg   Level JSON — reads `levelCfg.sirens[]`
    * @param {THREE.Scene} scene
+   * @param {object} [sirenModel]
+   * @param {object[]} [rockModels]
    */
-  init(levelCfg, scene) {
+  init(levelCfg, scene, sirenModel = null, rockModels = null) {
     this._scene = scene;
+    this._sirenModel = sirenModel || (typeof LevelConfig !== 'undefined' ? LevelConfig._cache?.get('sirenModel') : null);
+    this._rockModels = rockModels || (typeof LevelConfig !== 'undefined' ? LevelConfig._cache?.get('rockModels') : null);
+    this._time = 0;
     const defs = levelCfg?.sirens || [];
 
     for (const def of defs) {
@@ -122,6 +131,7 @@ export class SirenManager {
   update(delta, playerShip) {
     if (!playerShip || playerShip.sunk) return;
 
+    this._time += delta;
     const shipPos = playerShip.mesh.position;
     let maxIntensityThisFrame = 0;
     let netSteerPullThisFrame = 0;
@@ -134,6 +144,23 @@ export class SirenManager {
       const dx = sx - shipPos.x;
       const dz = sz - shipPos.z;
       const dist = Math.hypot(dx, dz) || 0.001;
+
+      // Animate siren model: hovering bob & smooth swiveling to face approaching player ship
+      if (siren.modelGroup) {
+        const baseBobY = siren.isFallbackIdol ? 3.6 : (siren.rockTopY ?? 2.45);
+        siren.modelGroup.position.y = baseBobY + Math.sin(this._time * 2.2 + siren.seed) * 0.12;
+        siren.modelGroup.rotation.z = Math.sin(this._time * 1.4 + siren.seed) * 0.04;
+
+        if (dist < def.attractRadius * 1.5) {
+          const targetYaw = Math.atan2(dx, dz);
+          let diff = (targetYaw - siren.modelGroup.rotation.y) % (Math.PI * 2);
+          if (diff > Math.PI) diff -= Math.PI * 2;
+          if (diff < -Math.PI) diff += Math.PI * 2;
+          siren.modelGroup.rotation.y += diff * Math.min(delta * 3.0, 1.0);
+        } else {
+          siren.modelGroup.rotation.y += 0.25 * delta;
+        }
+      }
 
       // 1. Collision with Siren reef (same damage type & physical reaction as a rock)
       const collisionRadius = 2.8;
@@ -223,10 +250,23 @@ export class SirenManager {
   dispose() {
     for (const siren of this._sirens) {
       siren.particles.dispose();
+      if (siren.modelGroup) {
+        siren.modelGroup.traverse(child => {
+          if (child.isMesh) {
+            child.geometry?.dispose();
+            if (Array.isArray(child.material)) {
+              child.material.forEach(m => m.dispose());
+            } else {
+              child.material?.dispose();
+            }
+          }
+        });
+      }
       this._scene?.remove(siren.group);
     }
     this._sirens.length = 0;
     this._scene = null;
+    this._sirenModel = null;
   }
 
   // -----------------------------------------------------------------------
@@ -241,51 +281,89 @@ export class SirenManager {
     const group = new THREE.Group();
     group.position.set(def.position.x, def.position.y ?? 0, def.position.z);
 
-    // Rugged Siren rock reef core
-    const rockMat = new THREE.MeshPhongMaterial({
-      color: 0x4a2e5b,
-      emissive: 0x240e36,
-      emissiveIntensity: 0.5,
-      shininess: 25,
-    });
+    // Use genuine obstacle rock model for the reef base
+    const rocks = this._rockModels || (typeof LevelConfig !== 'undefined' ? LevelConfig._cache?.get('rockModels') : null);
+    const selectedRock = rocks?.find(m => m.url?.includes('voxel_Cliff')) ||
+                         rocks?.find(m => m.url?.includes('voxel_Rock Large.glb')) ||
+                         rocks?.find(m => m.url?.includes('Rock Large')) ||
+                         rocks?.[0];
 
-    // Main jagged rock spire
-    const mainRockGeo = new THREE.DodecahedronGeometry(1.8, 1);
-    const mainRock = new THREE.Mesh(mainRockGeo, rockMat);
-    mainRock.scale.set(1.1, 1.8, 1.1);
-    mainRock.position.y = 1.2;
-    mainRock.rotation.y = Math.random() * Math.PI;
-    group.add(mainRock);
+    let rockTopY = 2.45;
+    if (selectedRock && selectedRock.scene) {
+      const rockClone = selectedRock.scene.clone(true);
+      rockClone.traverse(c => {
+        if (c.isMesh) {
+          c.castShadow = true;
+          c.receiveShadow = true;
+        }
+      });
+      rockClone.updateMatrixWorld(true);
+      const rBox = new THREE.Box3().setFromObject(rockClone);
+      const rSize = new THREE.Vector3();
+      rBox.getSize(rSize);
+      const rCenter = new THREE.Vector3();
+      rBox.getCenter(rCenter);
 
-    // Secondary craggy rocks around the water line
-    const subRockGeo = new THREE.DodecahedronGeometry(1.0, 0);
-    const subPositions = [
-      { x: 1.2, z: 0.6, s: 0.9 },
-      { x: -1.1, z: 0.8, s: 0.8 },
-      { x: 0.3, z: -1.3, s: 1.0 },
-    ];
-    for (const sp of subPositions) {
-      const subRock = new THREE.Mesh(subRockGeo, rockMat);
-      subRock.scale.set(sp.s, sp.s * 1.3, sp.s);
-      subRock.position.set(sp.x, 0.4, sp.z);
-      subRock.rotation.set(Math.random() * 0.5, Math.random() * Math.PI, Math.random() * 0.5);
-      group.add(subRock);
+      // Fit to a natural sea reef ~4.6m wide
+      const maxXZ = Math.max(rSize.x, rSize.z) || 1;
+      const targetWidth = 4.6;
+      const rScale = targetWidth / maxXZ;
+      const rScaleY = (rSize.y * rScale < 2.5) ? (2.8 / (rSize.y || 1)) : rScale;
+
+      rockClone.scale.set(rScale, rScaleY, rScale);
+      rockClone.position.set(
+        -rCenter.x * rScale,
+        -rBox.min.y * rScaleY - 0.4,
+        -rCenter.z * rScale
+      );
+      rockClone.rotation.y = Math.random() * Math.PI * 2;
+      group.add(rockClone);
+
+      rockTopY = (rBox.max.y - rBox.min.y) * rScaleY - 0.4;
     }
 
-    // Glowing mystic gem / siren idol perched atop the reef
-    const idolGeo = new THREE.OctahedronGeometry(0.7, 0);
-    const idolMat = new THREE.MeshPhongMaterial({
-      color: 0xff66cc,
-      emissive: 0xff33aa,
-      emissiveIntensity: 0.8,
-      shininess: 80,
-    });
-    const idol = new THREE.Mesh(idolGeo, idolMat);
-    idol.position.y = 3.6;
-    idol.scale.set(0.8, 1.4, 0.8);
-    group.add(idol);
+    // Mount Siren.glb model atop the reef
+    const sModel = this._sirenModel || (typeof LevelConfig !== 'undefined' ? LevelConfig._cache?.get('sirenModel') : null);
+    let modelGroup = null;
+    let isFallbackIdol = false;
 
-    // Radius visualisation ring (subtle, always visible)
+    if (sModel && sModel.scene) {
+      const clone = sModel.scene.clone(true);
+      clone.traverse(child => {
+        if (child.isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+        }
+      });
+      const box = new THREE.Box3().setFromObject(clone);
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+      // Center on X and Z, align base at Y = 0
+      clone.position.set(-center.x, -box.min.y, -center.z);
+
+      modelGroup = new THREE.Group();
+      modelGroup.scale.setScalar(2.6);
+      modelGroup.position.set(0, rockTopY, 0);
+      modelGroup.add(clone);
+      group.add(modelGroup);
+    } else {
+      // Fallback: Glowing mystic gem / siren idol perched atop the reef
+      isFallbackIdol = true;
+      const idolGeo = new THREE.OctahedronGeometry(0.7, 0);
+      const idolMat = new THREE.MeshPhongMaterial({
+        color: 0xff66cc,
+        emissive: 0xff33aa,
+        emissiveIntensity: 0.8,
+        shininess: 80,
+      });
+      const idol = new THREE.Mesh(idolGeo, idolMat);
+      idol.position.y = 3.6;
+      idol.scale.set(0.8, 1.4, 0.8);
+      group.add(idol);
+      modelGroup = idol;
+    }
+
+    // Radius visualisation ring (subtle, always visible; excluded from god ray occlusion)
     const ringGeo = new THREE.RingGeometry(
       def.attractRadius - 0.4,
       def.attractRadius,
@@ -301,6 +379,8 @@ export class SirenManager {
     const ring = new THREE.Mesh(ringGeo, ringMat);
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = 0.1;
+    ring.userData.noGodRays = true;
+    ring.userData.noOcclusion = true;
     group.add(ring);
 
     // Shimmer particles column
@@ -308,6 +388,14 @@ export class SirenManager {
     group.add(particles.mesh);
 
     this._scene.add(group);
-    this._sirens.push({ def, group, particles });
+    this._sirens.push({
+      def,
+      group,
+      particles,
+      modelGroup,
+      isFallbackIdol,
+      rockTopY,
+      seed: Math.random() * Math.PI * 2,
+    });
   }
 }

@@ -437,7 +437,7 @@ export class GameState {
   // OBSTACLE
   // =========================================================================
 
-  _enterObstacle({ levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels }) {
+  _enterObstacle({ levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel }) {
     this._levelCfg = levelCfg;
 
     // Chase camera initial position
@@ -455,7 +455,7 @@ export class GameState {
 
     this._playerShip = new PlayerShip(shipStats ?? {}, this._scene, this._chunkRenderer, this._grid);
     this._obstacleManager = new ObstacleManager();
-    this._obstacleManager.init(levelCfg, this._scene, rockModels, pickupModels, seaweedModels, waveModels, islandModels);
+    this._obstacleManager.init(levelCfg, this._scene, rockModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel);
     this._environmentManager = new EnvironmentManager();
     this._environmentManager.init(this._scene, fishModels, levelCfg);
     
@@ -465,7 +465,7 @@ export class GameState {
 
     // Sirens
     this._sirenManager = new SirenManager();
-    this._sirenManager.init(levelCfg, this._scene);
+    this._sirenManager.init(levelCfg, this._scene, sirenModel, rockModels);
 
     // Kraken Boss (only if level defines one)
     if (levelCfg.kraken) {
@@ -473,7 +473,8 @@ export class GameState {
       this._krakenBoss.init(
         levelCfg.kraken,
         this._scene, this._camera,
-        this._playerShip, this._ocean
+        this._playerShip, this._ocean,
+        krakenModel
       );
     }
 
@@ -489,6 +490,7 @@ export class GameState {
       this.transition(GamePhase.RESULTS, { passed: false });
     });
 
+    this._wasCinematicActive = false;
     emit('uiMount', { screen: 'obstacle' });
   }
 
@@ -504,8 +506,17 @@ export class GameState {
     // Kraken boss — FSM + tentacles + cinematics
     if (this._krakenBoss) {
       this._krakenBoss.update(delta);
-      // During cinematic, skip normal camera updates
-      if (this._krakenBoss.isCinematicActive()) return;
+      // During cinematic, skip normal camera updates and keep chase targets synchronized
+      if (this._krakenBoss.isCinematicActive()) {
+        this._wasCinematicActive = true;
+        if (this._playerShip) {
+          const p = this._playerShip.mesh.position;
+          if (this._camLookTarget) this._camLookTarget.copy(p);
+          this._camOvershoot = 0;
+          this._camOvershootVel = 0;
+        }
+        return;
+      }
     }
 
     if (this._playerShip) {
@@ -526,6 +537,26 @@ export class GameState {
         this._camOvershootVel = 0;
         this._camVelocity = new THREE.Vector3();
         this._camLookTarget = p.clone();
+      }
+
+      // Seamless handover on the exact frame the cinematic finishes
+      if (this._wasCinematicActive) {
+        this._wasCinematicActive = false;
+        this._camOvershoot = 0;
+        this._camOvershootVel = 0;
+        this._camera.position.copy(baseTarget);
+        if (!this._camLookTarget) this._camLookTarget = new THREE.Vector3();
+        this._camLookTarget.copy(p);
+        this._camera.lookAt(this._camLookTarget);
+
+        // Update Minimap
+        this._minimap?.update(
+          p,
+          this._playerShip.yaw,
+          this._obstacleManager?._obstacles || [],
+          this.windDir
+        );
+        return;
       }
       
       // Push camera outward relative to turn speed. 
@@ -608,7 +639,7 @@ export class GameState {
   // EDITOR
   // =========================================================================
 
-  _enterEditor({ levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels }) {
+  _enterEditor({ levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel }) {
     this._levelCfg = levelCfg;
 
     this._camera.position.set(0, 30, 0);
@@ -630,7 +661,7 @@ export class GameState {
     this._editorSystem = new EditorSystem();
     this._editorSystem.init(
       this._scene, this._camera, this._renderer, 
-      levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels
+      levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel
     );
 
     emit('uiMount', { screen: 'editor', levelCfg });

@@ -155,7 +155,7 @@ function logEvent(msg) {
 async function boot() {
   try {
     // Load Day 1 data
-    const { shipDef, levelCfg, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels } = await LevelConfig.load(1);
+    const { shipDef, levelCfg, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel } = await LevelConfig.load(1);
     
     // Expose to window for debugging if needed
     window.__DEBUG_ROCK_MODELS = rockModels;
@@ -185,14 +185,14 @@ async function boot() {
         shipDef, 
         levelCfg: gameState._levelCfg || levelCfg, 
         shipStats: { hullHP: hp }, 
-        rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels 
+        rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel 
       });
     };
     document.getElementById('btn-editor').onclick = () => {
       logEvent('Transitioning to Level Editor...');
       gameState.transition(GamePhase.EDITOR, { 
         levelCfg: gameState._levelCfg || levelCfg, 
-        rockModels, pickupModels, seaweedModels, waveModels, islandModels 
+        rockModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel 
       });
     };
 
@@ -218,7 +218,7 @@ async function boot() {
           shipDef, 
           levelCfg: customLevelCfg, 
           shipStats: { hullHP: hp }, 
-          rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels 
+          rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel 
         });
       }
     });
