@@ -161,6 +161,18 @@ export class HUD {
     this._wheel.addEventListener('pointerup', stopDragging);
     this._wheel.addEventListener('pointercancel', stopDragging);
 
+    // Siren steering pull feedback
+    this._sirenSteerPull = 0;
+    this._sirenIntensity = 0;
+    this._sirenPullTimer = 0;
+
+    this._onSirenPulling = (d) => {
+      this._sirenSteerPull = d.steerPull ?? 0;
+      this._sirenIntensity = d.intensity ?? 0;
+      this._sirenPullTimer = 0.15; // decays quickly if no event this frame
+    };
+    on('sirenPulling', this._onSirenPulling);
+
     // Auto-centering & emit loop
     const autoCenter = () => {
       if (!this._el) return; // Stop loop if unmounted
@@ -169,9 +181,23 @@ export class HUD {
         this._wheelAngle *= 0.85; // Spring back
         if (Math.abs(this._wheelAngle) < 0.1) this._wheelAngle = 0;
       }
+
+      // Siren hypnotic steering pull: turns the wheel or resists player drag
+      if (this._sirenPullTimer > 0) {
+        this._sirenPullTimer -= 0.016;
+        const pullSpeed = this._isDraggingWheel ? 25 : 65;
+        this._wheelAngle += this._sirenSteerPull * pullSpeed * 0.016;
+        const glowAlpha = Math.min(0.9, this._sirenIntensity * 1.3).toFixed(2);
+        this._wheel.style.filter = `drop-shadow(0 0 16px rgba(255, 102, 204, ${glowAlpha}))`;
+      } else {
+        this._sirenSteerPull = 0;
+        this._sirenIntensity = 0;
+        this._wheel.style.filter = '';
+      }
       
-      this._wheel.style.transform = `rotate(${this._wheelAngle}deg)`;
       const maxRotation = 180;
+      this._wheelAngle = Math.max(-maxRotation, Math.min(maxRotation, this._wheelAngle));
+      this._wheel.style.transform = `rotate(${this._wheelAngle}deg)`;
       emit('steer', { value: this._wheelAngle / maxRotation });
       
       requestAnimationFrame(autoCenter);
@@ -208,6 +234,10 @@ export class HUD {
     if (this._onDenseFogChanged) {
       off('denseFogChanged', this._onDenseFogChanged);
       this._onDenseFogChanged = null;
+    }
+    if (this._onSirenPulling) {
+      off('sirenPulling', this._onSirenPulling);
+      this._onSirenPulling = null;
     }
     clearInterval(this._qteTimer);
     this._el?.remove();

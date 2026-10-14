@@ -84,11 +84,15 @@ class SirenParticles {
 
 /**
  * SirenManager — spawns siren instances from level config and applies
- * a directional pull force to the PlayerShip each frame.
+ * an involuntary steering pull to the PlayerShip each frame.
  *
- * Pull is purely directional (no tangential spiral like whirlpools).
- * Sirens deal no damage directly — the danger is being lured into
- * terrain or other hazards.
+ * Rather than translating the ship position directly, Sirens exert a
+ * hypnotic steering torque on the ship's rudder/yaw, compelling the vessel
+ * to veer towards the siren's reef. Players must actively fight the steering
+ * wheel to maintain heading and break away.
+ *
+ * Colliding with a Siren reef inflicts the exact same damage and physical
+ * reaction as a rock (20 HP damage, rock bounce-back, knockback, collision sound).
  */
 export class SirenManager {
   constructor() {
@@ -111,7 +115,7 @@ export class SirenManager {
   }
 
   /**
-   * Per-frame update — apply pull force to ship.
+   * Per-frame update — apply steering pull force and check rock collision.
    * @param {number} delta
    * @param {import('../obstacle/PlayerShip.js').PlayerShip} playerShip
    */
@@ -119,6 +123,8 @@ export class SirenManager {
     if (!playerShip || playerShip.sunk) return;
 
     const shipPos = playerShip.mesh.position;
+    let maxIntensityThisFrame = 0;
+    let netSteerPullThisFrame = 0;
 
     for (const siren of this._sirens) {
       const def = siren.def;
@@ -129,19 +135,88 @@ export class SirenManager {
       const dz = sz - shipPos.z;
       const dist = Math.hypot(dx, dz) || 0.001;
 
+      // 1. Collision with Siren reef (same damage type & physical reaction as a rock)
+      const collisionRadius = 2.8;
+      if (dist < collisionRadius) {
+        const pushDx = shipPos.x - sx;
+        const pushDz = shipPos.z - sz;
+        const pushDist = Math.hypot(pushDx, pushDz) || 0.001;
+        const nx = pushDx / pushDist;
+        const nz = pushDz / pushDist;
+
+        if (!playerShip.isImmune()) {
+          const rockDamage = 20; // Identical damage to rock collision
+          playerShip.takeDamage(rockDamage, 'rock');
+          playerShip.setImmune(2.0);
+
+          // Physical rock collision reaction: pitch/roll bounceBack
+          playerShip.bounceBack(pushDx, pushDz, 'rock');
+
+          // Static push away from rock center to avoid sticking
+          playerShip.mesh.position.x = sx + nx * (collisionRadius + 0.8);
+          playerShip.mesh.position.z = sz + nz * (collisionRadius + 0.8);
+
+          // Pinball knockback velocity
+          playerShip.applyKnockback(new THREE.Vector3(nx * 40, 0, nz * 40));
+
+          // Audio and obstacle hit events
+          emit('obstacleHit', { type: 'rock', damage: rockDamage });
+          emit('playSound', { sound: 'collision' });
+        } else {
+          // While immune, keep ship from penetrating solid rock core
+          playerShip.mesh.position.x = sx + nx * (collisionRadius + 0.5);
+          playerShip.mesh.position.z = sz + nz * (collisionRadius + 0.5);
+        }
+      }
+
+      // 2. Steering Pull: draws the player in by pulling the ship's steering/rudder
       if (dist < def.attractRadius) {
-        // Strength ramps up as player gets closer
-        const t = 1.0 - dist / def.attractRadius;
-        const pullMag = def.intensity * 15.0 * t; // base force scaled by intensity
+        // Proximity ramp: 0 at outer boundary, 1 at center
+        const t = Math.max(0, 1.0 - dist / def.attractRadius);
+        const intensity = def.intensity ?? 0.8;
 
-        shipPos.x += (dx / dist) * pullMag * delta;
-        shipPos.z += (dz / dist) * pullMag * delta;
+        // Desired yaw to point directly at the siren
+        const targetYaw = Math.atan2(-dx, -dz);
 
-        emit('sirenPulling', { intensity: t * def.intensity });
+        // Signed angular difference from ship's current yaw
+        let angleDiff = (targetYaw - playerShip.yaw) % (Math.PI * 2);
+        if (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+        if (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+
+        // In Three.js ship heading coordinates:
+        // angleDiff > 0 means Siren is to the LEFT (turns left, yaw increases)
+        // angleDiff < 0 means Siren is to the RIGHT (turns right, yaw decreases)
+        const turnDir = Math.sign(angleDiff);
+        const turnFactor = Math.min(Math.abs(angleDiff) * 1.5, 1.0);
+
+        // Torque applied to ship yawVelocity:
+        // Player's rudder turnAccel is ~2.0 rad/s².
+        // By scaling torque up to ~2.6 rad/s² near the center, the Siren exerts
+        // a compelling pull that requires deliberate counter-steering to fight off.
+        const torque = turnDir * turnFactor * (2.6 * intensity) * t;
+        playerShip.yawVelocity += torque * delta;
+
+        // Visceral physical leaning into the forced turn
+        playerShip.rollVelocity -= turnDir * t * 0.4 * delta;
+
+        const pullStrength = t * intensity;
+        if (pullStrength > maxIntensityThisFrame) {
+          maxIntensityThisFrame = pullStrength;
+          // In HUD conventions: positive steerInput is RIGHT, negative is LEFT.
+          // Since turnDir < 0 is right and turnDir > 0 is left:
+          netSteerPullThisFrame = -turnDir * pullStrength;
+        }
       }
 
       // Animate particles
       siren.particles.update(delta);
+    }
+
+    if (maxIntensityThisFrame > 0) {
+      emit('sirenPulling', {
+        intensity: maxIntensityThisFrame,
+        steerPull: netSteerPullThisFrame,
+      });
     }
   }
 
@@ -166,27 +241,60 @@ export class SirenManager {
     const group = new THREE.Group();
     group.position.set(def.position.x, def.position.y ?? 0, def.position.z);
 
-    // Placeholder rock mesh
-    const rockGeo = new THREE.DodecahedronGeometry(1.2, 1);
+    // Rugged Siren rock reef core
     const rockMat = new THREE.MeshPhongMaterial({
-      color: 0x553377,
-      emissive: 0x331155,
-      emissiveIntensity: 0.4,
+      color: 0x4a2e5b,
+      emissive: 0x240e36,
+      emissiveIntensity: 0.5,
+      shininess: 25,
     });
-    const rock = new THREE.Mesh(rockGeo, rockMat);
-    rock.position.y = 0.6;
-    group.add(rock);
+
+    // Main jagged rock spire
+    const mainRockGeo = new THREE.DodecahedronGeometry(1.8, 1);
+    const mainRock = new THREE.Mesh(mainRockGeo, rockMat);
+    mainRock.scale.set(1.1, 1.8, 1.1);
+    mainRock.position.y = 1.2;
+    mainRock.rotation.y = Math.random() * Math.PI;
+    group.add(mainRock);
+
+    // Secondary craggy rocks around the water line
+    const subRockGeo = new THREE.DodecahedronGeometry(1.0, 0);
+    const subPositions = [
+      { x: 1.2, z: 0.6, s: 0.9 },
+      { x: -1.1, z: 0.8, s: 0.8 },
+      { x: 0.3, z: -1.3, s: 1.0 },
+    ];
+    for (const sp of subPositions) {
+      const subRock = new THREE.Mesh(subRockGeo, rockMat);
+      subRock.scale.set(sp.s, sp.s * 1.3, sp.s);
+      subRock.position.set(sp.x, 0.4, sp.z);
+      subRock.rotation.set(Math.random() * 0.5, Math.random() * Math.PI, Math.random() * 0.5);
+      group.add(subRock);
+    }
+
+    // Glowing mystic gem / siren idol perched atop the reef
+    const idolGeo = new THREE.OctahedronGeometry(0.7, 0);
+    const idolMat = new THREE.MeshPhongMaterial({
+      color: 0xff66cc,
+      emissive: 0xff33aa,
+      emissiveIntensity: 0.8,
+      shininess: 80,
+    });
+    const idol = new THREE.Mesh(idolGeo, idolMat);
+    idol.position.y = 3.6;
+    idol.scale.set(0.8, 1.4, 0.8);
+    group.add(idol);
 
     // Radius visualisation ring (subtle, always visible)
     const ringGeo = new THREE.RingGeometry(
-      def.attractRadius - 0.3,
+      def.attractRadius - 0.4,
       def.attractRadius,
       48
     );
     const ringMat = new THREE.MeshBasicMaterial({
       color: 0xff66cc,
       transparent: true,
-      opacity: 0.15,
+      opacity: 0.20,
       side: THREE.DoubleSide,
       depthWrite: false,
     });
@@ -195,8 +303,8 @@ export class SirenManager {
     ring.position.y = 0.1;
     group.add(ring);
 
-    // Particles
-    const particles = new SirenParticles(8, 60);
+    // Shimmer particles column
+    const particles = new SirenParticles(9, 70);
     group.add(particles.mesh);
 
     this._scene.add(group);

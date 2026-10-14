@@ -292,7 +292,7 @@ function getScrollSpeed(type) {
 }
 
 function getDamage(type) {
-  const map = { rock: 20, barrel: 30, wave_small: 5, seaweed: 0, whirlpool: 10, pickup: 0, island: 50 };
+  const map = { rock: 20, barrel: 30, wave_small: 5, seaweed: 0, whirlpool: 10, pickup: 0, island: 50, siren: 20 };
   return map[type] ?? 10;
 }
 
@@ -539,7 +539,7 @@ export class ObstacleManager {
    * @param {import('./PlayerShip.js').PlayerShip} ship
    */
   _resolveHit(obs, ship) {
-    if (obs.type !== 'rock' && obs.type !== 'island') {
+    if (obs.type !== 'rock' && obs.type !== 'island' && obs.type !== 'siren') {
       obs.active = false;
       obs.mesh.visible = false;
     }
@@ -549,12 +549,10 @@ export class ObstacleManager {
 
     const dx = ship.mesh.position.x - obs.mesh.position.x;
     const dz = ship.mesh.position.z - obs.mesh.position.z;
-    ship.bounceBack(dx, dz, obs.type);
+    ship.bounceBack(dx, dz, obs.type === 'siren' ? 'rock' : obs.type);
 
-    if (obs.type === 'rock' || obs.type === 'island') {
+    if (obs.type === 'rock' || obs.type === 'island' || obs.type === 'siren') {
       // Act as a static obstacle: push the ship away so it doesn't pass through
-      const dx = ship.mesh.position.x - obs.mesh.position.x;
-      const dz = ship.mesh.position.z - obs.mesh.position.z;
       const dist = Math.hypot(dx, dz);
       if (dist > 0.001) {
         // Immediate static resolve to avoid sticking
