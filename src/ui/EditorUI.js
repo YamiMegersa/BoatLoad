@@ -399,6 +399,34 @@ export class EditorUI {
 
           <div class="ribbon-divider"></div>
 
+          <div class="ribbon-group">
+            <span class="ribbon-group-label">Brush Pattern &amp; Noise</span>
+            <div class="ribbon-group-row brush-shapes-row">
+              <button class="brush-shape-btn active" data-shape="circle" title="Standard circular brush">
+                <span class="brush-shape-icon">⭕</span>
+                <span class="brush-shape-text">Circle</span>
+              </button>
+              <button class="brush-shape-btn" data-shape="organic" title="Organic coastlines and bays with fractal noise">
+                <span class="brush-shape-icon">🌊</span>
+                <span class="brush-shape-text">Organic</span>
+              </button>
+              <button class="brush-shape-btn" data-shape="crag" title="Jagged crags, sharp sea stacks and rocky cliffs">
+                <span class="brush-shape-icon">🪨</span>
+                <span class="brush-shape-text">Crag</span>
+              </button>
+              <button class="brush-shape-btn" data-shape="scatter" title="Archipelago scatter, atolls and islet clusters">
+                <span class="brush-shape-icon">✨</span>
+                <span class="brush-shape-text">Scatter</span>
+              </button>
+              <button class="brush-shape-btn" data-shape="square" title="Geometric square brush for quays, forts and docks">
+                <span class="brush-shape-icon">⬛</span>
+                <span class="brush-shape-text">Square</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="ribbon-divider"></div>
+
           <div class="ribbon-group" style="min-width: 220px;">
             <span class="ribbon-group-label">Brush Radius: <strong id="brush-radius-val">2</strong></span>
             <div class="slider-with-presets">
@@ -414,11 +442,39 @@ export class EditorUI {
 
           <div class="ribbon-divider"></div>
 
+          <div class="ribbon-group" style="min-width: 250px;">
+            <span class="ribbon-group-label">Terrain Biome &amp; Palette</span>
+            <div class="ribbon-group-row biome-chips-row">
+              <button class="biome-chip active" data-biome="tropical" title="Tropical Archipelago: Emerald turf, golden sands, coral reefs, limestone cliffs">
+                <span class="biome-chip-icon">🌴</span>
+                <span class="biome-chip-text">Tropical</span>
+              </button>
+              <button class="biome-chip" data-biome="volcanic" title="Volcanic Outpost: Obsidian basalt, black ash sand, sulfur clay strata">
+                <span class="biome-chip-icon">🌋</span>
+                <span class="biome-chip-text">Volcanic</span>
+              </button>
+              <button class="biome-chip" data-biome="autumn" title="Autumn Highlands: Amber &amp; russet turf, mountain slate, ironstone">
+                <span class="biome-chip-icon">🍂</span>
+                <span class="biome-chip-text">Autumn</span>
+              </button>
+              <button class="biome-chip" data-biome="desert" title="Desert Canyons: Terracotta sandstone, apricot dunes, dry sage scrub">
+                <span class="biome-chip-icon">🏜️</span>
+                <span class="biome-chip-text">Desert</span>
+              </button>
+              <button class="biome-chip" data-biome="nordic" title="Nordic Fjords: Deep spruce green, icy blue granite, glacial snow">
+                <span class="biome-chip-icon">❄️</span>
+                <span class="biome-chip-text">Nordic</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="ribbon-divider"></div>
+
           <div class="ribbon-group ribbon-info-group">
             <span class="ribbon-group-label">Sculpting Tips</span>
             <div class="ribbon-tip-box">
               <span class="tip-icon">💡</span>
-              <span class="tip-text">Left Click &amp; Drag across ocean water or existing voxel blocks to dynamically sculpt islands and underwater reefs.</span>
+              <span class="tip-text">Click &amp; Drag paints smooth, flat islands &amp; plateaus. Click &amp; Hold stationary pulses layers vertically to build hills without camera drift.</span>
             </div>
           </div>
         </div>
@@ -1111,6 +1167,32 @@ export class EditorUI {
         chip.classList.add('active');
       };
     });
+
+    // Brush Shape Buttons in Terraforming
+    const shapeBtns = this._el.querySelectorAll('.brush-shape-btn');
+    shapeBtns.forEach(btn => {
+      btn.onclick = () => {
+        shapeBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const shape = btn.dataset.shape;
+        emit('editorSetBrushShape', { shape });
+        const name = btn.querySelector('.brush-shape-text')?.innerText || shape;
+        this._showToast(`Brush pattern: ${name}`);
+      };
+    });
+
+    // Terrain Biome & Palette Chips
+    const biomeChips = this._el.querySelectorAll('.biome-chip');
+    biomeChips.forEach(chip => {
+      chip.onclick = () => {
+        biomeChips.forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        const biome = chip.dataset.biome;
+        emit('editorSetBiome', { biome });
+        const name = chip.querySelector('.biome-chip-text')?.innerText || biome;
+        this._showToast(`Active Biome: ${name} (applies to newly placed terrain)`);
+      };
+    });
   }
 
   _resetTransform() {
@@ -1584,12 +1666,22 @@ export class EditorUI {
       this._selectShip(d.selectedShipId, false);
     }
 
+    if (d.biome) {
+      const biomeChips = this._el?.querySelectorAll('.biome-chip');
+      biomeChips?.forEach(c => c.classList.toggle('active', c.dataset.biome === d.biome));
+    }
+
     this._updateStatusBadges();
   }
 
   _handleConfigLoaded(d) {
     if (!d || !d.config) return;
     const cfg = d.config;
+
+    if (cfg.voxels && cfg.voxels.biome) {
+      const biomeChips = this._el?.querySelectorAll('.biome-chip');
+      biomeChips?.forEach(c => c.classList.toggle('active', c.dataset.biome === cfg.voxels.biome));
+    }
 
     if (cfg.ship !== undefined) {
       this._selectShip(cfg.ship, false);

@@ -49,6 +49,10 @@ export class EditorSystem {
     // Bindings
     this._isPointerDown = false;
     this._lastTerraformPoint = null;
+    this._strokeTargetY = null;
+    this._strokeHoldTimer = 0;
+    this._strokeAnchor = new THREE.Vector2();
+    this._brushShape = 'circle';
     this._boundPointerDown = this._onPointerDown.bind(this);
     this._boundPointerMove = this._onPointerMove.bind(this);
     this._boundPointerUp = this._onPointerUp.bind(this);
@@ -77,6 +81,28 @@ export class EditorSystem {
       this._activeTool = d.tool;
       this._updatePreview();
       this._emitState();
+    });
+
+    on('editorSetBrushShape', d => {
+      if (d && d.shape) {
+        this._brushShape = d.shape;
+        const isTerrainTool = this._activeTool === 'terrain_raise' || this._activeTool === 'terrain_lower';
+        if (isTerrainTool && this._voxelTerrain) {
+          const type = this._activeTool === 'terrain_raise' ? 'raise' : 'lower';
+          const radius = Math.max(1, Math.floor(this._currentScale * 2));
+          const previewTargetY = (this._isPointerDown && this._strokeTargetY !== null)
+            ? this._strokeTargetY
+            : (type === 'raise' ? this._intersection.y : Math.max(0, this._intersection.y - 1));
+          this._voxelTerrain.updatePreview(this._intersection.x, this._intersection.z, radius, type, previewTargetY, this._brushShape);
+        }
+      }
+    });
+
+    on('editorSetBiome', d => {
+      if (d && d.biome && this._voxelTerrain) {
+        this._voxelTerrain.setBiome(d.biome);
+        this._emitState();
+      }
     });
 
     on('editorSetTransform', d => {
@@ -328,7 +354,8 @@ export class EditorSystem {
       scale: this._currentScale,
       y: this._currentY,
       rotation: this._currentRotation,
-      selectedShipId: this._selectedShipId
+      selectedShipId: this._selectedShipId,
+      biome: this._voxelTerrain ? this._voxelTerrain.biome : 'tropical'
     });
   }
 
@@ -620,16 +647,24 @@ export class EditorSystem {
     this._raycaster.setFromCamera(this._mouse, this._camera);
     this._raycaster.ray.intersectPlane(this._plane, this._intersection);
 
-    const checkObjects = [];
-    if (this._voxelTerrain) checkObjects.push(this._voxelTerrain.meshGroup);
-    if (this._placedObstacles.length > 0) {
-      checkObjects.push(...this._placedObstacles.map(o => o.mesh));
-    }
-    if (checkObjects.length > 0) {
-      const intersects = this._raycaster.intersectObjects(checkObjects, true);
-      if (intersects.length > 0) {
-        this._intersection.copy(intersects[0].point);
+    const isTerrainTool = this._activeTool === 'terrain_raise' || this._activeTool === 'terrain_lower';
+
+    if (!isTerrainTool) {
+      const checkObjects = [];
+      if (this._voxelTerrain) checkObjects.push(this._voxelTerrain.meshGroup);
+      if (this._placedObstacles.length > 0) {
+        checkObjects.push(...this._placedObstacles.map(o => o.mesh));
       }
+      if (checkObjects.length > 0) {
+        const intersects = this._raycaster.intersectObjects(checkObjects, true);
+        if (intersects.length > 0) {
+          this._intersection.copy(intersects[0].point);
+        }
+      }
+    } else {
+      // Anchored to the horizontal sea plane to eliminate camera-ray drift
+      const topY = this._voxelTerrain ? this._voxelTerrain.getTopY(this._intersection.x, this._intersection.z) : -1;
+      this._intersection.y = Math.max(0, topY + 1);
     }
 
     if (this._previewMesh) {
@@ -642,15 +677,25 @@ export class EditorSystem {
       }
     }
 
-    const isTerrainTool = this._activeTool === 'terrain_raise' || this._activeTool === 'terrain_lower';
     if (isTerrainTool) {
       if (this._voxelTerrain) {
         const type = this._activeTool === 'terrain_raise' ? 'raise' : 'lower';
         const radius = Math.max(1, Math.floor(this._currentScale * 2));
-        this._voxelTerrain.updatePreview(this._intersection.x, this._intersection.z, radius, type, this._intersection.y);
+        const previewTargetY = (this._isPointerDown && this._strokeTargetY !== null)
+          ? this._strokeTargetY
+          : (type === 'raise' ? this._intersection.y : Math.max(0, this._intersection.y - 1));
+        this._voxelTerrain.updatePreview(this._intersection.x, this._intersection.z, radius, type, previewTargetY, this._brushShape);
       }
       
       if (this._isPointerDown) {
+        if (this._strokeAnchor) {
+          const curDist = this._strokeAnchor.distanceTo(new THREE.Vector2(this._intersection.x, this._intersection.z));
+          if (curDist > 1.0) {
+            // Actively dragging across map: reset stationary pulse timer
+            this._strokeHoldTimer = 0;
+            this._strokeAnchor.set(this._intersection.x, this._intersection.z);
+          }
+        }
         this._applyTerraform(this._intersection);
       }
     } else {
@@ -662,6 +707,8 @@ export class EditorSystem {
     if (event.button === 0) {
       this._isPointerDown = false;
       this._lastTerraformPoint = null;
+      this._strokeTargetY = null;
+      this._strokeHoldTimer = 0;
     }
   }
 
@@ -669,25 +716,27 @@ export class EditorSystem {
     if (this._voxelTerrain) {
       const type = this._activeTool === 'terrain_raise' ? 'raise' : 'lower';
       const radius = Math.max(1, Math.floor(this._currentScale * 2));
-
+      const targetY = this._strokeTargetY !== null 
+        ? this._strokeTargetY 
+        : (type === 'raise' ? Math.floor(hitPoint.y) : Math.floor(hitPoint.y) - 1);
       
       const currentPt = new THREE.Vector2(hitPoint.x, hitPoint.z);
 
       if (this._lastTerraformPoint) {
         const dist = this._lastTerraformPoint.distanceTo(currentPt);
-        const stepDist = Math.max(1, radius / 2);
+        const stepDist = Math.max(0.8, radius / 2);
         
         if (dist > stepDist) {
-            const steps = Math.ceil(dist / stepDist);
-            for (let i = 1; i <= steps; i++) {
-                const lerped = this._lastTerraformPoint.clone().lerp(currentPt, i / steps);
-                this._voxelTerrain.applyBrush(lerped.x, lerped.y, radius, type, hitPoint.y);
-            }
+          const steps = Math.ceil(dist / stepDist);
+          for (let i = 1; i <= steps; i++) {
+            const lerped = this._lastTerraformPoint.clone().lerp(currentPt, i / steps);
+            this._voxelTerrain.applyBrush(lerped.x, lerped.y, radius, type, targetY, this._brushShape);
+          }
         } else {
-            this._voxelTerrain.applyBrush(currentPt.x, currentPt.y, radius, type, hitPoint.y);
+          this._voxelTerrain.applyBrush(currentPt.x, currentPt.y, radius, type, targetY, this._brushShape);
         }
       } else {
-        this._voxelTerrain.applyBrush(currentPt.x, currentPt.y, radius, type, hitPoint.y);
+        this._voxelTerrain.applyBrush(currentPt.x, currentPt.y, radius, type, targetY, this._brushShape);
       }
       
       this._lastTerraformPoint = currentPt;
@@ -701,7 +750,22 @@ export class EditorSystem {
     
     this._isPointerDown = true;
     this._lastTerraformPoint = null;
+    this._strokeHoldTimer = 0;
     this._onPointerMove(event);
+
+    const isTerrainTool = this._activeTool === 'terrain_raise' || this._activeTool === 'terrain_lower';
+    if (isTerrainTool && this._voxelTerrain) {
+      const topY = this._voxelTerrain.getTopY(this._intersection.x, this._intersection.z);
+      if (this._activeTool === 'terrain_raise') {
+        this._strokeTargetY = Math.max(1, topY + 1);
+      } else {
+        this._strokeTargetY = Math.max(-1, topY - 1);
+      }
+      if (!this._strokeAnchor) this._strokeAnchor = new THREE.Vector2();
+      this._strokeAnchor.set(this._intersection.x, this._intersection.z);
+      this._applyTerraform(this._intersection);
+      return;
+    }
 
     if (this._activeTool === 'place' && this._activeType) {
       this._spawnObstacle(this._activeType, this._activeUrl, this._intersection.x, this._intersection.y + this._currentY, this._intersection.z, this._currentScale, this._currentRotation);
@@ -1265,6 +1329,29 @@ export class EditorSystem {
     
     if (this._envManager) {
       this._envManager.update(delta, { getWindAt: () => new THREE.Vector3(0, 0, -1) }, this._camera.position);
+    }
+
+    // Hybrid Stroke-Leveling: Pulse height when holding stationary in place
+    const isTerrainTool = this._activeTool === 'terrain_raise' || this._activeTool === 'terrain_lower';
+    if (this._isPointerDown && isTerrainTool && this._voxelTerrain && this._strokeTargetY !== null) {
+      this._strokeHoldTimer += delta;
+      // Pulse cadence: every 0.28 seconds of holding stationary in one spot
+      if (this._strokeHoldTimer >= 0.28) {
+        this._strokeHoldTimer = 0;
+        const type = this._activeTool === 'terrain_raise' ? 'raise' : 'lower';
+        if (type === 'raise') {
+          if (this._strokeTargetY < 63) {
+            this._strokeTargetY++;
+          }
+        } else {
+          if (this._strokeTargetY > -1) {
+            this._strokeTargetY--;
+          }
+        }
+        this._applyTerraform(this._intersection);
+        const radius = Math.max(1, Math.floor(this._currentScale * 2));
+        this._voxelTerrain.updatePreview(this._intersection.x, this._intersection.z, radius, type, this._strokeTargetY, this._brushShape);
+      }
     }
   }
 }
