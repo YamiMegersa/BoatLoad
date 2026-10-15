@@ -74,6 +74,7 @@ export class GameState {
     this._grid          = null;
     this._zones         = null;
     this._levelCfg      = null;
+    this._shipDef       = null;
 
     this._chunkRenderer = null;
     this._raycaster     = null;
@@ -156,9 +157,10 @@ export class GameState {
    * Switch to a new phase, tearing down the old one first.
    * @param {string} newPhase   GamePhase.*
    * @param {object} [opts]     Optional data passed to the entering phase
+   * @param {boolean} [force]   Force transition even if newPhase === currentPhase
    */
-  async transition(newPhase, opts = {}) {
-    if (this.currentPhase === newPhase) return;
+  async transition(newPhase, opts = {}, force = false) {
+    if (this.currentPhase === newPhase && !force) return;
 
     await this._onExit(this.currentPhase);
     this.currentPhase = newPhase;
@@ -387,41 +389,76 @@ export class GameState {
   // SHIPYARD
   // =========================================================================
 
-  async _enterShipyard({ shipDef, levelCfg, fishModels }) {
-    this._levelCfg = levelCfg;
+  async _enterShipyard({ shipDef, levelCfg, fishModels, forceNew = false } = {}) {
+    this._levelCfg = levelCfg || this._levelCfg;
     if (this._ocean) {
-      this._ocean.setWorldSize(levelCfg?.worldSize || 200);
+      this._ocean.setWorldSize(this._levelCfg?.worldSize || 200);
     }
 
-    // Build the voxel data
-    const { grid, zones, def, gltfScene } = await ShipBuilder.build(shipDef, levelCfg);
-    this._grid  = grid;
-    this._zones = zones;
+    if (shipDef) this._shipDef = shipDef;
+    const currentShipDef = this._shipDef || shipDef;
 
-    // Chunk renderer
-    this._chunkRenderer = new ChunkRenderer();
-    this._chunkRenderer.init(grid, this._scene, gltfScene);
+    let def = currentShipDef;
+
+    // Single boat guarantee:
+    // If a boat already exists and we are not forcing a fresh reset, reuse the existing boat!
+    if (this._grid && this._chunkRenderer && !forceNew) {
+      // Reposition existing boat back to shipyard building center (0, 0, 0)
+      if (this._chunkRenderer.container) {
+        this._chunkRenderer.container.position.set(0, 0, 0);
+        this._chunkRenderer.container.rotation.set(0, 0, 0);
+        this._chunkRenderer.container.scale.set(1, 1, 1);
+        this._chunkRenderer.container.visible = true;
+        if (this._chunkRenderer.container.parent !== this._scene) {
+          this._scene.add(this._chunkRenderer.container);
+        }
+      }
+      this._chunkRenderer.sync(this._grid);
+    } else {
+      // Cleanly dispose any existing chunk renderer first so no duplicate/ghost boat remains
+      if (this._chunkRenderer) {
+        this._chunkRenderer.dispose(this._scene);
+        this._chunkRenderer = null;
+      }
+
+      // Build the voxel data
+      const { grid, zones, def: builtDef, gltfScene } = await ShipBuilder.build(currentShipDef, this._levelCfg);
+      this._grid  = grid;
+      this._zones = zones;
+      def = builtDef;
+
+      // Chunk renderer
+      this._chunkRenderer = new ChunkRenderer();
+      this._chunkRenderer.init(grid, this._scene, gltfScene);
+    }
 
     // BVH raycaster
     this._raycaster = new ShipRaycaster();
-    this._raycaster.build(grid, this._scene);
+    this._raycaster.build(this._grid, this._scene);
 
     // Build system
     this._buildSystem = new BuildSystem();
-    this._buildSystem.init(grid, this._scene);
+    this._buildSystem.init(this._grid, this._scene);
 
     // Orbit controls
     this._orbitControls = new OrbitControls(this._camera, this._renderer.domElement);
-    const cx = def.grid.x * 0.5;
-    const cy = def.grid.y * 0.5;
-    const cz = def.grid.z * 0.5;
+    const gx = def?.grid?.x ?? this._grid.width;
+    const gy = def?.grid?.y ?? this._grid.height;
+    const gz = def?.grid?.z ?? this._grid.depth;
+    const cx = gx * 0.5;
+    const cy = gy * 0.5;
+    const cz = gz * 0.5;
     
     // Frame the camera nicely relative to the ship size
-    this._camera.position.set(cx + def.grid.x, cy + def.grid.y + 5, cz + def.grid.z + 15);
+    this._camera.position.set(cx + gx, cy + gy + 5, cz + gz + 15);
     this._orbitControls.target.set(cx, cy, cz);
     this._orbitControls.update();
 
     // PROTOTYPE DEBUG: Render a random fish directly next to the boat
+    if (this._debugShark) {
+      this._scene.remove(this._debugShark);
+      this._debugShark = null;
+    }
     if (fishModels && fishModels.length > 0) {
       const fishModel = fishModels[Math.floor(Math.random() * fishModels.length)];
       this._debugShark = fishModel.scene;
@@ -780,6 +817,11 @@ export class GameState {
   _enterEditor({ levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel }) {
     this._levelCfg = levelCfg;
 
+    if (this._chunkRenderer && this._chunkRenderer.container) {
+      this._chunkRenderer.container.visible = false;
+      this._chunkRenderer.container.position.set(0, -999, 0);
+    }
+
     this._camera.position.set(0, 30, 0);
     this._camera.lookAt(0, 0, -5);
     
@@ -871,6 +913,10 @@ export class GameState {
     
     this._orbitControls?.dispose();
     this._orbitControls = null;
+
+    if (this._chunkRenderer && this._chunkRenderer.container) {
+      this._chunkRenderer.container.visible = true;
+    }
 
     emit('uiUnmount', { screen: 'editor' });
   }
