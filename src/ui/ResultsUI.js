@@ -24,8 +24,9 @@ export class ResultsUI {
     this._el.innerHTML = `
       <h1>${passed ? 'VOYAGE COMPLETE' : 'SHIP LOST'}</h1>
       <p>Day ${day} score: <strong>${score}</strong></p>
+      ${passed ? `
       <h2>QTE Report</h2>
-      <ul>${stats}</ul>
+      <ul>${stats}</ul>` : ''}
       <div class="results-actions">
         <button type="button" data-results-action="shipyard">Return to Shipyard</button>
         <button type="button" data-results-action="title">Main Menu</button>

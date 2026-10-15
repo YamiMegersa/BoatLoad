@@ -347,6 +347,12 @@ export class HUD {
     if (alternateEl) alternateEl.style.display = input === 'alternate' ? 'flex' : 'none';
     this._qteEl.style.setProperty('--qte-theme', theme?.color ?? '#ff9800');
     if (this._qteMeter) this._qteMeter.className = input;
+    // Reset the indicator so a fresh QTE never inherits stale inline styles
+    // from a previous timing QTE (left offset) or mash QTE (width).
+    if (this._qteIndicator) {
+      this._qteIndicator.style.left = '0%';
+      this._qteIndicator.style.width = '0%';
+    }
     if (sweetSpotEl && sweetSpot) {
       sweetSpotEl.style.left = `${sweetSpot[0] * 100}%`;
       sweetSpotEl.style.width = `${(sweetSpot[1] - sweetSpot[0]) * 100}%`;
@@ -362,7 +368,10 @@ export class HUD {
 
     const progressEl = this._qteEl.querySelector('#hud-qte-progress');
     if (input === 'mash' || input === 'alternate') {
-      if (this._qteIndicator) this._qteIndicator.style.width = `${(progress / mashTarget) * 100}%`;
+      if (this._qteIndicator) {
+        this._qteIndicator.style.left = '0%'; // clear any offset left by a timing QTE
+        this._qteIndicator.style.width = `${(progress / mashTarget) * 100}%`;
+      }
       if (progressEl) progressEl.textContent = `${progress} / ${mashTarget}`;
     } else {
       const elapsedPct = 100 - remainingPct;
