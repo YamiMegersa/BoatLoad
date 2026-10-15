@@ -344,7 +344,7 @@ async function boot() {
           gameState.transition(GamePhase.OBSTACLE, { 
             shipDef: activeShipDef, 
             levelCfg: customLevelCfg, 
-            shipStats: { hullHP: hp }, 
+            shipStats: { hullHP: hp, profile }, 
             rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel 
           });
         }

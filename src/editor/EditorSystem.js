@@ -1163,6 +1163,12 @@ export class EditorSystem {
       if (!this._shipGhostGroup) return; // disposed in the meantime
       const model = gltf.scene;
 
+      // Apply profile rotation to align model along Z axis
+      if (profile.modelRotationY !== undefined) {
+        model.rotation.y = profile.modelRotationY;
+      }
+      model.updateMatrixWorld(true);
+
       // Scale model based on ship profile
       const box = new THREE.Box3().setFromObject(model);
       const size = new THREE.Vector3();
@@ -1173,9 +1179,14 @@ export class EditorSystem {
       // Centered and resting on water
       model.position.set(-center.x, -box.min.y, -center.z);
 
+      // Target world length matches the voxel ship (grid.z * profile.scale)
+      const targetWorldLength = (profile.grid?.z || 48) * (profile.scale || 0.10);
+      const modelLength = Math.max(size.z, 0.001);
+      const modelScale = targetWorldLength / modelLength;
+
       const wrapper = new THREE.Group();
       wrapper.add(model);
-      wrapper.scale.setScalar(profile.scale);
+      wrapper.scale.setScalar(modelScale);
 
       // Apply holographic cyan / red tint
       model.traverse((child) => {
@@ -1196,7 +1207,8 @@ export class EditorSystem {
       this._shipGhostGroup.add(wrapper);
 
       // Add a floating marker ring on water at (0, 0, 0)
-      const ringGeo = new THREE.RingGeometry(profile.collisionRadius * 0.9, profile.collisionRadius * 1.05, 32);
+      const ringRadius = Math.max(profile.collisionRadius || 2.5, targetWorldLength * 0.45);
+      const ringGeo = new THREE.RingGeometry(ringRadius * 0.9, ringRadius * 1.05, 32);
       ringGeo.rotateX(-Math.PI / 2);
       const ringMat = new THREE.MeshBasicMaterial({
         color: profile.isGagTruck ? 0xff3300 : 0x00e5ff,

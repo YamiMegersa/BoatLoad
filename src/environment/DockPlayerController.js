@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { emit, on, off } from '../core/EventBus.js';
 import { VoxelArms } from './VoxelArms.js';
 import { EmoteWheelUI } from '../ui/EmoteWheelUI.js';
+import { DOCK_SCALE } from './DockStall.js';
 
 export class DockPlayerController {
   /**
@@ -18,22 +19,23 @@ export class DockPlayerController {
 
     // Modes: 'player' (FPS moveable on dock/island), 'shop' (static shopkeeper station)
     this.mode = 'player';
+    this.scale = DOCK_SCALE;
 
     // Camera setup
     this.camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 500);
-    this.eyeHeight = 2.85; // Proportional to dock and shop scale
+    this.eyeHeight = 2.85 * this.scale; // Proportional to scaled dock and shop
 
     // Camera Rig (Yaw -> Pitch -> Camera)
     this.pitchObject = new THREE.Object3D();
     this.pitchObject.add(this.camera);
 
     this.yawObject = new THREE.Object3D();
-    this.yawObject.position.set(-3.5, 2.15 + this.eyeHeight, 0.5); // Initial spawn on dock
+    this.yawObject.position.set(-3.5 * this.scale, 2.15 * this.scale + this.eyeHeight, 0.5 * this.scale); // Initial spawn on dock
     this.yawObject.rotation.y = Math.PI / 2; // Face towards island ramp (world -X)
     this.yawObject.add(this.pitchObject);
     this.scene.add(this.yawObject);
 
-    this.playerRadius = 0.45;
+    this.playerRadius = 0.45 * this.scale;
 
     // Movement state
     this.keys = {
@@ -43,8 +45,8 @@ export class DockPlayerController {
       right: false,
       sprint: false
     };
-    this.walkSpeed = 6.0;
-    this.sprintSpeed = 10.5;
+    this.walkSpeed = 6.0 * this.scale;
+    this.sprintSpeed = 10.5 * this.scale;
     this.velocity = new THREE.Vector3();
 
     // Raycasters for terrain following & interaction
@@ -407,11 +409,12 @@ export class DockPlayerController {
 
   _resolveObstacleCollisions(pos) {
     const r = this.playerRadius;
+    const s = this.scale;
     const obstacles = [
       // Main shop building and front counter
-      { minX: -1.05, maxX: 5.25, minZ: 1.10, maxZ: 6.65 },
+      { minX: -1.05 * s, maxX: 5.25 * s, minZ: 1.10 * s, maxZ: 6.65 * s },
       // Crates stacked beside shop on the dock
-      { minX: -2.1, maxX: -1.2, minZ: 2.1, maxZ: 3.1 }
+      { minX: -2.1 * s, maxX: -1.2 * s, minZ: 2.1 * s, maxZ: 3.1 * s }
     ];
 
     for (let i = 0; i < obstacles.length; i++) {
@@ -507,10 +510,10 @@ export class DockPlayerController {
 
   _getGroundHeightAt(x, z) {
     if (!this.dockStall || !this.dockStall.group) {
-      return 2.15; // default dock level
+      return 2.15 * this.scale; // default dock level
     }
 
-    const rayOrigin = new THREE.Vector3(x, 10.0, z);
+    const rayOrigin = new THREE.Vector3(x, 10.0 * this.scale, z);
     this.downRaycaster.set(rayOrigin, new THREE.Vector3(0, -1, 0));
 
     // Intersect terrain and dock objects
@@ -518,9 +521,9 @@ export class DockPlayerController {
     for (let i = 0; i < hits.length; i++) {
       const hit = hits[i];
       // Exclude roofs, sign, gulls, or high props
-      if (hit.point.y > 4.5) continue;
+      if (hit.point.y > 4.5 * this.scale) continue;
       // Exclude water/below water level
-      if (hit.point.y < 0.2) continue;
+      if (hit.point.y < 0.1 * this.scale) continue;
 
       // Make sure the hit object isn't the door or ceiling or bunny
       if (hit.object && hit.object.userData && (hit.object.userData.isShopDoor || hit.object.userData.isBunny)) continue;
@@ -592,18 +595,18 @@ export class DockPlayerController {
         }
 
         if (isShip) {
-          if (hit.distance <= 14.0) {
+          if (hit.distance <= 14.0 * this.scale) {
             this._setHoverState(hit.object, 'ship');
             return;
           }
         } else if (hit.object.userData) {
           if (hit.object.userData.isBunny) {
-            if (hit.distance <= 6.5) {
+            if (hit.distance <= 6.5 * this.scale) {
               this._setHoverState(hit.object, 'bunny');
               return;
             }
           } else if (hit.object.userData.isShopDoor) {
-            const maxDist = this.mode === 'shop' ? 5.5 : 4.0;
+            const maxDist = (this.mode === 'shop' ? 5.5 : 4.0) * this.scale;
             if (hit.distance <= maxDist) {
               this._setHoverState(hit.object, 'door');
               return;

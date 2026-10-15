@@ -91,9 +91,10 @@ export class PlayerShip {
 
     // Use the actual voxel model if provided
     this.mesh = new THREE.Group();
+    let wrapper = null;
     if (chunkRenderer && chunkRenderer.container) {
       // Create a wrapper to handle scaling and centering independently
-      const wrapper = new THREE.Group();
+      wrapper = new THREE.Group();
       wrapper.add(chunkRenderer.container);
       
       // Calculate bounding box to center the voxel grid horizontally
@@ -133,8 +134,9 @@ export class PlayerShip {
 
     scene.add(this.mesh);
 
-    // OBB Collision (compute base unrotated bounds from local mesh)
-    const localBox = new THREE.Box3().setFromObject(this.mesh);
+    // OBB Collision (compute base unrotated bounds from local vessel wrapper)
+    const targetObj = wrapper || this.mesh;
+    const localBox = new THREE.Box3().setFromObject(targetObj);
     this.baseOBB = new OBB();
     localBox.getCenter(this.baseOBB.center);
     localBox.getSize(this.baseOBB.halfSize).multiplyScalar(0.5);
@@ -144,7 +146,9 @@ export class PlayerShip {
     const wireGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(this.baseOBB.halfSize.x * 2, this.baseOBB.halfSize.y * 2, this.baseOBB.halfSize.z * 2));
     const wireMesh = new THREE.LineSegments(wireGeo, wireMat);
     wireMesh.position.copy(this.baseOBB.center);
+    wireMesh.visible = false;
     this.mesh.add(wireMesh);
+    this.hitboxWireMesh = wireMesh;
 
     this.obb = new OBB();
 
@@ -654,11 +658,30 @@ export class PlayerShip {
   // -------------------------------------------------------------------------
 
   _buildMesh() {
-    // Placeholder box until the full ship model is integrated
-    const geo = new THREE.BoxGeometry(2, 1, 4);
-    const mat = new THREE.MeshLambertMaterial({ color: 0x9A5B2E });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.set(0, 0.5, 0);
-    return mesh;
+    const group = new THREE.Group();
+    const l = (this.shipProfile?.grid?.z || 48) * (this.shipScale || 0.10);
+    const w = (this.shipProfile?.grid?.x || 24) * (this.shipScale || 0.10);
+    const h = (this.shipProfile?.grid?.y || 24) * (this.shipScale || 0.10) * 0.4;
+
+    const hullGeo = new THREE.BoxGeometry(w, h, l);
+    const hullMat = new THREE.MeshLambertMaterial({ color: 0x9A5B2E });
+    const hullMesh = new THREE.Mesh(hullGeo, hullMat);
+    hullMesh.position.set(0, h * 0.5, 0);
+    group.add(hullMesh);
+
+    // Mast and sail
+    const mastGeo = new THREE.CylinderGeometry(0.08, 0.12, h * 3, 8);
+    const mastMat = new THREE.MeshLambertMaterial({ color: 0x5a3418 });
+    const mastMesh = new THREE.Mesh(mastGeo, mastMat);
+    mastMesh.position.set(0, h * 1.5, 0);
+    group.add(mastMesh);
+
+    const sailGeo = new THREE.PlaneGeometry(w * 0.9, h * 1.8);
+    const sailMat = new THREE.MeshLambertMaterial({ color: 0xf4eedb, side: THREE.DoubleSide });
+    const sailMesh = new THREE.Mesh(sailGeo, sailMat);
+    sailMesh.position.set(0, h * 1.8, 0.1);
+    group.add(sailMesh);
+
+    return group;
   }
 }

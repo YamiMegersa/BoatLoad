@@ -28,7 +28,7 @@ export class DamageSystem {
     for (const entry of damageEntries) {
       const targetState = stateMap[entry.state] ?? CellState.DAMAGED;
       for (const [cx, cy, cz] of entry.cells) {
-        if (grid.inBounds(cx, cy, cz)) {
+        if (grid.inBounds(cx, cy, cz) && grid.getState(cx, cy, cz) !== CellState.EMPTY) {
           grid.setState(cx, cy, cz, targetState);
         }
       }

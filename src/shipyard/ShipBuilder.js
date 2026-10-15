@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VoxelGrid, CellState } from './VoxelGrid.js';
+import { getShipProfile } from '../config/ShipRegistry.js';
 
 /**
  * ShipBuilder — instantiates a VoxelGrid from a ship definition JSON,
@@ -38,25 +39,45 @@ export class ShipBuilder {
       this._applyDamage(grid, levelCfg);
       grid.dirtySet.clear();
       grid.topologyDirty = false;
-      return { grid, zones: shipDef.zones || {}, def: shipDef };
+      return { grid, zones: shipDef.zones || {}, def: shipDef, gltfScene: null };
     }
 
     // 1. Voxelize the GLB to find occupied cells and their colors
-    // Get initial bounding box to determine scale factors
-    const initialBox = new THREE.Box3().setFromObject(gltf.scene);
+    const profile = shipDef.profile || getShipProfile(shipDef.id);
+    if (profile && profile.modelRotationY !== undefined) {
+      gltf.scene.rotation.y = profile.modelRotationY;
+      gltf.scene.updateMatrixWorld(true);
+    } else {
+      const testBox = new THREE.Box3().setFromObject(gltf.scene);
+      const testSize = new THREE.Vector3();
+      testBox.getSize(testSize);
+      if (testSize.x > testSize.z) {
+        gltf.scene.rotation.y = Math.PI / 2;
+        gltf.scene.updateMatrixWorld(true);
+      }
+    }
+
+    // Get rotated bounding box to determine scale factors
+    const rotatedBox = new THREE.Box3().setFromObject(gltf.scene);
     const size = new THREE.Vector3();
-    initialBox.getSize(size);
-    
-    // Scale the GLTF scene to precisely fit the VoxelGrid bounds
-    const scaleX = (W * 1.0) / size.x; // CELL_SIZE = 1.0
-    const scaleY = (H * 1.0) / size.y;
-    const scaleZ = (D * 1.0) / size.z;
-    gltf.scene.scale.set(scaleX, scaleY, scaleZ);
+    rotatedBox.getSize(size);
+
+    // Uniformly scale along length (Z) so ship matches the grid depth D
+    // Use target length D - 2 so there is a 1-cell margin at bow and stern
+    const fitScale = (D - 2) / (size.z || 1);
+    gltf.scene.scale.set(fitScale, fitScale, fitScale);
+    gltf.scene.position.set(0, 0, 0);
     gltf.scene.updateMatrixWorld(true);
 
-    // Align the scaled GLB's bounding box to (0, 0, 0) to ensure it fits perfectly into the VoxelGrid space
-    const box = new THREE.Box3().setFromObject(gltf.scene);
-    gltf.scene.position.sub(box.min);
+    // Center horizontally in VoxelGrid and place base at bottom (Y=1)
+    const finalBox = new THREE.Box3().setFromObject(gltf.scene);
+    const center = new THREE.Vector3();
+    finalBox.getCenter(center);
+    gltf.scene.position.set(
+      (W * 0.5) - center.x,
+      1.0 - finalBox.min.y,
+      (D * 0.5) - center.z
+    );
     gltf.scene.updateMatrixWorld(true);
 
     const voxelSet = new Set();
@@ -153,7 +174,7 @@ export class ShipBuilder {
     grid.dirtySet.clear();
     grid.topologyDirty = false;
 
-    return { grid, zones: shipDef.zones, def: shipDef };
+    return { grid, zones: shipDef.zones, def: shipDef, gltfScene: gltf.scene };
   }
 
   // ---------------------------------------------------------------------------
@@ -169,17 +190,41 @@ export class ShipBuilder {
       FLOODED:  CellState.FLOODED,
     };
 
+    const fallbackCells = ShipBuilder._findExposedShipCells(grid);
+    let fallbackIdx = 0;
+
     for (const entry of levelCfg.damage) {
       const targetState = stateMap[entry.state] ?? CellState.DAMAGED;
       for (const [cx, cy, cz] of entry.cells) {
-        if (grid.inBounds(cx, cy, cz)) {
+        if (grid.inBounds(cx, cy, cz) && grid.getState(cx, cy, cz) !== CellState.EMPTY) {
           grid.setState(cx, cy, cz, targetState);
-          console.log(`[DEBUG _applyDamage] Applied ${targetState} at ${cx},${cy},${cz} (zone: ${entry.zone})`);
-        } else {
-          console.log(`[DEBUG _applyDamage] OOB ${cx},${cy},${cz} (zone: ${entry.zone})`);
+        } else if (fallbackIdx < fallbackCells.length) {
+          // If the hardcoded cell coordinate was in empty space outside this vessel,
+          // place the damage on an actual exposed hull cell so there are NEVER stray blocks outside the ship!
+          const actualCell = fallbackCells[fallbackIdx++];
+          grid.setState(actualCell.x, actualCell.y, actualCell.z, targetState);
         }
       }
     }
+  }
+
+  static _findExposedShipCells(grid) {
+    const candidates = [];
+    const midZ = Math.floor(grid.depth * 0.5);
+    const maxY = Math.max(3, Math.floor(grid.height * 0.45));
+
+    for (let z = 2; z < grid.depth - 2; z++) {
+      for (let y = 1; y <= maxY; y++) {
+        for (let x = 1; x < grid.width - 1; x++) {
+          if (grid.getState(x, y, z) === CellState.INTACT && grid.isExposed(x, y, z)) {
+            candidates.push({ x, y, z, distFromMid: Math.abs(z - midZ) });
+          }
+        }
+      }
+    }
+
+    candidates.sort((a, b) => a.distFromMid - b.distFromMid);
+    return candidates;
   }
 
   /**

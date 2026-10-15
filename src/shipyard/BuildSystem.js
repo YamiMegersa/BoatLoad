@@ -49,9 +49,10 @@ export class BuildSystem {
     };
   }
 
-  init(grid, scene) {
+  init(grid, scene, scale = 1.0) {
     this._grid = grid;
     this._scene = scene;
+    this._scale = scale;
     
     // Add ghost preview to scene
     this._scene.add(this._ghostMesh);
@@ -72,14 +73,16 @@ export class BuildSystem {
     
     this._grid = null;
     this._scene = null;
+    this._scale = 1.0;
   }
 
   _updateGhostMesh() {
     if (!this._activeBlueprint) return;
     
     const [sx, sy, sz] = this._getRotatedSize();
+    const s = this._scale || 1.0;
     this._ghostMesh.geometry.dispose();
-    this._ghostMesh.geometry = new THREE.BoxGeometry(sx, sy, sz);
+    this._ghostMesh.geometry = new THREE.BoxGeometry(sx * s, sy * s, sz * s);
     this._ghostMesh.material.color.setHex(this._activeBlueprint.color);
     
     this._ghostBox.update();
@@ -138,7 +141,8 @@ export class BuildSystem {
     const finalY = targetY + offsetY;
     const finalZ = targetZ + offsetZ;
 
-    const worldPos = this._grid.toWorldPos(finalX, finalY, finalZ);
+    const s = this._scale || 1.0;
+    const worldPos = this._grid.toWorldPos(finalX, finalY, finalZ).multiplyScalar(s);
     this._ghostMesh.position.copy(worldPos);
     this._ghostMesh.visible = true;
     

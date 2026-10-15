@@ -197,6 +197,8 @@ function createVoxelBarrel(radius, height, woodMat, bandMat) {
 
 // ---------------------------------------------------------------------------
 // DockStall Environment Class
+export const DOCK_SCALE = 0.55;
+
 // ---------------------------------------------------------------------------
 export class DockStall {
   constructor() {
@@ -219,6 +221,9 @@ export class DockStall {
   build() {
     if (this._isBuilt) return this.group;
     this._isBuilt = true;
+
+    // Scale entire dock and island to match human/consistent ship proportions
+    this.group.scale.setScalar(DOCK_SCALE);
 
     // Generate stylized voxel wood textures
     const texWoodHi   = createVoxelWoodTexture(181, 139, 94, 0.16);

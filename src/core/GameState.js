@@ -20,7 +20,7 @@ import { WindManager }        from '../environment/WindManager.js';
 import { SirenManager }       from '../monsters/SirenManager.js';
 import { KrakenBoss }         from '../monsters/KrakenBoss.js';
 import { Sky }                from '../environment/Sky.js';
-import { DockStall }          from '../environment/DockStall.js';
+import { DockStall, DOCK_SCALE } from '../environment/DockStall.js';
 import { DockPlayerController } from '../environment/DockPlayerController.js';
 import { WeatherSystem }      from '../environment/WeatherSystem.js';
 import { LevelConfig }        from './LevelConfig.js';
@@ -186,16 +186,18 @@ export class GameState {
         if (this._dockStall) this._dockStall.update(delta, this._time);
         if (this._dockPlayerController) this._dockPlayerController.update(delta);
         if (this._dockOrbitControls && this._dockOrbitControls.enabled) this._dockOrbitControls.update();
-        if (this._chunkRenderer && this._chunkRenderer.container && this._chunkRenderer.container.visible) {
+        if (this._dockMooredGroup && this._dockMooredGroup.visible) {
           const isTruck = this._mooredShipProfile?.isGagTruck;
-          const bob = Math.sin(this._time * 1.6) * 0.08;
+          const s = this._mooredShipProfile?.scale || 0.12;
+          const draft = (this._mooredShipProfile?.waterlineY || 4) * s;
+          const bob = Math.sin(this._time * 1.6) * 0.05;
           const roll = Math.sin(this._time * 1.1) * 0.03;
-          this._chunkRenderer.container.position.y = -0.65 + bob;
-          this._chunkRenderer.container.rotation.z = roll;
+          this._dockMooredGroup.position.y = -draft + bob;
+          this._dockMooredGroup.rotation.z = roll;
           if (isTruck) {
-            this._chunkRenderer.container.rotation.x = -0.45 + Math.sin(this._time * 2.5) * 0.04;
+            this._dockMooredGroup.rotation.x = -0.45 + Math.sin(this._time * 2.5) * 0.04;
           } else {
-            this._chunkRenderer.container.rotation.x = Math.sin(this._time * 1.3) * 0.02;
+            this._dockMooredGroup.rotation.x = Math.sin(this._time * 1.3) * 0.02;
           }
         }
         break;
@@ -228,7 +230,7 @@ export class GameState {
         break;
 
       case GamePhase.DOCK:
-        this._enterDock(opts);
+        await this._enterDock(opts);
         break;
 
       case GamePhase.SHIPYARD:
@@ -236,7 +238,7 @@ export class GameState {
         break;
 
       case GamePhase.OBSTACLE:
-        this._enterObstacle(opts);
+        await this._enterObstacle(opts);
         break;
 
       case GamePhase.RESULTS:
@@ -306,21 +308,49 @@ export class GameState {
       this._zones = zones;
       if (this._chunkRenderer) {
         this._chunkRenderer.dispose(this._scene);
+        this._chunkRenderer = null;
       }
       this._chunkRenderer = new ChunkRenderer();
       this._chunkRenderer.init(grid, this._scene, gltfScene);
     }
 
+    if (!this._dockMooredGroup) {
+      this._dockMooredGroup = new THREE.Group();
+      this._dockMooredGroup.name = 'dockMooredGroup';
+      this._scene.add(this._dockMooredGroup);
+    }
+
     if (this._chunkRenderer && this._chunkRenderer.container) {
+      this._dockMooredGroup.add(this._chunkRenderer.container);
       this._chunkRenderer.container.visible = true;
-      this._chunkRenderer.container.position.set(13.8, -0.65, 1.8);
-      this._chunkRenderer.container.rotation.set(0, Math.PI / 2, 0);
+
+      // Center the voxel grid horizontally inside the moored group
+      const cx = (this._grid?.width || 24) * 0.5;
+      const cz = (this._grid?.depth || 48) * 0.5;
+      this._chunkRenderer.container.position.set(-cx, 0, -cz);
+      this._chunkRenderer.container.rotation.set(0, 0, 0);
+      this._chunkRenderer.container.scale.set(1, 1, 1);
+
+      // Scale moored group in world coordinates to match ship profile
+      const s = shipProfile.scale || 0.12;
+      this._dockMooredGroup.scale.setScalar(s);
+
+      // Wharf edge runs along Z at X = 9.0 * DOCK_SCALE
+      // Moor the vessel alongside the pier, facing open water (-Z)
+      const pierEdgeX = 9.0 * DOCK_SCALE;
+      const pierCenterZ = 1.8 * DOCK_SCALE;
+      const halfBeam = (this._grid?.width || 24) * s * 0.5;
+      const draft = (shipProfile.waterlineY || 4) * s;
+      this._dockMooredGroup.position.set(pierEdgeX + halfBeam + (0.4 * DOCK_SCALE), -draft, pierCenterZ);
+      this._dockMooredGroup.rotation.set(0, Math.PI, 0);
+
+      this._dockMooredGroup.userData.isMooredShip = true;
       this._chunkRenderer.container.userData.isMooredShip = true;
       this._chunkRenderer.container.traverse(c => {
         c.userData.isMooredShip = true;
       });
       if (this._dockStall) {
-        this._dockStall.shipInteractables = [this._chunkRenderer.container];
+        this._dockStall.shipInteractables = [this._dockMooredGroup];
       }
     }
 
@@ -370,9 +400,22 @@ export class GameState {
     this._scene.remove(this._dockStall.group);
     this._ocean.breakwaterEnabled = false;
 
-    if (this._chunkRenderer && this._chunkRenderer.container) {
+    if (this._dockMooredGroup) {
+      if (this._chunkRenderer && this._chunkRenderer.container) {
+        this._dockMooredGroup.remove(this._chunkRenderer.container);
+        this._scene.add(this._chunkRenderer.container);
+        this._chunkRenderer.container.position.set(0, 0, 0);
+        this._chunkRenderer.container.rotation.set(0, 0, 0);
+        this._chunkRenderer.container.scale.set(1, 1, 1);
+        this._chunkRenderer.container.visible = false;
+      }
+      this._scene.remove(this._dockMooredGroup);
+      this._dockMooredGroup = null;
+    } else if (this._chunkRenderer && this._chunkRenderer.container) {
       this._chunkRenderer.container.visible = false;
       this._chunkRenderer.container.position.set(0, -999, 0);
+      this._chunkRenderer.container.rotation.set(0, 0, 0);
+      this._chunkRenderer.container.scale.set(1, 1, 1);
     }
 
     if (this._dockPlayerController) {
@@ -447,31 +490,66 @@ export class GameState {
       this._ocean.setWorldSize(levelCfg?.worldSize || 200);
     }
 
-    // Build the voxel data
-    const { grid, zones, def, gltfScene } = await ShipBuilder.build(shipDef, levelCfg);
-    this._grid  = grid;
-    this._zones = zones;
+    if (this._dockMooredGroup) {
+      if (this._chunkRenderer && this._chunkRenderer.container) {
+        this._dockMooredGroup.remove(this._chunkRenderer.container);
+      }
+      this._scene.remove(this._dockMooredGroup);
+      this._dockMooredGroup = null;
+    }
 
-    // Chunk renderer
-    this._chunkRenderer = new ChunkRenderer();
-    this._chunkRenderer.init(grid, this._scene, gltfScene);
+    const activeShipId = shipDef?.id || levelCfg?.ship || this._levelCfg?.ship || DEFAULT_SHIP_ID;
+    const activeShipDef = shipDef || LevelConfig.getShipDef(activeShipId);
 
-    // BVH raycaster
+    // Build the voxel data if needed or changed
+    if (!this._grid || this._currentShipId !== activeShipId) {
+      this._currentShipId = activeShipId;
+      if (this._chunkRenderer) {
+        this._chunkRenderer.dispose(this._scene);
+        this._chunkRenderer = null;
+      }
+      const { grid, zones, def, gltfScene } = await ShipBuilder.build(activeShipDef, levelCfg);
+      this._grid  = grid;
+      this._zones = zones;
+      this._chunkRenderer = new ChunkRenderer();
+      this._chunkRenderer.init(grid, this._scene, gltfScene);
+    }
+
+    const shipProfile = ShipRegistry.get(activeShipId);
+    const shipScale = shipProfile.scale || 0.12;
+
+    // Ensure chunk renderer container is directly in scene, visible, scaled by shipScale, and at origin for consistent scaling
+    if (this._chunkRenderer && this._chunkRenderer.container) {
+      if (this._chunkRenderer.container.parent !== this._scene) {
+        this._scene.add(this._chunkRenderer.container);
+      }
+      this._chunkRenderer.container.position.set(0, 0, 0);
+      this._chunkRenderer.container.rotation.set(0, 0, 0);
+      this._chunkRenderer.container.scale.setScalar(shipScale);
+      this._chunkRenderer.container.visible = true;
+    }
+
+    // BVH raycaster with ship scale
     this._raycaster = new ShipRaycaster();
-    this._raycaster.build(grid, this._scene);
+    this._raycaster.build(this._grid, this._scene, shipScale);
 
-    // Build system
+    // Build system with ship scale
     this._buildSystem = new BuildSystem();
-    this._buildSystem.init(grid, this._scene);
+    this._buildSystem.init(this._grid, this._scene, shipScale);
 
     // Orbit controls
     this._orbitControls = new OrbitControls(this._camera, this._renderer.domElement);
-    const cx = def.grid.x * 0.5;
-    const cy = def.grid.y * 0.5;
-    const cz = def.grid.z * 0.5;
+    const shipGrid = this._grid || def?.grid || { width: 24, height: 24, depth: 48 };
+    const gridW = shipGrid.width ?? 24;
+    const gridH = shipGrid.height ?? 24;
+    const gridD = shipGrid.depth ?? 48;
+    const cx = gridW * 0.5 * shipScale;
+    const cy = gridH * 0.5 * shipScale;
+    const cz = gridD * 0.5 * shipScale;
+    const maxDim = Math.max(gridW, gridH, gridD) * shipScale;
     
-    // Frame the camera nicely relative to the ship size
-    this._camera.position.set(cx + def.grid.x, cy + def.grid.y + 5, cz + def.grid.z + 15);
+    // Frame the camera nicely relative to the scaled ship size
+    this._camera.position.set(cx + maxDim * 0.85, cy + maxDim * 0.45 + 1.2, cz + maxDim * 1.05);
     this._orbitControls.target.set(cx, cy, cz);
     this._orbitControls.update();
 
@@ -480,8 +558,8 @@ export class GameState {
       const fishModel = fishModels[Math.floor(Math.random() * fishModels.length)];
       this._debugShark = fishModel.scene;
       const normScale = fishModel.normSharkScale ?? 1;
-      this._debugShark.scale.setScalar(normScale);
-      this._debugShark.position.set(cx + 8, cy, cz);
+      this._debugShark.scale.setScalar(normScale * 0.5);
+      this._debugShark.position.set(cx + (gridW * 0.5 * shipScale) + 2.5, cy, cz);
       this._scene.add(this._debugShark);
       
       // Repair the missing skin so the Tail bone can deform the mesh
@@ -570,6 +648,10 @@ export class GameState {
     this._buildSystem?.reset();
     this._orbitControls?.dispose();
     
+    if (this._chunkRenderer && this._chunkRenderer.container) {
+      this._chunkRenderer.container.scale.set(1, 1, 1);
+    }
+    
     if (this._debugShark) {
       this._scene.remove(this._debugShark);
       this._debugShark     = null;
@@ -621,10 +703,46 @@ export class GameState {
   // OBSTACLE
   // =========================================================================
 
-  _enterObstacle({ levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel }) {
+  async _enterObstacle({ shipDef, levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel }) {
     this._levelCfg = levelCfg;
 
-    const profile = ShipRegistry.get(levelCfg?.ship || this._levelCfg?.ship || DEFAULT_SHIP_ID);
+    if (this._dockMooredGroup) {
+      if (this._chunkRenderer && this._chunkRenderer.container) {
+        this._dockMooredGroup.remove(this._chunkRenderer.container);
+      }
+      this._scene.remove(this._dockMooredGroup);
+      this._dockMooredGroup = null;
+    }
+
+    const activeShipId = shipDef?.id || levelCfg?.ship || this._levelCfg?.ship || DEFAULT_SHIP_ID;
+    const activeShipDef = shipDef || LevelConfig.getShipDef(activeShipId);
+    const profile = ShipRegistry.get(activeShipId);
+
+    // Build or update ship model if needed so it displays the correct vessel (e.g. from editor)
+    if (!this._grid || !this._chunkRenderer || this._currentShipId !== activeShipId) {
+      this._currentShipId = activeShipId;
+      if (this._chunkRenderer) {
+        this._chunkRenderer.dispose(this._scene);
+        this._chunkRenderer = null;
+      }
+      const { grid, zones, def, gltfScene } = await ShipBuilder.build(activeShipDef, this._levelCfg);
+      this._grid  = grid;
+      this._zones = zones;
+      this._chunkRenderer = new ChunkRenderer();
+      this._chunkRenderer.init(grid, this._scene, gltfScene);
+    }
+
+    // Reset container transform before handing off to PlayerShip wrapper
+    if (this._chunkRenderer && this._chunkRenderer.container) {
+      if (this._chunkRenderer.container.parent !== this._scene) {
+        this._scene.add(this._chunkRenderer.container);
+      }
+      this._chunkRenderer.container.position.set(0, 0, 0);
+      this._chunkRenderer.container.rotation.set(0, 0, 0);
+      this._chunkRenderer.container.scale.set(1, 1, 1);
+      this._chunkRenderer.container.visible = true;
+    }
+
     const camDist = profile.cameraDist ?? 16;
     const camHeight = profile.cameraHeight ?? 5;
 
@@ -645,7 +763,21 @@ export class GameState {
     if (levelCfg?.tutorialPrompts) qteTuning.windowScale = (qteTuning.windowScale ?? 1) * 1.25;
     this._qteSystem = new QTESystem(qteTuning, levelCfg?.rewardAbilities);
 
-    this._playerShip = new PlayerShip(shipStats ?? {}, this._scene, this._chunkRenderer, this._grid, this._qteSystem);
+    const effectiveShipStats = {
+      ...(shipStats || {}),
+      profile,
+      scale: profile.scale,
+      speedMultiplier: profile.speedMultiplier,
+      turnAccel: profile.turnAccel,
+      turnDamping: profile.turnDamping,
+      isGagTruck: profile.isGagTruck,
+      waterCapacity: profile.waterCapacity,
+      waterlineY: profile.waterlineY,
+      hullHP: shipStats?.hullHP ?? profile.health ?? 100,
+      maxHullHP: profile.health ?? 100
+    };
+
+    this._playerShip = new PlayerShip(effectiveShipStats, this._scene, this._chunkRenderer, this._grid, this._qteSystem);
     this._obstacleManager = new ObstacleManager();
     this._obstacleManager.init(levelCfg, this._scene, rockModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, this._qteSystem);
     this._environmentManager = new EnvironmentManager();
