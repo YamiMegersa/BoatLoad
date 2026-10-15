@@ -29,6 +29,10 @@ export class HUD {
     this._score       = 0;
     this._qteHideTimer = null;
     this._bannerTimer = null;
+    this._ammoState   = { ammo: 0, cannon: false };
+    this._canFire     = false;
+    this._fireBtnEl   = null;
+    this._onKeyDown   = null;
 
     this._onScore = d => this._onScoreAdded(d);
 
@@ -44,6 +48,8 @@ export class HUD {
     on('sharkHitConfirmed', d => this._showSharkConfirm(d));
     on('sirenWarning',      d => this._showBanner(d));
     on('sirenPulling',      d => this._updateSirenPull(d));
+    on('ammoChanged',       d => this._updateAmmo(d));
+    on('cannonPrompt',      d => this._updateCannonPrompt(d));
   }
 
   mount({ day } = {}) {
@@ -133,6 +139,9 @@ export class HUD {
       <div id="hud-bonus-container"></div>
 
       <div id="hud-ammo">🔫 ∞</div>
+
+      <!-- Cannon FIRE prompt (edge-triggered while a barrel is in range) -->
+      <button id="hud-fire-btn" type="button" style="display: none; position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); padding: 12px 22px; font-size: 18px; font-weight: bold; background: #b3541e; color: #fff; border: 2px solid #ffd28a; border-radius: 10px; cursor: pointer; z-index: 40; pointer-events: auto;">🔥 FIRE (Space)</button>
       
       <!-- Steering Wheel -->
       <div id="hud-wheel-container">
@@ -173,6 +182,25 @@ export class HUD {
       e.stopPropagation();
       emit('pauseRequest');
     });
+
+    // Cannon: FIRE button for touch; Space only fires while the prompt is up,
+    // so the key still reaches the active QTE otherwise.
+    this._fireBtnEl = this._el.querySelector('#hud-fire-btn');
+    this._fireBtnEl?.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      emit('cannonFire');
+    });
+    this._onKeyDown = (e) => {
+      if (e.code === 'Space' && this._canFire) {
+        e.preventDefault();
+        emit('cannonFire');
+      }
+    };
+    window.addEventListener('keydown', this._onKeyDown);
+
+    // ammoChanged fires in _enterObstacle before uiMount — replay stored state
+    this._applyAmmo();
     
     // Steering Wheel Interaction
     this._wheelAngle = 0;
@@ -278,6 +306,12 @@ export class HUD {
       off('denseFogChanged', this._onDenseFogChanged);
       this._onDenseFogChanged = null;
     }
+    if (this._onKeyDown) {
+      window.removeEventListener('keydown', this._onKeyDown);
+      this._onKeyDown = null;
+    }
+    this._fireBtnEl = null;
+    this._canFire = false;
     clearTimeout(this._qteHideTimer);
     clearTimeout(this._bannerTimer);
     this._el?.remove();
@@ -440,6 +474,23 @@ export class HUD {
     });
   }
 
+  /** Cannon ammo pill: real count on cannon days, ∞ placeholder on day 1. */
+  _updateAmmo({ ammo = 0, cannon = false } = {}) {
+    this._ammoState = { ammo, cannon };
+    this._applyAmmo();
+  }
+
+  _applyAmmo() {
+    const el = this._el?.querySelector('#hud-ammo');
+    if (el) el.textContent = this._ammoState.cannon ? `🔫 ${this._ammoState.ammo}` : '🔫 ∞';
+  }
+
+  /** Toggle the FIRE prompt; Space fires only while it is visible. */
+  _updateCannonPrompt({ canFire = false } = {}) {
+    this._canFire = canFire;
+    if (this._fireBtnEl) this._fireBtnEl.style.display = canFire ? 'block' : 'none';
+  }
+
   teardown() {
     this.unmount();
     off('uiMount'); off('uiUnmount');
@@ -447,5 +498,7 @@ export class HUD {
     off('playerWaterLevel');
     off('qteStart'); off('qteUpdate'); off('qteSuccess'); off('qteFail');
     off('scoreAdded', this._onScore);
+    off('ammoChanged');
+    off('cannonPrompt');
   }
 }

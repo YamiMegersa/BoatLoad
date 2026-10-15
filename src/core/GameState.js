@@ -691,6 +691,16 @@ export class GameState {
     this._onDebugQTE = ({ source }) => this._qteSystem?.trigger({ source, metadata: { source: 'debug' } });
     on('qteDebugTrigger', this._onDebugQTE);
 
+    // Cannon: ammo is per-run (restocked every Set Sail). Day 1 has no cannon
+    // config, so the free proximity barrel QTE stays as the tutorial.
+    this._hasCannon = Boolean(levelCfg?.cannon);
+    this._cannonRange = levelCfg?.cannon?.range ?? 14;
+    this._ammo = levelCfg?.cannon?.ammo ?? 0;
+    this._canFire = false;
+    this._onCannonFire = () => this._fireCannon();
+    on('cannonFire', this._onCannonFire);
+    emit('ammoChanged', { ammo: this._ammo, cannon: this._hasCannon });
+
     // Subtle camera impulse when a harpooned shark is hit
     this._camImpulse = 0;
     this._onSharkHit = () => { this._camImpulse = 0.08; };
@@ -716,6 +726,17 @@ export class GameState {
     this._sirenManager?.update(delta, this._playerShip);
 
     if (this._playerShip) {
+      // Edge-triggered FIRE prompt: shown only while shells remain and a
+      // barrel is in range, so Space stays free for the active QTE otherwise.
+      if (this._hasCannon && this._obstacleManager && this._qteSystem) {
+        const canFire = this._ammo > 0 &&
+          Boolean(this._obstacleManager.findShootTarget(this._cannonRange, this._playerShip));
+        if (canFire !== this._canFire) {
+          this._canFire = canFire;
+          emit('cannonPrompt', { canFire });
+        }
+      }
+
       const p = this._playerShip.mesh.position;
       const shipYaw = this._playerShip.yaw;
       const shipYawVel = this._playerShip.yawVelocity;
@@ -778,6 +799,7 @@ export class GameState {
   _exitObstacle() {
     off('steer', this._onSteer);
     off('qteDebugTrigger', this._onDebugQTE);
+    off('cannonFire', this._onCannonFire);
     off('sharkHitConfirmed', this._onSharkHit);
     off('playerSunk');
 
@@ -807,6 +829,33 @@ export class GameState {
     }
 
     emit('uiUnmount', { screen: 'obstacle' });
+  }
+
+  /**
+   * FIRE input: open the SHOOT timing QTE on the nearest in-range barrel.
+   * The shell is spent only when the trigger is accepted — while a cannon QTE
+   * is already active/queued trigger() returns false, so Space spam can't
+   * waste ammo.
+   */
+  _fireCannon() {
+    if (!this._hasCannon || this._ammo <= 0) return;
+    const target = this._obstacleManager?.findShootTarget(this._cannonRange, this._playerShip);
+    if (!target) return;
+
+    const accepted = this._qteSystem?.trigger({
+      source: 'cannon',
+      metadata: { source: 'cannon' },
+      onSuccess: () => {
+        target.qteResolved = true;
+        target.active = false;
+        target.mesh.visible = false;
+        emit('spawnParticles', { type: 'massiveSplash', position: target.mesh.position.clone() });
+      },
+    });
+    if (!accepted) return;
+
+    this._ammo--;
+    emit('ammoChanged', { ammo: this._ammo, cannon: this._hasCannon });
   }
 
   // =========================================================================

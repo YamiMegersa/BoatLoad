@@ -325,6 +325,7 @@ export class ObstacleManager {
     this._waveModels = waveModels;
     this._islandModels = islandModels;
     this._qteSystem = qteSystem ?? null;
+    this._cannonCfg = levelCfg?.cannon ?? null; // days with a cannon fire manually
     this._obstacles = [];
     this.playRadius = levelCfg.worldSize || 200;
     
@@ -523,6 +524,9 @@ export class ObstacleManager {
 
   _triggerBarrelQTE(obs, ship) {
     if (obs.type !== 'barrel' || obs.qteTriggered || !this._qteSystem || !ship) return;
+    // Days with a cannon (levelCfg.cannon) shoot barrels manually via the FIRE
+    // prompt; the free proximity QTE remains the day-1 tutorial only.
+    if (this._cannonCfg) return;
     const distance = obs.mesh.position.distanceTo(ship.mesh.position);
     if (distance > 10) return;
 
@@ -537,6 +541,28 @@ export class ObstacleManager {
       },
     });
     if (accepted) obs.qteTriggered = true;
+  }
+
+  /**
+   * Nearest shootable obstacle (barrels today; mines or sharks later) within
+   * range of the ship, or null. Powers the cannon FIRE prompt.
+   * @param {number} range  World units
+   * @param {import('./PlayerShip.js').PlayerShip} ship
+   * @returns {ObstacleDesc|null}
+   */
+  findShootTarget(range, ship) {
+    if (!ship) return null;
+    let best = null;
+    let bestDist = Infinity;
+    for (const obs of this._obstacles) {
+      if (!obs.active || obs.type !== 'barrel' || obs.qteResolved) continue;
+      const dist = obs.mesh.position.distanceTo(ship.mesh.position);
+      if (dist <= range && dist < bestDist) {
+        best = obs;
+        bestDist = dist;
+      }
+    }
+    return best;
   }
 
   /**

@@ -14,6 +14,7 @@ export const QTE_SOURCES = Object.freeze({
   barrel: { type: QTEType.SHOOT, reward: 0, perfectReward: 0, streakBonus: false },
   siren: { type: QTEType.SIREN, reward: 0, perfectReward: 0, streakBonus: false },
   bail: { type: QTEType.BAIL, reward: 0, perfectReward: 0, streakBonus: false },
+  cannon: { type: QTEType.SHOOT, reward: 0, perfectReward: 0, streakBonus: false },
 });
 
 export function computePoints(source, isPerfect, streak) {
