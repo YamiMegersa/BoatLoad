@@ -90,11 +90,22 @@ export class ShipRaycaster {
    * Build the BVH hull from scratch and add the invisible mesh to the scene.
    * @param {import('./VoxelGrid.js').VoxelGrid} grid
    * @param {THREE.Scene} scene
-   * @param {number} [scale=1.0]
+   * @param {THREE.Object3D|number} [containerOrScale=1.0] Optional container to copy transform from, or uniform scale number
    */
-  build(grid, scene, scale = 1.0) {
+  build(grid, scene, containerOrScale = 1.0) {
     this._scene = scene;
     this._grid  = grid;
+
+    let container = null;
+    let scale = 1.0;
+    if (typeof containerOrScale === 'number') {
+      scale = containerOrScale;
+    } else if (containerOrScale && containerOrScale.isObject3D) {
+      container = containerOrScale;
+      scale = container.scale.x || 1.0;
+    }
+
+    this._container = container;
     this._scale = scale;
 
     if (this._hullMesh) this._teardownMesh();
@@ -105,6 +116,12 @@ export class ShipRaycaster {
     this._hullMesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ visible: false }));
     this._hullMesh.scale.setScalar(this._scale);
     this._hullMesh.visible = false; // raycasting still works on invisible meshes
+
+    if (container) {
+      this._hullMesh.position.copy(container.position);
+      this._hullMesh.rotation.copy(container.rotation);
+      this._hullMesh.scale.copy(container.scale);
+    }
     this._hullMesh.updateMatrixWorld(true);
     scene.add(this._hullMesh);
   }
@@ -115,7 +132,7 @@ export class ShipRaycaster {
    */
   rebuild(grid) {
     if (!this._scene) return;
-    this.build(grid, this._scene, this._scale);
+    this.build(grid, this._scene, this._container || this._scale);
   }
 
   // -------------------------------------------------------------------------
@@ -139,9 +156,9 @@ export class ShipRaycaster {
     const hit = hits[0];
     
     // Shift the point slightly forward along the ray direction to reliably resolve the hit cell
-    const s = this._scale || 1.0;
-    const localHitPoint = hit.point.clone().divideScalar(s);
-    const inwardPoint = localHitPoint.add(this._raycaster.ray.direction.clone().multiplyScalar(0.001 / s));
+    const inwardPoint = hit.point.clone().add(this._raycaster.ray.direction.clone().multiplyScalar(0.001));
+    // Convert inwardPoint from world space to local grid coordinate space
+    this._hullMesh.worldToLocal(inwardPoint);
     const cell = this._grid.fromWorldPos(inwardPoint);
     
     if (!cell) return null;

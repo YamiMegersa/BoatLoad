@@ -11,6 +11,7 @@ export class EditorSystem {
     this._scene = null;
     this._camera = null;
     this._renderer = null;
+    this._editorGroup = null; // Isolated root group for all editor-specific entities
     this._rockModels = [];
     this._pickupModels = [];
     this._seaweedModels = [];
@@ -118,7 +119,9 @@ export class EditorSystem {
 
     on('editorClearAll', () => {
       for (const obs of this._placedObstacles) {
-        this._scene.remove(obs.mesh);
+        if (obs.mesh?.parent) obs.mesh.parent.remove(obs.mesh);
+        else if (this._editorGroup) this._editorGroup.remove(obs.mesh);
+        else if (this._scene) this._scene.remove(obs.mesh);
       }
       this._placedObstacles = [];
       this._emitState();
@@ -131,7 +134,9 @@ export class EditorSystem {
 
       // Clear existing placed obstacles
       for (const obs of this._placedObstacles) {
-        this._scene.remove(obs.mesh);
+        if (obs.mesh?.parent) obs.mesh.parent.remove(obs.mesh);
+        else if (this._editorGroup) this._editorGroup.remove(obs.mesh);
+        else if (this._scene) this._scene.remove(obs.mesh);
       }
       this._placedObstacles = [];
 
@@ -152,9 +157,13 @@ export class EditorSystem {
         }
       }
 
-      // Deserialize voxels
-      if (this._voxelTerrain && cfg.voxels) {
-        this._voxelTerrain.deserialize(cfg.voxels);
+      // Re-create & deserialize voxels cleanly
+      if (this._voxelTerrain) {
+        this._voxelTerrain.dispose();
+        this._voxelTerrain = new VoxelTerrain(this._editorGroup || this._scene);
+        if (cfg.voxels) {
+          this._voxelTerrain.deserialize(cfg.voxels);
+        }
       }
 
       // World size
@@ -372,7 +381,12 @@ export class EditorSystem {
     this._sirenModel = sirenModel;
     this._krakenModel = krakenModel;
 
-    this._voxelTerrain = new VoxelTerrain(this._scene);
+    // Dedicated isolated root group for all editor-specific entities
+    this._editorGroup = new THREE.Group();
+    this._editorGroup.name = 'EditorEnvironmentGroup';
+    this._scene.add(this._editorGroup);
+
+    this._voxelTerrain = new VoxelTerrain(this._editorGroup);
     if (this._levelCfg && this._levelCfg.voxels) {
       this._voxelTerrain.deserialize(this._levelCfg.voxels);
     }
@@ -384,7 +398,7 @@ export class EditorSystem {
     const windDirAngle = this._levelCfg?.globalWindDir || 0;
     const initialWindDir = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), THREE.MathUtils.degToRad(windDirAngle)).normalize();
     this._windArrowHelper = new THREE.ArrowHelper(initialWindDir, new THREE.Vector3(0, 10, 0), 30, 0x00ffff, 8, 4);
-    this._scene.add(this._windArrowHelper);
+    this._editorGroup.add(this._windArrowHelper);
 
     // Initialize Ship Spawn Ghost Preview
     this._selectedShipId = this._levelCfg?.ship || DEFAULT_SHIP_ID;
@@ -432,7 +446,9 @@ export class EditorSystem {
 
   _updateBoundaryVisual() {
     if (this._boundaryVisual) {
-      this._scene.remove(this._boundaryVisual);
+      if (this._boundaryVisual.parent) this._boundaryVisual.parent.remove(this._boundaryVisual);
+      else if (this._editorGroup) this._editorGroup.remove(this._boundaryVisual);
+      else if (this._scene) this._scene.remove(this._boundaryVisual);
       this._boundaryVisual.geometry.dispose();
       this._boundaryVisual.material.dispose();
       this._boundaryVisual = null;
@@ -445,7 +461,8 @@ export class EditorSystem {
     this._boundaryVisual = new THREE.Mesh(geo, mat);
     this._boundaryVisual.rotation.x = -Math.PI / 2;
     this._boundaryVisual.position.y = 0.1;
-    this._scene.add(this._boundaryVisual);
+    if (this._editorGroup) this._editorGroup.add(this._boundaryVisual);
+    else if (this._scene) this._scene.add(this._boundaryVisual);
   }
 
   dispose() {
@@ -456,33 +473,48 @@ export class EditorSystem {
     window.removeEventListener('keydown', this._boundKeyDown);
     
     if (this._previewMesh) {
-      this._scene.remove(this._previewMesh.mesh);
+      if (this._previewMesh.mesh?.parent) this._previewMesh.mesh.parent.remove(this._previewMesh.mesh);
+      else if (this._editorGroup) this._editorGroup.remove(this._previewMesh.mesh);
+      else if (this._scene) this._scene.remove(this._previewMesh.mesh);
       this._previewMesh = null;
+    }
+
+    if (this._voxelTerrain) {
+      this._voxelTerrain.dispose();
+      this._voxelTerrain = null;
     }
     
     for (const obs of this._placedObstacles) {
-      this._scene.remove(obs.mesh);
+      if (obs.mesh?.parent) obs.mesh.parent.remove(obs.mesh);
+      else if (this._editorGroup) this._editorGroup.remove(obs.mesh);
+      else if (this._scene) this._scene.remove(obs.mesh);
     }
     this._placedObstacles = [];
     
     if (this._boundaryVisual) {
-      this._scene.remove(this._boundaryVisual);
-      this._boundaryVisual.geometry.dispose();
-      this._boundaryVisual.material.dispose();
+      if (this._boundaryVisual.parent) this._boundaryVisual.parent.remove(this._boundaryVisual);
+      else if (this._editorGroup) this._editorGroup.remove(this._boundaryVisual);
+      else if (this._scene) this._scene.remove(this._boundaryVisual);
+      this._boundaryVisual.geometry?.dispose();
+      this._boundaryVisual.material?.dispose();
       this._boundaryVisual = null;
     }
     
     if (this._windArrowHelper) {
-      this._scene.remove(this._windArrowHelper);
-      this._windArrowHelper.line.geometry.dispose();
-      this._windArrowHelper.line.material.dispose();
-      this._windArrowHelper.cone.geometry.dispose();
-      this._windArrowHelper.cone.material.dispose();
+      if (this._windArrowHelper.parent) this._windArrowHelper.parent.remove(this._windArrowHelper);
+      else if (this._editorGroup) this._editorGroup.remove(this._windArrowHelper);
+      else if (this._scene) this._scene.remove(this._windArrowHelper);
+      this._windArrowHelper.line?.geometry?.dispose();
+      this._windArrowHelper.line?.material?.dispose();
+      this._windArrowHelper.cone?.geometry?.dispose();
+      this._windArrowHelper.cone?.material?.dispose();
       this._windArrowHelper = null;
     }
 
     if (this._krakenVisualGroup) {
-      this._scene.remove(this._krakenVisualGroup);
+      if (this._krakenVisualGroup.parent) this._krakenVisualGroup.parent.remove(this._krakenVisualGroup);
+      else if (this._editorGroup) this._editorGroup.remove(this._krakenVisualGroup);
+      else if (this._scene) this._scene.remove(this._krakenVisualGroup);
       this._krakenVisualGroup.traverse(child => {
         if (child.isMesh || child.isLine || child.isSprite) {
           child.geometry?.dispose();
@@ -493,6 +525,14 @@ export class EditorSystem {
         }
       });
       this._krakenVisualGroup = null;
+    }
+
+    if (this._editorGroup) {
+      if (this._scene) this._scene.remove(this._editorGroup);
+      while (this._editorGroup.children.length > 0) {
+        this._editorGroup.remove(this._editorGroup.children[0]);
+      }
+      this._editorGroup = null;
     }
 
     off('editorSelectType');
@@ -528,7 +568,9 @@ export class EditorSystem {
 
   _updatePreview() {
     if (this._previewMesh) {
-      this._scene.remove(this._previewMesh.mesh);
+      if (this._previewMesh.mesh?.parent) this._previewMesh.mesh.parent.remove(this._previewMesh.mesh);
+      else if (this._editorGroup) this._editorGroup.remove(this._previewMesh.mesh);
+      else if (this._scene) this._scene.remove(this._previewMesh.mesh);
       this._previewMesh = null;
     }
 
@@ -552,13 +594,15 @@ export class EditorSystem {
       });
       
       this._previewMesh.mesh.rotation.y = this._currentRotation;
-      this._scene.add(this._previewMesh.mesh);
+      if (this._editorGroup) this._editorGroup.add(this._previewMesh.mesh);
+      else if (this._scene) this._scene.add(this._previewMesh.mesh);
     } else if (this._activeTool === 'place_kraken') {
       const geo = new THREE.SphereGeometry(8, 16, 12);
       const mat = new THREE.MeshBasicMaterial({ color: 0xaa2266, wireframe: true });
       const mesh = new THREE.Mesh(geo, mat);
       this._previewMesh = { mesh };
-      this._scene.add(mesh);
+      if (this._editorGroup) this._editorGroup.add(mesh);
+      else if (this._scene) this._scene.add(mesh);
     } else if (this._activeTool === 'place_race_start') {
       const geo = new THREE.RingGeometry(14, 15, 32);
       geo.rotateX(-Math.PI / 2);
@@ -567,7 +611,8 @@ export class EditorSystem {
       mesh.userData.noGodRays = true;
       mesh.userData.isRaceMarker = true;
       this._previewMesh = { mesh };
-      this._scene.add(mesh);
+      if (this._editorGroup) this._editorGroup.add(mesh);
+      else if (this._scene) this._scene.add(mesh);
     } else if (this._activeTool === 'place_waypoint') {
       const group = new THREE.Group();
       group.userData.noGodRays = true;
@@ -590,7 +635,8 @@ export class EditorSystem {
       group.add(ringMesh);
 
       this._previewMesh = { mesh: group };
-      this._scene.add(group);
+      if (this._editorGroup) this._editorGroup.add(group);
+      else if (this._scene) this._scene.add(group);
     }
   }
 
@@ -850,7 +896,9 @@ export class EditorSystem {
 
         if (closestIdx !== -1) {
           const closest = this._placedObstacles[closestIdx];
-          this._scene.remove(closest.mesh);
+          if (closest.mesh?.parent) closest.mesh.parent.remove(closest.mesh);
+          else if (this._editorGroup) this._editorGroup.remove(closest.mesh);
+          else if (this._scene) this._scene.remove(closest.mesh);
           this._placedObstacles.splice(closestIdx, 1);
           this._emitState();
         }
@@ -869,7 +917,8 @@ export class EditorSystem {
     );
     obs.mesh.rotation.y = rotation;
     obs.rotation = rotation;
-    this._scene.add(obs.mesh);
+    if (this._editorGroup) this._editorGroup.add(obs.mesh);
+    else if (this._scene) this._scene.add(obs.mesh);
     this._placedObstacles.push(obs);
     this._emitState();
   }
@@ -922,7 +971,9 @@ export class EditorSystem {
 
   _updateBossVisuals() {
     if (this._krakenVisualGroup) {
-      this._scene.remove(this._krakenVisualGroup);
+      if (this._krakenVisualGroup.parent) this._krakenVisualGroup.parent.remove(this._krakenVisualGroup);
+      else if (this._editorGroup) this._editorGroup.remove(this._krakenVisualGroup);
+      else if (this._scene) this._scene.remove(this._krakenVisualGroup);
       this._krakenVisualGroup.traverse(child => {
         if (child.isMesh || child.isLine || child.isSprite) {
           child.geometry?.dispose();
@@ -1127,7 +1178,8 @@ export class EditorSystem {
 
     this._krakenVisualGroup.userData.noGodRays = true;
     this._krakenVisualGroup.userData.isRaceMarker = true;
-    this._scene.add(this._krakenVisualGroup);
+    if (this._editorGroup) this._editorGroup.add(this._krakenVisualGroup);
+    else if (this._scene) this._scene.add(this._krakenVisualGroup);
   }
 
   _createLabelSprite(text, color = '#ffffff') {
