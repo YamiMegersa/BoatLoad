@@ -283,6 +283,7 @@ export class GodRays {
     this._renderer = renderer;
     this._scene    = scene;
     this._camera   = camera;
+    this.enabled   = true;
 
     const size = renderer.getSize(new THREE.Vector2());
     const pr   = renderer.getPixelRatio();
@@ -461,6 +462,37 @@ export class GodRays {
     } else if (sunLight && sunY >= -5) {
       activeLight = sunLight;
       isMoon = false;
+    }
+
+    // If god rays are disabled, render the standard scene + celestial billboards and return
+    if (!this.enabled) {
+      const currentAutoClear = renderer.autoClear;
+      renderer.setRenderTarget(target);
+      renderer.autoClear = true;
+      renderer.render(scene, camera);
+
+      renderer.autoClear = false;
+      if (sunLight && sunY > -5) {
+        const sunDir = sunLight.position.clone().normalize();
+        const virtualSunPos = camera.position.clone().add(sunDir.multiplyScalar(camera.far * 0.9));
+        this._sunBillboard.position.copy(virtualSunPos);
+        this._sunBillboard.lookAt(camera.position);
+        this._sunBillboard.material.uniforms.uColor.value.copy(sunLight.color);
+        renderer.render(this._sunScene, camera);
+      }
+      if (moonLight && moonY > -5) {
+        const mDir = moonLight.position.clone().normalize();
+        const virtualMoonPos = camera.position.clone().add(mDir.multiplyScalar(camera.far * 0.9));
+        this._moonBillboard.position.copy(virtualMoonPos);
+        this._moonBillboard.lookAt(camera.position);
+
+        const moonAlt = THREE.MathUtils.clamp((moonY + 5) / 25, 0, 1);
+        this._moonBillboard.material.uniforms.uOpacity.value = moonAlt;
+        this._moonBillboard.material.uniforms.uColor.value.copy(moonLight.color);
+        renderer.render(this._moonScene, camera);
+      }
+      renderer.autoClear = currentAutoClear;
+      return;
     }
 
     // If neither celestial body is visible above -5 Y, render standard scene and return

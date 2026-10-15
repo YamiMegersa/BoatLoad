@@ -54,6 +54,7 @@ export class EnvironmentManager {
     this._sunLight = null;
     this._moonLight = null;
     this._sunRadius = 60;
+    this._godRaysEnabled = true;
   }
 
   /**
@@ -95,6 +96,9 @@ export class EnvironmentManager {
     
     this._timeOfDay = levelCfg && levelCfg.timeOfDay !== undefined ? levelCfg.timeOfDay : 8.0;
     this._isStormy = levelCfg && levelCfg.isStormy !== undefined ? levelCfg.isStormy : false;
+    if (levelCfg && levelCfg.godRays !== undefined) {
+      this._godRaysEnabled = !!levelCfg.godRays;
+    }
     
     this._updateTimeAndLighting(0);
     this.toggleStorm(this._isStormy);
@@ -456,6 +460,8 @@ export class EnvironmentManager {
         if (u.uNightFactor) u.uNightFactor.value = nightFactor;
         if (u.uMoonColor) u.uMoonColor.value.set(0x9bc0f5);
         if (u.uSunColor) u.uSunColor.value.copy(cSun);
+        if (u.uTop) u.uTop.value.copy(cSky);
+        if (u.uHorizon) u.uHorizon.value.copy(cFog);
       }
     }
 
@@ -524,6 +530,16 @@ export class EnvironmentManager {
     }
     
     return this._isDenseFog;
+  }
+
+  toggleGodRays(forceState) {
+    if (forceState !== undefined) {
+      this._godRaysEnabled = forceState;
+    } else {
+      this._godRaysEnabled = !this._godRaysEnabled;
+    }
+    emit('editorToggleGodRays', { enabled: this._godRaysEnabled });
+    return this._godRaysEnabled;
   }
 
   dispose() {
