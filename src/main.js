@@ -253,17 +253,11 @@ demoUI.innerHTML = `
     <button id="btn-obstacle" style="flex:1; padding: 8px; cursor: pointer;">Sailing</button>
     <button id="btn-editor" style="flex:1; padding: 8px; cursor: pointer; background: #474b6b; color: white; border: 1px solid #556;">Editor</button>
   </div>
-  <div id="demo-log" style="height: 120px; overflow-y: auto; background: #111; padding: 5px; font-size: 11px; color: #0f0; border: 1px solid #333;">
-    Ready.<br>
-  </div>
 `;
 document.getElementById('ui-root')?.appendChild(demoUI);
 
-const logDiv = demoUI.querySelector('#demo-log');
 function logEvent(msg) {
-  if (!logDiv) return;
-  logDiv.innerHTML += `> ${msg}<br>`;
-  logDiv.scrollTop = logDiv.scrollHeight;
+  if (DEBUG) console.info(`[BoatLoad] ${msg}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -291,6 +285,7 @@ function showNotice(message, ms = 5000) {
 }
 
 on('buildError', (d) => {
+  console.error('[BoatLoad] Build error:', d.message);
   logEvent(`[Build] ERROR: ${d.message}`);
   showNotice(`⚠ ${d.message}`);
 });
@@ -519,10 +514,7 @@ async function boot() {
     tick();
   } catch (err) {
     console.error('Boot error:', err);
-    const logDiv = document.querySelector('#demo-log');
-    if (logDiv) {
-      logDiv.innerHTML += `> BOOT ERROR: ${err.message}<br>`;
-    }
+    showNotice(`⚠ Boot error: ${err.message}`, 10000);
   }
 }
 

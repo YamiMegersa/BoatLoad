@@ -23,6 +23,10 @@ export class HUD {
     this._qteEl       = null;
     this._qteMeter    = null;
     this._qteIndicator = null;
+    this._bailCanvas = null;
+    this._activeQTEInput = null;
+    this._bailDrawing = false;
+    this._bailPointerId = null;
     this._mobileBtnEl = null;
     this._scoreEl     = null;
     this._bonusBoxEl  = null;
@@ -41,6 +45,7 @@ export class HUD {
     this._bossBannerEl = null;
     this._bossBannerTimeout = null;
     this._onScore = d => this._onScoreAdded(d);
+    this._onPause = ({ paused }) => { if (paused) this._cancelBailDrawing(); };
 
     on('uiMount',          d => { if (d.screen === 'obstacle') this.mount(d); });
     on('uiUnmount',        d => { if (d.screen === 'obstacle') this.unmount(); });
@@ -56,6 +61,11 @@ export class HUD {
     on('sirenPulling',      d => this._updateSirenPull(d));
     on('ammoChanged',       d => this._updateAmmo(d));
     on('cannonPrompt',      d => this._updateCannonPrompt(d));
+    on('cannonResult',      d => this._showBanner({ label: d.result === 'hit' ? 'DIRECT HIT — BARREL CLEARED' : 'SHOT MISSED' }));
+    on('waterBailed',       d => this._showBanner({ label: `BAILED ${d.removed}% WATER — CIRCLE ${d.accuracy}%` }));
+    on('waterBailFailed',   () => this._showBanner({ label: 'INCOMPLETE LOOP — TRY AGAIN' }));
+    on('qteDebugResult',    d => this._showDebugQTEResult(d));
+    on('gamePaused', this._onPause);
 
     // Kraken boss events
     on('krakenFightStarted',    d => this._showBossHUD(d));
@@ -67,6 +77,20 @@ export class HUD {
     on('krakenDefeated',        () => this._showBossBanner('⚔️ KRAKEN DEFEATED!', '#ffaa00', 5000));
     on('krakenCinematicStart',  () => this._setBossTimerVisible(false));
     on('krakenCinematicEnd',    () => this._setBossTimerVisible(true));
+  }
+
+  _cancelBailDrawing() {
+    if (!this._bailDrawing) return;
+    const pointerId = this._bailPointerId;
+    this._bailDrawing = false;
+    this._bailPointerId = null;
+    this._lastBailPoint = null;
+    this._bailPointerId = null;
+    if (pointerId !== null && this._bailCanvas?.hasPointerCapture(pointerId)) {
+      this._bailCanvas.releasePointerCapture(pointerId);
+    }
+    emit('qteInput', { kind: 'drawCancel' });
+    this._clearBailCanvas();
   }
 
   mount({ day } = {}) {
@@ -113,9 +137,10 @@ export class HUD {
         <button type="button" data-qte-source="shark">Harpoon</button>
         <button type="button" data-qte-source="bail">Bail</button>
         <button type="button" data-qte-source="siren">Siren</button>
+        <span id="hud-qte-debug-status" aria-live="polite"></span>
       </div>` : ''}
 
-      <!-- Interactive QTE Reticle Prompt -->
+      <!-- Interactive QTE Prompt -->
       <div id="hud-qte" style="display:none">
         <div id="hud-qte-action">HARPOON!</div>
         <div id="hud-qte-key">Press [ H ] or TAP</div>
@@ -128,6 +153,10 @@ export class HUD {
           <div class="qte-indicator"></div>
         </div>
         <div id="hud-qte-progress"></div>
+        <div id="hud-qte-draw-wrap" style="display:none">
+          <canvas id="hud-qte-draw" width="220" height="220" aria-label="Draw a circle to bail water"></canvas>
+          <span class="hud-qte-draw-help">Trace the ring and lift to submit<br>Press Shift for a steady half-strength bail</span>
+        </div>
         <div id="hud-qte-alternate" style="display:none">
           <button type="button" data-qte-input="left">◀ LEFT</button>
           <button type="button" data-qte-input="right">RIGHT ▶</button>
@@ -158,7 +187,7 @@ export class HUD {
       <div id="hud-ammo">🔫 ∞</div>
 
       <!-- Cannon FIRE prompt (edge-triggered while a barrel is in range) -->
-      <button id="hud-fire-btn" type="button" style="display: none; position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); padding: 12px 22px; font-size: 18px; font-weight: bold; background: #b3541e; color: #fff; border: 2px solid #ffd28a; border-radius: 10px; cursor: pointer; z-index: 40; pointer-events: auto;">🔥 FIRE (Space)</button>
+      <button id="hud-fire-btn" type="button" style="display: none;">🔥 FIRE (Space)</button>
 
       <!-- Kraken Boss HUD (hidden until fight starts) -->
       <div id="hud-boss" style="display:none; position:fixed; top:15px; left:50%; transform:translateX(-50%); text-align:center; z-index:100; pointer-events:none;">
@@ -198,6 +227,7 @@ export class HUD {
     this._qteEl = this._el.querySelector('#hud-qte');
     this._qteMeter = this._el.querySelector('#hud-qte-meter');
     this._qteIndicator = this._el.querySelector('.qte-indicator');
+    this._bailCanvas = this._el.querySelector('#hud-qte-draw');
     this._wheel = this._el.querySelector('#hud-wheel');
     this._mobileBtnEl = this._el.querySelector('#hud-mobile-harpoon');
     this._scoreEl = this._el.querySelector('#hud-score-val');
@@ -207,8 +237,44 @@ export class HUD {
     this._qteEl.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      emit('qteInput', { kind: 'tap' });
+      if (this._activeQTEInput !== 'draw') emit('qteInput', { kind: 'tap' });
     });
+
+    this._bailCanvas?.addEventListener('pointerdown', event => {
+      if (this._activeQTEInput !== 'draw') return;
+      event.preventDefault();
+      event.stopPropagation();
+      const point = this._bailPoint(event);
+      if (!point) return;
+      this._bailDrawing = true;
+      this._bailCanvas.setPointerCapture(event.pointerId);
+      this._bailPointerId = event.pointerId;
+      this._clearBailCanvas();
+      this._lastBailPoint = point;
+      this._drawBailTrace(point, point);
+      emit('qteInput', { kind: 'drawStart', point });
+    });
+    this._bailCanvas?.addEventListener('pointermove', event => {
+      if (!this._bailDrawing) return;
+      event.preventDefault();
+      const point = this._bailPoint(event);
+      if (!point) return;
+      const previous = this._lastBailPoint ?? point;
+      this._drawBailTrace(previous, point);
+      this._lastBailPoint = point;
+      emit('qteInput', { kind: 'drawMove', point });
+    });
+    const finishBailDraw = event => {
+      if (!this._bailDrawing) return;
+      this._bailDrawing = false;
+      this._lastBailPoint = null;
+      if (this._bailCanvas.hasPointerCapture(event.pointerId)) this._bailCanvas.releasePointerCapture(event.pointerId);
+      this._bailPointerId = null;
+      if (event.type === 'pointerup') emit('qteInput', { kind: 'drawEnd' });
+      else emit('qteInput', { kind: 'drawCancel' });
+    };
+    this._bailCanvas?.addEventListener('pointerup', finishBailDraw);
+    this._bailCanvas?.addEventListener('pointercancel', finishBailDraw);
 
     // Tap on dedicated mobile Harpoon button
     const mobileBtn = this._el.querySelector('#btn-mobile-harpoon');
@@ -396,6 +462,9 @@ export class HUD {
     this._qteEl       = null;
     this._qteMeter    = null;
     this._qteIndicator = null;
+    this._bailCanvas = null;
+    this._activeQTEInput = null;
+    this._bailDrawing = false;
     this._mobileBtnEl = null;
     this._scoreEl     = null;
     this._bonusBoxEl  = null;
@@ -437,6 +506,7 @@ export class HUD {
 
   _showQTE({ input, keys, label, prompt, sweetSpot, theme }) {
     if (!this._qteEl) return;
+    this._activeQTEInput = input;
     clearTimeout(this._qteHideTimer);
     this._qteEl.classList.remove('qte-hiding');
     this._qteEl.style.display = 'flex';
@@ -448,12 +518,18 @@ export class HUD {
     const progressEl = this._qteEl.querySelector('#hud-qte-progress');
     const mobileLabel = this._el?.querySelector('.harpoon-text');
     const alternateEl = this._qteEl.querySelector('#hud-qte-alternate');
+    const drawWrap = this._qteEl.querySelector('#hud-qte-draw-wrap');
 
     if (actionEl) actionEl.textContent = `${theme?.icon ?? ''} ${label}`;
-    if (keyEl) keyEl.textContent = input === 'alternate' ? `${prompt} [ ${keyLabel} ]` : `${prompt} [ ${keyLabel} ] or TAP`;
+    if (keyEl) keyEl.textContent = input === 'draw'
+      ? `${prompt} — or press SHIFT`
+      : input === 'alternate' ? `${prompt} [ ${keyLabel} ]` : `${prompt} [ ${keyLabel} ] or TAP`;
     if (mobileLabel) mobileLabel.textContent = input === 'mash' ? 'TAP!' : 'ACTION';
-    if (this._mobileBtnEl) this._mobileBtnEl.style.display = input === 'alternate' ? 'none' : 'block';
+    if (this._mobileBtnEl) this._mobileBtnEl.style.display = input === 'alternate' || input === 'draw' ? 'none' : 'block';
     if (alternateEl) alternateEl.style.display = input === 'alternate' ? 'flex' : 'none';
+    if (drawWrap) drawWrap.style.display = input === 'draw' ? 'flex' : 'none';
+    if (this._qteMeter) this._qteMeter.style.display = input === 'draw' ? 'none' : '';
+    if (input === 'draw') this._clearBailCanvas();
     this._qteEl.style.setProperty('--qte-theme', theme?.color ?? '#ff9800');
     if (this._qteMeter) this._qteMeter.className = input;
     // Reset the indicator so a fresh QTE never inherits stale inline styles
@@ -469,7 +545,7 @@ export class HUD {
     if (progressEl) progressEl.textContent = '';
   }
 
-  _updateQTE({ input, windowMs, remainingMs, progress, mashTarget, sweetSpot }) {
+  _updateQTE({ input, windowMs, remainingMs, progress, mashTarget, sweetSpot, drawProgress }) {
     if (!this._qteEl) return;
     const ring = this._qteEl.querySelector('.fill');
     const remainingPct = Math.max(0, (remainingMs / windowMs) * 100);
@@ -482,6 +558,8 @@ export class HUD {
         this._qteIndicator.style.width = `${(progress / mashTarget) * 100}%`;
       }
       if (progressEl) progressEl.textContent = `${progress} / ${mashTarget}`;
+    } else if (input === 'draw') {
+      if (progressEl) progressEl.textContent = `Circle coverage: ${Math.round((drawProgress ?? 0) * 100)}%`;
     } else {
       const elapsedPct = 100 - remainingPct;
       if (this._qteIndicator) {
@@ -495,6 +573,10 @@ export class HUD {
   _hideQTE() {
     if (!this._qteEl) return;
     const el = this._qteEl;
+    if (this._bailPointerId !== null && this._bailCanvas?.hasPointerCapture(this._bailPointerId)) {
+      this._bailCanvas.releasePointerCapture(this._bailPointerId);
+    }
+    this._bailPointerId = null;
     if (el.style.display !== 'none' && !el.classList.contains('qte-hiding')) {
       // Rapid fade (120 ms) so the prompt never obscures the hit reaction
       el.classList.add('qte-hiding');
@@ -505,8 +587,43 @@ export class HUD {
       }, 130);
     }
     if (this._mobileBtnEl) this._mobileBtnEl.style.display = 'none';
+    this._activeQTEInput = null;
+    this._bailDrawing = false;
     const alternateEl = el.querySelector('#hud-qte-alternate');
     if (alternateEl) alternateEl.style.display = 'none';
+  }
+
+  _bailPoint(event) {
+    const rect = this._bailCanvas.getBoundingClientRect();
+    const x = (event.clientX - rect.left) / rect.width;
+    const y = (event.clientY - rect.top) / rect.height;
+    return x < 0 || x > 1 || y < 0 || y > 1 ? null : { x, y };
+  }
+
+  _clearBailCanvas() {
+    if (!this._bailCanvas) return;
+    const context = this._bailCanvas.getContext('2d');
+    const { width, height } = this._bailCanvas;
+    context.clearRect(0, 0, width, height);
+    context.beginPath();
+    context.arc(width / 2, height / 2, width * 0.4, 0, Math.PI * 2);
+    context.strokeStyle = 'rgba(243, 227, 180, 0.7)';
+    context.lineWidth = 3;
+    context.setLineDash([6, 7]);
+    context.stroke();
+    context.setLineDash([]);
+  }
+
+  _drawBailTrace(from, to) {
+    if (!this._bailCanvas) return;
+    const context = this._bailCanvas.getContext('2d');
+    context.beginPath();
+    context.moveTo(from.x * this._bailCanvas.width, from.y * this._bailCanvas.height);
+    context.lineTo(to.x * this._bailCanvas.width, to.y * this._bailCanvas.height);
+    context.strokeStyle = '#75d9ec';
+    context.lineWidth = 5;
+    context.lineCap = 'round';
+    context.stroke();
   }
 
   /** Short "SHARK HARPOONED +points" confirmation at the top of the screen. */
@@ -533,6 +650,11 @@ export class HUD {
     }, 2000);
   }
 
+  _showDebugQTEResult({ source, accepted }) {
+    const status = this._el?.querySelector('#hud-qte-debug-status');
+    if (status) status.textContent = accepted ? `${source} test accepted` : `${source} test unavailable (active/queued)`;
+  }
+
   /** Siren pull: tint the wheel and glow the screen edge the ship is dragged toward. */
   _updateSirenPull({ intensity = 0, steerPull = 0 } = {}) {
     if (!this._el) return;
@@ -551,8 +673,10 @@ export class HUD {
 
   /** Cannon ammo pill: real count on cannon days, ∞ placeholder on day 1. */
   _updateAmmo({ ammo = 0, cannon = false } = {}) {
+    const spentLastShell = this._ammoState.cannon && this._ammoState.ammo > 0 && cannon && ammo === 0;
     this._ammoState = { ammo, cannon };
     this._applyAmmo();
+    if (spentLastShell) this._showBanner({ label: 'LAST SHELL FIRED — CANNON EMPTY' });
   }
 
   _applyAmmo() {
@@ -645,6 +769,11 @@ export class HUD {
     off('scoreAdded', this._onScore);
     off('ammoChanged');
     off('cannonPrompt');
+    off('cannonResult');
+    off('waterBailed');
+    off('waterBailFailed');
+    off('qteDebugResult');
+    off('gamePaused', this._onPause);
     off('krakenFightStarted'); off('krakenHealthChanged');
     off('krakenRaceTimerUpdate'); off('krakenWaypointProgress');
     off('krakenRaceStarted'); off('krakenTentacleCaught');

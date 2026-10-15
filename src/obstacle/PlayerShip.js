@@ -43,6 +43,7 @@ export class PlayerShip {
     this.grid = grid;
     this.qteSystem = qteSystem;
     this._bailingWater = false;
+    this._bailCooldown = 0;
 
     // Leak System
     this.waterLevel = 0;
@@ -181,6 +182,7 @@ export class PlayerShip {
 
   update(delta, ocean, windManager) {
     if (this.sunk) return;
+    this._bailCooldown = Math.max(0, this._bailCooldown - delta);
 
     // Time for natural bobbing
     const time = performance.now() / 1000;
@@ -217,18 +219,24 @@ export class PlayerShip {
     }
 
     // Trigger sinking QTE
-    if (this.waterLevel > this.maxWaterLevel * 0.75 && !this._bailingWater && this.qteSystem) {
+    if (this.waterLevel > this.maxWaterLevel * 0.75 && !this._bailingWater && this._bailCooldown <= 0 && this.qteSystem) {
       const accepted = this.qteSystem.trigger({
         source: 'bail',
-        windowMs: 2500,
-        onSuccess: () => {
-          this.waterLevel = Math.max(0, this.waterLevel - 25);
-          emit('playerWaterLevel', { level: this.waterLevel, max: this.maxWaterLevel });
+        onSuccess: ({ accuracy = 0, metadata }) => {
           this._bailingWater = false;
+          this._bailCooldown = 1.25;
+          if (metadata.debug) return;
+          const waterAtStart = this.waterLevel;
+          const removed = waterAtStart * 0.5 * Math.max(0, Math.min(1, accuracy));
+          this.waterLevel = Math.max(0, this.waterLevel - removed);
+          emit('playerWaterLevel', { level: this.waterLevel, max: this.maxWaterLevel });
+          emit('waterBailed', { accuracy: Math.round(accuracy * 100), removed: Math.round(removed) });
           emit('spawnParticles', { type: 'splash', position: this.mesh.position });
         },
-        onFail: () => {
+        onFail: ({ metadata }) => {
           this._bailingWater = false;
+          this._bailCooldown = 1.25;
+          if (!metadata.debug) emit('waterBailFailed');
         }
       });
       this._bailingWater = accepted;

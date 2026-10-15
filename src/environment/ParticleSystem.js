@@ -18,11 +18,14 @@ export class ParticleSystem {
     this._geoHarpoon = new THREE.CylinderGeometry(0.1, 0.1, 4, 8);
     this._geoHarpoon.rotateX(Math.PI / 2); // point along Z
     this._matHarpoon = new THREE.MeshLambertMaterial({ color: 0xaaaaaa });
+    this._geoCannonball = new THREE.SphereGeometry(0.22, 8, 6);
+    this._matCannonball = new THREE.MeshBasicMaterial({ color: 0xffd27a });
 
     this._onSpawn = (d) => {
       if (d.type === 'splash') this.spawnSplash(d.position);
       if (d.type === 'explosion') this.spawnExplosion(d.position);
       if (d.type === 'harpoon') this.spawnHarpoon(d.start, d.end);
+      if (d.type === 'cannonShot') this.spawnCannonShot(d.start, d.end);
       if (d.type === 'massiveSplash') this.spawnMassiveSplash(d.position);
       if (d.type === 'bloodSplash') this.spawnBloodSplash(d.position);
     };
@@ -122,13 +125,28 @@ export class ParticleSystem {
     this._particles.push({ mesh, velocity, life: duration, maxLife: duration, type: 'harpoon' });
   }
 
+  spawnCannonShot(start, end) {
+    const flash = new THREE.Mesh(this._geoCannonball, this._matCannonball);
+    flash.position.copy(start);
+    flash.scale.setScalar(2.5);
+    this._scene.add(flash);
+    this._particles.push({ mesh: flash, velocity: new THREE.Vector3(), life: 0.12, maxLife: 0.12, type: 'cannonflash' });
+
+    const mesh = new THREE.Mesh(this._geoCannonball, this._matCannonball);
+    mesh.position.copy(start);
+    const duration = 0.35;
+    const velocity = end.clone().sub(start).multiplyScalar(1 / duration);
+    this._scene.add(mesh);
+    this._particles.push({ mesh, velocity, life: duration, maxLife: duration, type: 'cannonball' });
+  }
+
   update(delta) {
     const toRemove = [];
     for (const p of this._particles) {
       p.life -= delta;
       
       // Gravity
-      if (p.type !== 'harpoon') {
+      if (p.type !== 'harpoon' && p.type !== 'cannonball' && p.type !== 'cannonflash') {
         p.velocity.y -= 12 * delta;
       }
 
@@ -183,5 +201,7 @@ export class ParticleSystem {
     this._matWood.dispose();
     this._geoHarpoon.dispose();
     this._matHarpoon.dispose();
+    this._geoCannonball.dispose();
+    this._matCannonball.dispose();
   }
 }

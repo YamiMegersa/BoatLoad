@@ -14,10 +14,10 @@
     { "id": "mast_repair",  "zone": "mast",  "label": "Reinforce cracked mast",       "tool": "rope",   "mandatory": true  }
   ],
   "obstacles": [
-    { "type": "rock",       "lanePattern": "alternating", "count": 6  },
-    { "type": "barrel",     "lanePattern": "random",      "count": 4  },
-    { "type": "seaweed",    "lanePattern": "random",      "count": 4  },
-    { "type": "wave_small", "lanePattern": "random",      "count": 5  }
+    { "type": "rock",       "count": 30 },
+    { "type": "barrel",     "count": 20 },
+    { "type": "seaweed",    "count": 20 },
+    { "type": "wave_small", "count": 25 }
   ],
   "rewardAbilities": ["practiced_hand", "seasoned_hull", "sharp_eye"],
   "tutorialPrompts": true

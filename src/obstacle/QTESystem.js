@@ -35,8 +35,8 @@ export const QTE_DEFINITIONS = Object.freeze({
     theme: { color: '#4fc3f7', icon: '🎯', sound: 'harpoon' },
   },
   [QTEType.BAIL]: {
-    input: 'mash', keys: { tap: 'ShiftLeft' }, windowMs: 2800, priority: 100,
-    label: 'BAIL WATER!', prompt: 'Tap rapidly to bail', mashTarget: 8,
+    input: 'draw', keys: { assist: 'ShiftLeft' }, windowMs: 8000, priority: 100,
+    label: 'BAIL WATER!', prompt: 'Draw one complete circle',
     theme: { color: '#2196f3', icon: '🪣', sound: 'bail' },
   },
   [QTEType.SIREN]: {
@@ -79,7 +79,86 @@ const INPUT_HANDLERS = {
       if (qte.progress >= qte.definition.chainTarget) system._succeed();
     },
   },
+  draw: {
+    onInput(system, qte, input) {
+      if (input.kind === 'drawCancel') {
+        qte.points = [];
+        qte.progress = 0;
+        system._emitUpdate();
+        return;
+      }
+      if (input.kind === 'assist') {
+        qte.accuracy = 0.5;
+        system._succeed();
+        return;
+      }
+      if (input.kind === 'drawStart') {
+        qte.points = [input.point];
+        system._emitUpdate();
+        return;
+      }
+      if (input.kind === 'drawMove' && qte.points?.length) {
+        if (qte.points.length < 512) qte.points.push(input.point);
+        qte.progress = scoreCircleTrace(qte.points).coverage;
+        system._emitUpdate();
+        return;
+      }
+      if (input.kind !== 'drawEnd' || !qte.points?.length) return;
+
+      const score = scoreCircleTrace(qte.points);
+      qte.accuracy = score.accuracy / 100;
+      qte.progress = score.coverage;
+      if (!score.valid) {
+        system._fail('incomplete-circle');
+        return;
+      }
+      system._succeed();
+    },
+  },
 };
+
+const CIRCLE_SECTORS = 24;
+const CIRCLE_TARGET_RADIUS = 0.4;
+
+export function scoreCircleTrace(points) {
+  if (points.length < 12) return { valid: false, accuracy: 0, coverage: 0 };
+
+  const occupiedSectors = new Set();
+  let radialError = 0;
+  let totalTurn = 0;
+  let signedTurn = 0;
+  let previousAngle = null;
+
+  for (let index = 0; index < points.length; index++) {
+    const dx = points[index].x - 0.5;
+    const dy = points[index].y - 0.5;
+    const radius = Math.hypot(dx, dy);
+    const angle = Math.atan2(dy, dx);
+    radialError += Math.abs(radius - CIRCLE_TARGET_RADIUS) / CIRCLE_TARGET_RADIUS;
+    occupiedSectors.add(Math.floor(((angle + Math.PI) / (Math.PI * 2)) * CIRCLE_SECTORS) % CIRCLE_SECTORS);
+
+    if (previousAngle !== null) {
+      let turn = angle - previousAngle;
+      if (turn > Math.PI) turn -= Math.PI * 2;
+      if (turn < -Math.PI) turn += Math.PI * 2;
+      signedTurn += turn;
+      totalTurn += Math.abs(turn);
+    }
+    previousAngle = angle;
+  }
+
+  const first = points[0];
+  const last = points[points.length - 1];
+  const closureError = Math.hypot(first.x - last.x, first.y - last.y) / (CIRCLE_TARGET_RADIUS * 2);
+  const coverage = occupiedSectors.size / CIRCLE_SECTORS;
+  const radialScore = Math.max(0, 1 - radialError / points.length);
+  const closureScore = Math.max(0, 1 - closureError);
+  const extraTurnPenalty = Math.min(1, (Math.PI * 2 * 1.2) / Math.max(totalTurn, 0.001));
+  const continuityScore = Math.min(1, Math.abs(signedTurn) / Math.max(totalTurn, 0.001)) * extraTurnPenalty;
+  const accuracy = Math.round((coverage * 0.45 + radialScore * 0.35 + closureScore * 0.15 + continuityScore * 0.05) * 100);
+
+  return { valid: coverage >= 20 / CIRCLE_SECTORS, accuracy, coverage };
+}
 
 export class QTESystem {
   constructor(tuning = {}, abilities = []) {
@@ -136,6 +215,10 @@ export class QTESystem {
 
   setPaused(paused) {
     this._paused = Boolean(paused);
+    if (this._paused && this._active?.definition.input === 'draw') {
+      this._active.points = [];
+      this._active.progress = 0;
+    }
   }
 
   resolveTap() {
@@ -191,10 +274,12 @@ export class QTESystem {
       return false;
     });
     for (const qte of expired) {
-      this._record(qte, 'miss');
-      this._streak = 0;
-      qte.onFail({ reason: 'expired', queued: true });
-      emit('qteFail', { type: qte.type, source: qte.sourceName, reason: 'expired', queued: true });
+      if (!qte.metadata.debug) {
+        this._record(qte, 'miss');
+        this._streak = 0;
+      }
+      qte.onFail({ reason: 'expired', queued: true, metadata: qte.metadata });
+      emit('qteFail', { type: qte.type, source: qte.sourceName, reason: 'expired', queued: true, metadata: qte.metadata });
     }
   }
 
@@ -202,16 +287,21 @@ export class QTESystem {
     const qte = this._active;
     if (!qte) return;
     const ratio = this._elapsedRatio(qte);
-    const isPerfect = qte.definition.input === 'timing' ? this._isTimingPerfect(qte, ratio) : ratio <= 0.65;
-    const streak = ++this._streak;
-    const { points, multiplier } = computePoints(qte.source, isPerfect, streak);
-    const timing = { elapsed: qte.windowMs - qte.remainingMs, ratio, isPerfect, streak, multiplier, points };
+    const isPerfect = qte.definition.input === 'timing'
+      ? this._isTimingPerfect(qte, ratio)
+      : qte.definition.input === 'draw'
+        ? qte.accuracy >= 0.9
+        : ratio <= 0.65;
+    const streak = qte.metadata.debug ? this._streak : ++this._streak;
+    const { points: earnedPoints, multiplier } = computePoints(qte.source, isPerfect, streak);
+    const points = qte.metadata.debug ? 0 : earnedPoints;
+    const timing = { elapsed: qte.windowMs - qte.remainingMs, ratio, isPerfect, streak, multiplier, points, accuracy: qte.accuracy };
     this._active = null;
-    this._record(qte, isPerfect ? 'perfect' : 'good');
+    if (!qte.metadata.debug) this._record(qte, isPerfect ? 'perfect' : 'good');
     emit('qteSuccess', { type: qte.type, source: qte.sourceName, ...timing, metadata: qte.metadata });
     if (points > 0) emit('scoreAdded', { points, label: isPerfect ? 'PERFECT!' : 'GOOD!', isPerfect, streak, multiplier, source: qte.sourceName });
     emit('playSound', { sound: qte.definition.theme.sound || 'qte_success' });
-    qte.onSuccess(timing);
+    qte.onSuccess({ ...timing, metadata: qte.metadata });
     this._startNext();
   }
 
@@ -219,11 +309,13 @@ export class QTESystem {
     const qte = this._active;
     if (!qte) return;
     this._active = null;
-    this._record(qte, 'miss');
-    this._streak = 0;
+    if (!qte.metadata.debug) {
+      this._record(qte, 'miss');
+      this._streak = 0;
+    }
     emit('qteFail', { type: qte.type, source: qte.sourceName, reason, metadata: qte.metadata });
     emit('playSound', { sound: 'qte_fail' });
-    qte.onFail({ reason, queued: false });
+    qte.onFail({ reason, queued: false, metadata: qte.metadata });
     this._startNext();
   }
 
@@ -256,6 +348,8 @@ export class QTESystem {
       type: qte.type, source: qte.sourceName, input: qte.definition.input, keys: qte.definition.keys,
       label: qte.definition.label, prompt: qte.definition.prompt, theme: qte.definition.theme, windowMs: qte.windowMs,
       mashTarget: qte.definition.mashTarget ?? qte.definition.chainTarget ?? 1,
+      accuracy: qte.accuracy,
+      drawProgress: qte.definition.input === 'draw' ? qte.progress : 0,
       sweetSpot: qte.definition.input === 'timing' ? this._sweetSpot(qte) : null, metadata: qte.metadata,
     };
   }

@@ -24,6 +24,7 @@ import { Sky }                from '../environment/Sky.js';
 import { DockStall }          from '../environment/DockStall.js';
 import { DockPlayerController } from '../environment/DockPlayerController.js';
 import { WeatherSystem }      from '../environment/WeatherSystem.js';
+import { DEBUG }              from '../utils/debug.js';
 import { emit, on, off, clear } from './EventBus.js';
 
 // ---------------------------------------------------------------------------
@@ -699,8 +700,14 @@ export class GameState {
       }
     };
     on('steer', this._onSteer);
-    this._onDebugQTE = ({ source }) => this._qteSystem?.trigger({ source, metadata: { source: 'debug' } });
-    on('qteDebugTrigger', this._onDebugQTE);
+    this._onDebugQTE = ({ source }) => {
+      const accepted = this._qteSystem?.trigger({
+        source,
+        metadata: { source: 'debug', debug: true },
+      }) ?? false;
+      emit('qteDebugResult', { source, accepted });
+    };
+    if (DEBUG) on('qteDebugTrigger', this._onDebugQTE);
 
     // Cannon: ammo is per-run (restocked every Set Sail). Day 1 has no cannon
     // config, so the free proximity barrel QTE stays as the tutorial.
@@ -848,7 +855,7 @@ export class GameState {
 
   _exitObstacle() {
     off('steer', this._onSteer);
-    off('qteDebugTrigger', this._onDebugQTE);
+    if (DEBUG) off('qteDebugTrigger', this._onDebugQTE);
     off('cannonFire', this._onCannonFire);
     off('sharkHitConfirmed', this._onSharkHit);
     off('playerSunk');
@@ -897,18 +904,33 @@ export class GameState {
     const target = this._obstacleManager?.findShootTarget(this._cannonRange, this._playerShip);
     if (!target) return;
 
+    const start = this._playerShip.mesh.localToWorld(new THREE.Vector3(0.65, 0.8, -2));
+    const targetPosition = target.mesh.position.clone();
     const accepted = this._qteSystem?.trigger({
       source: 'cannon',
       metadata: { source: 'cannon' },
-      onSuccess: () => {
+      onSuccess: ({ metadata }) => {
+        if (metadata.debug) return;
+        if (!target.active || target.qteResolved) {
+          emit('cannonResult', { result: 'miss' });
+          return;
+        }
         target.qteResolved = true;
         target.active = false;
         target.mesh.visible = false;
-        emit('spawnParticles', { type: 'massiveSplash', position: target.mesh.position.clone() });
+        emit('spawnParticles', { type: 'explosion', position: target.mesh.position.clone() });
+        emit('cannonResult', { result: 'hit' });
+      },
+      onFail: ({ metadata }) => {
+        if (metadata.debug) return;
+        const splashPosition = start.clone().lerp(targetPosition, 0.8);
+        emit('spawnParticles', { type: 'splash', position: splashPosition });
+        emit('cannonResult', { result: 'miss' });
       },
     });
     if (!accepted) return;
 
+    emit('spawnParticles', { type: 'cannonShot', start, end: targetPosition });
     this._ammo--;
     emit('ammoChanged', { ammo: this._ammo, cannon: this._hasCannon });
   }
