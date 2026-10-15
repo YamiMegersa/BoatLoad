@@ -327,6 +327,7 @@ export function buildObstacle(type, pos, url, scale, rockModels, pickupModels, s
     scrollSpeed:  getScrollSpeed(type),
     active:       true,
     qteResolved:  false,
+    qteTriggered: false,
     damage:       getDamage(type),
     pullForce:    type === 'whirlpool' ? 8.0 : null,
     particles:    particles,
@@ -380,7 +381,7 @@ export class ObstacleManager {
    * @param {object[]} waveModels
    * @param {object[]} islandModels
    */
-  init(levelCfg, scene, rockModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel) {
+  init(levelCfg, scene, rockModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, qteSystem) {
     this._scene = scene;
     this._rockModels = rockModels;
     this._pickupModels = pickupModels;
@@ -388,6 +389,7 @@ export class ObstacleManager {
     this._waveModels = waveModels;
     this._islandModels = islandModels;
     this._sirenModel = sirenModel;
+    this._qteSystem = qteSystem ?? null;
     this._obstacles = [];
     this.playRadius = levelCfg.worldSize || 200;
     
@@ -459,6 +461,8 @@ export class ObstacleManager {
       obs.obb.copy(obs.baseOBB).applyMatrix4(obs.mesh.matrixWorld);
       if (obs.sphere) obs.sphere.center.copy(obs.mesh.position);
 
+      this._triggerBarrelQTE(obs, playerShip);
+
       // Check collision
       this._checkCollision(obs, playerShip, delta);
     }
@@ -477,6 +481,7 @@ export class ObstacleManager {
     this._obstacles.length = 0;
     this._scene = null;
     this._rockModels = null;
+    this._qteSystem = null;
   }
 
   // -------------------------------------------------------------------------
@@ -579,6 +584,24 @@ export class ObstacleManager {
         this._resolveHit(obs, ship);
       }
     }
+  }
+
+  _triggerBarrelQTE(obs, ship) {
+    if (obs.type !== 'barrel' || obs.qteTriggered || !this._qteSystem || !ship) return;
+    const distance = obs.mesh.position.distanceTo(ship.mesh.position);
+    if (distance > 10) return;
+
+    const accepted = this._qteSystem.trigger({
+      type: 'SHOOT',
+      metadata: { source: 'barrel' },
+      onSuccess: () => {
+        obs.qteResolved = true;
+        obs.active = false;
+        obs.mesh.visible = false;
+        emit('spawnParticles', { type: 'massiveSplash', position: obs.mesh.position.clone() });
+      },
+    });
+    if (accepted) obs.qteTriggered = true;
   }
 
   /**

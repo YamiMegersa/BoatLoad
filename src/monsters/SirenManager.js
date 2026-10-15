@@ -102,6 +102,7 @@ export class SirenManager {
     this._scene = null;
     this._sirenModel = null;
     this._rockModels = null;
+    this._qteSystem = null;
     this._time = 0;
   }
 
@@ -110,11 +111,13 @@ export class SirenManager {
    * @param {THREE.Scene} scene
    * @param {object} [sirenModel]
    * @param {object[]} [rockModels]
+   * @param {object} [qteSystem]
    */
-  init(levelCfg, scene, sirenModel = null, rockModels = null) {
+  init(levelCfg, scene, sirenModel = null, rockModels = null, qteSystem = null) {
     this._scene = scene;
     this._sirenModel = sirenModel || (typeof LevelConfig !== 'undefined' ? LevelConfig._cache?.get('sirenModel') : null);
     this._rockModels = rockModels || (typeof LevelConfig !== 'undefined' ? LevelConfig._cache?.get('rockModels') : null);
+    this._qteSystem = qteSystem;
     this._time = 0;
     const defs = levelCfg?.sirens || [];
 
@@ -232,6 +235,27 @@ export class SirenManager {
           // In HUD conventions: positive steerInput is RIGHT, negative is LEFT.
           // Since turnDir < 0 is right and turnDir > 0 is left:
           netSteerPullThisFrame = -turnDir * pullStrength;
+        }
+
+        // Trigger SIREN QTE when close
+        if (siren.cooldown > 0) {
+          siren.cooldown = Math.max(0, siren.cooldown - delta);
+        }
+        if (this._qteSystem && !siren.qteTriggered && (siren.cooldown || 0) <= 0 && dist < def.attractRadius * 0.7) {
+          const accepted = this._qteSystem.trigger({
+            type: 'SIREN',
+            metadata: { source: 'siren' },
+            onSuccess: () => {
+              siren.cooldown = 7;
+              siren.qteTriggered = false;
+            },
+            onFail: () => {
+              siren.cooldown = 4;
+              siren.qteTriggered = false;
+              playerShip.takeDamage?.(10, 'siren');
+            }
+          });
+          if (accepted) siren.qteTriggered = true;
         }
       }
 

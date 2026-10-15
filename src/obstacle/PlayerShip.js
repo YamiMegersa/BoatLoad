@@ -33,12 +33,14 @@ export class PlayerShip {
    * @param {import('../shipyard/ChunkRenderer.js').ChunkRenderer} [chunkRenderer]
    * @param {import('../shipyard/VoxelGrid.js').VoxelGrid} [grid]
    */
-  constructor(stats, scene, chunkRenderer, grid) {
+  constructor(stats, scene, chunkRenderer, grid, qteSystem) {
     this.speedMultiplier = stats.speedMultiplier  ?? 1.0;
     this._laneHalfWidth  = stats.laneHalfWidth   ?? 6;
 
     this.chunkRenderer = chunkRenderer;
     this.grid = grid;
+    this.qteSystem = qteSystem;
+    this._bailingWater = false;
 
     // Leak System
     this.waterLevel = 0;
@@ -209,6 +211,25 @@ export class PlayerShip {
       // Tell UI the water level rose
       emit('playerWaterLevel', { level: this.waterLevel, max: this.maxWaterLevel });
     }
+
+    // Trigger sinking QTE
+    if (this.waterLevel > this.maxWaterLevel * 0.75 && !this._bailingWater && this.qteSystem) {
+      const accepted = this.qteSystem.trigger({
+        type: 'BAIL',
+        windowMs: 2500,
+        onSuccess: () => {
+          this.waterLevel = Math.max(0, this.waterLevel - 25);
+          emit('playerWaterLevel', { level: this.waterLevel, max: this.maxWaterLevel });
+          this._bailingWater = false;
+          emit('spawnParticles', { type: 'splash', position: this.mesh.position });
+        },
+        onFail: () => {
+          this._bailingWater = false;
+        }
+      });
+      this._bailingWater = accepted;
+    }
+
     const waterRatio = Math.min(this.waterLevel / this.maxWaterLevel, 1.0);
     
     // Check for sinking
@@ -385,23 +406,6 @@ export class PlayerShip {
         this.chunkRenderer.sync(this.grid);
         emit('playerDamaged', { source });
       }
-    }
-  }
-
-  /**
-   * Take direct water damage without blowing holes in the hull.
-   * Useful for whirlpools that pull the ship under.
-   * @param {number} amount 
-   */
-  takeWaterDamage(amount) {
-    if (this.sunk || this.godMode) return;
-    
-    this.waterLevel += amount;
-    emit('playerWaterLevel', { level: this.waterLevel, max: this.maxWaterLevel });
-    
-    if (this.waterLevel >= this.maxWaterLevel && !this.sunk) {
-      this.sunk = true;
-      emit('playerSunk');
     }
   }
 

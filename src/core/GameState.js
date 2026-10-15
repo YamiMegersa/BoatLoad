@@ -13,7 +13,6 @@ import { FishAnimator }       from '../environment/FishAnimator.js';
 import { Ocean }              from '../environment/Ocean.js';
 import { QTESystem }      from '../obstacle/QTESystem.js';
 import { Minimap }        from '../ui/Minimap.js';
-import { HUD }            from '../ui/HUD.js';
 import { EditorUI }       from '../ui/EditorUI.js';
 import { EditorSystem }   from '../editor/EditorSystem.js';
 import { VoxelTerrain }   from '../editor/VoxelTerrain.js';
@@ -92,7 +91,9 @@ export class GameState {
     this._environmentManager = null;
     this._qteSystem       = null;
     this._minimap         = new Minimap();
-    this._hud             = new HUD();
+    this.score            = 0;
+    this._onScoreAdded    = (d) => { this.score += (d.points || 0); };
+    on('scoreAdded', this._onScoreAdded);
     this._editorUI        = new EditorUI();
     this._editorSystem    = null;
     this._windManager     = null;
@@ -457,11 +458,8 @@ export class GameState {
 
     // Sync renderer on dirty events
     on('gridDirty', () => {
-      if (this._windManager) {
-        const localWind = this._windManager.getWindAt(this._playerShip.mesh.position.x, this._playerShip.mesh.position.z);
-        
-        document.getElementById('ui-hud-wind-dir').textContent = 
-          `Wind: ${localWind.x.toFixed(1)}, ${localWind.z.toFixed(1)}`;
+      if (this._grid && this._chunkRenderer) {
+        this._chunkRenderer.sync(this._grid);
       }
     });
 
@@ -585,19 +583,19 @@ export class GameState {
       this._voxelTerrain.deserialize(levelCfg.voxels);
     }
 
-    this._playerShip = new PlayerShip(shipStats ?? {}, this._scene, this._chunkRenderer, this._grid);
+    const qteTuning = { ...(levelCfg?.qte ?? {}) };
+    if (levelCfg?.tutorialPrompts) qteTuning.windowScale = (qteTuning.windowScale ?? 1) * 1.25;
+    this._qteSystem = new QTESystem(qteTuning, levelCfg?.rewardAbilities);
+
+    this._playerShip = new PlayerShip(shipStats ?? {}, this._scene, this._chunkRenderer, this._grid, this._qteSystem);
     this._obstacleManager = new ObstacleManager();
-    this._obstacleManager.init(levelCfg, this._scene, rockModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel);
+    this._obstacleManager.init(levelCfg, this._scene, rockModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, this._qteSystem);
     this._environmentManager = new EnvironmentManager();
-    this._environmentManager.init(this._scene, fishModels, levelCfg);
+    this._environmentManager.init(this._scene, fishModels, levelCfg, this._qteSystem, this._ocean);
+    this._sirenManager = new SirenManager();
+    this._sirenManager.init(levelCfg, this._scene, sirenModel, rockModels, this._qteSystem);
     
     this._windManager = new WindManager(levelCfg);
-
-    this._qteSystem = new QTESystem();
-
-    // Sirens
-    this._sirenManager = new SirenManager();
-    this._sirenManager.init(levelCfg, this._scene, sirenModel, rockModels);
 
     // Kraken Boss (only if level defines one)
     if (levelCfg.kraken) {
@@ -609,13 +607,14 @@ export class GameState {
         krakenModel
       );
     }
-
     this._onSteer = (d) => {
       if (this._playerShip) {
         this._playerShip.steerInput = d.value;
       }
     };
     on('steer', this._onSteer);
+    this._onDebugQTE = ({ type }) => this._qteSystem?.trigger({ type, metadata: { source: 'debug' } });
+    on('qteDebugTrigger', this._onDebugQTE);
 
     // When player sinks, transition to results
     on('playerSunk', () => {
@@ -623,16 +622,16 @@ export class GameState {
     });
 
     this._wasCinematicActive = false;
+    this.score = 0;
     emit('uiMount', { screen: 'obstacle' });
   }
 
   _updateObstacle(delta) {
+    this._qteSystem?.update(delta);
     // Pass WindManager instead of static windDir
     this._playerShip?.update(delta, this._ocean, this._windManager);
     this._obstacleManager?.update(delta, this._playerShip, this._windManager, this._voxelTerrain);
-    this._environmentManager?.update(delta, this._windManager, this._playerShip?.mesh.position);
-
-    // Sirens — continuous pull force
+    this._environmentManager?.update(delta, this._windManager, this._playerShip);
     this._sirenManager?.update(delta, this._playerShip);
 
     // Kraken boss — FSM + tentacles + cinematics
@@ -708,12 +707,14 @@ export class GameState {
 
       // 4. Move camera smoothly towards the spring-loaded target
       // The spring logic in P3 provides the curved sweep and overshoot.
-      this._camera.position.lerp(P3, 5.0 * delta);
+      if (!this.directorModeActive) {
+        this._camera.position.lerp(P3, 5.0 * delta);
 
-      // 6. Look Target (delayed)
-      // Lerp look target so it sweeps across the hull slightly
-      this._camLookTarget.lerp(p, 8.0 * delta);
-      this._camera.lookAt(this._camLookTarget);
+        // 6. Look Target (delayed)
+        // Lerp look target so it sweeps across the hull slightly
+        this._camLookTarget.lerp(p, 8.0 * delta);
+        this._camera.lookAt(this._camLookTarget);
+      }
       
       // Update Minimap
       this._minimap?.update(
@@ -727,6 +728,7 @@ export class GameState {
 
   _exitObstacle() {
     off('steer', this._onSteer);
+    off('qteDebugTrigger', this._onDebugQTE);
     off('playerSunk');
 
     this._sirenManager?.dispose();
@@ -737,12 +739,15 @@ export class GameState {
     this._playerShip?.dispose(this._scene);
     this._obstacleManager?.dispose();
     this._environmentManager?.dispose();
+    this._sirenManager?.dispose();
+    this._qteStats = this._qteSystem?.getStats() ?? null;
     this._qteSystem?.dispose();
     this._chunkRenderer?.dispose(this._scene);
 
     this._playerShip      = null;
     this._obstacleManager = null;
     this._environmentManager = null;
+    this._sirenManager       = null;
     this._qteSystem       = null;
     this._chunkRenderer   = null;
     this._grid            = null;
@@ -764,7 +769,7 @@ export class GameState {
   // =========================================================================
 
   _enterResults({ passed }) {
-    emit('uiMount', { screen: 'results', passed, day: this.day });
+    emit('uiMount', { screen: 'results', passed, day: this.day, score: this.score, qteStats: this._qteStats });
     if (passed) this.day++;
   }
 
@@ -796,6 +801,25 @@ export class GameState {
       this._scene, this._camera, this._renderer, 
       levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel
     );
+
+    this._onEditorCameraPreset = (d) => {
+      if (!this._camera || !this._orbitControls) return;
+      if (d?.preset === 'top') {
+        this._camera.position.set(0, 100, 0.01);
+        this._orbitControls.target.set(0, 0, 0);
+      } else if (d?.preset === 'horizon') {
+        this._camera.position.set(0, 8, 30);
+        this._orbitControls.target.set(0, 4, -40);
+      } else if (d?.preset === 'isometric') {
+        this._camera.position.set(50, 60, 50);
+        this._orbitControls.target.set(0, 0, 0);
+      } else { // default
+        this._camera.position.set(0, 30, 20);
+        this._orbitControls.target.set(0, 0, -5);
+      }
+      this._orbitControls.update();
+    };
+    on('editorCameraPreset', this._onEditorCameraPreset);
 
     emit('uiMount', { screen: 'editor', levelCfg });
   }
@@ -837,6 +861,11 @@ export class GameState {
   }
 
   _exitEditor() {
+    if (this._onEditorCameraPreset) {
+      off('editorCameraPreset', this._onEditorCameraPreset);
+      this._onEditorCameraPreset = null;
+    }
+
     this._editorSystem?.dispose();
     this._editorSystem = null;
     

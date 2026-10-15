@@ -62,6 +62,7 @@ export class EditorSystem {
       this._currentY = 0.5;     // reset height on new tool
       this._currentRotation = 0; // reset rotation
       this._updatePreview();
+      this._emitState();
     });
     
     on('editorSelectTool', d => {
@@ -69,6 +70,99 @@ export class EditorSystem {
       this._activeUrl = null;
       this._activeTool = d.tool;
       this._updatePreview();
+      this._emitState();
+    });
+
+    on('editorSetTransform', d => {
+      if (d.scale !== undefined) this._currentScale = Math.max(0.1, Math.min(20.0, d.scale));
+      if (d.y !== undefined) this._currentY = d.y;
+      if (d.rotation !== undefined) this._currentRotation = d.rotation;
+      if (this._activeTool === 'place' && this._previewMesh) {
+        this._updatePreview();
+        this._previewMesh.mesh.position.set(this._intersection.x, this._intersection.y + this._currentY, this._intersection.z);
+      }
+      this._emitState();
+    });
+
+    on('editorClearAll', () => {
+      for (const obs of this._placedObstacles) {
+        this._scene.remove(obs.mesh);
+      }
+      this._placedObstacles = [];
+      this._emitState();
+    });
+
+    on('editorImportLevel', d => {
+      if (!d || !d.config) return;
+      const cfg = d.config;
+      this._levelCfg = cfg;
+
+      // Clear existing placed obstacles
+      for (const obs of this._placedObstacles) {
+        this._scene.remove(obs.mesh);
+      }
+      this._placedObstacles = [];
+
+      // Respawn obstacles from config
+      if (cfg.obstacles) {
+        for (const o of cfg.obstacles) {
+          if (o.position) {
+            this._spawnObstacle(
+              o.type, 
+              o.assetUrl, 
+              o.position.x, 
+              o.position.y !== undefined ? o.position.y : 0.5, 
+              o.position.z, 
+              o.scale || 1.0, 
+              o.rotation || 0
+            );
+          }
+        }
+      }
+
+      // Deserialize voxels
+      if (this._voxelTerrain && cfg.voxels) {
+        this._voxelTerrain.deserialize(cfg.voxels);
+      }
+
+      // World size
+      if (cfg.worldSize) {
+        this._updateBoundaryVisual();
+        emit('oceanSetWorldSize', { size: cfg.worldSize });
+      }
+
+      // Wind
+      if (cfg.globalWindDir !== undefined && this._windArrowHelper) {
+        const newDir = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), THREE.MathUtils.degToRad(cfg.globalWindDir)).normalize();
+        this._windArrowHelper.setDirection(newDir);
+      }
+
+      // Fog
+      if (cfg.fogDensity !== undefined && this._envManager) {
+        if (cfg.fogDensity >= 0.05) {
+          this._envManager.toggleDenseFog(true);
+        } else {
+          this._envManager.toggleDenseFog(false);
+          if (this._scene && this._scene.fog) {
+            this._scene.fog.density = cfg.fogDensity;
+          }
+        }
+      }
+
+      // Time
+      if (cfg.timeOfDay !== undefined && this._envManager) {
+        this._envManager._timeOfDay = cfg.timeOfDay;
+        this._envManager._updateTimeAndLighting(0);
+      }
+
+      // Storm
+      if (cfg.isStormy !== undefined && this._envManager) {
+        this._envManager.toggleStorm(cfg.isStormy);
+        this._envManager._updateTimeAndLighting(0);
+      }
+
+      emit('editorConfigLoaded', { config: cfg });
+      this._emitState();
     });
     
     on('editorSetWorldSize', d => {
@@ -191,6 +285,18 @@ export class EditorSystem {
     });
   }
 
+  _emitState() {
+    emit('editorStateUpdated', {
+      obstacleCount: this._placedObstacles.length,
+      activeTool: this._activeTool,
+      activeType: this._activeType,
+      activeUrl: this._activeUrl,
+      scale: this._currentScale,
+      y: this._currentY,
+      rotation: this._currentRotation
+    });
+  }
+
   init(scene, camera, renderer, levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel) {
     this._scene = scene;
     this._camera = camera;
@@ -255,6 +361,7 @@ export class EditorSystem {
     this._emitBossConfig();
     
     this._updateBoundaryVisual();
+    this._emitState();
   }
 
   _updateBoundaryVisual() {
@@ -324,6 +431,9 @@ export class EditorSystem {
 
     off('editorSelectType');
     off('editorSelectTool');
+    off('editorSetTransform');
+    off('editorClearAll');
+    off('editorImportLevel');
     off('editorSetWorldSize');
     off('editorSetWindDir');
     off('editorSetFogDensity');
@@ -429,6 +539,7 @@ export class EditorSystem {
       if (this._previewMesh) {
         this._previewMesh.mesh.position.set(this._intersection.x, this._intersection.y + this._currentY, this._intersection.z);
       }
+      this._emitState();
     }
   }
 
@@ -447,6 +558,7 @@ export class EditorSystem {
             this._previewMesh.mesh.position.set(this._intersection.x, this._intersection.y + this._currentY, this._intersection.z);
           }
         }
+        this._emitState();
       } else if (event.code === 'BracketLeft' || event.code === 'BracketRight') {
         if (isPlaceTool) {
           const deltaRot = event.code === 'BracketLeft' ? Math.PI / 8 : -Math.PI / 8;
@@ -454,6 +566,7 @@ export class EditorSystem {
           if (this._previewMesh) {
             this._previewMesh.mesh.rotation.y = this._currentRotation;
           }
+          this._emitState();
         }
       }
     }
@@ -635,6 +748,7 @@ export class EditorSystem {
           const closest = this._placedObstacles[closestIdx];
           this._scene.remove(closest.mesh);
           this._placedObstacles.splice(closestIdx, 1);
+          this._emitState();
         }
       }
     }
@@ -653,6 +767,7 @@ export class EditorSystem {
     obs.rotation = rotation;
     this._scene.add(obs.mesh);
     this._placedObstacles.push(obs);
+    this._emitState();
   }
 
   getPlayableConfig() {

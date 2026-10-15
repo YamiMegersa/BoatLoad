@@ -1,0 +1,578 @@
+/* ==========================================================================
+   BoatLoad — Director Mode Cinema Deck & Film Rig Styles
+   ========================================================================== */
+
+/* Floating Launch Pill Button */
+#director-launch-btn {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  background: rgba(13, 23, 38, 0.85);
+  border: 1px solid rgba(212, 175, 55, 0.45);
+  border-radius: 20px;
+  color: #f3e3b4;
+  font-family: 'Cinzel', serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(8px);
+  transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+  pointer-events: auto;
+}
+
+#director-launch-btn:hover {
+  background: rgba(22, 38, 62, 0.95);
+  border-color: #d4af37;
+  color: #fff;
+  transform: translateY(-1px) scale(1.02);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6), 0 0 12px rgba(212, 175, 55, 0.3);
+}
+
+#director-launch-btn .icon {
+  font-size: 14px;
+  filter: drop-shadow(0 0 4px #d4af37);
+}
+
+#director-launch-btn .key-badge {
+  font-family: monospace;
+  font-size: 10px;
+  background: rgba(212, 175, 55, 0.2);
+  border: 1px solid rgba(212, 175, 55, 0.4);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: #ffe082;
+}
+
+/* Master Director Container */
+#director-container {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9990;
+  font-family: 'Cinzel', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: #e2e8f0;
+  user-select: none;
+  transition: opacity 0.25s ease;
+}
+
+#director-container.ui-hidden {
+  opacity: 0;
+  pointer-events: none !important;
+}
+
+/* Top Director Bar */
+.director-top-bar {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(10, 18, 30, 0.9);
+  border: 1px solid rgba(212, 175, 55, 0.4);
+  border-radius: 12px;
+  padding: 6px 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(14px);
+  pointer-events: auto;
+  z-index: 10000;
+}
+
+.director-title-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #f3e3b4;
+  letter-spacing: 1px;
+  padding-right: 12px;
+  border-right: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.director-title-badge .rec-dot {
+  width: 9px;
+  height: 9px;
+  background: #ff3344;
+  border-radius: 50%;
+  box-shadow: 0 0 8px #ff3344;
+  animation: director-pulse 1.8s infinite;
+}
+
+@keyframes director-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+
+.director-state-tag {
+  font-family: monospace;
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  color: #7dd3fc;
+  font-weight: 700;
+}
+
+.director-state-tag.halted {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #fca5a5;
+}
+
+/* Time Controls Group */
+.director-time-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.director-btn {
+  background: rgba(25, 40, 60, 0.7);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  border-radius: 6px;
+  color: #f1f5f9;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 10px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.18s ease;
+}
+
+.director-btn:hover {
+  background: rgba(45, 75, 115, 0.85);
+  border-color: #d4af37;
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.director-btn:active, .director-btn.active {
+  background: #d4af37;
+  border-color: #ffe082;
+  color: #0b1320;
+  font-weight: 700;
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.45);
+}
+
+.director-btn.btn-halt.active {
+  background: #ef4444;
+  border-color: #f87171;
+  color: #fff;
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.5);
+}
+
+.director-speed-slider-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-family: monospace;
+  color: #cbd5e1;
+  margin-left: 6px;
+}
+
+.director-speed-slider-wrap input[type="range"] {
+  width: 75px;
+  accent-color: #d4af37;
+  cursor: pointer;
+}
+
+/* Action buttons on top right */
+.director-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 10px;
+  border-left: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* Floating Bottom Cinema Deck */
+.director-deck {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 860px;
+  max-width: 95vw;
+  background: rgba(10, 18, 30, 0.92);
+  border: 1px solid rgba(212, 175, 55, 0.45);
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(18px);
+  pointer-events: auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  z-index: 10000;
+}
+
+.director-deck.minimized {
+  transform: translateX(-50%) translateY(calc(100% - 38px));
+}
+
+/* Deck Header / Tabs */
+.director-deck-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(7, 13, 22, 0.85);
+  border-bottom: 1px solid rgba(212, 175, 55, 0.25);
+  padding: 4px 12px;
+}
+
+.director-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.director-tab-btn {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 7px 14px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.director-tab-btn:hover {
+  color: #f1f5f9;
+}
+
+.director-tab-btn.active {
+  color: #f3e3b4;
+  border-bottom-color: #d4af37;
+  text-shadow: 0 0 8px rgba(212, 175, 55, 0.4);
+}
+
+.director-deck-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Deck Tab Panels */
+.director-deck-body {
+  padding: 14px 18px;
+  max-height: 250px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(212, 175, 55, 0.4) transparent;
+}
+
+.director-tab-panel {
+  display: none;
+}
+
+.director-tab-panel.active {
+  display: block;
+}
+
+/* Tab 1: Camera Rig Grid Layout */
+.rig-layout-grid {
+  display: grid;
+  grid-template-columns: 240px 1fr 200px;
+  gap: 16px;
+  align-items: start;
+}
+
+.rig-col-card {
+  background: rgba(18, 30, 48, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.rig-col-title {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: #d4af37;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Camera Rig Movement Buttons */
+.camera-dpad-grid, .camera-dpad-cross {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+
+.rig-sub-cluster {
+  background: rgba(14, 23, 37, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 7px;
+  padding: 8px 6px;
+}
+
+.camera-dpad-btn {
+  background: rgba(28, 44, 68, 0.85);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  border-radius: 5px;
+  color: #cbd5e1;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 7px 3px;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.1s ease, transform 0.1s ease, box-shadow 0.1s ease;
+  user-select: none;
+  touch-action: none;
+}
+
+.camera-dpad-btn:hover {
+  background: rgba(45, 75, 115, 0.95);
+  border-color: #d4af37;
+  color: #fff;
+}
+
+.camera-dpad-btn:active, .camera-dpad-btn.pressed {
+  background: #d4af37 !important;
+  border-color: #ffe082 !important;
+  color: #0b1320 !important;
+  font-weight: 800 !important;
+  box-shadow: 0 0 14px rgba(212, 175, 55, 0.7) !important;
+  transform: scale(0.95);
+}
+
+.camera-dpad-btn.btn-stop-move {
+  background: rgba(185, 28, 28, 0.35);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #fca5a5;
+  font-size: 12px;
+}
+
+.camera-dpad-btn.btn-stop-move:hover {
+  background: rgba(239, 68, 68, 0.6);
+  color: #fff;
+}
+
+/* Presets & Tracking Badges */
+.shot-preset-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.shot-preset-btn {
+  background: rgba(25, 40, 62, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 5px;
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 6px 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.shot-preset-btn:hover {
+  background: rgba(35, 60, 95, 0.8);
+  border-color: #38bdf8;
+  color: #e2e8f0;
+}
+
+/* Settings Sliders in Deck */
+.deck-field-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 7px;
+  font-size: 11px;
+}
+
+.deck-field-row label {
+  color: #94a3b8;
+  font-size: 10.5px;
+}
+
+.deck-field-row input[type="range"] {
+  width: 90px;
+  accent-color: #d4af37;
+  cursor: pointer;
+}
+
+.deck-val-readout {
+  font-family: monospace;
+  font-size: 10px;
+  color: #ffe082;
+  width: 38px;
+  text-align: right;
+}
+
+/* Keyframe Studio Panel */
+.keyframe-studio-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.keyframe-timeline-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(14, 22, 35, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 8px 12px;
+  min-height: 52px;
+  overflow-x: auto;
+}
+
+.keyframe-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(30, 48, 75, 0.8);
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 10.5px;
+  font-family: monospace;
+  color: #f1f5f9;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.keyframe-chip:hover {
+  border-color: #d4af37;
+  background: rgba(45, 75, 115, 0.9);
+  transform: translateY(-2px);
+}
+
+.keyframe-chip.active {
+  background: #d4af37;
+  color: #0b1320;
+  font-weight: 700;
+  border-color: #fff;
+}
+
+.keyframe-chip .del-kf {
+  cursor: pointer;
+  opacity: 0.6;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.keyframe-chip .del-kf:hover {
+  opacity: 1;
+  color: #ef4444;
+}
+
+.keyframe-controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* Cinematic Overlays */
+#director-letterbox-top, #director-letterbox-bottom {
+  position: fixed;
+  left: 0;
+  right: 0;
+  background: #000;
+  z-index: 9980;
+  pointer-events: none;
+  transition: height 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  height: 0px;
+}
+
+#director-letterbox-top { top: 0; }
+#director-letterbox-bottom { bottom: 0; }
+
+#director-letterbox-top.active-cinemascope, #director-letterbox-bottom.active-cinemascope {
+  height: 12.5vh; /* 2.39:1 Anamorphic ratio on 16:9 screen */
+}
+
+#director-letterbox-top.active-academy, #director-letterbox-bottom.active-academy {
+  height: 18vh;
+}
+
+/* Rule of Thirds Grid */
+#director-grid-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9975;
+  pointer-events: none;
+  display: none;
+}
+
+#director-grid-overlay.active {
+  display: block;
+}
+
+.grid-line {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.18);
+  box-shadow: 0 0 1px rgba(0, 0, 0, 0.5);
+}
+
+.grid-line.h-1 { top: 33.333%; left: 0; right: 0; height: 1px; }
+.grid-line.h-2 { top: 66.666%; left: 0; right: 0; height: 1px; }
+.grid-line.v-1 { left: 33.333%; top: 0; bottom: 0; width: 1px; }
+.grid-line.v-2 { left: 66.666%; top: 0; bottom: 0; width: 1px; }
+
+.grid-center-cross {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(212, 175, 55, 0.4);
+  border-radius: 50%;
+}
+
+/* Toast notification for Clean Capture / Hide UI */
+#director-toast {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: rgba(10, 18, 30, 0.92);
+  border: 1px solid rgba(212, 175, 55, 0.5);
+  border-radius: 8px;
+  padding: 8px 18px;
+  color: #f3e3b4;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  pointer-events: none;
+  opacity: 0;
+  transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  z-index: 10010;
+}
+
+#director-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
