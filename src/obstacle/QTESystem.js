@@ -186,11 +186,12 @@ export class QTESystem {
       console.warn(`[QTE] Unknown type or source: ${type ?? sourceName}`);
       return false;
     }
-    if (this._active?.sourceName === sourceName || this._queue.some(qte => qte.sourceName === sourceName)) return false;
+    const dedupeKey = options.dedupeKey ?? options.metadata?.instanceId ?? sourceName;
+    if (this._active?.dedupeKey === dedupeKey || this._queue.some(qte => qte.dedupeKey === dedupeKey)) return false;
 
     const windowMs = Math.round((options.windowMs ?? definition.windowMs) * this._tuning.windowScale);
     const qte = {
-      id: this._nextId++, type, sourceName, source, definition, windowMs, remainingMs: windowMs,
+      id: this._nextId++, type, sourceName, dedupeKey, source, definition, windowMs, remainingMs: windowMs,
       queueRemainingMs: options.queueExpiryMs ?? Math.max(windowMs * 2, 4000), progress: 0, lastSide: null,
       onSuccess: options.onSuccess ?? (() => {}), onFail: options.onFail ?? (() => {}),
       metadata: { ...options.metadata, source: sourceName },
@@ -298,7 +299,7 @@ export class QTESystem {
     const timing = { elapsed: qte.windowMs - qte.remainingMs, ratio, isPerfect, streak, multiplier, points, accuracy: qte.accuracy };
     this._active = null;
     if (!qte.metadata.debug) this._record(qte, isPerfect ? 'perfect' : 'good');
-    emit('qteSuccess', { type: qte.type, source: qte.sourceName, ...timing, metadata: qte.metadata });
+    emit('qteSuccess', { type: qte.type, source: qte.sourceName, dedupeKey: qte.dedupeKey, ...timing, metadata: qte.metadata });
     if (points > 0) emit('scoreAdded', { points, label: isPerfect ? 'PERFECT!' : 'GOOD!', isPerfect, streak, multiplier, source: qte.sourceName });
     emit('playSound', { sound: qte.definition.theme.sound || 'qte_success' });
     qte.onSuccess({ ...timing, metadata: qte.metadata });
@@ -313,7 +314,7 @@ export class QTESystem {
       this._record(qte, 'miss');
       this._streak = 0;
     }
-    emit('qteFail', { type: qte.type, source: qte.sourceName, reason, metadata: qte.metadata });
+    emit('qteFail', { type: qte.type, source: qte.sourceName, dedupeKey: qte.dedupeKey, reason, metadata: qte.metadata });
     emit('playSound', { sound: 'qte_fail' });
     qte.onFail({ reason, queued: false, metadata: qte.metadata });
     this._startNext();
@@ -345,7 +346,7 @@ export class QTESystem {
 
   _eventData(qte) {
     return {
-      type: qte.type, source: qte.sourceName, input: qte.definition.input, keys: qte.definition.keys,
+      type: qte.type, source: qte.sourceName, dedupeKey: qte.dedupeKey, input: qte.definition.input, keys: qte.definition.keys,
       label: qte.definition.label, prompt: qte.definition.prompt, theme: qte.definition.theme, windowMs: qte.windowMs,
       mashTarget: qte.definition.mashTarget ?? qte.definition.chainTarget ?? 1,
       accuracy: qte.accuracy,

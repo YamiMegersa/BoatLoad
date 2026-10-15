@@ -44,6 +44,7 @@ export class PlayerShip {
     this.qteSystem = qteSystem;
     this._bailingWater = false;
     this._bailCooldown = 0;
+    this._sirenDisorientationSources = new Set();
 
     // Leak System
     this.waterLevel = 0;
@@ -258,7 +259,8 @@ export class PlayerShip {
     const damping = 3.0 * (1.0 + waterRatio * 2.0);  // Water resistance against turning (heavier when flooded)
     
     // Base turning acceleration from player input
-    let yawAccel = -this.steerInput * turnAccel;
+    const steeringInput = this._sirenDisorientationSources.size ? -this.steerInput : this.steerInput;
+    let yawAccel = -steeringInput * turnAccel;
     
     // Apply water damping/friction
     yawAccel -= this.yawVelocity * damping;
@@ -607,6 +609,11 @@ export class PlayerShip {
     this.targetThrottle = 1.0;
   }
 
+  setSirenDisorientation(sourceId, active) {
+    if (active) this._sirenDisorientationSources.add(sourceId);
+    else this._sirenDisorientationSources.delete(sourceId);
+  }
+
   // -------------------------------------------------------------------------
   // Dispose
   // -------------------------------------------------------------------------
@@ -616,6 +623,7 @@ export class PlayerShip {
     if (this._onCinematicStart) off('krakenCinematicStart', this._onCinematicStart);
     if (this._onCinematicEnd) off('krakenCinematicEnd', this._onCinematicEnd);
     clearTimeout(this._speedTimer);
+    this._sirenDisorientationSources.clear();
     scene.remove(this.mesh);
     // Note: chunkRenderer disposal is handled by GameState phase teardown later,
     // so we don't deeply dispose its geometry here.
