@@ -49,6 +49,7 @@ const INPUT_HANDLERS = {
   timing: {
     onInput(system, qte, input) {
       if (input.kind !== 'tap') return;
+      emit('playSound', { sound: 'qte_tick' });
       const ratio = system._elapsedRatio(qte);
       const [start, end] = system._sweetSpot(qte);
       if (ratio >= start && ratio <= end) system._succeed();
@@ -58,6 +59,7 @@ const INPUT_HANDLERS = {
   mash: {
     onInput(system, qte, input) {
       if (input.kind !== 'tap') return;
+      emit('playSound', { sound: 'qte_tick' });
       qte.progress = Math.min(qte.definition.mashTarget, qte.progress + 1);
       system._emitUpdate();
       if (qte.progress >= qte.definition.mashTarget) system._succeed();
@@ -66,6 +68,7 @@ const INPUT_HANDLERS = {
   alternate: {
     onInput(system, qte, input) {
       if (input.kind !== 'left' && input.kind !== 'right') return;
+      emit('playSound', { sound: 'qte_tick', alt: input.kind === 'right' });
       if (input.kind === qte.lastSide) qte.progress = Math.max(0, qte.progress - 1);
       else {
         qte.lastSide = input.kind;

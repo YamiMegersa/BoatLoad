@@ -14,6 +14,7 @@ import { ParticleSystem } from './environment/ParticleSystem.js';
 import { DamageSystem } from './shipyard/DamageSystem.js';
 import { GodRays } from './environment/GodRays.js';
 import { PaperFilter } from './environment/PaperFilter.js';
+import { AudioManager } from './utils/AudioManager.js';
 import { DEBUG } from './utils/debug.js';
 import './ui/ui.css';
 
@@ -86,6 +87,16 @@ if (DEBUG) {
   };
   console.info('[BoatLoad] Debug mode — window.__dev helpers: sink(), setWater(n), damage(n), day(n)');
 }
+
+// Audio: one global instance. Browsers suspend AudioContexts until the first
+// user gesture, so unlock on the first pointer/key input; M toggles mute.
+const audio = new AudioManager();
+const unlockAudio = () => audio.unlock();
+window.addEventListener('pointerdown', unlockAudio, { once: true });
+window.addEventListener('keydown', unlockAudio, { once: true });
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'KeyM') audio.toggleMute();
+});
 
 const buildMenu = new BuildMenu();
 const docket = new DocketSheet();
