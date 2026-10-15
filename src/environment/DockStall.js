@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { VoxelLopBunny } from './VoxelLopBunny.js';
 
 // ---------------------------------------------------------------------------
 // Voxel Palette & Procedural Voxel Texture Generators
@@ -207,6 +208,8 @@ export class DockStall {
     this.shopGroup = null;
     this.shopDoor = null;
     this.doorInteractables = [];
+    this.bunny = null;
+    this.bunnyInteractables = [];
     this._isBuilt = false;
   }
 
@@ -530,6 +533,10 @@ export class DockStall {
 
       islandGroup.add(crateGroup);
     });
+
+    // Easter Egg: Voxel Lop-Eared Bunny hopping around island grass
+    this.bunny = new VoxelLopBunny(islandGroup, new THREE.Vector3(0, 2.0, 2.5));
+    this.bunnyInteractables = this.bunny.interactables;
 
     // =========================================================================
     // 3. CHANDLERY SHOP STALL (Voxel Architecture, Roof & Interior)
@@ -1351,9 +1358,16 @@ export class DockStall {
         -6 + Math.cos(time * 0.3 + g.phase) * 2
       );
     });
+    if (this.bunny) {
+      this.bunny.update(delta, time);
+    }
   }
 
   dispose() {
+    if (this.bunny) {
+      this.bunny.dispose();
+      this.bunny = null;
+    }
     this.group.traverse(child => {
       if (child.isMesh) {
         if (child.geometry) child.geometry.dispose();
