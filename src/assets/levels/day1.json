@@ -15,6 +15,7 @@
   ],
   "obstacles": [
     { "type": "rock",       "lanePattern": "alternating", "count": 6  },
+    { "type": "barrel",     "lanePattern": "random",      "count": 3  },
     { "type": "seaweed",    "lanePattern": "random",      "count": 4  },
     { "type": "wave_small", "lanePattern": "random",      "count": 5  }
   ],
