@@ -60,7 +60,19 @@ const Palette = {
   fishBelly: 0xa8c2cb,
   seagullWhite: 0xedebe6,
   seagullGrey: 0x7d858c,
-  seagullBeak: 0xd98829
+  seagullBeak: 0xd98829,
+
+  // Flora, Blueprints & Landscape Details
+  flowerWhite: 0xf3f5f0,
+  flowerYellow: 0xf2c94c,
+  flowerRed: 0xd9433d,
+  flowerBlue: 0x4a77d4,
+  mushroomRed: 0xc93b3b,
+  mushroomCap: 0x5e4129,
+  blueprintBlue: 0x1d4673,
+  copper: 0xc46d3b,
+  emberGlow: 0xff4500,
+  woodAsh: 0x2b2725
 };
 
 /**
@@ -210,6 +222,7 @@ export class DockStall {
     this.doorInteractables = [];
     this.bunny = null;
     this.bunnyInteractables = [];
+    this.shipyardInteractables = [];
     this._isBuilt = false;
   }
 
@@ -249,7 +262,16 @@ export class DockStall {
       rope: createVoxelMat(Palette.rope, { roughness: 0.9 }),
       paper: createVoxelMat(Palette.paper, { roughness: 0.7 }),
       glass: createVoxelMat(Palette.glassPorthole, { transparent: true, opacity: 0.55, roughness: 0.15, metalness: 0.3 }),
-      lanternGlow: createVoxelMat(Palette.lanternGlass, { emissive: 0xffaa33, emissiveIntensity: 0.85, transparent: true, opacity: 0.7 })
+      lanternGlow: createVoxelMat(Palette.lanternGlass, { emissive: 0xffaa33, emissiveIntensity: 0.85, transparent: true, opacity: 0.7 }),
+      flowerWhite: createVoxelMat(Palette.flowerWhite, { roughness: 0.9 }),
+      flowerYellow: createVoxelMat(Palette.flowerYellow, { roughness: 0.9 }),
+      flowerRed: createVoxelMat(Palette.flowerRed, { roughness: 0.9 }),
+      flowerBlue: createVoxelMat(Palette.flowerBlue, { roughness: 0.9 }),
+      mushroomRed: createVoxelMat(Palette.mushroomRed, { roughness: 0.8 }),
+      mushroomCap: createVoxelMat(Palette.mushroomCap, { roughness: 0.9 }),
+      blueprint: createVoxelMat(Palette.blueprintBlue, { roughness: 0.85 }),
+      emberGlow: createVoxelMat(Palette.emberGlow, { emissive: 0xff3300, emissiveIntensity: 1.2 }),
+      woodAsh: createVoxelMat(Palette.woodAsh, { roughness: 0.95 })
     };
 
     // =========================================================================
@@ -375,166 +397,18 @@ export class DockStall {
     });
 
     // =========================================================================
-    // 2. ISLAND LANDMASS & SOLIDLY PLANTED PINE TREES (No Floating)
+    // 2. EXPANDED ISLAND LANDMASS & SHIPYARD ENVIRONMENT
     // =========================================================================
     const islandGroup = new THREE.Group();
     islandGroup.position.set(-22, 0, 0);
     this.group.add(islandGroup);
 
-    // Terraced Voxel Contours: Stepped elevation tiers from sea floor up to hill
-    const shelfSlices = [
-      { w: 32, d: 30, h: 2.2, y: -2.8, mat: mats.stoneDark },
-      { w: 29, d: 27, h: 1.4, y: -1.0, mat: mats.stone },
-      { w: 26, d: 24, h: 0.9, y: 0.15, mat: mats.sandWet },
-      { w: 24, d: 22, h: 0.6, y: 0.9, mat: mats.sand }
-    ];
-    shelfSlices.forEach(s => {
-      const slice = createVoxelBox(s.w, s.h, s.d, s.mat);
-      slice.position.set(0, s.y, 0);
-      islandGroup.add(slice);
-    });
+    this._buildExpandedIsland(islandGroup, mats);
+    this._buildIslandFoliageAndDetails(islandGroup, mats);
+    this._buildIslandTrailAndLookout(islandGroup, mats);
+    this._buildShipyardSkeleton(islandGroup, mats);
 
-    // Layer 1: Main Grass Plateau (Top is at y = 2.0)
-    const dirtTier = createVoxelBox(22, 0.9, 20, mats.dirt);
-    dirtTier.position.set(0, 1.35, 0);
-    islandGroup.add(dirtTier);
-
-    const grassTier = createVoxelBox(22.2, 0.35, 20.2, mats.grassTop);
-    grassTier.position.set(0, 1.82, 0);
-    islandGroup.add(grassTier);
-
-    // Layer 2: Inland Hill Plateaus
-    // Lower hill tier: top at y = 3.08 (bounds: x from -12 to 2, z from -10.5 to 2.5)
-    const hillLowerDirt = createVoxelBox(14, 0.9, 13, mats.dirt);
-    hillLowerDirt.position.set(-5, 2.45, -4);
-    islandGroup.add(hillLowerDirt);
-
-    const hillLowerGrass = createVoxelBox(14.2, 0.35, 13.2, mats.grassTop);
-    hillLowerGrass.position.set(-5, 2.9, -4);
-    islandGroup.add(hillLowerGrass);
-
-    // Upper hill peak: top at y = 4.18 (bounds: x from -10.35 to -1.65, z from -8.6 to -0.4)
-    const hillUpperDirt = createVoxelBox(8.5, 0.9, 8, mats.dirt);
-    hillUpperDirt.position.set(-6, 3.55, -4.5);
-    islandGroup.add(hillUpperDirt);
-
-    const hillUpperGrass = createVoxelBox(8.7, 0.35, 8.2, mats.grassTop);
-    hillUpperGrass.position.set(-6, 4.0, -4.5);
-    islandGroup.add(hillUpperGrass);
-
-    // Coastal Rocky Shelf near water (+X, +Z)
-    const coastalShelfTiers = [
-      { x: 10, z: 7, w: 11, d: 10, h: 1.2, y: -1.2, mat: mats.stoneDark },
-      { x: 9.5, z: 6.8, w: 8.5, d: 8, h: 1.0, y: -0.1, mat: mats.stone },
-      { x: 9.0, z: 6.5, w: 6.5, d: 6, h: 0.6, y: 0.7, mat: mats.sandWet }
-    ];
-    coastalShelfTiers.forEach(cs => {
-      const rockBlock = createVoxelBox(cs.w, cs.h, cs.d, cs.mat);
-      rockBlock.position.set(cs.x, cs.y, cs.z);
-      islandGroup.add(rockBlock);
-    });
-
-    // Solidly Planted Voxel Pine Trees (With deep underground root embed to prevent any floating)
-    const leafMats = [mats.grassDark, createVoxelMat(Palette.pineLeaves1), createVoxelMat(Palette.pineLeaves2), createVoxelMat(Palette.pineLeaves3)];
-    function addVoxelPineTree(x, surfaceY, z, scale = 1.0) {
-      const tree = new THREE.Group();
-      tree.position.set(x, surfaceY, z);
-      tree.scale.setScalar(scale);
-
-      // Deep root trunk anchor (extends 0.9m underground so bottom never floats)
-      const trunk = createVoxelBox(0.48, 3.8, 0.48, mats.woodDark);
-      trunk.position.y = 1.1; // Extends from y = -0.8 to y = +3.0
-      tree.add(trunk);
-
-      // 4 tiered stepped canopy layers
-      const canopyLayers = [
-        { w: 3.2, h: 0.8, y: 2.2, mat: leafMats[1] },
-        { w: 2.4, h: 0.8, y: 2.9, mat: leafMats[2] },
-        { w: 1.6, h: 0.8, y: 3.6, mat: leafMats[3] },
-        { w: 0.85, h: 0.9, y: 4.3, mat: leafMats[0] }
-      ];
-      canopyLayers.forEach(c => {
-        const layer = createVoxelBox(c.w, c.h, c.w, c.mat);
-        layer.position.y = c.y;
-        tree.add(layer);
-
-        // Edge voxel accent notches for organic silhouette
-        const notch = createVoxelBox(c.w + 0.16, c.h * 0.45, c.w * 0.55, c.mat);
-        notch.position.y = c.y - c.h * 0.1;
-        tree.add(notch);
-      });
-
-      islandGroup.add(tree);
-    }
-
-    // Precise terrain surface coordinates for every tree:
-    addVoxelPineTree(-6.5, 4.18, -4.5, 1.35); // Upper hill peak
-    addVoxelPineTree(-7.8, 4.18, -6.0, 1.25); // Upper hill peak
-    addVoxelPineTree(-3.5, 3.08, -2.5, 1.15); // Lower hill tier
-    addVoxelPineTree(-10.2, 3.08, -3.5, 1.20); // Lower hill tier
-    addVoxelPineTree(2.5, 2.0, 6.0, 1.15);    // Main grass plateau
-    addVoxelPineTree(5.5, 2.0, -5.0, 1.0);    // Main grass plateau
-    addVoxelPineTree(-6.0, 2.0, 6.5, 1.1);    // Main grass plateau
-
-    // Stepped Stone Walkway connecting Dock to Island
-    for (let i = 0; i < 7; i++) {
-      const t = i / 6;
-      const stepX = 13 - i * 1.85;
-      const stepY = 2.05 - t * 0.15;
-      const stepZ = Math.sin(i * 0.8) * 0.4;
-      const step = createVoxelBox(1.9, 0.22, 1.3, i % 2 === 0 ? mats.stonePath : mats.stoneDark);
-      step.position.set(stepX, stepY, stepZ);
-      step.rotation.y = Math.sin(i * 1.5) * 0.15;
-      islandGroup.add(step);
-
-      const border1 = createVoxelBox(0.24, 0.28, 1.3, mats.stone);
-      border1.position.set(stepX, stepY + 0.04, stepZ - 0.72);
-      islandGroup.add(border1);
-      const border2 = createVoxelBox(0.24, 0.28, 1.3, mats.stone);
-      border2.position.set(stepX, stepY + 0.04, stepZ + 0.72);
-      islandGroup.add(border2);
-    }
-
-    // Smooth invisible ramp along path (Color & depth writes disabled)
-    const pathCollider = new THREE.Mesh(
-      new THREE.BoxGeometry(13.5, 0.35, 2.6),
-      new THREE.MeshBasicMaterial({ visible: false, colorWrite: false, depthWrite: false })
-    );
-    pathCollider.position.set(7.5, 1.95, 0);
-    islandGroup.add(pathCollider);
-
-    // Voxel Cargo Crates on Island
-    const cratePlacements = [
-      { x: 10.5, z: -3.5, s: 1.1, rot: 0.2 },
-      { x: 11.6, z: -3.8, s: 0.9, rot: -0.4 },
-      { x: 10.8, z: -4.8, s: 1.25, rot: 0.75 }
-    ];
-    cratePlacements.forEach(cp => {
-      const crateGroup = new THREE.Group();
-      crateGroup.position.set(cp.x, 2.0 + cp.s / 2, cp.z);
-      crateGroup.rotation.y = cp.rot;
-
-      const body = createVoxelBox(cp.s, cp.s, cp.s, mats.plankHi);
-      crateGroup.add(body);
-
-      // Dark wooden edge framing
-      const frameThick = 0.08 * cp.s;
-      [-0.5, 0.5].forEach(ox => {
-        [-0.5, 0.5].forEach(oz => {
-          const cornerPost = createVoxelBox(frameThick, cp.s + 0.02, frameThick, mats.woodDark);
-          cornerPost.position.set(ox * (cp.s - frameThick), 0, oz * (cp.s - frameThick));
-          crateGroup.add(cornerPost);
-        });
-      });
-      const brace1 = createVoxelBox(cp.s * 1.15, frameThick * 0.8, frameThick * 0.5, mats.woodDark);
-      brace1.rotation.z = Math.PI / 4;
-      brace1.position.z = cp.s / 2 + frameThick * 0.2;
-      crateGroup.add(brace1);
-
-      islandGroup.add(crateGroup);
-    });
-
-    // Easter Egg: Voxel Lop-Eared Bunny hopping around island grass
+    // Easter Egg: Voxel Lop-Eared Bunny hopping around island grass meadow
     this.bunny = new VoxelLopBunny(islandGroup, new THREE.Vector3(0, 2.0, 2.5), this.group);
     this.bunnyInteractables = this.bunny.interactables;
 
@@ -1345,6 +1219,1307 @@ export class DockStall {
     shop.add(this.shopCam);
 
     return this.group;
+  }
+
+  // =========================================================================
+  // 2A. EXPANDED ISLAND LANDMASS (Deep Stone Foundation, Terraces & Hills)
+  // =========================================================================
+  _buildExpandedIsland(islandGroup, mats) {
+    // Terraced Voxel Contours: Stepped elevation tiers from sea floor up to hills
+    // Island base extends from world X = -8 to -88 (islandGroup local X: +14 to -66, Z: -26 to +26)
+    const baseCenter = { x: -25, z: 0 };
+    const shelfSlices = [
+      { w: 82, d: 54, h: 2.2, y: -2.8, mat: mats.stoneDark }, // Deep ocean bed foundation
+      { w: 78, d: 50, h: 1.4, y: -1.0, mat: mats.stone },     // Submerged rock shelf
+      { w: 74, d: 46, h: 0.9, y: 0.15, mat: mats.sandWet },   // Tidal wet sand boundary
+      { w: 70, d: 42, h: 0.6, y: 0.85, mat: mats.sand }       // Dry sand beach ring
+    ];
+    shelfSlices.forEach(s => {
+      const slice = createVoxelBox(s.w, s.h, s.d, s.mat);
+      slice.position.set(baseCenter.x, s.y, baseCenter.z);
+      islandGroup.add(slice);
+    });
+
+    // Layer 1: East Meadow & Rabbit Pasture (Where the dock pier ramp arrives)
+    // Sits at Y = 2.0. Bounds: local X from -6 to +14, local Z from -12 to +12
+    const meadowDirt = createVoxelBox(20, 0.9, 24, mats.dirt);
+    meadowDirt.position.set(4, 1.35, 0);
+    islandGroup.add(meadowDirt);
+
+    const meadowGrass = createVoxelBox(20.2, 0.35, 24.2, mats.grassTop);
+    meadowGrass.position.set(4, 1.82, 0);
+    islandGroup.add(meadowGrass);
+
+    // Subtle dark grass knolls in the meadow
+    const knoll1 = createVoxelBox(6.5, 0.14, 5.5, mats.grassDark);
+    knoll1.position.set(2, 2.02, -3.5);
+    islandGroup.add(knoll1);
+
+    const knoll2 = createVoxelBox(5.5, 0.14, 6.5, mats.grassDark);
+    knoll2.position.set(6, 2.02, 4.5);
+    islandGroup.add(knoll2);
+
+    // Layer 2: Central Highlands Ridge Base (Elevated spine connecting East to West)
+    // Sits at Y = 2.65. Local X: -5 to -27, Z: -20 to +20
+    const highlandsDirt = createVoxelBox(22, 0.95, 38, mats.dirt);
+    highlandsDirt.position.set(-16, 2.15, 0);
+    islandGroup.add(highlandsDirt);
+
+    const highlandsGrass = createVoxelBox(22.2, 0.35, 38.2, mats.grassTop);
+    highlandsGrass.position.set(-16, 2.65, 0);
+    islandGroup.add(highlandsGrass);
+
+    // Layer 3: North Bluff (Pine Ridge & Crags)
+    // Tier 2: top at Y = 3.55 (X: -8 to -24, Z: -5 to -19)
+    const northTierDirt = createVoxelBox(16, 0.9, 15, mats.dirt);
+    northTierDirt.position.set(-16, 3.1, -12);
+    islandGroup.add(northTierDirt);
+
+    const northTierGrass = createVoxelBox(16.2, 0.35, 15.2, mats.grassTop);
+    northTierGrass.position.set(-16, 3.55, -12);
+    islandGroup.add(northTierGrass);
+
+    // Tier 3: Peak Crag (top at Y = 4.45)
+    const northPeakDirt = createVoxelBox(10, 0.9, 9, mats.dirt);
+    northPeakDirt.position.set(-17, 4.0, -13);
+    islandGroup.add(northPeakDirt);
+
+    const northPeakGrass = createVoxelBox(10.2, 0.35, 9.2, mats.grassTop);
+    northPeakGrass.position.set(-17, 4.45, -13);
+    islandGroup.add(northPeakGrass);
+
+    // North Granite Cliff Drops
+    const northCliff1 = createVoxelBox(8, 2.4, 3.2, mats.stoneDark);
+    northCliff1.position.set(-17, 2.8, -19.5);
+    islandGroup.add(northCliff1);
+
+    const northCliff2 = createVoxelBox(6.5, 1.6, 2.5, mats.stone);
+    northCliff2.position.set(-16, 3.6, -18.5);
+    islandGroup.add(northCliff2);
+
+    // Layer 4: South Bluff (Scenic Lookout Mountain)
+    // Tier 2: top at Y = 3.55 (X: -7 to -23, Z: 5 to 20)
+    const southTierDirt = createVoxelBox(16, 0.9, 15, mats.dirt);
+    southTierDirt.position.set(-15, 3.1, 12.5);
+    islandGroup.add(southTierDirt);
+
+    const southTierGrass = createVoxelBox(16.2, 0.35, 15.2, mats.grassTop);
+    southTierGrass.position.set(-15, 3.55, 12.5);
+    islandGroup.add(southTierGrass);
+
+    // Tier 3: High Peak (top at Y = 4.45)
+    const southPeakDirt = createVoxelBox(10.5, 0.9, 10.5, mats.dirt);
+    southPeakDirt.position.set(-15, 4.0, 13);
+    islandGroup.add(southPeakDirt);
+
+    const southPeakGrass = createVoxelBox(10.7, 0.35, 10.7, mats.grassTop);
+    southPeakGrass.position.set(-15, 4.45, 13);
+    islandGroup.add(southPeakGrass);
+
+    // Scenic Lookout Crest Terrace (top at Y = 4.82)
+    const lookoutCrest = createVoxelBox(6.8, 0.38, 6.8, mats.grassTop);
+    lookoutCrest.position.set(-15, 4.82, 13);
+    islandGroup.add(lookoutCrest);
+
+    // South Cliff Granite Ledges
+    const southCliff1 = createVoxelBox(4.5, 2.2, 3.5, mats.stone);
+    southCliff1.position.set(-10, 2.9, 18.5);
+    islandGroup.add(southCliff1);
+
+    const southCliff2 = createVoxelBox(4.0, 1.6, 2.8, mats.stoneLight);
+    southCliff2.position.set(-16, 3.8, 17.5);
+    islandGroup.add(southCliff2);
+
+    // Layer 5: West Shipyard Terrace & Waterfront Shore
+    // Local X: -26 to -54, Z: -18 to +18
+    const yardDirt = createVoxelBox(24, 0.95, 36, mats.dirt);
+    yardDirt.position.set(-39, 1.15, 0);
+    islandGroup.add(yardDirt);
+
+    // Packed yard surface (weathered packed sand/gravel at Y = 1.62)
+    const yardSurface = createVoxelBox(24.2, 0.28, 36.2, mats.sandWet);
+    yardSurface.position.set(-39, 1.62, 0);
+    islandGroup.add(yardSurface);
+
+    // Sturdy oak work planks under the workshop area (local X: -31 to -40, Z: 6 to 16)
+    const workshopDeck = createVoxelBox(10, 0.12, 11, mats.plankDark);
+    workshopDeck.position.set(-35.5, 1.78, 11);
+    islandGroup.add(workshopDeck);
+
+    // Seawall stone blocks along the west shipyard water edge
+    const seawallNorth = createVoxelBox(1.8, 0.85, 12, mats.stoneDark);
+    seawallNorth.position.set(-50, 1.6, 10);
+    islandGroup.add(seawallNorth);
+
+    const seawallSouth = createVoxelBox(1.8, 0.85, 12, mats.stoneDark);
+    seawallSouth.position.set(-50, 1.6, -10);
+    islandGroup.add(seawallSouth);
+
+    // Layer 6: South Sandy Cove & Beach (Gentle coastal curve)
+    const southCoveSand1 = createVoxelBox(15, 0.5, 13, mats.sand);
+    southCoveSand1.position.set(-34, 1.25, -17.5);
+    islandGroup.add(southCoveSand1);
+
+    const southCoveSand2 = createVoxelBox(17, 0.45, 15, mats.sandWet);
+    southCoveSand2.position.set(-35, 0.85, -19);
+    islandGroup.add(southCoveSand2);
+  }
+
+  // =========================================================================
+  // 2B. ISLAND FOLIAGE & DETAILS (Rooted Pines, Wild Flowers, Bushes, Rocks)
+  // =========================================================================
+  _buildIslandFoliageAndDetails(islandGroup, mats) {
+    const leafMats = [
+      mats.grassDark,
+      createVoxelMat(Palette.pineLeaves1),
+      createVoxelMat(Palette.pineLeaves2),
+      createVoxelMat(Palette.pineLeaves3)
+    ];
+
+    // Solidly Planted Voxel Pine Trees (With 1.0m underground root embed so NEVER floating)
+    const addVoxelPineTree = (x, surfaceY, z, scale = 1.0) => {
+      const tree = new THREE.Group();
+      tree.position.set(x, surfaceY, z);
+      tree.scale.setScalar(scale);
+
+      // Deep root trunk anchor (extends underground down to y = -1.0)
+      const trunk = createVoxelBox(0.48, 4.0, 0.48, mats.woodDark);
+      trunk.position.y = 1.0;
+      tree.add(trunk);
+
+      // 4 tiered stepped canopy layers
+      const canopyLayers = [
+        { w: 3.2, h: 0.8, y: 2.2, mat: leafMats[1] },
+        { w: 2.4, h: 0.8, y: 2.9, mat: leafMats[2] },
+        { w: 1.6, h: 0.8, y: 3.6, mat: leafMats[3] },
+        { w: 0.85, h: 0.9, y: 4.3, mat: leafMats[0] }
+      ];
+      canopyLayers.forEach(c => {
+        const layer = createVoxelBox(c.w, c.h, c.w, c.mat);
+        layer.position.y = c.y;
+        tree.add(layer);
+
+        // Edge voxel accent notches for organic silhouette
+        const notch = createVoxelBox(c.w + 0.16, c.h * 0.45, c.w * 0.55, c.mat);
+        notch.position.y = c.y - c.h * 0.1;
+        tree.add(notch);
+      });
+
+      islandGroup.add(tree);
+    };
+
+    // 22 Solidly Rooted Pine Trees across all island biomes:
+    // East Meadow & Rabbit Pasture:
+    addVoxelPineTree(5.5, 2.0, -5.0, 1.05);
+    addVoxelPineTree(2.5, 2.0, 6.5, 1.15);
+    addVoxelPineTree(-2.5, 2.0, -7.5, 1.0);
+    addVoxelPineTree(-3.5, 2.0, 7.5, 1.2);
+    addVoxelPineTree(7.5, 2.0, 3.5, 0.9);
+
+    // North Bluff & Pine Crest:
+    addVoxelPineTree(-14.0, 4.62, -12.5, 1.35); // Peak
+    addVoxelPineTree(-18.0, 4.62, -11.5, 1.25); // Peak
+    addVoxelPineTree(-11.5, 3.72, -14.0, 1.15); // Tier 2
+    addVoxelPineTree(-19.5, 3.72, -8.0, 1.2);   // Tier 2
+    addVoxelPineTree(-15.0, 2.82, -4.5, 1.05);  // Ridge edge
+    addVoxelPineTree(-22.5, 2.82, -14.0, 1.3);  // Coastal cliff
+
+    // South Bluff & Scenic Mountain:
+    addVoxelPineTree(-18.0, 4.62, 13.5, 1.3);   // High bluff
+    addVoxelPineTree(-11.5, 3.72, 14.5, 1.15);  // Tier 2
+    addVoxelPineTree(-17.0, 3.72, 8.0, 1.2);    // Pass side
+    addVoxelPineTree(-9.5, 2.82, 9.5, 1.05);    // East slope
+    addVoxelPineTree(-21.5, 2.82, 10.5, 1.25);  // West slope
+
+    // Shipyard Perimeter & Beach Cove:
+    addVoxelPineTree(-28.0, 1.76, -13.5, 1.1);  // South cove entrance
+    addVoxelPineTree(-33.0, 1.76, -17.5, 1.25); // Beach grove
+    addVoxelPineTree(-29.0, 1.76, 15.5, 1.15);  // Workshop ridge
+    addVoxelPineTree(-40.0, 1.76, 16.5, 1.0);   // North shoreline
+    addVoxelPineTree(-44.5, 1.76, 14.5, 0.95);  // Water edge
+
+    // Helper: Voxel Wild Flower Cluster
+    const addFlowerCluster = (x, y, z, matPetal, matCenter = mats.flowerYellow, count = 4) => {
+      const cluster = new THREE.Group();
+      cluster.position.set(x, y, z);
+      const offsets = [
+        [0, 0], [0.35, 0.2], [-0.28, 0.3], [0.25, -0.32], [-0.35, -0.2]
+      ];
+      for (let i = 0; i < Math.min(count, offsets.length); i++) {
+        const [ox, oz] = offsets[i];
+        const stem = createVoxelBox(0.06, 0.32, 0.06, mats.grassDark, false, false);
+        stem.position.set(ox, 0.16, oz);
+        cluster.add(stem);
+
+        const petals = createVoxelBox(0.24, 0.08, 0.24, matPetal, false, false);
+        petals.position.set(ox, 0.34, oz);
+        cluster.add(petals);
+
+        const center = createVoxelBox(0.12, 0.1, 0.12, matCenter, false, false);
+        center.position.set(ox, 0.36, oz);
+        cluster.add(center);
+      }
+      islandGroup.add(cluster);
+    };
+
+    // 14 Vibrant Flower Clusters across grassy meadows and bluffs:
+    // White Daisies:
+    addFlowerCluster(1.5, 2.0, 2.5, mats.flowerWhite, mats.flowerYellow, 4);
+    addFlowerCluster(4.5, 2.0, -2.5, mats.flowerWhite, mats.flowerYellow, 5);
+    addFlowerCluster(-12.5, 2.82, 3.5, mats.flowerWhite, mats.flowerYellow, 4);
+    // Golden Buttercups:
+    addFlowerCluster(-1.5, 2.0, 5.2, mats.flowerYellow, mats.woodDark, 4);
+    addFlowerCluster(-8.5, 2.82, -2.5, mats.flowerYellow, mats.woodDark, 5);
+    addFlowerCluster(-16.0, 2.82, 3.2, mats.flowerYellow, mats.woodDark, 4);
+    // Red Sea Pinks / Roses:
+    addFlowerCluster(3.8, 2.0, 5.0, mats.flowerRed, mats.flowerYellow, 4);
+    addFlowerCluster(-13.0, 3.72, 8.5, mats.flowerRed, mats.flowerYellow, 4);
+    addFlowerCluster(-20.0, 2.82, -4.5, mats.flowerRed, mats.flowerYellow, 5);
+    // Ocean Bluebells:
+    addFlowerCluster(-5.2, 2.0, -4.0, mats.flowerBlue, mats.flowerWhite, 4);
+    addFlowerCluster(-15.5, 4.62, 10.5, mats.flowerBlue, mats.flowerWhite, 5);
+    addFlowerCluster(-24.5, 1.76, 2.5, mats.flowerBlue, mats.flowerWhite, 4);
+    addFlowerCluster(-27.0, 1.76, -7.5, mats.flowerBlue, mats.flowerWhite, 4);
+    addFlowerCluster(-14.0, 3.72, -9.5, mats.flowerBlue, mats.flowerWhite, 4);
+
+    // Helper: Rounded Voxel Berry Shrub
+    const addBerryBush = (x, y, z, scale = 1.0) => {
+      const bush = new THREE.Group();
+      bush.position.set(x, y, z);
+      bush.scale.setScalar(scale);
+
+      const mainFoliage = createVoxelBox(0.9, 0.75, 0.9, mats.grassDark);
+      mainFoliage.position.y = 0.38;
+      bush.add(mainFoliage);
+
+      const topLeaf = createVoxelBox(0.65, 0.35, 0.65, leafMats[2]);
+      topLeaf.position.y = 0.78;
+      bush.add(topLeaf);
+
+      // 4 tiny red berries
+      [
+        [0.42, 0.5, 0.2],
+        [-0.42, 0.42, -0.15],
+        [0.15, 0.55, 0.42],
+        [-0.2, 0.6, -0.42]
+      ].forEach(([bx, by, bz]) => {
+        const berry = createVoxelBox(0.12, 0.12, 0.12, mats.flowerRed, false, false);
+        berry.position.set(bx, by, bz);
+        bush.add(berry);
+      });
+
+      islandGroup.add(bush);
+    };
+
+    // 8 Berry Shrubs along tree groves and trail bends:
+    addBerryBush(0.5, 2.0, -6.0, 1.1);
+    addBerryBush(6.8, 2.0, 1.5, 0.95);
+    addBerryBush(-7.5, 2.82, 6.0, 1.15);
+    addBerryBush(-13.5, 2.82, -5.5, 1.0);
+    addBerryBush(-19.0, 2.82, 6.5, 1.2);
+    addBerryBush(-26.0, 1.76, -11.0, 1.05);
+    addBerryBush(-25.5, 1.76, 12.0, 1.1);
+    addBerryBush(-38.0, 1.76, 18.0, 0.95);
+
+    // Helper: Voxel Mushrooms
+    const addMushroomPatch = (x, y, z) => {
+      const patch = new THREE.Group();
+      patch.position.set(x, y, z);
+      [
+        [0, 0, 0.35, mats.mushroomRed, true],
+        [0.25, 0.18, 0.28, mats.mushroomCap, false],
+        [-0.2, 0.12, 0.22, mats.mushroomRed, true]
+      ].forEach(([mx, mz, mh, mat, hasSpots]) => {
+        const stem = createVoxelBox(0.08, mh, 0.08, mats.paper, false, false);
+        stem.position.set(mx, mh / 2, mz);
+        patch.add(stem);
+
+        const cap = createVoxelBox(0.28, 0.12, 0.28, mat, false, false);
+        cap.position.set(mx, mh + 0.05, mz);
+        patch.add(cap);
+
+        if (hasSpots) {
+          const spot = createVoxelBox(0.08, 0.04, 0.08, mats.paper, false, false);
+          spot.position.set(mx, mh + 0.12, mz);
+          patch.add(spot);
+        }
+      });
+      islandGroup.add(patch);
+    };
+
+    // 6 Mushroom Patches in shaded tree bases:
+    addMushroomPatch(4.8, 2.0, -5.6);
+    addMushroomPatch(-3.2, 2.0, 7.0);
+    addMushroomPatch(-13.5, 4.62, -13.2);
+    addMushroomPatch(-17.5, 4.62, 12.8);
+    addMushroomPatch(-29.5, 1.76, 14.8);
+    addMushroomPatch(-32.5, 1.76, -16.8);
+
+    // Helper: Natural Faceted Granite Boulders
+    const addBoulder = (x, y, z, w, h, d, mat = mats.stone) => {
+      const bGroup = new THREE.Group();
+      bGroup.position.set(x, y + h * 0.4, z);
+
+      const main = createVoxelBox(w, h, d, mat);
+      bGroup.add(main);
+
+      // Faceted crown box
+      const crown = createVoxelBox(w * 0.72, h * 0.4, d * 0.72, mats.stoneLight);
+      crown.position.set(w * 0.08, h * 0.42, -d * 0.08);
+      bGroup.add(crown);
+
+      islandGroup.add(bGroup);
+    };
+
+    // 12 Granite Boulders:
+    addBoulder(8.5, 1.8, 7.0, 2.2, 1.6, 2.0, mats.stoneDark);
+    addBoulder(6.5, 1.8, -8.0, 1.8, 1.4, 1.6, mats.stone);
+    addBoulder(-1.0, 1.8, -9.0, 2.0, 1.6, 1.8, mats.stoneDark);
+    addBoulder(-10.5, 2.65, -8.5, 2.4, 1.8, 2.2, mats.stone);
+    addBoulder(-21.0, 2.65, -8.0, 2.6, 2.0, 2.4, mats.stoneDark);
+    addBoulder(-8.0, 2.65, 8.5, 1.9, 1.5, 1.7, mats.stoneLight);
+    addBoulder(-20.5, 2.65, 8.5, 2.5, 2.0, 2.2, mats.stone);
+    addBoulder(-17.0, 4.45, 16.5, 2.8, 2.2, 2.5, mats.stoneLight);
+    addBoulder(-28.0, 1.6, -18.0, 3.2, 2.2, 2.8, mats.stoneDark);
+    addBoulder(-42.0, 1.4, -17.5, 2.4, 1.8, 2.0, mats.stone);
+    addBoulder(-49.0, 1.0, 14.0, 3.0, 2.2, 2.6, mats.stoneDark);
+    addBoulder(-48.5, 0.4, -15.5, 2.6, 1.6, 2.2, mats.stone);
+
+    // Cargo crates in the East meadow (existing placements preserved)
+    const cratePlacements = [
+      { x: 10.5, z: -3.5, s: 1.1, rot: 0.2 },
+      { x: 11.6, z: -3.8, s: 0.9, rot: -0.4 },
+      { x: 10.8, z: -4.8, s: 1.25, rot: 0.75 }
+    ];
+    cratePlacements.forEach(cp => {
+      const crateGroup = new THREE.Group();
+      crateGroup.position.set(cp.x, 2.0 + cp.s / 2, cp.z);
+      crateGroup.rotation.y = cp.rot;
+
+      const body = createVoxelBox(cp.s, cp.s, cp.s, mats.plankHi);
+      crateGroup.add(body);
+
+      const frameThick = 0.08 * cp.s;
+      [-0.5, 0.5].forEach(ox => {
+        [-0.5, 0.5].forEach(oz => {
+          const cornerPost = createVoxelBox(frameThick, cp.s + 0.02, frameThick, mats.woodDark);
+          cornerPost.position.set(ox * (cp.s - frameThick), 0, oz * (cp.s - frameThick));
+          crateGroup.add(cornerPost);
+        });
+      });
+      const brace1 = createVoxelBox(cp.s * 1.15, frameThick * 0.8, frameThick * 0.5, mats.woodDark);
+      brace1.rotation.z = Math.PI / 4;
+      brace1.position.z = cp.s / 2 + frameThick * 0.2;
+      crateGroup.add(brace1);
+
+      islandGroup.add(crateGroup);
+    });
+  }
+
+  // =========================================================================
+  // 2C. ISLAND TRAIL, LANTERNS & SCENIC LOOKOUT POINT
+  // =========================================================================
+  _buildIslandTrailAndLookout(islandGroup, mats) {
+    // 1. Winding Stone & Timber Trail connecting Dock Pier across Island into Shipyard
+    // Section A: Dock connection (X = 13 down to X = 1) across meadow
+    for (let i = 0; i < 7; i++) {
+      const t = i / 6;
+      const stepX = 13 - i * 1.95;
+      const stepY = 2.05 - t * 0.15;
+      const stepZ = Math.sin(i * 0.8) * 0.4;
+      const step = createVoxelBox(2.0, 0.22, 1.4, i % 2 === 0 ? mats.stonePath : mats.stoneDark);
+      step.position.set(stepX, stepY, stepZ);
+      step.rotation.y = Math.sin(i * 1.5) * 0.15;
+      islandGroup.add(step);
+
+      const border1 = createVoxelBox(0.24, 0.28, 1.4, mats.stone);
+      border1.position.set(stepX, stepY + 0.04, stepZ - 0.76);
+      islandGroup.add(border1);
+      const border2 = createVoxelBox(0.24, 0.28, 1.4, mats.stone);
+      border2.position.set(stepX, stepY + 0.04, stepZ + 0.76);
+      islandGroup.add(border2);
+    }
+
+    // Section B: Trail through Central Pass (X = 1 to X = -16, climbing gently from Y = 2.05 to Y = 2.75)
+    for (let i = 0; i < 8; i++) {
+      const t = i / 7;
+      const stepX = 1.0 - i * 2.15; // Reaches X = -14.05
+      const stepY = 2.05 + t * 0.7; // Climbs from 2.05 up to 2.75
+      const stepZ = Math.sin(i * 0.7) * 0.6;
+      const step = createVoxelBox(2.2, 0.24, 1.5, i % 2 === 0 ? mats.stonePath : mats.plankDark);
+      step.position.set(stepX, stepY, stepZ);
+      islandGroup.add(step);
+
+      const border1 = createVoxelBox(0.22, 0.28, 1.5, mats.woodDark);
+      border1.position.set(stepX, stepY + 0.04, stepZ - 0.82);
+      islandGroup.add(border1);
+      const border2 = createVoxelBox(0.22, 0.28, 1.5, mats.woodDark);
+      border2.position.set(stepX, stepY + 0.04, stepZ + 0.82);
+      islandGroup.add(border2);
+    }
+
+    // Section C: Trail descent into Shipyard (X = -16 to X = -27, descending from Y = 2.75 to Y = 1.75)
+    for (let i = 0; i < 6; i++) {
+      const t = i / 5;
+      const stepX = -16.0 - i * 2.1; // Reaches X = -26.5
+      const stepY = 2.75 - t * 1.0;  // Descends down to 1.75
+      const stepZ = -Math.sin(i * 0.6) * 0.5;
+      const step = createVoxelBox(2.2, 0.24, 1.6, i % 2 === 0 ? mats.stonePath : mats.stoneDark);
+      step.position.set(stepX, stepY, stepZ);
+      islandGroup.add(step);
+
+      const border1 = createVoxelBox(0.24, 0.28, 1.6, mats.woodDark);
+      border1.position.set(stepX, stepY + 0.04, stepZ - 0.88);
+      islandGroup.add(border1);
+      const border2 = createVoxelBox(0.24, 0.28, 1.6, mats.woodDark);
+      border2.position.set(stepX, stepY + 0.04, stepZ + 0.88);
+      islandGroup.add(border2);
+    }
+
+    // Smooth invisible ramps along trail sections for fluid navigation
+    const pathColliders = [
+      { x: 7.5, y: 1.95, z: 0, w: 13.5, h: 0.35, d: 2.6, rotZ: 0 },
+      { x: -6.5, y: 2.4, z: 0, w: 15.5, h: 0.35, d: 2.6, rotZ: 0.045 },
+      { x: -21.5, y: 2.25, z: 0, w: 12.0, h: 0.35, d: 2.6, rotZ: -0.09 }
+    ];
+    pathColliders.forEach(pc => {
+      const col = new THREE.Mesh(
+        new THREE.BoxGeometry(pc.w, pc.h, pc.d),
+        new THREE.MeshBasicMaterial({ visible: false, colorWrite: false, depthWrite: false })
+      );
+      col.position.set(pc.x, pc.y, pc.z);
+      col.rotation.z = pc.rotZ;
+      islandGroup.add(col);
+    });
+
+    // 2. Wooden Lantern Posts with Warm Voxel Lanterns along the trail
+    const addTrailLanternPost = (x, groundY, z, rotY = 0) => {
+      const postGroup = new THREE.Group();
+      postGroup.position.set(x, groundY, z);
+      postGroup.rotation.y = rotY;
+
+      // Heavy square wooden post
+      const post = createVoxelBox(0.24, 2.8, 0.24, mats.woodDark);
+      post.position.y = 1.4;
+      postGroup.add(post);
+
+      // Post top cap
+      const postCap = createVoxelBox(0.32, 0.12, 0.32, mats.woodTrim);
+      postCap.position.y = 2.86;
+      postGroup.add(postCap);
+
+      // Iron bracket arm extending out
+      const bracket = createVoxelBox(0.55, 0.08, 0.08, mats.iron);
+      bracket.position.set(0.3, 2.65, 0);
+      postGroup.add(bracket);
+
+      const diagStay = createVoxelBox(0.35, 0.06, 0.06, mats.iron);
+      diagStay.position.set(0.18, 2.48, 0);
+      diagStay.rotation.z = -0.7;
+      postGroup.add(diagStay);
+
+      // Iron chain link
+      const chain = createVoxelBox(0.04, 0.22, 0.04, mats.iron);
+      chain.position.set(0.52, 2.5, 0);
+      postGroup.add(chain);
+
+      // Voxel lantern housing & glowing glass
+      const lanternFrame = createVoxelBox(0.28, 0.38, 0.28, mats.iron);
+      lanternFrame.position.set(0.52, 2.22, 0);
+      postGroup.add(lanternFrame);
+
+      const lanternGlass = createVoxelBox(0.22, 0.28, 0.22, mats.lanternGlow, false, false);
+      lanternGlass.position.set(0.52, 2.22, 0);
+      postGroup.add(lanternGlass);
+
+      // PointLight for nighttime atmosphere
+      const lanternLight = new THREE.PointLight(0xffaa44, 0.85, 7.5, 2);
+      lanternLight.position.set(0.52, 2.22, 0);
+      postGroup.add(lanternLight);
+
+      islandGroup.add(postGroup);
+    };
+
+    addTrailLanternPost(3.5, 2.0, -1.6, 0);
+    addTrailLanternPost(-6.5, 2.45, -1.6, 0);
+    addTrailLanternPost(-14.0, 2.8, 1.6, Math.PI);
+    addTrailLanternPost(-20.5, 2.3, 1.6, Math.PI);
+    addTrailLanternPost(-26.0, 1.76, -1.8, 0);
+
+    // 3. Scenic Lookout Point on South Bluff Peak (X: -15, Z: 13, Y: 4.82)
+    const lookoutGroup = new THREE.Group();
+    lookoutGroup.position.set(-15, 4.82, 13);
+
+    // Rustic Overlook Bench facing West towards the shipyard & sunset
+    const bench = new THREE.Group();
+    bench.position.set(0, 0, 0);
+    bench.rotation.y = Math.PI / 2; // Faces West
+
+    // Bench legs
+    [-0.7, 0.7].forEach(lx => {
+      const leg = createVoxelBox(0.16, 0.48, 0.38, mats.woodDark);
+      leg.position.set(lx, 0.24, 0);
+      bench.add(leg);
+    });
+    // Bench seat
+    const seat = createVoxelBox(1.7, 0.12, 0.52, mats.woodHi);
+    seat.position.set(0, 0.52, 0);
+    bench.add(seat);
+    // Backrest supports & plank
+    [-0.65, 0.65].forEach(bx => {
+      const bSupport = createVoxelBox(0.12, 0.52, 0.1, mats.woodDark);
+      bSupport.position.set(bx, 0.78, -0.22);
+      bench.add(bSupport);
+    });
+    const backrest = createVoxelBox(1.7, 0.26, 0.08, mats.woodHi);
+    backrest.position.set(0, 0.94, -0.22);
+    bench.add(backrest);
+    lookoutGroup.add(bench);
+
+    // Stone Campfire Circle with Charred Logs & Glowing Embers
+    const firepit = new THREE.Group();
+    firepit.position.set(-1.8, 0, -1.4);
+    // 8 natural stone perimeter blocks
+    for (let i = 0; i < 8; i++) {
+      const angle = (i * Math.PI) / 4;
+      const rock = createVoxelBox(0.32, 0.22, 0.32, i % 2 === 0 ? mats.stone : mats.stoneDark);
+      rock.position.set(Math.cos(angle) * 0.75, 0.11, Math.sin(angle) * 0.75);
+      rock.rotation.y = angle;
+      firepit.add(rock);
+    }
+    // Ash bed
+    const ash = createVoxelBox(1.1, 0.06, 1.1, mats.woodAsh);
+    ash.position.y = 0.03;
+    firepit.add(ash);
+    // Charred firewood logs
+    [0.35, -0.85, 1.8].forEach((rot, idx) => {
+      const log = createVoxelBox(0.72, 0.14, 0.16, mats.woodDark);
+      log.position.set(0, 0.12 + idx * 0.06, 0);
+      log.rotation.y = rot;
+      firepit.add(log);
+    });
+    // Glowing red ember voxels
+    const embers = createVoxelBox(0.48, 0.1, 0.48, mats.emberGlow, false, false);
+    embers.position.set(0, 0.14, 0);
+    firepit.add(embers);
+    // Firelight glow
+    const fireLight = new THREE.PointLight(0xff5511, 0.7, 5, 2);
+    fireLight.position.set(0, 0.35, 0);
+    firepit.add(fireLight);
+    lookoutGroup.add(firepit);
+
+    // Overlook Cliff Safety Railing
+    [-1.8, 0, 1.8].forEach(rx => {
+      const rPost = createVoxelBox(0.14, 1.05, 0.14, mats.woodDark);
+      rPost.position.set(-2.6, 0.52, rx);
+      lookoutGroup.add(rPost);
+    });
+    const railTop = createVoxelBox(0.16, 0.1, 3.8, mats.woodHi);
+    railTop.position.set(-2.6, 1.05, 0);
+    lookoutGroup.add(railTop);
+    const railMid = createVoxelBox(0.1, 0.08, 3.7, mats.woodDark);
+    railMid.position.set(-2.6, 0.55, 0);
+    lookoutGroup.add(railMid);
+
+    islandGroup.add(lookoutGroup);
+  }
+
+  // =========================================================================
+  // 2D. THE SHIPYARD (Slipway, Catwalks, Ship Hull Skeleton, Crane, Workshop)
+  // =========================================================================
+  _buildShipyardSkeleton(islandGroup, mats) {
+    const shipyardGroup = new THREE.Group();
+    islandGroup.add(shipyardGroup);
+
+    // 1. Shipyard Entrance Arch & Signpost (At local X: -26, Z: 0)
+    const archGroup = new THREE.Group();
+    archGroup.position.set(-26.0, 1.76, 0);
+
+    [-2.2, 2.2].forEach(pz => {
+      const archPost = createVoxelBox(0.38, 3.8, 0.38, mats.woodTrim);
+      archPost.position.set(0, 1.9, pz);
+      archGroup.add(archPost);
+
+      const postCollar = createVoxelBox(0.46, 0.18, 0.46, mats.iron);
+      postCollar.position.set(0, 0.3, pz);
+      archGroup.add(postCollar);
+    });
+
+    const archBeam = createVoxelBox(0.42, 0.42, 4.8, mats.woodTrim);
+    archBeam.position.set(0, 3.7, 0);
+    archGroup.add(archBeam);
+
+    // Carved Sign: "ANCHORAGE SHIPYARD - BERTH 1"
+    const archSign = createVoxelBox(0.14, 0.82, 3.4, mats.woodHi);
+    archSign.position.set(0, 2.9, 0);
+    archGroup.add(archSign);
+
+    const archSignBorder = createVoxelBox(0.18, 0.92, 3.52, mats.woodDark);
+    archSignBorder.position.set(-0.01, 2.9, 0);
+    archGroup.add(archSignBorder);
+
+    // Hanging brass ship bell
+    const bellPost = createVoxelBox(0.08, 0.35, 0.08, mats.iron);
+    bellPost.position.set(0, 2.3, 1.6);
+    archGroup.add(bellPost);
+
+    const bell = createVoxelBox(0.24, 0.28, 0.24, mats.brass);
+    bell.position.set(0, 2.1, 1.6);
+    archGroup.add(bell);
+
+    // Directional finger-post beside arch
+    const dirPost = createVoxelBox(0.18, 2.4, 0.18, mats.woodDark);
+    dirPost.position.set(1.5, 1.2, 2.2);
+    archGroup.add(dirPost);
+
+    const dirEast = createVoxelBox(0.1, 0.24, 1.2, mats.woodHi);
+    dirEast.position.set(1.5, 2.05, 1.8);
+    archGroup.add(dirEast);
+
+    const dirWest = createVoxelBox(0.1, 0.24, 1.3, mats.woodHi);
+    dirWest.position.set(1.5, 1.7, 2.6);
+    archGroup.add(dirWest);
+
+    shipyardGroup.add(archGroup);
+
+    // 2. Slipway Launching Ways (Marine Railway sloping into the sea)
+    // Runs from X = -36 down to X = -58, Z = 0
+    const slipwayGroup = new THREE.Group();
+    shipyardGroup.add(slipwayGroup);
+
+    // Sloping timber ground runners (ways) at Z = -2.2 and Z = +2.2
+    [-2.2, 2.2].forEach(wz => {
+      for (let s = 0; s < 11; s++) {
+        const sx = -37 - s * 2.0;
+        const sy = 1.6 - s * 0.2; // Slopes down to -0.4 in water
+        const runner = createVoxelBox(2.1, 0.32, 0.42, mats.woodTrim);
+        runner.position.set(sx, sy, wz);
+        slipwayGroup.add(runner);
+      }
+    });
+
+    // Cross-tie sleepers tying the ways together
+    for (let s = 0; s < 11; s++) {
+      const sx = -37 - s * 2.0;
+      const sy = 1.5 - s * 0.2;
+      const sleeper = createVoxelBox(0.45, 0.24, 4.6, mats.woodDark);
+      sleeper.position.set(sx, sy, 0);
+      slipwayGroup.add(sleeper);
+    }
+
+    // Heavy oak Keel Blocks along centerline Z = 0
+    [-39, -42, -45, -48, -51, -54].forEach((kx, idx) => {
+      const ky = 1.6 - idx * 0.2;
+      const blockBase = createVoxelBox(1.4, 0.45, 0.85, mats.woodDark);
+      blockBase.position.set(kx, ky + 0.35, 0);
+      slipwayGroup.add(blockBase);
+
+      const blockTop = createVoxelBox(1.2, 0.4, 0.75, mats.woodAged);
+      blockTop.position.set(kx, ky + 0.75, 0);
+      slipwayGroup.add(blockTop);
+    });
+
+    // 3. Flanking Catwalk Piers (Catwalk platforms for shipwrights)
+    [-4.5, 4.5].forEach(cz => {
+      const catwalkPlankCount = 10;
+      for (let cp = 0; cp < catwalkPlankCount; cp++) {
+        const cx = -36.5 - cp * 2.0;
+        const cPlank = createVoxelBox(1.95, 0.22, 1.4, cp % 2 === 0 ? mats.plank : mats.plankDark);
+        cPlank.position.set(cx, 1.75, cz);
+        slipwayGroup.add(cPlank);
+      }
+
+      // Timber pilings supporting the catwalk out over the water
+      [-38, -42, -46, -50, -54].forEach(px => {
+        const pile = createVoxelBox(0.48, 5.2, 0.48, mats.woodTrim);
+        pile.position.set(px, -0.6, cz);
+        slipwayGroup.add(pile);
+
+        const pileTop = createVoxelBox(0.54, 0.32, 0.54, mats.woodDark);
+        pileTop.position.set(px, 1.95, cz);
+        slipwayGroup.add(pileTop);
+      });
+
+      // Mooring cleats & rope coils on catwalk end
+      const cleat = createVoxelBox(0.65, 0.12, 0.18, mats.iron);
+      cleat.position.set(-54.5, 1.92, cz);
+      slipwayGroup.add(cleat);
+
+      const ropeCoil = createVoxelOctagonRing(0.26, 0.08, 0.08, mats.rope);
+      ropeCoil.rotation.x = Math.PI / 2;
+      ropeCoil.position.set(-53.5, 1.88, cz);
+      slipwayGroup.add(ropeCoil);
+    });
+
+    // Invisible Walkway Colliders for catwalks
+    [-4.5, 4.5].forEach(cz => {
+      const col = new THREE.Mesh(
+        new THREE.BoxGeometry(20.0, 0.35, 1.6),
+        new THREE.MeshBasicMaterial({ visible: false, colorWrite: false, depthWrite: false })
+      );
+      col.position.set(-45.5, 1.75, cz);
+      slipwayGroup.add(col);
+    });
+
+    // 4. THE SHIP HULL SKELETON UNDER CONSTRUCTION
+    // Resting on the keel blocks! Length 14.5m, bow at -54.0, stern at -39.5
+    const shipHullSkeleton = new THREE.Group();
+    shipyardGroup.add(shipHullSkeleton);
+
+    // Keel Beam (Solid square oak beam)
+    const keelBeam = createVoxelBox(14.5, 0.46, 0.46, mats.woodDark);
+    keelBeam.position.set(-46.75, 2.45, 0);
+    shipHullSkeleton.add(keelBeam);
+
+    // Keelson (Inner reinforcement beam)
+    const keelson = createVoxelBox(13.8, 0.38, 0.38, mats.woodMid);
+    keelson.position.set(-46.75, 2.82, 0);
+    shipHullSkeleton.add(keelson);
+
+    // Stem Post at Bow (Curving forward towards the ocean)
+    const stemSegments = [
+      { x: -54.2, y: 2.7, h: 0.6, rotZ: 0.25 },
+      { x: -54.6, y: 3.3, h: 0.7, rotZ: 0.4 },
+      { x: -55.0, y: 3.95, h: 0.75, rotZ: 0.5 },
+      { x: -55.4, y: 4.65, h: 0.8, rotZ: 0.55 },
+      { x: -55.7, y: 5.25, h: 0.65, rotZ: 0.3 }
+    ];
+    stemSegments.forEach(s => {
+      const stemPart = createVoxelBox(0.42, s.h, 0.42, mats.woodDark);
+      stemPart.position.set(s.x, s.y, 0);
+      stemPart.rotation.z = s.rotZ;
+      shipHullSkeleton.add(stemPart);
+    });
+
+    // Stern Post at Aft (Vertical squared post)
+    const sternPost = createVoxelBox(0.44, 2.6, 0.44, mats.woodDark);
+    sternPost.position.set(-39.5, 3.65, 0);
+    shipHullSkeleton.add(sternPost);
+
+    // Transom Wing Beam
+    const transomBeam = createVoxelBox(0.38, 0.38, 3.6, mats.woodTrim);
+    transomBeam.position.set(-39.5, 4.8, 0);
+    shipHullSkeleton.add(transomBeam);
+
+    // 7 Curved Transverse U-Shaped Hull Ribs (The Ship Skeleton Ribcage!)
+    // Varying width profiles from bow to stern
+    const ribConfigs = [
+      { x: -41.0, halfWidth: 1.8, sheerY: 4.8 }, // Aft frame
+      { x: -43.0, halfWidth: 2.3, sheerY: 4.95 },
+      { x: -45.0, halfWidth: 2.6, sheerY: 5.05 }, // Midships
+      { x: -47.0, halfWidth: 2.6, sheerY: 5.05 }, // Midships
+      { x: -49.0, halfWidth: 2.4, sheerY: 5.1 },
+      { x: -51.0, halfWidth: 2.0, sheerY: 5.2 },
+      { x: -53.0, halfWidth: 1.4, sheerY: 5.3 }  // Bow frame
+    ];
+
+    ribConfigs.forEach(rc => {
+      const ribGroup = new THREE.Group();
+      ribGroup.position.set(rc.x, 0, 0);
+
+      // Floor timber across keel
+      const floor = createVoxelBox(0.35, 0.38, rc.halfWidth * 2, mats.woodDark);
+      floor.position.set(0, 2.5, 0);
+      ribGroup.add(floor);
+
+      // Port & Starboard curved futtock frames
+      [-1, 1].forEach(side => {
+        const sz = side * rc.halfWidth;
+        // Lower bilge turn segment
+        const bilgeTurn = createVoxelBox(0.32, 0.85, 0.32, mats.woodMid);
+        bilgeTurn.position.set(0, 3.0, sz * 0.75);
+        bilgeTurn.rotation.x = side * 0.55;
+        ribGroup.add(bilgeTurn);
+
+        // Mid frame side segment
+        const midFrame = createVoxelBox(0.3, 1.25, 0.3, mats.woodMid);
+        midFrame.position.set(0, 3.85, sz * 0.95);
+        midFrame.rotation.x = side * 0.25;
+        ribGroup.add(midFrame);
+
+        // Top sheer frame segment
+        const topFrame = createVoxelBox(0.28, 1.15, 0.28, mats.woodTrim);
+        topFrame.position.set(0, 4.65, sz);
+        ribGroup.add(topFrame);
+      });
+
+      shipHullSkeleton.add(ribGroup);
+    });
+
+    // Longitudinal Sheer Clamps (Timber beams connecting rib tops on port and starboard)
+    [-1, 1].forEach(side => {
+      const sheerClamp = createVoxelBox(13.5, 0.28, 0.28, mats.woodTrim);
+      sheerClamp.position.set(-46.8, 5.05, side * 2.5);
+      shipHullSkeleton.add(sheerClamp);
+    });
+
+    // 4 Cross Deck Beams spanning between frames
+    [-43.0, -46.0, -49.0, -51.5].forEach(dx => {
+      const deckBeam = createVoxelBox(0.28, 0.28, 4.6, mats.woodMid);
+      deckBeam.position.set(dx, 4.75, 0);
+      shipHullSkeleton.add(deckBeam);
+    });
+
+    // Partial Lower Hull Planking (Bottom 2 strakes planked with fresh light timber!)
+    // Leaves upper 70% exposed as a dramatic skeleton!
+    [-1, 1].forEach(side => {
+      const strake1 = createVoxelBox(13.2, 0.42, 0.12, mats.woodHi);
+      strake1.position.set(-46.8, 2.9, side * 1.85);
+      strake1.rotation.x = side * 0.45;
+      shipHullSkeleton.add(strake1);
+
+      const strake2 = createVoxelBox(12.5, 0.42, 0.12, mats.woodHi);
+      strake2.position.set(-46.8, 3.4, side * 2.25);
+      strake2.rotation.x = side * 0.25;
+      shipHullSkeleton.add(strake2);
+
+      // Fastener nail heads along planking
+      for (let n = 0; n < 7; n++) {
+        const nx = -41.0 - n * 2.0;
+        const nail = createVoxelBox(0.04, 0.04, 0.04, mats.iron);
+        nail.position.set(nx, 3.4, side * 2.32);
+        shipHullSkeleton.add(nail);
+      }
+    });
+
+    // Timber Shoring Props (Wedged between catwalks and hull to support vessel)
+    [-43, -47, -51].forEach(sx => {
+      [-1, 1].forEach(side => {
+        const shore = createVoxelBox(0.2, 2.4, 0.2, mats.woodDark);
+        shore.position.set(sx, 2.8, side * 3.3);
+        shore.rotation.x = side * 0.65;
+        shipHullSkeleton.add(shore);
+      });
+    });
+
+    // 5. Heavy Timber Derrick Crane (A-frame derrick on North Catwalk)
+    // Sits at X: -45, Z: 6.8
+    const craneGroup = new THREE.Group();
+    craneGroup.position.set(-45.0, 1.75, 6.8);
+
+    // 4 Diagonal Timber Pylons forming pyramid A-frame rising to Y = 9.2
+    const pylonOffsets = [
+      [-1.4, -1.4], [1.4, -1.4], [-1.4, 1.4], [1.4, 1.4]
+    ];
+    pylonOffsets.forEach(([ox, oz]) => {
+      const leg = createVoxelBox(0.38, 7.6, 0.38, mats.woodDark);
+      leg.position.set(ox * 0.5, 3.7, oz * 0.5);
+      leg.rotation.z = ox > 0 ? -0.16 : 0.16;
+      leg.rotation.x = oz > 0 ? 0.16 : -0.16;
+      craneGroup.add(leg);
+    });
+
+    // Horizontal crane cross ties
+    [2.4, 4.8].forEach(ty => {
+      const tie1 = createVoxelBox(1.8, 0.22, 0.22, mats.woodTrim);
+      tie1.position.set(0, ty, -0.7);
+      craneGroup.add(tie1);
+      const tie2 = createVoxelBox(1.8, 0.22, 0.22, mats.woodTrim);
+      tie2.position.set(0, ty, 0.7);
+      craneGroup.add(tie2);
+    });
+
+    // Top Crown Block
+    const crown = createVoxelBox(1.2, 0.55, 1.2, mats.woodTrim);
+    crown.position.set(0, 7.3, 0);
+    craneGroup.add(crown);
+
+    // Crane Jib / Boom (Heavy timber projecting over the ship to Z = 0)
+    const boom = createVoxelBox(0.38, 0.38, 8.2, mats.woodTrim);
+    boom.position.set(0, 7.2, -3.2); // Extends from Z = +0.9 to Z = -7.3 (reaches over ship centerline!)
+    craneGroup.add(boom);
+
+    // Diagonal boom support strut
+    const boomStrut = createVoxelBox(0.28, 4.2, 0.28, mats.woodDark);
+    boomStrut.position.set(0, 5.8, -2.4);
+    boomStrut.rotation.x = -0.75;
+    craneGroup.add(boomStrut);
+
+    // Iron Sheaves & Hoist Cable
+    const sheave = createVoxelOctagonRing(0.32, 0.08, 0.12, mats.iron);
+    sheave.position.set(0, 7.2, -6.8);
+    craneGroup.add(sheave);
+
+    const hoistCable = createVoxelBox(0.04, 3.4, 0.04, mats.iron);
+    hoistCable.position.set(0, 5.5, -6.8);
+    craneGroup.add(hoistCable);
+
+    // Forged Iron Lifting Hook suspended right over the vessel skeleton
+    const hookShank = createVoxelBox(0.08, 0.45, 0.08, mats.iron);
+    hookShank.position.set(0, 3.65, -6.8);
+    craneGroup.add(hookShank);
+
+    const hookCurve = createVoxelOctagonRing(0.24, 0.08, 0.1, mats.iron);
+    hookCurve.position.set(0, 3.38, -6.8);
+    hookCurve.rotation.y = Math.PI / 2;
+    craneGroup.add(hookCurve);
+
+    // Manual winch drum at crane base
+    const winchDrum = createVoxelBox(0.9, 0.5, 0.5, mats.woodDark);
+    winchDrum.position.set(0, 0.65, 0);
+    craneGroup.add(winchDrum);
+
+    const winchRope = createVoxelBox(0.75, 0.52, 0.52, mats.rope);
+    winchRope.position.set(0, 0.65, 0);
+    craneGroup.add(winchRope);
+
+    const crankHandle = createVoxelBox(0.08, 0.65, 0.08, mats.iron);
+    crankHandle.position.set(0.55, 0.8, 0);
+    craneGroup.add(crankHandle);
+
+    shipyardGroup.add(craneGroup);
+
+    // 6. Shipyard Staging Scaffolding (Along South side of ship)
+    // Sits at X: -43 to -49, Z: -4.5
+    const scaffoldGroup = new THREE.Group();
+    scaffoldGroup.position.set(-46.0, 1.75, -4.5);
+
+    // Upright poles
+    [-3.0, 0, 3.0].forEach(sx => {
+      [-0.6, 0.6].forEach(sz => {
+        const pole = createVoxelBox(0.22, 4.4, 0.22, mats.woodDark);
+        pole.position.set(sx, 2.2, sz);
+        scaffoldGroup.add(pole);
+      });
+    });
+
+    // Lower staging platform at Y = 2.85
+    const lowerDeck = createVoxelBox(6.4, 0.14, 1.45, mats.plank);
+    lowerDeck.position.set(0, 1.1, 0);
+    scaffoldGroup.add(lowerDeck);
+
+    // Upper staging platform at Y = 4.15
+    const upperDeck = createVoxelBox(6.4, 0.14, 1.45, mats.plank);
+    upperDeck.position.set(0, 2.4, 0);
+    scaffoldGroup.add(upperDeck);
+
+    // Safety guard rails
+    [1.6, 2.9].forEach(ry => {
+      const rail = createVoxelBox(6.4, 0.08, 0.1, mats.woodTrim);
+      rail.position.set(0, ry, -0.65);
+      scaffoldGroup.add(rail);
+    });
+
+    // Diagonal X-bracing on back of scaffold
+    [-1.5, 1.5].forEach(bx => {
+      const braceX1 = createVoxelBox(3.4, 0.08, 0.08, mats.woodDark);
+      braceX1.position.set(bx, 1.75, -0.65);
+      braceX1.rotation.z = 0.55;
+      scaffoldGroup.add(braceX1);
+
+      const braceX2 = createVoxelBox(3.4, 0.08, 0.08, mats.woodDark);
+      braceX2.position.set(bx, 1.75, -0.65);
+      braceX2.rotation.z = -0.55;
+      scaffoldGroup.add(braceX2);
+    });
+
+    // Wooden Ladder leaning against scaffold
+    const ladder = new THREE.Group();
+    ladder.position.set(2.8, 1.25, 0.95);
+    ladder.rotation.x = -0.32;
+    [-0.24, 0.24].forEach(lx => {
+      const rail = createVoxelBox(0.08, 2.7, 0.08, mats.woodDark);
+      rail.position.set(lx, 0, 0);
+      ladder.add(rail);
+    });
+    for (let r = 0; r < 6; r++) {
+      const rung = createVoxelBox(0.44, 0.06, 0.06, mats.woodTrim);
+      rung.position.set(0, -1.0 + r * 0.42, 0);
+      ladder.add(rung);
+    }
+    scaffoldGroup.add(ladder);
+
+    shipyardGroup.add(scaffoldGroup);
+
+    // 7. Shipwright's Workshop / Framing Shed Skeleton (Open Post-and-Beam Pavilion)
+    // Located in the shipyard yard at X: -32 to -39, Z: 6.5 to 15.5
+    const shedGroup = new THREE.Group();
+    shedGroup.position.set(-35.5, 1.78, 11.0);
+
+    const shedW = 6.8;
+    const shedD = 8.5;
+    const shedH = 4.2;
+
+    // 6 Sturdy Timber Columns
+    [-shedW / 2 + 0.3, shedW / 2 - 0.3].forEach(cx => {
+      [-shedD / 2 + 0.3, 0, shedD / 2 - 0.3].forEach(cz => {
+        const col = createVoxelBox(0.38, shedH, 0.38, mats.woodTrim);
+        col.position.set(cx, shedH / 2, cz);
+        shedGroup.add(col);
+
+        // Stone column footing
+        const foot = createVoxelBox(0.48, 0.32, 0.48, mats.stone);
+        foot.position.set(cx, 0.16, cz);
+        shedGroup.add(foot);
+      });
+    });
+
+    // Top Perimeter Tie Beams
+    [-shedD / 2 + 0.3, shedD / 2 - 0.3].forEach(cz => {
+      const tieX = createVoxelBox(shedW, 0.32, 0.32, mats.woodTrim);
+      tieX.position.set(0, shedH, cz);
+      shedGroup.add(tieX);
+    });
+    [-shedW / 2 + 0.3, shedW / 2 - 0.3].forEach(cx => {
+      const tieZ = createVoxelBox(0.32, 0.32, shedD, mats.woodTrim);
+      tieZ.position.set(cx, shedH, 0);
+      shedGroup.add(tieZ);
+    });
+
+    // Exposed A-Frame Roof Trusses (Skeleton Rafters)
+    [-shedD / 2 + 0.3, 0, shedD / 2 - 0.3].forEach(tz => {
+      const rafterLeft = createVoxelBox(shedW * 0.58, 0.22, 0.24, mats.woodDark);
+      rafterLeft.position.set(-shedW * 0.24, shedH + 0.75, tz);
+      rafterLeft.rotation.z = 0.52;
+      rafterLeft.userData.noWalk = true;
+      shedGroup.add(rafterLeft);
+
+      const rafterRight = createVoxelBox(shedW * 0.58, 0.22, 0.24, mats.woodDark);
+      rafterRight.position.set(shedW * 0.24, shedH + 0.75, tz);
+      rafterRight.rotation.z = -0.52;
+      rafterRight.userData.noWalk = true;
+      shedGroup.add(rafterRight);
+
+      // King post
+      const kingPost = createVoxelBox(0.22, 1.45, 0.22, mats.woodTrim);
+      kingPost.position.set(0, shedH + 0.72, tz);
+      kingPost.userData.noWalk = true;
+      shedGroup.add(kingPost);
+    });
+
+    // Ridge Beam running along the roof apex
+    const ridgeBeam = createVoxelBox(0.26, 0.26, shedD + 0.6, mats.woodDark);
+    ridgeBeam.position.set(0, shedH + 1.48, 0);
+    ridgeBeam.userData.noWalk = true;
+    shedGroup.add(ridgeBeam);
+
+    // Open Horizontal Roof Battens (Skeleton roof look)
+    [-1, 1].forEach(side => {
+      [0.4, 0.9, 1.3].forEach(by => {
+        const batten = createVoxelBox(0.12, 0.12, shedD + 0.4, mats.woodMid);
+        batten.position.set(side * (shedW * 0.48 - by * 0.8), shedH + by, 0);
+        batten.userData.noWalk = true;
+        shedGroup.add(batten);
+      });
+    });
+
+    // 8. WORKSHOP FURNITURE & PROPS
+    // Master Carpenter's Heavy Workbench
+    const benchGroup = new THREE.Group();
+    benchGroup.position.set(-1.8, 0, -1.8);
+
+    const workTableTop = createVoxelBox(2.6, 0.24, 1.1, mats.woodMid);
+    workTableTop.position.set(0, 0.88, 0);
+    benchGroup.add(workTableTop);
+
+    [-1.1, 1.1].forEach(bx => {
+      [-0.4, 0.4].forEach(bz => {
+        const leg = createVoxelBox(0.2, 0.88, 0.2, mats.woodDark);
+        leg.position.set(bx, 0.44, bz);
+        benchGroup.add(leg);
+      });
+    });
+
+    // Bench Vise
+    const viseJaw = createVoxelBox(0.18, 0.28, 0.35, mats.iron);
+    viseJaw.position.set(-1.3, 0.94, 0.35);
+    benchGroup.add(viseJaw);
+
+    const viseHandle = createVoxelBox(0.06, 0.38, 0.06, mats.woodHi);
+    viseHandle.position.set(-1.42, 0.94, 0.35);
+    benchGroup.add(viseHandle);
+
+    // Hand tools on bench (Crosscut saw, wooden mallet, broad axe)
+    const sawBlade = createVoxelBox(0.65, 0.12, 0.02, mats.ironLight);
+    sawBlade.position.set(0.4, 1.02, -0.2);
+    benchGroup.add(sawBlade);
+
+    const sawHandle = createVoxelBox(0.14, 0.14, 0.06, mats.woodHi);
+    sawHandle.position.set(0.72, 1.03, -0.2);
+    benchGroup.add(sawHandle);
+
+    const malletHead = createVoxelBox(0.14, 0.14, 0.22, mats.woodDark);
+    malletHead.position.set(-0.35, 1.05, 0.15);
+    benchGroup.add(malletHead);
+
+    const malletHandle = createVoxelBox(0.35, 0.06, 0.06, mats.woodHi);
+    malletHandle.position.set(-0.35, 1.03, 0.32);
+    malletHandle.rotation.y = Math.PI / 2;
+    benchGroup.add(malletHandle);
+
+    // Fresh wood curly shavings voxels on floor and table
+    [
+      [0.2, 1.01, 0.2], [-0.6, 1.01, -0.1], [0.8, 0.06, 0.8], [-0.3, 0.06, 1.1]
+    ].forEach(([cx, cy, cz]) => {
+      const curl = createVoxelBox(0.14, 0.04, 0.12, mats.woodHi, false, false);
+      curl.position.set(cx, cy, cz);
+      curl.rotation.y = cx * 3;
+      benchGroup.add(curl);
+    });
+
+    shedGroup.add(benchGroup);
+
+    // 9. DRAFTSMAN'S BLUEPRINT TABLE (INTERACTABLE STATION!)
+    const draftGroup = new THREE.Group();
+    draftGroup.position.set(1.8, 0, -1.5);
+
+    const draftTableTop = createVoxelBox(1.9, 0.14, 1.3, mats.woodHi);
+    draftTableTop.position.set(0, 0.95, 0);
+    draftTableTop.rotation.x = -0.14; // Slanted drafting board
+    draftGroup.add(draftTableTop);
+
+    // Tag the drafting table mesh as the interactable shipyard bench!
+    draftTableTop.userData.isShipyardBench = true;
+    this.shipyardInteractables.push(draftTableTop);
+
+    [-0.8, 0.8].forEach(dx => {
+      [-0.45, 0.45].forEach(dz => {
+        const leg = createVoxelBox(0.16, 0.92, 0.16, mats.woodDark);
+        leg.position.set(dx, 0.46, dz);
+        draftGroup.add(leg);
+      });
+    });
+
+    // Nautical Blueprint Scroll on table
+    const blueprint = createVoxelBox(1.4, 0.02, 0.95, mats.blueprint);
+    blueprint.position.set(0, 1.04, 0);
+    blueprint.rotation.x = -0.14;
+    blueprint.userData.isShipyardBench = true;
+    this.shipyardInteractables.push(blueprint);
+    draftGroup.add(blueprint);
+
+    // White grid lines on blueprint
+    for (let g = 0; g < 3; g++) {
+      const gridLine = createVoxelBox(1.2, 0.025, 0.04, mats.paper);
+      gridLine.position.set(0, 1.05, -0.28 + g * 0.28);
+      gridLine.rotation.x = -0.14;
+      gridLine.userData.isShipyardBench = true;
+      draftGroup.add(gridLine);
+    }
+
+    // Brass drafting compass & inkpot
+    const inkPot = createVoxelBox(0.12, 0.14, 0.12, mats.iron);
+    inkPot.position.set(0.72, 1.08, -0.32);
+    draftGroup.add(inkPot);
+
+    const compassLeg1 = createVoxelBox(0.04, 0.24, 0.04, mats.brass);
+    compassLeg1.position.set(-0.55, 1.08, -0.2);
+    compassLeg1.rotation.z = 0.3;
+    draftGroup.add(compassLeg1);
+
+    const compassLeg2 = createVoxelBox(0.04, 0.24, 0.04, mats.brass);
+    compassLeg2.position.set(-0.48, 1.08, -0.2);
+    compassLeg2.rotation.z = -0.3;
+    draftGroup.add(compassLeg2);
+
+    shedGroup.add(draftGroup);
+
+    // Lumber Drying Racks & Timber Stacks in workshop
+    const lumberRack = new THREE.Group();
+    lumberRack.position.set(-1.8, 0, 2.2);
+
+    // Rack timber frames
+    [-1.2, 1.2].forEach(rx => {
+      const upright = createVoxelBox(0.18, 2.2, 0.18, mats.woodDark);
+      upright.position.set(rx, 1.1, 0);
+      lumberRack.add(upright);
+
+      [0.6, 1.2, 1.8].forEach(ry => {
+        const arm = createVoxelBox(0.14, 0.1, 0.8, mats.woodDark);
+        arm.position.set(rx, ry, 0);
+        lumberRack.add(arm);
+      });
+    });
+
+    // Stacked planed lumber planks drying on rack
+    for (let p = 0; p < 5; p++) {
+      const plank = createVoxelBox(2.8, 0.08, 0.32, mats.woodHi);
+      plank.position.set(0, 0.7 + p * 0.28, (p % 2 === 0 ? 0.12 : -0.12));
+      lumberRack.add(plank);
+    }
+    shedGroup.add(lumberRack);
+
+    // Barrels of caulking tar and nail kegs
+    const tarBarrel = createVoxelBarrel(0.38, 1.1, mats.woodAged, mats.iron);
+    tarBarrel.position.set(2.0, 0.55, 2.2);
+    shedGroup.add(tarBarrel);
+
+    const nailKeg = createVoxelBarrel(0.28, 0.75, mats.woodMid, mats.iron);
+    nailKeg.position.set(1.4, 0.38, 2.6);
+    shedGroup.add(nailKeg);
+
+    shipyardGroup.add(shedGroup);
+
+    // 10. South Cove Weathered Rowboat (Dinghy resting on sand)
+    // Sits on beach at X: -34, Z: -16.5
+    const rowboatGroup = new THREE.Group();
+    rowboatGroup.position.set(-34.0, 1.45, -16.5);
+    rowboatGroup.rotation.y = 0.45;
+    rowboatGroup.rotation.z = 0.08; // Resting tilted on the sand dune
+
+    const boatLen = 3.6;
+    const boatW = 1.6;
+
+    // Rowboat bottom
+    const boatFloor = createVoxelBox(boatLen - 0.4, 0.12, boatW - 0.4, mats.plankDark);
+    boatFloor.position.y = 0.06;
+    rowboatGroup.add(boatFloor);
+
+    // Bow stem
+    const bBow = createVoxelBox(0.32, 0.55, 0.32, mats.woodTrim);
+    bBow.position.set(-boatLen / 2 + 0.16, 0.28, 0);
+    rowboatGroup.add(bBow);
+
+    // Transom stern
+    const bStern = createVoxelBox(0.18, 0.55, boatW - 0.2, mats.woodTrim);
+    bStern.position.set(boatLen / 2 - 0.09, 0.28, 0);
+    rowboatGroup.add(bStern);
+
+    // Port and Starboard gunwale sides
+    [-boatW / 2 + 0.1, boatW / 2 - 0.1].forEach(sideZ => {
+      const gunwale = createVoxelBox(boatLen, 0.48, 0.16, mats.woodMid);
+      gunwale.position.set(0, 0.3, sideZ);
+      rowboatGroup.add(gunwale);
+    });
+
+    // Thwart bench seats inside rowboat
+    [-0.5, 0.6].forEach(bx => {
+      const benchSeat = createVoxelBox(0.28, 0.08, boatW - 0.25, mats.woodHi);
+      benchSeat.position.set(bx, 0.32, 0);
+      rowboatGroup.add(benchSeat);
+    });
+
+    // Pair of wooden oars resting inside
+    const oar1 = createVoxelBox(2.2, 0.06, 0.06, mats.woodHi);
+    oar1.position.set(0.1, 0.42, 0.25);
+    oar1.rotation.y = -0.15;
+    rowboatGroup.add(oar1);
+
+    const oarBlade1 = createVoxelBox(0.45, 0.04, 0.16, mats.woodHi);
+    oarBlade1.position.set(-0.95, 0.42, 0.38);
+    rowboatGroup.add(oarBlade1);
+
+    const oar2 = createVoxelBox(2.2, 0.06, 0.06, mats.woodHi);
+    oar2.position.set(0.1, 0.42, -0.25);
+    oar2.rotation.y = 0.12;
+    rowboatGroup.add(oar2);
+
+    const oarBlade2 = createVoxelBox(0.45, 0.04, 0.16, mats.woodHi);
+    oarBlade2.position.set(-0.95, 0.42, -0.38);
+    rowboatGroup.add(oarBlade2);
+
+    // Driftwood logs on beach
+    const driftLog1 = createVoxelBox(2.8, 0.35, 0.35, mats.woodAged);
+    driftLog1.position.set(2.4, 0.18, 1.2);
+    driftLog1.rotation.y = -0.4;
+    rowboatGroup.add(driftLog1);
+
+    const driftLog2 = createVoxelBox(2.2, 0.28, 0.28, mats.woodAged);
+    driftLog2.position.set(-1.8, 0.14, 1.8);
+    driftLog2.rotation.y = 0.6;
+    rowboatGroup.add(driftLog2);
+
+    shipyardGroup.add(rowboatGroup);
   }
 
   update(delta, time) {
