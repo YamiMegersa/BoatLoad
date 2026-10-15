@@ -113,7 +113,7 @@ export class BuildSystem {
     let targetZ = cellZ;
 
     const state = this._grid.getState(cellX, cellY, cellZ);
-    const isRepair = (state === CellState.MISSING || state === CellState.DAMAGED);
+    const isRepair = (state === CellState.MISSING || state === CellState.DAMAGED || state === CellState.FLOODED);
 
     if (normal && !isRepair) {
       // Snap to the adjacent cell based on the normal
@@ -163,7 +163,7 @@ export class BuildSystem {
     let targetZ = cellZ;
 
     const state = this._grid.getState(cellX, cellY, cellZ);
-    const isRepair = (state === CellState.MISSING || state === CellState.DAMAGED);
+    const isRepair = (state === CellState.MISSING || state === CellState.DAMAGED || state === CellState.FLOODED);
 
     if (normal && !isRepair) {
       targetX += normal.x;
@@ -192,7 +192,7 @@ export class BuildSystem {
           if (this._grid.inBounds(cx, cy, cz)) {
             const before = this._grid.getState(cx, cy, cz);
             if (before === CellState.MISSING || before === CellState.DAMAGED || before === CellState.FLOODED) {
-              repairedCells.push({ x: cx, y: cy, z: cz });
+              repairedCells.push({ x: cx, y: cy, z: cz, before, after: CellState.INTACT });
             }
             // Overwrite existing or fill empty
             this._grid.setState(cx, cy, cz, CellState.INTACT);

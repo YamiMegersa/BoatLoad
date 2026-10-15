@@ -30,8 +30,8 @@ export class DamageSystem {
    * @returns {Array<{ id: string, label: string, mandatory: boolean, zone: string,
    *                    tool: string, remaining: number, leaks: number }>}
    */
-  static buildDocket(grid, zones) {
-    const counts = new Map(); // zone → { total, leaks }
+  static buildDocket(grid, zones, authoredTasks = []) {
+    const damagedCells = new Map();
 
     for (let z = 0; z < grid.depth; z++) {
       for (let y = 0; y < grid.height; y++) {
@@ -39,23 +39,49 @@ export class DamageSystem {
           const state = grid.getState(x, y, z);
           if (state !== CellState.MISSING && state !== CellState.DAMAGED && state !== CellState.FLOODED) continue;
           const zone = ShipBuilder.zoneOf({ x, y, z }, zones) ?? 'superstructure';
-          const entry = counts.get(zone) ?? { total: 0, leaks: 0 };
-          entry.total++;
-          if (zone === 'hull' && y <= WATERLINE_Y) entry.leaks++;
-          counts.set(zone, entry);
+          if (!damagedCells.has(zone)) damagedCells.set(zone, []);
+          damagedCells.get(zone).push({ x, y, z });
         }
       }
     }
 
-    return [...counts.entries()].map(([zone, { total, leaks }]) => ({
-      id: `repair-${zone}`,
-      label: `Repair the ${zone} (${total} ${total === 1 ? 'cell' : 'cells'}${leaks ? `, ${leaks} leaking` : ''})`,
-      mandatory: leaks > 0,
-      zone,
-      tool: TOOL_BY_ZONE[zone] ?? 'hammer',
-      remaining: total,
-      leaks,
-    }));
+    const tasks = [];
+    for (const [zone, cells] of damagedCells) {
+      const authored = authoredTasks.find(task => task.zone === zone);
+      const leaks = zone === 'hull' ? cells.filter(cell => cell.y <= WATERLINE_Y).length : 0;
+      const count = cells.length;
+      const fallbackLabel = `Repair ${zone} (${count} ${count === 1 ? 'damaged cell' : 'damaged cells'}${leaks ? `, ${leaks} leaking` : ''})`;
+      tasks.push({
+        id: authored?.id ?? `repair-${zone}`,
+        label: authored?.label ?? fallbackLabel,
+        mandatory: authored?.mandatory ?? leaks > 0,
+        zone,
+        tool: authored?.tool ?? TOOL_BY_ZONE[zone] ?? 'hammer',
+        targetCells: cells,
+        total: count,
+        remaining: count,
+        leaks,
+        completed: false,
+      });
+    }
+
+    return tasks;
+  }
+
+  /**
+   * Refresh progress for stable docket tasks using their original cell targets.
+   * @param {import('./VoxelGrid.js').VoxelGrid} grid
+   * @param {Array<object>} tasks
+   * @returns {Array<object>}
+   */
+  static getDocketProgress(grid, tasks) {
+    return tasks.map(task => {
+      const remaining = task.targetCells.filter(({ x, y, z }) => {
+        const state = grid.getState(x, y, z);
+        return state === CellState.MISSING || state === CellState.DAMAGED || state === CellState.FLOODED;
+      }).length;
+      return { ...task, remaining, completed: remaining === 0 };
+    });
   }
 
   /**
