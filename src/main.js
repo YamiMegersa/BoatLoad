@@ -241,46 +241,106 @@ on('buildError', (d) => {
 // Boot
 // ---------------------------------------------------------------------------
 
+const MAX_DAY = 7;
+
 async function boot() {
   try {
-    // Load Day 1 data
-    const { shipDef, levelCfg, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels } = await LevelConfig.load(1);
+    // Start day: ?debug&day=N jumps straight to a day (dev aid), else day 1.
+    const startDay = DEBUG
+      ? Math.max(1, Math.min(MAX_DAY, parseInt(new URLSearchParams(location.search).get('day')) || 1))
+      : 1;
+
+    // The active day's content. Reloaded via syncLevel() whenever gameState.day
+    // changes (passing a voyage increments the day in GameState._enterResults).
+    let level = await LevelConfig.load(startDay);
+    let loadedDay = startDay;
+    gameState.day = startDay;
 
     // Expose to window for debugging if needed
-    window.__DEBUG_ROCK_MODELS = rockModels;
+    window.__DEBUG_ROCK_MODELS = level.rockModels;
+
+    // Reload level content when the day changed (e.g. after passing a voyage).
+    // A missing day JSON falls back to the last valid day with a console error.
+    async function syncLevel() {
+      if (gameState.day === loadedDay) return;
+
+      if (gameState.day > MAX_DAY) {
+        logEvent('[Level] All days cleared — voyage complete! Replaying the final day.');
+        showNotice('⛵ ALL 7 DAYS CLEARED — VOYAGE COMPLETE! ⛵', 8000);
+        gameState.day = MAX_DAY;
+        if (loadedDay === MAX_DAY) return;
+      }
+
+      const day = gameState.day;
+      try {
+        level = await LevelConfig.load(day);
+        loadedDay = day;
+        window.__DEBUG_ROCK_MODELS = level.rockModels;
+        logEvent(`[Level] Day ${day} loaded`);
+      } catch (e) {
+        console.error(`[Level] Failed to load day ${day} — keeping day ${loadedDay}`, e);
+        logEvent(`[Level] Day ${day} unavailable — staying on day ${loadedDay}`);
+        gameState.day = loadedDay;
+      }
+    }
+
+    // Shared payload builders so every handler reads the CURRENT day's content
+    // instead of variables captured once at boot.
+    function sailPayload(levelCfgOverride = null) {
+      let hp = 100;
+      if (gameState._grid) {
+        hp = DamageSystem.getSummary(gameState._grid).integrityPct;
+      }
+      return {
+        shipDef: level.shipDef,
+        levelCfg: levelCfgOverride ?? (gameState._levelCfg || level.levelCfg),
+        shipStats: { hullHP: hp },
+        rockModels: level.rockModels,
+        fishModels: level.fishModels,
+        pickupModels: level.pickupModels,
+        seaweedModels: level.seaweedModels,
+        waveModels: level.waveModels,
+        islandModels: level.islandModels,
+      };
+    }
+
+    function shipyardPayload() {
+      return { shipDef: level.shipDef, levelCfg: level.levelCfg, fishModels: level.fishModels };
+    }
+
+    function editorPayload() {
+      return {
+        levelCfg: gameState._levelCfg || level.levelCfg,
+        rockModels: level.rockModels, pickupModels: level.pickupModels,
+        seaweedModels: level.seaweedModels, waveModels: level.waveModels,
+        islandModels: level.islandModels,
+      };
+    }
 
     // Wire buttons
     document.getElementById('btn-main-menu').onclick = () => {
       logEvent('Transitioning to Main Menu...');
       gameState.transition(GamePhase.MAIN_MENU);
     };
-    document.getElementById('btn-dock').onclick = () => {
+    document.getElementById('btn-dock').onclick = async () => {
       logEvent('Transitioning to Dock...');
-      gameState.transition(GamePhase.DOCK, { levelCfg });
+      await syncLevel();
+      gameState.transition(GamePhase.DOCK, { levelCfg: level.levelCfg });
     };
-    document.getElementById('btn-shipyard').onclick = () => {
+    document.getElementById('btn-shipyard').onclick = async () => {
       logEvent('Transitioning to Shipyard...');
-      gameState.transition(GamePhase.SHIPYARD, { shipDef, levelCfg, fishModels });
+      await syncLevel();
+      gameState.transition(GamePhase.SHIPYARD, shipyardPayload());
     };
-    document.getElementById('btn-obstacle').onclick = () => {
+    document.getElementById('btn-obstacle').onclick = async () => {
       logEvent('Transitioning to Sailing...');
-      let hp = 100;
-      if (gameState._grid) {
-        hp = DamageSystem.getSummary(gameState._grid).integrityPct;
-      }
-      gameState.transition(GamePhase.OBSTACLE, {
-        shipDef,
-        levelCfg: gameState._levelCfg || levelCfg,
-        shipStats: { hullHP: hp },
-        rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels
-      });
+      await syncLevel();
+      gameState.transition(GamePhase.OBSTACLE, sailPayload());
     };
-    document.getElementById('btn-editor').onclick = () => {
+    document.getElementById('btn-editor').onclick = async () => {
       logEvent('Transitioning to Level Editor...');
-      gameState.transition(GamePhase.EDITOR, {
-        levelCfg: gameState._levelCfg || levelCfg,
-        rockModels, pickupModels, seaweedModels, waveModels, islandModels
-      });
+      await syncLevel();
+      gameState.transition(GamePhase.EDITOR, editorPayload());
     };
 
     // Listen for UI events
@@ -292,35 +352,16 @@ async function boot() {
     on('playerSunk',         () => logEvent('[SUNK] Game Over'));
 
     // Start sailing from shipyard
-    on('startSailing', () => {
-      let hp = 100;
-      if (gameState._grid) {
-        hp = DamageSystem.getSummary(gameState._grid).integrityPct;
-      }
-      gameState.transition(GamePhase.OBSTACLE, {
-        shipDef,
-        levelCfg: gameState._levelCfg || levelCfg,
-        shipStats: { hullHP: hp },
-        rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels
-      });
+    on('startSailing', async () => {
+      await syncLevel();
+      gameState.transition(GamePhase.OBSTACLE, sailPayload());
     });
 
     on('editorRequestPlay', () => {
       if (gameState.currentPhase === GamePhase.EDITOR && gameState._editorSystem) {
         logEvent('Playing Custom Level from Editor...');
         const customLevelCfg = gameState._editorSystem.getPlayableConfig();
-
-        let hp = 100;
-        if (gameState._grid) {
-          hp = DamageSystem.getSummary(gameState._grid).integrityPct;
-        }
-
-        gameState.transition(GamePhase.OBSTACLE, {
-          shipDef,
-          levelCfg: customLevelCfg,
-          shipStats: { hullHP: hp },
-          rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels
-        });
+        gameState.transition(GamePhase.OBSTACLE, sailPayload(customLevelCfg));
       }
     });
 
@@ -337,31 +378,26 @@ async function boot() {
     on('editorSetPaperWobble', d => paperFilter.setWobbleIntensity(d.intensity));
 
     // Request phase changes from UI
-    on('requestPhaseChange', ({ phase }) => {
+    on('requestPhaseChange', async ({ phase }) => {
       if (phase === GamePhase.MAIN_MENU) {
         logEvent('Main Menu requested...');
         gameState.transition(GamePhase.MAIN_MENU);
       } else if (phase === GamePhase.DOCK) {
         logEvent('Setting Sail -> Arriving at Dock...');
-        gameState.transition(GamePhase.DOCK, { levelCfg });
+        await syncLevel();
+        gameState.transition(GamePhase.DOCK, { levelCfg: level.levelCfg });
       } else if (phase === GamePhase.SHIPYARD) {
         logEvent('Entering Shipyard...');
-        gameState.transition(GamePhase.SHIPYARD, { shipDef, levelCfg, fishModels });
+        await syncLevel();
+        gameState.transition(GamePhase.SHIPYARD, shipyardPayload());
       } else if (phase === GamePhase.OBSTACLE) {
         logEvent('Setting Sail -> Heading to High Seas...');
-        let hp = 100;
-        if (gameState._grid) {
-          hp = DamageSystem.getSummary(gameState._grid).integrityPct;
-        }
-        gameState.transition(GamePhase.OBSTACLE, {
-          shipDef,
-          levelCfg: gameState._levelCfg || levelCfg,
-          shipStats: { hullHP: hp },
-          rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels
-        });
+        await syncLevel();
+        gameState.transition(GamePhase.OBSTACLE, sailPayload());
       } else if (phase === GamePhase.EDITOR) {
         logEvent('Opening Map Maker / Level Editor...');
-        gameState.transition(GamePhase.EDITOR, { levelCfg: gameState._levelCfg || levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels });
+        await syncLevel();
+        gameState.transition(GamePhase.EDITOR, editorPayload());
       }
     });
 
@@ -393,17 +429,19 @@ async function boot() {
       setPaused(false);
     });
 
-    on('restartPhase', () => {
+    on('restartPhase', async () => {
       if (gameState.currentPhase === GamePhase.OBSTACLE) {
         gameState.restartSailing();
       } else if (gameState.currentPhase === GamePhase.SHIPYARD) {
-        gameState.transition(GamePhase.SHIPYARD, { shipDef, levelCfg, fishModels }, true);
+        await syncLevel();
+        gameState.transition(GamePhase.SHIPYARD, shipyardPayload(), true);
       }
     });
 
-    on('gotoShipyard', () => {
+    on('gotoShipyard', async () => {
       setPaused(false);
-      gameState.transition(GamePhase.SHIPYARD, { shipDef, levelCfg, fishModels });
+      await syncLevel();
+      gameState.transition(GamePhase.SHIPYARD, shipyardPayload());
     });
 
     on('gotoTitle', () => {
@@ -412,7 +450,7 @@ async function boot() {
     });
 
     // Start at Main Menu
-    await gameState.transition(GamePhase.MAIN_MENU, { shipDef, levelCfg, fishModels });
+    await gameState.transition(GamePhase.MAIN_MENU, shipyardPayload());
 
     tick();
   } catch (err) {
