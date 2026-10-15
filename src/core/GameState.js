@@ -409,14 +409,23 @@ export class GameState {
       this._ocean.setWorldSize(levelCfg?.worldSize || 200);
     }
 
-    // Build the voxel data
-    const { grid, zones, def, gltfScene } = await ShipBuilder.build(shipDef, levelCfg);
+    // Build the voxel data. A failed build must not half-initialise the
+    // shipyard — stay on the previous scene and surface the error loudly.
+    let buildResult;
+    try {
+      buildResult = await ShipBuilder.build(shipDef, levelCfg);
+    } catch (e) {
+      console.error('[GameState] Ship build failed — shipyard not initialised:', e);
+      emit('buildError', { shipId: shipDef?.id, message: 'The ship failed to build. Please try again.' });
+      return;
+    }
+    const { grid, zones, def } = buildResult;
     this._grid  = grid;
     this._zones = zones;
 
     // Chunk renderer
     this._chunkRenderer = new ChunkRenderer();
-    this._chunkRenderer.init(grid, this._scene, gltfScene);
+    this._chunkRenderer.init(grid, this._scene);
 
     // BVH raycaster
     this._raycaster = new ShipRaycaster();

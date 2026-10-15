@@ -137,8 +137,7 @@ export class ChunkRenderer {
     }
 
     for (const mesh of this._individualMeshes.values()) {
-      this.container.remove(mesh);
-      mesh.geometry.dispose();
+      this._disposeIndividualMesh(mesh);
     }
     this._individualMeshes.clear();
     this._individualQueue.length = 0;
@@ -151,8 +150,7 @@ export class ChunkRenderer {
 
   _fullRebuild(grid) {
     for (const mesh of this._individualMeshes.values()) {
-      this.container.remove(mesh);
-      mesh.geometry.dispose();
+      this._disposeIndividualMesh(mesh);
     }
     this._individualMeshes.clear();
     this._individualQueue.length = 0;
@@ -235,6 +233,17 @@ export class ChunkRenderer {
     }
 
     return instanceDirty;
+  }
+
+  /**
+   * Remove an individual overlay mesh. BOX_GEO/EDGES_GEO are module-level and
+   * shared by every ChunkRenderer instance — they must never be disposed here.
+   */
+  _disposeIndividualMesh(mesh) {
+    this.container.remove(mesh);
+    if (mesh.geometry !== BOX_GEO && mesh.geometry !== EDGES_GEO) {
+      mesh.geometry.dispose();
+    }
   }
 
   _spawnIndividual(grid, x, y, z, flatIdx, material, isOutline = false) {

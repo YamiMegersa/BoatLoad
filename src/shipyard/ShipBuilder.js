@@ -1,13 +1,21 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VoxelGrid, CellState } from './VoxelGrid.js';
+import { emit } from '../core/EventBus.js';
+
+/**
+ * Pristine voxelised ships, keyed by ship id: shipId -> VoxelGrid.snapshot()
+ * taken BEFORE authored damage is applied. Later builds restore from the cache
+ * instead of re-fetching, re-parsing and re-voxelising the GLB.
+ */
+const _pristineCache = new Map();
 
 /**
  * ShipBuilder — instantiates a VoxelGrid from a ship definition JSON,
  * loads the GLB visual representation, and applies damage.
  *
  * Usage:
- *   const { grid, zones, def, gltfScene } = await ShipBuilder.build(shipDef, levelConfig);
+ *   const { grid, zones, def } = await ShipBuilder.build(shipDef, levelConfig);
  */
 export class ShipBuilder {
   /**
@@ -21,25 +29,56 @@ export class ShipBuilder {
     const { x: W, y: H, z: D } = shipDef.grid;
     const grid = new VoxelGrid(W, H, D);
 
-    const loader = new GLTFLoader();
-    let gltf;
-    try {
-      gltf = await loader.loadAsync(`/src/assets/ships/${shipDef.id}.glb`);
-    } catch (e) {
-      console.warn(`ShipBuilder: Failed to load ${shipDef.id}.glb. Falling back to JSON zone bounds.`);
-      // Fallback: fill all cells that fall inside any zone as INTACT.
-      for (const [, zoneDefs] of Object.entries(shipDef.zones)) {
-        for (const region of zoneDefs) {
-          ShipBuilder._fillRegion(grid, region, CellState.INTACT);
+    const cached = _pristineCache.get(shipDef.id);
+    if (cached) {
+      // Fast path: restore the cached pristine voxelisation — no fetch, no
+      // parse, no re-voxelise. This also removes the post-sink GLB failure
+      // class that used to leave a blocky zone-fill "ship" behind.
+      grid.restore(cached);
+    } else {
+      let gltf;
+      try {
+        gltf = await ShipBuilder._loadGLB(shipDef.id);
+      } catch (e) {
+        // Last-resort only: loud, visible blocky fallback. Never silent.
+        console.error(`[ShipBuilder] ${shipDef.id}.glb unavailable after retry — using blocky zone fallback`, e);
+        emit('buildError', {
+          shipId: shipDef.id,
+          message: `Could not load ${shipDef.id}.glb — showing a blocky placeholder.`,
+        });
+        // Fallback: fill all cells that fall inside any zone as INTACT.
+        for (const [, zoneDefs] of Object.entries(shipDef.zones)) {
+          for (const region of zoneDefs) {
+            ShipBuilder._fillRegion(grid, region, CellState.INTACT);
+          }
         }
+        this._applyDamage(grid, levelCfg);
+        grid.dirtySet.clear();
+        grid.topologyDirty = false;
+        return { grid, zones: shipDef.zones, def: shipDef };
       }
-      this._applyDamage(grid, levelCfg);
-      grid.dirtySet.clear();
-      grid.topologyDirty = false;
-      return { grid, zones: shipDef.zones, def: shipDef };
+
+      ShipBuilder._voxelise(gltf, grid, W, H, D);
+      // Cache the pristine ship BEFORE any authored damage is applied.
+      _pristineCache.set(shipDef.id, grid.snapshot());
     }
 
-    // 1. Voxelize the GLB to find occupied cells and their colors
+    // Apply the level's authored damage on top of the pristine ship
+    this._applyDamage(grid, levelCfg);
+
+    // Reset tracking flags for the initial render pass
+    grid.dirtySet.clear();
+    grid.topologyDirty = false;
+
+    return { grid, zones: shipDef.zones, def: shipDef };
+  }
+
+  /**
+   * Voxelize a loaded GLB into the grid: scale it to the grid bounds, then
+   * mark a cell INTACT for every triangle centroid landing inside it, sampling
+   * the material/texture colour for the cell.
+   */
+  static _voxelise(gltf, grid, W, H, D) {
     // Get initial bounding box to determine scale factors
     const initialBox = new THREE.Box3().setFromObject(gltf.scene);
     const size = new THREE.Vector3();
@@ -144,14 +183,23 @@ export class ShipBuilder {
       }
     });
 
-    // 2. Apply damage from the level config
-    this._applyDamage(grid, levelCfg);
+  }
 
-    // 3. Reset tracking flags for the initial render pass
-    grid.dirtySet.clear();
-    grid.topologyDirty = false;
-
-    return { grid, zones: shipDef.zones, def: shipDef };
+  /**
+   * Load a ship GLB, retrying once. A transient dev-server or network hiccup
+   * (e.g. immediately after a heavy sinking run) should not degrade the whole
+   * ship; a second failure propagates to build().
+   */
+  static async _loadGLB(id) {
+    const loader = new GLTFLoader();
+    const url = `/src/assets/ships/${id}.glb`;
+    try {
+      return await loader.loadAsync(url);
+    } catch (e) {
+      console.error(`[ShipBuilder] GLB load failed, retrying once: ${url}`, e);
+      await new Promise(resolve => setTimeout(resolve, 250));
+      return loader.loadAsync(url);
+    }
   }
 
   // ---------------------------------------------------------------------------

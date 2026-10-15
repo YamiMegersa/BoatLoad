@@ -209,6 +209,35 @@ function logEvent(msg) {
 }
 
 // ---------------------------------------------------------------------------
+// Notice banner (build failures, day progression notes)
+// ---------------------------------------------------------------------------
+
+const noticeBanner = document.createElement('div');
+noticeBanner.id = 'notice-banner';
+noticeBanner.style.cssText = `
+  position: absolute; top: 60px; left: 50%; transform: translateX(-50%);
+  z-index: 200; background: rgba(140, 20, 20, 0.92); color: #fff;
+  padding: 10px 18px; font-family: monospace; font-size: 14px;
+  border-radius: 6px; border: 1px solid #ff6b6b; display: none;
+  pointer-events: none; max-width: 80%;
+`;
+document.getElementById('ui-root')?.appendChild(noticeBanner);
+
+let noticeTimer = null;
+function showNotice(message, ms = 5000) {
+  if (!noticeBanner) return;
+  noticeBanner.textContent = message;
+  noticeBanner.style.display = 'block';
+  clearTimeout(noticeTimer);
+  noticeTimer = setTimeout(() => { noticeBanner.style.display = 'none'; }, ms);
+}
+
+on('buildError', (d) => {
+  logEvent(`[Build] ERROR: ${d.message}`);
+  showNotice(`⚠ ${d.message}`);
+});
+
+// ---------------------------------------------------------------------------
 // Boot
 // ---------------------------------------------------------------------------
 
