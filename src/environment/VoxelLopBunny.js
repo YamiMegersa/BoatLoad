@@ -297,8 +297,8 @@ export class VoxelLopBunny {
     this.legBR.position.set(0.14, -0.07, -0.12);
     this.bodyGroup.add(this.legBR);
 
-    // 5. Generous Raycast Interaction Collider (Transparent so raycasts succeed reliably)
-    const hitBox = createBox(0.65, 0.65, 0.75, new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+    // 5. Generous Raycast Interaction Collider (Transparent/invisible so raycasts succeed reliably)
+    const hitBox = createBox(0.65, 0.65, 0.75, new THREE.MeshBasicMaterial({ visible: false, colorWrite: false, depthWrite: false }), false, false);
     hitBox.position.set(0, 0.2, 0);
     hitBox.userData = { isBunny: true, name: 'lopEaredBunnyHitbox' };
     this.group.add(hitBox);

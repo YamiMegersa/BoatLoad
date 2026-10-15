@@ -49,8 +49,8 @@ export class Ocean {
           vec2 dDock = max(abs(p - vec2(0.0, 0.0)) - vec2(10.0, 6.0), 0.0);
           float distDock = length(dDock);
 
-          // Island + Shipyard bounding box (world x: -88 to -8, z: -28 to 28)
-          vec2 dIsland = max(abs(p - vec2(-48.0, 0.0)) - vec2(40.0, 28.0), 0.0);
+          // Island + Shipyard + West Dock bounding box (world x: -96 to -8, z: -30 to 30)
+          vec2 dIsland = max(abs(p - vec2(-52.0, 0.0)) - vec2(44.0, 30.0), 0.0);
           float distIsland = length(dIsland);
 
           float dist = min(distDock, distIsland);
@@ -208,8 +208,8 @@ export class Ocean {
         const dX = Math.max(Math.abs(x) - 10.0, 0.0);
         const dZ = Math.max(Math.abs(z) - 6.0, 0.0);
         const distDock = Math.sqrt(dX * dX + dZ * dZ);
-        const dIX = Math.max(Math.abs(x - (-48.0)) - 40.0, 0.0);
-        const dIZ = Math.max(Math.abs(z) - 28.0, 0.0);
+        const dIX = Math.max(Math.abs(x - (-52.0)) - 44.0, 0.0);
+        const dIZ = Math.max(Math.abs(z) - 30.0, 0.0);
         const distIsland = Math.sqrt(dIX * dIX + dIZ * dIZ);
         const dist = Math.min(distDock, distIsland);
         const st = Math.max(0.0, Math.min(dist / 8.0, 1.0));

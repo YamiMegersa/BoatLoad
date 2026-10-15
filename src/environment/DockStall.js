@@ -70,6 +70,9 @@ const Palette = {
   mushroomRed: 0xc93b3b,
   mushroomCap: 0x5e4129,
   blueprintBlue: 0x1d4673,
+  blueprintLine: 0x5482b8,
+  sailCloth: 0xeae6dc,
+  sailClothTrim: 0xd4cebf,
   copper: 0xc46d3b,
   emberGlow: 0xff4500,
   woodAsh: 0x2b2725
@@ -253,12 +256,15 @@ export class DockStall {
       dirt: createVoxelMat(Palette.dirt, { roughness: 0.92 }),
       stone: createVoxelMat(Palette.stone, { roughness: 0.88 }),
       stoneDark: createVoxelMat(Palette.stoneDark, { roughness: 0.9 }),
+      stoneLight: createVoxelMat(Palette.stoneLight, { roughness: 0.86 }),
       stonePath: createVoxelMat(Palette.stonePath, { roughness: 0.85 }),
       sand: createVoxelMat(Palette.sand, { roughness: 0.95 }),
       sandWet: createVoxelMat(Palette.sandWet, { roughness: 0.9 }),
       brass: createVoxelMat(Palette.brass, { metalness: 0.65, roughness: 0.35 }),
       brassDark: createVoxelMat(Palette.brassDark, { metalness: 0.55, roughness: 0.45 }),
       iron: createVoxelMat(Palette.iron, { metalness: 0.5, roughness: 0.6 }),
+      ironLight: createVoxelMat(Palette.ironLight, { metalness: 0.55, roughness: 0.5 }),
+      sackBurlap: createVoxelMat(Palette.sackBurlap, { roughness: 0.95 }),
       rope: createVoxelMat(Palette.rope, { roughness: 0.9 }),
       paper: createVoxelMat(Palette.paper, { roughness: 0.7 }),
       glass: createVoxelMat(Palette.glassPorthole, { transparent: true, opacity: 0.55, roughness: 0.15, metalness: 0.3 }),
@@ -270,6 +276,9 @@ export class DockStall {
       mushroomRed: createVoxelMat(Palette.mushroomRed, { roughness: 0.8 }),
       mushroomCap: createVoxelMat(Palette.mushroomCap, { roughness: 0.9 }),
       blueprint: createVoxelMat(Palette.blueprintBlue, { roughness: 0.85 }),
+      blueprintLine: createVoxelMat(Palette.blueprintLine, { roughness: 0.8 }),
+      sailCloth: createVoxelMat(Palette.sailCloth, { roughness: 0.92 }),
+      sailClothTrim: createVoxelMat(Palette.sailClothTrim, { roughness: 0.95 }),
       emberGlow: createVoxelMat(Palette.emberGlow, { emissive: 0xff3300, emissiveIntensity: 1.2 }),
       woodAsh: createVoxelMat(Palette.woodAsh, { roughness: 0.95 })
     };
@@ -1346,9 +1355,9 @@ export class DockStall {
     workshopDeck.position.set(-35.5, 1.78, 11);
     islandGroup.add(workshopDeck);
 
-    // Seawall stone blocks along the west shipyard water edge
-    const seawallNorth = createVoxelBox(1.8, 0.85, 12, mats.stoneDark);
-    seawallNorth.position.set(-50, 1.6, 10);
+    // Seawall stone blocks along the north shore bluff & south water edge
+    const seawallNorth = createVoxelBox(1.8, 0.85, 8, mats.stoneDark);
+    seawallNorth.position.set(-39.5, 1.6, 22.0);
     islandGroup.add(seawallNorth);
 
     const seawallSouth = createVoxelBox(1.8, 0.85, 12, mats.stoneDark);
@@ -1435,8 +1444,8 @@ export class DockStall {
     addVoxelPineTree(-28.0, 1.76, -13.5, 1.1);  // South cove entrance
     addVoxelPineTree(-33.0, 1.76, -17.5, 1.25); // Beach grove
     addVoxelPineTree(-29.0, 1.76, 15.5, 1.15);  // Workshop ridge
-    addVoxelPineTree(-40.0, 1.76, 16.5, 1.0);   // North shoreline
-    addVoxelPineTree(-44.5, 1.76, 14.5, 0.95);  // Water edge
+    addVoxelPineTree(-40.0, 1.76, 21.5, 1.0);   // North bluff shoreline
+    addVoxelPineTree(-45.0, 1.76, 22.0, 0.95);  // North bluff water edge
 
     // Helper: Voxel Wild Flower Cluster
     const addFlowerCluster = (x, y, z, matPetal, matCenter = mats.flowerYellow, count = 4) => {
@@ -1582,7 +1591,7 @@ export class DockStall {
     addBoulder(-17.0, 4.45, 16.5, 2.8, 2.2, 2.5, mats.stoneLight);
     addBoulder(-28.0, 1.6, -18.0, 3.2, 2.2, 2.8, mats.stoneDark);
     addBoulder(-42.0, 1.4, -17.5, 2.4, 1.8, 2.0, mats.stone);
-    addBoulder(-49.0, 1.0, 14.0, 3.0, 2.2, 2.6, mats.stoneDark);
+    addBoulder(-49.0, 1.0, 21.5, 3.0, 2.2, 2.6, mats.stoneDark);
     addBoulder(-48.5, 0.4, -15.5, 2.6, 1.6, 2.2, mats.stone);
 
     // Cargo crates in the East meadow (existing placements preserved)
@@ -1832,52 +1841,110 @@ export class DockStall {
     islandGroup.add(shipyardGroup);
 
     // 1. Shipyard Entrance Arch & Signpost (At local X: -26, Z: 0)
+    // Raised high with wide walk-through clearance (> 4.8m height clearance)
     const archGroup = new THREE.Group();
     archGroup.position.set(-26.0, 1.76, 0);
 
-    [-2.2, 2.2].forEach(pz => {
-      const archPost = createVoxelBox(0.38, 3.8, 0.38, mats.woodTrim);
-      archPost.position.set(0, 1.9, pz);
+    // Heavy vertical square timber posts spaced widely at Z = +/- 2.7
+    [-2.7, 2.7].forEach(pz => {
+      // Stone foundation plinth
+      const plinth = createVoxelBox(0.62, 0.4, 0.62, mats.stone);
+      plinth.position.set(0, 0.2, pz);
+      archGroup.add(plinth);
+
+      // Main timber column (5.4m tall)
+      const archPost = createVoxelBox(0.42, 5.4, 0.42, mats.woodTrim);
+      archPost.position.set(0, 2.7, pz);
+      archPost.userData.noWalk = true;
       archGroup.add(archPost);
 
-      const postCollar = createVoxelBox(0.46, 0.18, 0.46, mats.iron);
-      postCollar.position.set(0, 0.3, pz);
+      // Iron base collar band
+      const postCollar = createVoxelBox(0.5, 0.2, 0.5, mats.iron);
+      postCollar.position.set(0, 0.5, pz);
       archGroup.add(postCollar);
+
+      // Decorative diagonal knee braces supporting the crossbeam
+      const brace = createVoxelBox(0.24, 1.4, 0.24, mats.woodTrim);
+      brace.position.set(0, 4.6, pz > 0 ? pz - 0.55 : pz + 0.55);
+      brace.rotation.x = pz > 0 ? -Math.PI / 4 : Math.PI / 4;
+      brace.userData.noWalk = true;
+      archGroup.add(brace);
     });
 
-    const archBeam = createVoxelBox(0.42, 0.42, 4.8, mats.woodTrim);
-    archBeam.position.set(0, 3.7, 0);
+    // Massive lintel crossbeam at Y = 5.25 (clear height under beam = 5.0m!)
+    const archBeam = createVoxelBox(0.46, 0.46, 6.2, mats.woodTrim);
+    archBeam.position.set(0, 5.25, 0);
+    archBeam.userData.noWalk = true;
     archGroup.add(archBeam);
 
-    // Carved Sign: "ANCHORAGE SHIPYARD - BERTH 1"
-    const archSign = createVoxelBox(0.14, 0.82, 3.4, mats.woodHi);
-    archSign.position.set(0, 2.9, 0);
-    archGroup.add(archSign);
+    // Prominent Carved Signboard mounted on TOP of the crossbeam
+    const archSignGroup = new THREE.Group();
+    archSignGroup.position.set(0, 5.95, 0);
+    archSignGroup.userData.noWalk = true;
 
-    const archSignBorder = createVoxelBox(0.18, 0.92, 3.52, mats.woodDark);
-    archSignBorder.position.set(-0.01, 2.9, 0);
-    archGroup.add(archSignBorder);
+    const archSign = createVoxelBox(0.16, 0.88, 3.8, mats.woodHi);
+    archSign.userData.noWalk = true;
+    archSignGroup.add(archSign);
 
-    // Hanging brass ship bell
-    const bellPost = createVoxelBox(0.08, 0.35, 0.08, mats.iron);
-    bellPost.position.set(0, 2.3, 1.6);
-    archGroup.add(bellPost);
+    const archSignBorder = createVoxelBox(0.22, 0.98, 3.96, mats.woodDark);
+    archSignBorder.userData.noWalk = true;
+    archSignGroup.add(archSignBorder);
 
-    const bell = createVoxelBox(0.24, 0.28, 0.24, mats.brass);
-    bell.position.set(0, 2.1, 1.6);
+    // Weathered timber pediment gable / rooflet over sign
+    const pedimentRidge = createVoxelBox(0.34, 0.16, 4.2, mats.woodDark);
+    pedimentRidge.position.y = 0.56;
+    pedimentRidge.userData.noWalk = true;
+    archSignGroup.add(pedimentRidge);
+
+    const pedimentCap = createVoxelBox(0.28, 0.12, 4.3, mats.roofRidge);
+    pedimentCap.position.y = 0.68;
+    pedimentCap.userData.noWalk = true;
+    archSignGroup.add(pedimentCap);
+
+    archGroup.add(archSignGroup);
+
+    // Hanging brass ship bell on south post (at Z = 2.4, Y = 4.2 - safely above player head!)
+    const bellBracket = createVoxelBox(0.08, 0.1, 0.45, mats.iron);
+    bellBracket.position.set(0, 4.4, 2.45);
+    bellBracket.userData.noWalk = true;
+    archGroup.add(bellBracket);
+
+    const bell = createVoxelBox(0.24, 0.3, 0.24, mats.brass);
+    bell.position.set(0, 4.18, 2.25);
+    bell.userData.noWalk = true;
     archGroup.add(bell);
 
-    // Directional finger-post beside arch
-    const dirPost = createVoxelBox(0.18, 2.4, 0.18, mats.woodDark);
-    dirPost.position.set(1.5, 1.2, 2.2);
+    // Hanging wrought-iron nautical lantern on north post (Z = -2.4, Y = 4.2)
+    const lanternBracket = createVoxelBox(0.08, 0.1, 0.45, mats.iron);
+    lanternBracket.position.set(0, 4.4, -2.45);
+    lanternBracket.userData.noWalk = true;
+    archGroup.add(lanternBracket);
+
+    const lanternFrame = createVoxelBox(0.26, 0.36, 0.26, mats.iron);
+    lanternFrame.position.set(0, 4.15, -2.25);
+    lanternFrame.userData.noWalk = true;
+    archGroup.add(lanternFrame);
+
+    const lanternGlass = createVoxelBox(0.2, 0.28, 0.2, mats.lanternGlow, false, false);
+    lanternGlass.position.set(0, 4.15, -2.25);
+    lanternGlass.userData.noWalk = true;
+    archGroup.add(lanternGlass);
+
+    const archLight = new THREE.PointLight(0xffaa44, 0.9, 8.0, 2);
+    archLight.position.set(0, 4.15, -2.25);
+    archGroup.add(archLight);
+
+    // Directional finger-post beside archway path
+    const dirPost = createVoxelBox(0.18, 2.6, 0.18, mats.woodDark);
+    dirPost.position.set(1.8, 1.3, 3.6);
     archGroup.add(dirPost);
 
-    const dirEast = createVoxelBox(0.1, 0.24, 1.2, mats.woodHi);
-    dirEast.position.set(1.5, 2.05, 1.8);
+    const dirEast = createVoxelBox(0.1, 0.24, 1.25, mats.woodHi);
+    dirEast.position.set(1.8, 2.25, 3.15);
     archGroup.add(dirEast);
 
-    const dirWest = createVoxelBox(0.1, 0.24, 1.3, mats.woodHi);
-    dirWest.position.set(1.5, 1.7, 2.6);
+    const dirWest = createVoxelBox(0.1, 0.24, 1.35, mats.woodHi);
+    dirWest.position.set(1.8, 1.9, 4.05);
     archGroup.add(dirWest);
 
     shipyardGroup.add(archGroup);
@@ -2388,9 +2455,9 @@ export class DockStall {
     this.shipyardInteractables.push(blueprint);
     draftGroup.add(blueprint);
 
-    // White grid lines on blueprint
+    // Cyan grid lines on blueprint
     for (let g = 0; g < 3; g++) {
-      const gridLine = createVoxelBox(1.2, 0.025, 0.04, mats.paper);
+      const gridLine = createVoxelBox(1.2, 0.025, 0.04, mats.blueprintLine);
       gridLine.position.set(0, 1.05, -0.28 + g * 0.28);
       gridLine.rotation.x = -0.14;
       gridLine.userData.isShipyardBench = true;
@@ -2520,6 +2587,373 @@ export class DockStall {
     rowboatGroup.add(driftLog2);
 
     shipyardGroup.add(rowboatGroup);
+
+    // 11. West Shipyard Outfitting Dock Pier & Moored Sloop Vessel
+    this._buildShipyardDock(shipyardGroup, mats);
+  }
+
+  // =========================================================================
+  // 2E. WEST SHIPYARD OUTFITTING DOCK (Pier, Mooring Hardware, Cargo & Sloop)
+  // =========================================================================
+  _buildShipyardDock(shipyardGroup, mats) {
+    const dockGroup = new THREE.Group();
+    shipyardGroup.add(dockGroup);
+
+    // Dock bounds: extends west from workshop terrace (X = -38.0) to X = -66.0 (28m long)
+    // Width spans Z = 11.0 to 18.0 (7.0m wide), deck top at Y = 1.76
+
+    // 1. Heavy Timber Substructure Pilings (Driven into seabed)
+    const pileXCoords = [-39.0, -44.5, -50.0, -55.5, -61.0, -65.5];
+    const pileZCoords = [11.4, 14.5, 17.6];
+
+    pileXCoords.forEach(px => {
+      pileZCoords.forEach(pz => {
+        // Deep square timber piling
+        const pile = createVoxelBox(0.46, 5.0, 0.46, mats.woodTrim);
+        pile.position.set(px, -0.6, pz);
+        dockGroup.add(pile);
+
+        // Piling cap block atop deck level
+        const cap = createVoxelBox(0.54, 0.28, 0.54, mats.woodDark);
+        cap.position.set(px, 1.95, pz);
+        dockGroup.add(cap);
+
+        // Submerged iron reinforcement collar
+        const collar = createVoxelBox(0.52, 0.16, 0.52, mats.iron);
+        collar.position.set(px, 0.2, pz);
+        dockGroup.add(collar);
+      });
+
+      // Transverse heavy timber bearer beam tying each pile row together
+      const transverseBeam = createVoxelBox(0.38, 0.32, 6.6, mats.woodDark);
+      transverseBeam.position.set(px, 1.55, 14.5);
+      dockGroup.add(transverseBeam);
+    });
+
+    // Longitudinal heavy timber stringers supporting deck planks
+    pileZCoords.forEach(pz => {
+      const stringer = createVoxelBox(28.0, 0.28, 0.36, mats.woodTrim);
+      stringer.position.set(-52.25, 1.62, pz);
+      dockGroup.add(stringer);
+    });
+
+    // 2. Transverse Deck Planks (28 individual plank bands across pier)
+    const plankCount = 28;
+    for (let p = 0; p < plankCount; p++) {
+      const plankX = -38.5 - p * 0.98;
+      const mat = p % 2 === 0 ? mats.plank : mats.plankDark;
+      const plank = createVoxelBox(0.92, 0.16, 6.8, mat);
+      plank.position.set(plankX, 1.74, 14.5);
+      dockGroup.add(plank);
+
+      // Fastener iron spikes on deck
+      [-1.8, 0, 1.8].forEach(sz => {
+        const spike = createVoxelBox(0.04, 0.04, 0.04, mats.iron);
+        spike.position.set(plankX, 1.83, 14.5 + sz);
+        dockGroup.add(spike);
+      });
+    }
+
+    // 3. Perimeter Bull Rails / Curb Timbers
+    // North edge curb (Z = 17.85) with scupper runoff gaps
+    for (let s = 0; s < 5; s++) {
+      const curbX = -41.0 - s * 5.2;
+      const curb = createVoxelBox(4.4, 0.22, 0.24, mats.woodTrim);
+      curb.position.set(curbX, 1.88, 17.85);
+      dockGroup.add(curb);
+    }
+
+    // Pier end curb at west terminus (X = -65.9)
+    const endCurb = createVoxelBox(0.24, 0.22, 6.8, mats.woodTrim);
+    endCurb.position.set(-65.9, 1.88, 14.5);
+    dockGroup.add(endCurb);
+
+    // 4. Mooring Bollards, Cleats & Rope Coils
+    const bollardXPositions = [-42.0, -48.5, -55.0, -62.5];
+    bollardXPositions.forEach((bx, idx) => {
+      // Stout wooden mooring bollard
+      const bollard = createVoxelBox(0.42, 0.88, 0.42, mats.woodDark);
+      bollard.position.set(bx, 2.05, 17.75);
+      dockGroup.add(bollard);
+
+      const bollardCap = createVoxelBox(0.48, 0.12, 0.48, mats.iron);
+      bollardCap.position.set(bx, 2.52, 17.75);
+      dockGroup.add(bollardCap);
+
+      // Iron cleats
+      const cleat = createVoxelBox(0.55, 0.12, 0.14, mats.iron);
+      cleat.position.set(bx + 1.2, 1.88, 17.7);
+      dockGroup.add(cleat);
+
+      // Coiled hemp rope on dock deck
+      const rope = createVoxelOctagonRing(0.28, 0.08, 0.08, mats.rope);
+      rope.rotation.x = Math.PI / 2;
+      rope.position.set(bx - 0.7, 1.84, 17.1);
+      dockGroup.add(rope);
+    });
+
+    // 5. Stylized Dock Lantern Posts
+    const addDockLantern = (x, z) => {
+      const postGroup = new THREE.Group();
+      postGroup.position.set(x, 1.76, z);
+
+      const post = createVoxelBox(0.22, 2.8, 0.22, mats.woodDark);
+      post.position.y = 1.4;
+      postGroup.add(post);
+
+      const cap = createVoxelBox(0.3, 0.1, 0.3, mats.woodTrim);
+      cap.position.y = 2.85;
+      postGroup.add(cap);
+
+      const arm = createVoxelBox(0.55, 0.08, 0.08, mats.iron);
+      arm.position.set(0, 2.65, 0.3);
+      postGroup.add(arm);
+
+      const chain = createVoxelBox(0.04, 0.2, 0.04, mats.iron);
+      chain.position.set(0, 2.52, 0.52);
+      postGroup.add(chain);
+
+      const frame = createVoxelBox(0.28, 0.38, 0.28, mats.iron);
+      frame.position.set(0, 2.22, 0.52);
+      postGroup.add(frame);
+
+      const glass = createVoxelBox(0.22, 0.28, 0.22, mats.lanternGlow, false, false);
+      glass.position.set(0, 2.22, 0.52);
+      postGroup.add(glass);
+
+      const light = new THREE.PointLight(0xffaa44, 0.85, 7.5, 2);
+      light.position.set(0, 2.22, 0.52);
+      postGroup.add(light);
+
+      dockGroup.add(postGroup);
+    };
+
+    addDockLantern(-44.0, 11.3);
+    addDockLantern(-63.5, 11.3);
+
+    // 6. Dock Outfitting Cargo Stacks
+    // Cargo stack A (near workshop root): Crates, sacks, barrels
+    const cargoGroup1 = new THREE.Group();
+    cargoGroup1.position.set(-41.0, 1.76, 12.8);
+
+    // Large main crate
+    const crate1 = createVoxelBox(1.3, 1.3, 1.3, mats.plankHi);
+    crate1.position.set(0, 0.65, 0);
+    cargoGroup1.add(crate1);
+    const c1Post = createVoxelBox(1.34, 0.1, 1.34, mats.woodDark);
+    c1Post.position.set(0, 0.65, 0);
+    cargoGroup1.add(c1Post);
+
+    // Second smaller crate stacked atop
+    const crate2 = createVoxelBox(0.9, 0.9, 0.9, mats.woodMid);
+    crate2.position.set(0.15, 1.75, 0.1);
+    crate2.rotation.y = 0.2;
+    cargoGroup1.add(crate2);
+
+    // Pitch barrel beside crates
+    const barrel1 = createVoxelBarrel(0.38, 1.05, mats.woodAged, mats.iron);
+    barrel1.position.set(1.15, 0.52, -0.2);
+    cargoGroup1.add(barrel1);
+
+    // Burlap cargo sacks
+    const sack1 = createVoxelBox(0.72, 0.35, 0.5, mats.sackBurlap);
+    sack1.position.set(-0.9, 0.18, 0.3);
+    sack1.rotation.y = 0.35;
+    cargoGroup1.add(sack1);
+
+    const sack2 = createVoxelBox(0.68, 0.32, 0.48, mats.sackBurlap);
+    sack2.position.set(-0.85, 0.48, 0.25);
+    sack2.rotation.y = -0.2;
+    cargoGroup1.add(sack2);
+
+    // Authentic Forged Iron Anchor leaning against crate
+    const anchorGroup = new THREE.Group();
+    anchorGroup.position.set(-0.2, 0, 0.72);
+    anchorGroup.rotation.x = 0.25;
+
+    const anchorShank = createVoxelBox(0.1, 1.6, 0.1, mats.iron);
+    anchorShank.position.y = 0.8;
+    anchorGroup.add(anchorShank);
+
+    const anchorStock = createVoxelBox(1.2, 0.12, 0.14, mats.woodDark);
+    anchorStock.position.y = 1.45;
+    anchorGroup.add(anchorStock);
+
+    const anchorFlukeArm = createVoxelBox(1.0, 0.1, 0.1, mats.iron);
+    anchorFlukeArm.position.y = 0.18;
+    anchorGroup.add(anchorFlukeArm);
+
+    [-0.5, 0.5].forEach(fx => {
+      const fluke = createVoxelBox(0.18, 0.38, 0.24, mats.iron);
+      fluke.position.set(fx, 0.32, 0);
+      anchorGroup.add(fluke);
+    });
+
+    cargoGroup1.add(anchorGroup);
+    dockGroup.add(cargoGroup1);
+
+    // Cargo stack B (Mid pier): Lashed timber spars & pitch barrels
+    const cargoGroup2 = new THREE.Group();
+    cargoGroup2.position.set(-58.0, 1.76, 12.6);
+
+    const barrel2 = createVoxelBarrel(0.38, 1.05, mats.woodDark, mats.iron);
+    barrel2.position.set(0, 0.52, 0);
+    cargoGroup2.add(barrel2);
+
+    const barrel3 = createVoxelBarrel(0.36, 0.95, mats.woodMid, mats.iron);
+    barrel3.position.set(0.65, 0.48, 0.25);
+    cargoGroup2.add(barrel3);
+
+    // Lashed pine ship spars lying flat along pier edge
+    [-0.2, 0.1, 0.4].forEach((sy, idx) => {
+      const spar = createVoxelBox(7.2, 0.22, 0.22, mats.woodHi);
+      spar.position.set(-0.2, 0.12 + idx * 0.18, -0.65);
+      cargoGroup2.add(spar);
+    });
+    // Rope lashings around the spar bundle
+    [-2.2, 1.8].forEach(lx => {
+      const lashing = createVoxelBox(0.1, 0.5, 0.3, mats.rope);
+      lashing.position.set(lx, 0.28, -0.65);
+      cargoGroup2.add(lashing);
+    });
+
+    dockGroup.add(cargoGroup2);
+
+    // 7. Moored Coastal Trading Sloop Vessel
+    // Moored alongside northern face of pier at X: -52.0, Z: 21.2
+    const sloopGroup = new THREE.Group();
+    sloopGroup.position.set(-52.0, 0.6, 21.2);
+
+    const hullLen = 11.2;
+    const hullW = 3.6;
+
+    // Solid Keel
+    const sKeel = createVoxelBox(hullLen, 0.42, 0.44, mats.woodDark);
+    sKeel.position.y = 0.2;
+    sloopGroup.add(sKeel);
+
+    // Lower hull bottom
+    const sBottom = createVoxelBox(hullLen - 1.2, 0.35, hullW - 0.8, mats.woodDark);
+    sBottom.position.y = 0.45;
+    sloopGroup.add(sBottom);
+
+    // Hull topsides (Port and Starboard planking)
+    [-hullW / 2 + 0.18, hullW / 2 - 0.18].forEach(sz => {
+      const strakeLower = createVoxelBox(hullLen - 0.4, 0.55, 0.26, mats.woodMid);
+      strakeLower.position.set(0, 0.85, sz);
+      sloopGroup.add(strakeLower);
+
+      const sheerStrake = createVoxelBox(hullLen, 0.32, 0.28, mats.woodTrim);
+      sheerStrake.position.set(0, 1.25, sz);
+      sloopGroup.add(sheerStrake);
+    });
+
+    // Bow stem (Angled forward into the water)
+    const sStem = createVoxelBox(0.44, 1.3, 0.44, mats.woodDark);
+    sStem.position.set(-hullLen / 2 + 0.25, 0.9, 0);
+    sStem.rotation.z = 0.3;
+    sloopGroup.add(sStem);
+
+    // Transom stern (Aft)
+    const sTransom = createVoxelBox(0.32, 1.1, hullW - 0.4, mats.woodTrim);
+    sTransom.position.set(hullLen / 2 - 0.2, 0.85, 0);
+    sloopGroup.add(sTransom);
+
+    // Main Deck planking (Walkable!)
+    const sDeck = createVoxelBox(hullLen - 1.2, 0.14, hullW - 0.6, mats.plank);
+    sDeck.position.y = 1.05;
+    sloopGroup.add(sDeck);
+
+    // Raised Aft Cabin Trunk
+    const cabin = createVoxelBox(3.4, 0.65, 2.2, mats.woodTrim);
+    cabin.position.set(2.4, 1.42, 0);
+    sloopGroup.add(cabin);
+
+    const cabinRoof = createVoxelBox(3.6, 0.12, 2.4, mats.woodHi);
+    cabinRoof.position.set(2.4, 1.78, 0);
+    sloopGroup.add(cabinRoof);
+
+    // Cabin Brass Portholes
+    [-1, 1].forEach(side => {
+      const portHole = createVoxelOctagonRing(0.16, 0.04, 0.08, mats.brass);
+      portHole.position.set(2.4, 1.45, side * 1.14);
+      sloopGroup.add(portHole);
+    });
+
+    // Helm Tiller Arm
+    const tiller = createVoxelBox(1.4, 0.08, 0.08, mats.woodHi);
+    tiller.position.set(4.6, 1.35, 0);
+    tiller.rotation.z = -0.15;
+    sloopGroup.add(tiller);
+
+    // Bowsprit spar projecting forward
+    const bowsprit = createVoxelBox(3.2, 0.18, 0.18, mats.woodTrim);
+    bowsprit.position.set(-hullLen / 2 - 1.2, 1.45, 0);
+    bowsprit.rotation.z = 0.1;
+    sloopGroup.add(bowsprit);
+
+    // Tall Ship's Mast (Height 8.5m)
+    const mast = createVoxelBox(0.32, 8.5, 0.32, mats.woodTrim);
+    mast.position.set(-1.8, 5.0, 0);
+    sloopGroup.add(mast);
+
+    // Mast cross-trestle
+    const crossTree = createVoxelBox(0.18, 0.14, 1.6, mats.woodDark);
+    crossTree.position.set(-1.8, 7.8, 0);
+    sloopGroup.add(crossTree);
+
+    // Main boom with furled sail cloth bundled along it
+    const mainBoom = createVoxelBox(5.6, 0.2, 0.2, mats.woodTrim);
+    mainBoom.position.set(0.9, 2.2, 0);
+    sloopGroup.add(mainBoom);
+
+    // Furled canvas mainsail
+    const furledSail = createVoxelBox(5.0, 0.38, 0.38, mats.sailCloth);
+    furledSail.position.set(0.9, 2.38, 0);
+    sloopGroup.add(furledSail);
+
+    // Sail tie rope gaskets
+    for (let g = 0; g < 6; g++) {
+      const gasket = createVoxelBox(0.08, 0.44, 0.44, mats.rope);
+      gasket.position.set(-1.2 + g * 0.9, 2.38, 0);
+      sloopGroup.add(gasket);
+    }
+
+    // Wooden boarding gangplank connecting dock to vessel deck
+    const gangplank = createVoxelBox(1.2, 0.08, 2.8, mats.plankDark);
+    gangplank.position.set(-52.0, 1.48, 19.3);
+    gangplank.rotation.x = -0.22;
+    dockGroup.add(gangplank);
+
+    // Mooring lines tied from boat cleats to dock bollards
+    const mooringLine1 = createVoxelBox(0.06, 0.06, 2.8, mats.rope);
+    mooringLine1.position.set(-56.5, 1.6, 19.4);
+    mooringLine1.rotation.y = 0.3;
+    dockGroup.add(mooringLine1);
+
+    const mooringLine2 = createVoxelBox(0.06, 0.06, 2.8, mats.rope);
+    mooringLine2.position.set(-47.0, 1.6, 19.4);
+    mooringLine2.rotation.y = -0.3;
+    dockGroup.add(mooringLine2);
+
+    dockGroup.add(sloopGroup);
+
+    // 8. Invisible Smooth Walkway Colliders for fluid navigation
+    // Main pier walkway collider (Allows walking whole 28m length of dock)
+    const pierCollider = new THREE.Mesh(
+      new THREE.BoxGeometry(28.0, 0.35, 6.8),
+      new THREE.MeshBasicMaterial({ visible: false, colorWrite: false, depthWrite: false })
+    );
+    pierCollider.position.set(-52.0, 1.76, 14.5);
+    dockGroup.add(pierCollider);
+
+    // Sloop deck walkable collider (Allows walking onto the boat!)
+    const sloopCollider = new THREE.Mesh(
+      new THREE.BoxGeometry(10.5, 0.35, 3.4),
+      new THREE.MeshBasicMaterial({ visible: false, colorWrite: false, depthWrite: false })
+    );
+    sloopCollider.position.set(-52.0, 1.65, 21.2);
+    dockGroup.add(sloopCollider);
   }
 
   update(delta, time) {
