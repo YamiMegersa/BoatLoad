@@ -17,8 +17,144 @@
     { "type": "rock",       "lanePattern": "alternating", "count": 6  },
     { "type": "barrel",     "lanePattern": "random",      "count": 3  },
     { "type": "seaweed",    "lanePattern": "random",      "count": 4  },
-    { "type": "wave_small", "lanePattern": "random",      "count": 5  }
+    { "type": "wave_small", "lanePattern": "random",      "count": 5  },
+    {
+      "type": "island",
+      "assetUrl": "/src/islands/Low-poly landscape by sirkitree - bjsNFfddgOv.glb",
+      "scale": 5.599999999999997,
+      "position": {
+        "x": -58.15,
+        "y": 17,
+        "z": -119.81
+      }
+    },
+    {
+      "type": "island",
+      "assetUrl": "/src/islands/Mountain by Poly by Google - 7Jhw3p6TusU.glb",
+      "scale": 3.7000000000000024,
+      "position": {
+        "x": 27.19,
+        "y": 0.5,
+        "z": -207.37
+      }
+    }
   ],
-  "rewardAbilities": ["practiced_hand", "seasoned_hull", "sharp_eye"],
+  "sirens": [
+    {
+      "type": "siren",
+      "position": {
+        "x": 45,
+        "y": 0,
+        "z": -60
+      },
+      "intensity": 0.7,
+      "attractRadius": 40
+    }
+  ],
+  "kraken": {
+    "krakenPosition": {
+      "x": 0,
+      "y": -5,
+      "z": -180
+    },
+    "raceStartPosition": {
+      "x": 0,
+      "y": 0,
+      "z": -35
+    },
+    "raceStartRadius": 18,
+    "totalHP": 100,
+    "tentacles": [
+      {
+        "spawnOffset": {
+          "x": -25,
+          "y": 0,
+          "z": -20
+        },
+        "speed": 11,
+        "raceDuration": 30,
+        "damagePerTentacle": 34,
+        "waypoints": [
+          {
+            "position": { "x": -25, "y": 0, "z": -60 },
+            "radius": 10
+          },
+          {
+            "position": { "x": -55, "y": 0, "z": -95 },
+            "radius": 10
+          },
+          {
+            "position": { "x": -45, "y": 0, "z": -135 },
+            "radius": 10
+          },
+          {
+            "position": { "x": -15, "y": 0, "z": -115 },
+            "radius": 10
+          }
+        ]
+      },
+      {
+        "spawnOffset": {
+          "x": 25,
+          "y": 0,
+          "z": -20
+        },
+        "speed": 13,
+        "raceDuration": 25,
+        "damagePerTentacle": 33,
+        "waypoints": [
+          {
+            "position": { "x": 20, "y": 0, "z": -75 },
+            "radius": 10
+          },
+          {
+            "position": { "x": 40, "y": 0, "z": -115 },
+            "radius": 10
+          },
+          {
+            "position": { "x": 20, "y": 0, "z": -155 },
+            "radius": 10
+          },
+          {
+            "position": { "x": -10, "y": 0, "z": -135 },
+            "radius": 10
+          }
+        ]
+      },
+      {
+        "spawnOffset": {
+          "x": 0,
+          "y": 0,
+          "z": -30
+        },
+        "speed": 15,
+        "raceDuration": 22,
+        "damagePerTentacle": 33,
+        "waypoints": [
+          {
+            "position": { "x": 0, "y": 0, "z": -55 },
+            "radius": 10
+          },
+          {
+            "position": { "x": -25, "y": 0, "z": -90 },
+            "radius": 10
+          },
+          {
+            "position": { "x": 25, "y": 0, "z": -125 },
+            "radius": 10
+          },
+          {
+            "position": { "x": 0, "y": 0, "z": -155 },
+            "radius": 10
+          }
+        ]
+      }
+    ]
+  },
+  "rewardAbilities": [
+    "practiced_hand",
+    "seasoned_hull",
+    "sharp_eye"
+  ],
   "tutorialPrompts": true
 }

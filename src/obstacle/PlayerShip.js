@@ -75,6 +75,16 @@ export class PlayerShip {
     /** @type {boolean} True when the ship has sunk (HP ≤ 0) */
     this.sunk = false;
 
+    // Speed throttle (1.0 = full sailing speed, 0.0 = halted)
+    this.throttle = 1.0;
+    this.targetThrottle = 1.0;
+    this._isHalted = false;
+
+    this._onCinematicStart = () => this.halt();
+    this._onCinematicEnd = () => this.resumeSpeed();
+    on('krakenCinematicStart', this._onCinematicStart);
+    on('krakenCinematicEnd', this._onCinematicEnd);
+
     // Use the actual voxel model if provided
     this.mesh = new THREE.Group();
     if (chunkRenderer && chunkRenderer.container) {
@@ -262,9 +272,29 @@ export class PlayerShip {
     // Map dot product [-1, 1] to speed multiplier [0.3, 1.0] (never negative)
     const windSpeedMult = 0.3 + ((windDot + 1) / 2) * 0.7;
 
+    // Smoothly damp throttle towards targetThrottle
+    if (this._isHalted) {
+      this.throttle = 0;
+      this.targetThrottle = 0;
+      this.yawVelocity = 0;
+      this.steerInput = 0;
+      this.knockbackVelocity.set(0, 0, 0);
+    } else if (this.throttle !== this.targetThrottle) {
+      const dampSpeed = this.targetThrottle < this.throttle ? 3.0 : 1.2;
+      this.throttle = THREE.MathUtils.damp(this.throttle, this.targetThrottle, dampSpeed, delta);
+      if (Math.abs(this.throttle - this.targetThrottle) < 0.005) {
+        this.throttle = this.targetThrottle;
+      }
+    }
+
+    // Dampen yaw velocity when halted so boat doesn't keep turning
+    if (this.targetThrottle === 0 || this._isHalted) {
+      this.yawVelocity *= Math.max(0, 1.0 - 6.0 * delta);
+    }
+
     // Lateral movement based on where the ship is pointing (Yaw)
     const speedPenalty = Math.max(0.3, 1.0 - waterRatio);
-    const forwardSpeed = 15.0 * speedPenalty * windSpeedMult;
+    const forwardSpeed = this._isHalted ? 0 : (15.0 * speedPenalty * windSpeedMult * this.throttle);
     
     this.mesh.position.x += shipDir.x * forwardSpeed * this.speedMultiplier * delta;
     this.mesh.position.z += shipDir.z * forwardSpeed * this.speedMultiplier * delta;
@@ -549,12 +579,34 @@ export class PlayerShip {
     }, duration * 1000);
   }
 
+  /**
+   * Smoothly coast the boat to a halt (e.g. during cinematic cutscenes).
+   */
+  halt() {
+    this._isHalted = true;
+    this.targetThrottle = 0;
+    this.throttle = 0;
+    this.yawVelocity = 0;
+    this.steerInput = 0;
+    this.knockbackVelocity.set(0, 0, 0);
+  }
+
+  /**
+   * Smoothly accelerate back to cruising speed.
+   */
+  resumeSpeed() {
+    this._isHalted = false;
+    this.targetThrottle = 1.0;
+  }
+
   // -------------------------------------------------------------------------
   // Dispose
   // -------------------------------------------------------------------------
 
   dispose(scene) {
     off('toggleGodMode', this._onGodMode);
+    if (this._onCinematicStart) off('krakenCinematicStart', this._onCinematicStart);
+    if (this._onCinematicEnd) off('krakenCinematicEnd', this._onCinematicEnd);
     clearTimeout(this._speedTimer);
     scene.remove(this.mesh);
     // Note: chunkRenderer disposal is handled by GameState phase teardown later,

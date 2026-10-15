@@ -18,11 +18,12 @@ import { EditorUI }       from '../ui/EditorUI.js';
 import { EditorSystem }   from '../editor/EditorSystem.js';
 import { VoxelTerrain }   from '../editor/VoxelTerrain.js';
 import { WindManager }        from '../environment/WindManager.js';
+import { SirenManager }       from '../monsters/SirenManager.js';
+import { KrakenBoss }         from '../monsters/KrakenBoss.js';
 import { Sky }                from '../environment/Sky.js';
 import { DockStall }          from '../environment/DockStall.js';
 import { DockPlayerController } from '../environment/DockPlayerController.js';
 import { WeatherSystem }      from '../environment/WeatherSystem.js';
-import { SirenManager }       from '../environment/SirenManager.js';
 import { emit, on, off, clear } from './EventBus.js';
 
 // ---------------------------------------------------------------------------
@@ -101,6 +102,7 @@ export class GameState {
     this._editorSystem    = null;
     this._windManager     = null;
     this._sirenManager    = null;
+    this._krakenBoss      = null;
     this._time            = 0;
     this._sky             = new Sky();
     this._sky.init(this._scene);
@@ -633,8 +635,7 @@ export class GameState {
   // OBSTACLE
   // =========================================================================
 
-  _enterObstacle(opts) {
-    const { levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels } = opts;
+  _enterObstacle({ levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel }) {
     this._levelCfg = levelCfg;
     this._obstacleOpts = { levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels };
 
@@ -674,14 +675,24 @@ export class GameState {
 
     this._playerShip = new PlayerShip(effectiveStats, this._scene, this._chunkRenderer, this._grid, this._qteSystem);
     this._obstacleManager = new ObstacleManager();
-    this._obstacleManager.init(levelCfg, this._scene, rockModels, pickupModels, seaweedModels, waveModels, islandModels, this._qteSystem);
+    this._obstacleManager.init(levelCfg, this._scene, rockModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, this._qteSystem);
     this._environmentManager = new EnvironmentManager();
     this._environmentManager.init(this._scene, fishModels, levelCfg, this._qteSystem, this._ocean);
     this._sirenManager = new SirenManager();
-    this._sirenManager.init(levelCfg, this._scene, this._qteSystem);
+    this._sirenManager.init(levelCfg, this._scene, sirenModel, rockModels, this._qteSystem);
     
     this._windManager = new WindManager(levelCfg);
 
+    // Kraken Boss (only if level defines one)
+    if (levelCfg.kraken) {
+      this._krakenBoss = new KrakenBoss();
+      this._krakenBoss.init(
+        levelCfg.kraken,
+        this._scene, this._camera,
+        this._playerShip, this._ocean,
+        krakenModel
+      );
+    }
     this._onSteer = (d) => {
       if (this._playerShip) {
         this._playerShip.steerInput = d.value;
@@ -713,6 +724,7 @@ export class GameState {
       this.transition(GamePhase.RESULTS, { passed: false });
     });
 
+    this._wasCinematicActive = false;
     this.score = 0;
     emit('uiMount', { screen: 'obstacle' });
   }
@@ -724,6 +736,22 @@ export class GameState {
     this._obstacleManager?.update(delta, this._playerShip, this._windManager, this._voxelTerrain);
     this._environmentManager?.update(delta, this._windManager, this._playerShip);
     this._sirenManager?.update(delta, this._playerShip);
+
+    // Kraken boss — FSM + tentacles + cinematics
+    if (this._krakenBoss) {
+      this._krakenBoss.update(delta);
+      // During cinematic, skip normal camera updates and keep chase targets synchronized
+      if (this._krakenBoss.isCinematicActive()) {
+        this._wasCinematicActive = true;
+        if (this._playerShip) {
+          const p = this._playerShip.mesh.position;
+          if (this._camLookTarget) this._camLookTarget.copy(p);
+          this._camOvershoot = 0;
+          this._camOvershootVel = 0;
+        }
+        return;
+      }
+    }
 
     if (this._playerShip) {
       // Edge-triggered FIRE prompt: shown only while shells remain and a
@@ -755,6 +783,26 @@ export class GameState {
         this._camVelocity = new THREE.Vector3();
         this._camLookTarget = p.clone();
       }
+
+      // Seamless handover on the exact frame the cinematic finishes
+      if (this._wasCinematicActive) {
+        this._wasCinematicActive = false;
+        this._camOvershoot = 0;
+        this._camOvershootVel = 0;
+        this._camera.position.copy(baseTarget);
+        if (!this._camLookTarget) this._camLookTarget = new THREE.Vector3();
+        this._camLookTarget.copy(p);
+        this._camera.lookAt(this._camLookTarget);
+
+        // Update Minimap
+        this._minimap?.update(
+          p,
+          this._playerShip.yaw,
+          this._obstacleManager?._obstacles || [],
+          this.windDir
+        );
+        return;
+      }
       
       // Push camera outward relative to turn speed. 
       // If turning right (negative yawVel), targetOvershoot becomes negative.
@@ -779,12 +827,14 @@ export class GameState {
 
       // 4. Move camera smoothly towards the spring-loaded target
       // The spring logic in P3 provides the curved sweep and overshoot.
-      this._camera.position.lerp(P3, 5.0 * delta);
+      if (!this.directorModeActive) {
+        this._camera.position.lerp(P3, 5.0 * delta);
 
-      // 6. Look Target (delayed)
-      // Lerp look target so it sweeps across the hull slightly
-      this._camLookTarget.lerp(p, 8.0 * delta);
-      this._camera.lookAt(this._camLookTarget);
+        // 6. Look Target (delayed)
+        // Lerp look target so it sweeps across the hull slightly
+        this._camLookTarget.lerp(p, 8.0 * delta);
+        this._camera.lookAt(this._camLookTarget);
+      }
       
       // Update Minimap
       this._minimap?.update(
@@ -802,6 +852,11 @@ export class GameState {
     off('cannonFire', this._onCannonFire);
     off('sharkHitConfirmed', this._onSharkHit);
     off('playerSunk');
+
+    this._sirenManager?.dispose();
+    this._sirenManager = null;
+    this._krakenBoss?.dispose();
+    this._krakenBoss = null;
 
     this._playerShip?.dispose(this._scene);
     this._obstacleManager?.dispose();
@@ -876,7 +931,7 @@ export class GameState {
   // EDITOR
   // =========================================================================
 
-  _enterEditor({ levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels }) {
+  _enterEditor({ levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel }) {
     this._levelCfg = levelCfg;
 
     this._camera.position.set(0, 30, 0);
@@ -898,8 +953,27 @@ export class GameState {
     this._editorSystem = new EditorSystem();
     this._editorSystem.init(
       this._scene, this._camera, this._renderer, 
-      levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels
+      levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel
     );
+
+    this._onEditorCameraPreset = (d) => {
+      if (!this._camera || !this._orbitControls) return;
+      if (d?.preset === 'top') {
+        this._camera.position.set(0, 100, 0.01);
+        this._orbitControls.target.set(0, 0, 0);
+      } else if (d?.preset === 'horizon') {
+        this._camera.position.set(0, 8, 30);
+        this._orbitControls.target.set(0, 4, -40);
+      } else if (d?.preset === 'isometric') {
+        this._camera.position.set(50, 60, 50);
+        this._orbitControls.target.set(0, 0, 0);
+      } else { // default
+        this._camera.position.set(0, 30, 20);
+        this._orbitControls.target.set(0, 0, -5);
+      }
+      this._orbitControls.update();
+    };
+    on('editorCameraPreset', this._onEditorCameraPreset);
 
     emit('uiMount', { screen: 'editor', levelCfg });
   }
@@ -941,6 +1015,11 @@ export class GameState {
   }
 
   _exitEditor() {
+    if (this._onEditorCameraPreset) {
+      off('editorCameraPreset', this._onEditorCameraPreset);
+      this._onEditorCameraPreset = null;
+    }
+
     this._editorSystem?.dispose();
     this._editorSystem = null;
     

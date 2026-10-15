@@ -34,22 +34,39 @@ export class HUD {
     this._fireBtnEl   = null;
     this._onKeyDown   = null;
 
+    // Kraken boss HUD state
+    this._bossHPBar = null;
+    this._bossTimerEl = null;
+    this._bossWaypointEl = null;
+    this._bossBannerEl = null;
+    this._bossBannerTimeout = null;
     this._onScore = d => this._onScoreAdded(d);
 
     on('uiMount',          d => { if (d.screen === 'obstacle') this.mount(d); });
     on('uiUnmount',        d => { if (d.screen === 'obstacle') this.unmount(); });
     on('playerHealth',     d => this._updateHP(d.hp, d.max));
     on('playerWaterLevel', d => this._updateWater(d.level, d.max));
-    on('qteStart',          d => this._showQTE(d));
-    on('qteUpdate',         d => this._updateQTE(d));
-    on('qteSuccess',        () => this._hideQTE());
-    on('qteFail',           () => this._hideQTE());
+    on('qteStart',         d => this._showQTE(d));
+    on('qteUpdate',        d => this._updateQTE(d));
+    on('qteSuccess',       () => this._hideQTE());
+    on('qteFail',          () => this._hideQTE());
     on('scoreAdded',       this._onScore);
     on('sharkHitConfirmed', d => this._showSharkConfirm(d));
     on('sirenWarning',      d => this._showBanner(d));
     on('sirenPulling',      d => this._updateSirenPull(d));
     on('ammoChanged',       d => this._updateAmmo(d));
     on('cannonPrompt',      d => this._updateCannonPrompt(d));
+
+    // Kraken boss events
+    on('krakenFightStarted',    d => this._showBossHUD(d));
+    on('krakenHealthChanged',   d => this._updateBossHP(d.hp, d.maxHP));
+    on('krakenRaceTimerUpdate', d => this._updateBossTimer(d.timeRemaining));
+    on('krakenWaypointProgress',d => this._updateBossWaypoints(d.current, d.total));
+    on('krakenRaceStarted',     d => this._onRaceStarted(d));
+    on('krakenTentacleCaught',  () => this._showBossBanner('🐙 TENTACLE CAUGHT!', '#00cc44'));
+    on('krakenDefeated',        () => this._showBossBanner('⚔️ KRAKEN DEFEATED!', '#ffaa00', 5000));
+    on('krakenCinematicStart',  () => this._setBossTimerVisible(false));
+    on('krakenCinematicEnd',    () => this._setBossTimerVisible(true));
   }
 
   mount({ day } = {}) {
@@ -142,12 +159,39 @@ export class HUD {
 
       <!-- Cannon FIRE prompt (edge-triggered while a barrel is in range) -->
       <button id="hud-fire-btn" type="button" style="display: none; position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); padding: 12px 22px; font-size: 18px; font-weight: bold; background: #b3541e; color: #fff; border: 2px solid #ffd28a; border-radius: 10px; cursor: pointer; z-index: 40; pointer-events: auto;">🔥 FIRE (Space)</button>
+
+      <!-- Kraken Boss HUD (hidden until fight starts) -->
+      <div id="hud-boss" style="display:none; position:fixed; top:15px; left:50%; transform:translateX(-50%); text-align:center; z-index:100; pointer-events:none;">
+        <div style="color:#ff6644; font-weight:bold; font-size:14px; text-transform:uppercase; letter-spacing:2px; margin-bottom:4px; text-shadow:0 0 8px rgba(255,60,30,0.6);">🐙 KRAKEN</div>
+        <div id="hud-boss-hp-track" style="width:300px; height:14px; background:rgba(0,0,0,0.6); border:1px solid #ff4422; border-radius:7px; overflow:hidden;">
+          <div id="hud-boss-hp-bar" style="width:100%; height:100%; background:linear-gradient(90deg, #ff2200, #ff6644); transition:width 0.4s ease;"></div>
+        </div>
+        <div id="hud-boss-timer" style="display:none; color:#ffcc00; font-size:28px; font-weight:bold; margin-top:8px; text-shadow:0 0 10px rgba(255,200,0,0.5); font-family:monospace;"></div>
+        <div id="hud-boss-waypoints" style="display:none; color:#ffffff; font-size:14px; margin-top:4px;"></div>
+      </div>
+
+      <!-- Kraken Banner (flash messages) -->
+      <div id="hud-boss-banner" style="display:none; position:fixed; top:40%; left:50%; transform:translate(-50%,-50%); font-size:48px; font-weight:bold; color:#00cc44; text-shadow:0 0 20px rgba(0,200,60,0.6), 0 4px 12px rgba(0,0,0,0.8); pointer-events:none; z-index:200; animation:bossBannerPop 0.4s ease-out;"></div>
       
       <!-- Steering Wheel -->
       <div id="hud-wheel-container">
         <img id="hud-wheel" src="${wheelImage}">
       </div>
     `;
+
+    // Inject banner animation keyframes if not already present
+    if (!document.getElementById('boss-banner-style')) {
+      const style = document.createElement('style');
+      style.id = 'boss-banner-style';
+      style.textContent = `
+        @keyframes bossBannerPop {
+          0% { transform: translate(-50%,-50%) scale(0.3); opacity: 0; }
+          60% { transform: translate(-50%,-50%) scale(1.1); opacity: 1; }
+          100% { transform: translate(-50%,-50%) scale(1.0); opacity: 1; }
+        }
+      `;
+      document.head.appendChild(style);
+    }
 
     this._hpBar = this._el.querySelector('#hud-hp-bar');
     this._waterBar = this._el.querySelector('#hud-water-bar');
@@ -244,6 +288,18 @@ export class HUD {
     this._wheel.addEventListener('pointerup', stopDragging);
     this._wheel.addEventListener('pointercancel', stopDragging);
 
+    // Siren steering pull feedback
+    this._sirenSteerPull = 0;
+    this._sirenIntensity = 0;
+    this._sirenPullTimer = 0;
+
+    this._onSirenPulling = (d) => {
+      this._sirenSteerPull = d.steerPull ?? 0;
+      this._sirenIntensity = d.intensity ?? 0;
+      this._sirenPullTimer = 0.15; // decays quickly if no event this frame
+    };
+    on('sirenPulling', this._onSirenPulling);
+
     // Auto-centering & emit loop
     const autoCenter = () => {
       if (!this._el) return; // Stop loop if unmounted
@@ -252,9 +308,23 @@ export class HUD {
         this._wheelAngle *= 0.85; // Spring back
         if (Math.abs(this._wheelAngle) < 0.1) this._wheelAngle = 0;
       }
+
+      // Siren hypnotic steering pull: turns the wheel or resists player drag
+      if (this._sirenPullTimer > 0) {
+        this._sirenPullTimer -= 0.016;
+        const pullSpeed = this._isDraggingWheel ? 25 : 65;
+        this._wheelAngle += this._sirenSteerPull * pullSpeed * 0.016;
+        const glowAlpha = Math.min(0.9, this._sirenIntensity * 1.3).toFixed(2);
+        this._wheel.style.filter = `drop-shadow(0 0 16px rgba(255, 102, 204, ${glowAlpha}))`;
+      } else {
+        this._sirenSteerPull = 0;
+        this._sirenIntensity = 0;
+        this._wheel.style.filter = '';
+      }
       
-      this._wheel.style.transform = `rotate(${this._wheelAngle}deg)`;
       const maxRotation = 180;
+      this._wheelAngle = Math.max(-maxRotation, Math.min(maxRotation, this._wheelAngle));
+      this._wheel.style.transform = `rotate(${this._wheelAngle}deg)`;
       emit('steer', { value: this._wheelAngle / maxRotation });
       
       requestAnimationFrame(autoCenter);
@@ -312,6 +382,11 @@ export class HUD {
     }
     this._fireBtnEl = null;
     this._canFire = false;
+    if (this._onSirenPulling) {
+      off('sirenPulling', this._onSirenPulling);
+      this._onSirenPulling = null;
+    }
+    clearInterval(this._qteTimer);
     clearTimeout(this._qteHideTimer);
     clearTimeout(this._bannerTimer);
     this._el?.remove();
@@ -491,6 +566,76 @@ export class HUD {
     if (this._fireBtnEl) this._fireBtnEl.style.display = canFire ? 'block' : 'none';
   }
 
+  // -----------------------------------------------------------------------
+  // Kraken Boss HUD methods
+  // -----------------------------------------------------------------------
+
+  _showBossHUD({ totalHP, tentacleCount }) {
+    if (!this._el) return;
+    const bossEl = this._el.querySelector('#hud-boss');
+    if (bossEl) bossEl.style.display = 'block';
+    this._bossHPBar = this._el.querySelector('#hud-boss-hp-bar');
+    this._bossTimerEl = this._el.querySelector('#hud-boss-timer');
+    this._bossWaypointEl = this._el.querySelector('#hud-boss-waypoints');
+    this._bossBannerEl = this._el.querySelector('#hud-boss-banner');
+  }
+
+  _updateBossHP(hp, maxHP) {
+    if (!this._bossHPBar) return;
+    const pct = Math.max(0, Math.min(100, (hp / maxHP) * 100));
+    this._bossHPBar.style.width = `${pct}%`;
+  }
+
+  _updateBossTimer(timeRemaining) {
+    if (!this._bossTimerEl) return;
+    const t = Math.max(0, timeRemaining);
+    this._bossTimerEl.textContent = t.toFixed(1) + 's';
+    // Flash red when time is low
+    this._bossTimerEl.style.color = t < 5 ? '#ff2200' : '#ffcc00';
+    if (t < 5) {
+      this._bossTimerEl.style.textShadow = '0 0 15px rgba(255,30,0,0.8)';
+    } else {
+      this._bossTimerEl.style.textShadow = '0 0 10px rgba(255,200,0,0.5)';
+    }
+  }
+
+  _updateBossWaypoints(current, total) {
+    if (!this._bossWaypointEl) return;
+    this._bossWaypointEl.textContent = `Checkpoint ${current} / ${total}`;
+  }
+
+  _onRaceStarted({ tentacleIdx, waypoints, timeLimit }) {
+    if (!this._bossTimerEl || !this._bossWaypointEl) return;
+    this._bossTimerEl.style.display = 'block';
+    this._bossWaypointEl.style.display = 'block';
+    this._bossWaypointEl.textContent = `Checkpoint 0 / ${waypoints}`;
+  }
+
+  _setBossTimerVisible(visible) {
+    if (this._bossTimerEl) this._bossTimerEl.style.display = visible ? 'block' : 'none';
+    if (this._bossWaypointEl) this._bossWaypointEl.style.display = visible ? 'block' : 'none';
+  }
+
+  _showBossBanner(text, color = '#00cc44', durationMs = 2000) {
+    if (!this._el) return;
+    const banner = this._el.querySelector('#hud-boss-banner') || this._bossBannerEl;
+    if (!banner) return;
+
+    clearTimeout(this._bossBannerTimeout);
+    banner.textContent = text;
+    banner.style.color = color;
+    banner.style.textShadow = `0 0 20px ${color}88, 0 4px 12px rgba(0,0,0,0.8)`;
+    banner.style.display = 'block';
+    banner.style.animation = 'none';
+    // Force reflow to restart animation
+    void banner.offsetWidth;
+    banner.style.animation = 'bossBannerPop 0.4s ease-out';
+
+    this._bossBannerTimeout = setTimeout(() => {
+      banner.style.display = 'none';
+    }, durationMs);
+  }
+
   teardown() {
     this.unmount();
     off('uiMount'); off('uiUnmount');
@@ -500,5 +645,11 @@ export class HUD {
     off('scoreAdded', this._onScore);
     off('ammoChanged');
     off('cannonPrompt');
+    off('krakenFightStarted'); off('krakenHealthChanged');
+    off('krakenRaceTimerUpdate'); off('krakenWaypointProgress');
+    off('krakenRaceStarted'); off('krakenTentacleCaught');
+    off('krakenDefeated');
+    off('krakenCinematicStart'); off('krakenCinematicEnd');
+    clearTimeout(this._bossBannerTimeout);
   }
 }

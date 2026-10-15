@@ -1,5 +1,6 @@
 import { on, off } from '../core/EventBus.js';
 import * as THREE from 'three';
+import { exportToGLB } from '../utils/exportGLTF.js';
 
 export class DockUI {
   constructor() {
@@ -45,9 +46,12 @@ export class DockUI {
     }
     this.root.appendChild(dayButtons);
 
+    const actionsRow = document.createElement('div');
+    actionsRow.style.cssText = 'display:flex; gap:10px; pointer-events: auto !important; justify-content: center; flex-wrap: wrap; align-self: center;';
+
     const camBtn = document.createElement('button');
     camBtn.innerText = 'Toggle Shopkeeper View';
-    camBtn.style.cssText = 'pointer-events: auto !important; padding:10px; cursor:pointer; background:rgba(0,0,0,0.7); color:white; border:none; border-radius:5px; font-family:sans-serif; align-self: center; transition: background 0.2s;';
+    camBtn.style.cssText = 'padding:10px; cursor:pointer; background:rgba(0,0,0,0.7); color:white; border:none; border-radius:5px; font-family:sans-serif; transition: background 0.2s;';
     
     const updateBtnText = (mode) => {
       if (mode === 'shop') {
@@ -70,7 +74,61 @@ export class DockUI {
         this.gameState._camera.lookAt(0, 2, 0);
       }
     };
-    this.root.appendChild(camBtn);
+    actionsRow.appendChild(camBtn);
+
+    const exportShopBtn = document.createElement('button');
+    exportShopBtn.innerText = '📦 Export Shop (.glb)';
+    exportShopBtn.title = 'Export shop stall building and props to Blender (.glb)';
+    exportShopBtn.style.cssText = 'padding:10px; cursor:pointer; background:rgba(35,65,45,0.85); color:white; border:1px solid #4a8555; border-radius:5px; font-family:sans-serif; transition: all 0.2s;';
+    exportShopBtn.onmouseenter = () => exportShopBtn.style.background = 'rgba(45,85,55,1)';
+    exportShopBtn.onmouseleave = () => exportShopBtn.style.background = 'rgba(35,65,45,0.85)';
+
+    exportShopBtn.onclick = async () => {
+      exportShopBtn.disabled = true;
+      exportShopBtn.innerText = '⏳ Exporting...';
+      try {
+        const target = this.dockStall?.shopGroup || this.dockStall?.group;
+        await exportToGLB(target, 'shop_stall.glb');
+        exportShopBtn.innerText = '✅ Downloaded!';
+      } catch (err) {
+        console.error('Failed to export shop:', err);
+        exportShopBtn.innerText = '❌ Failed';
+      } finally {
+        setTimeout(() => {
+          exportShopBtn.disabled = false;
+          exportShopBtn.innerText = '📦 Export Shop (.glb)';
+        }, 2500);
+      }
+    };
+    actionsRow.appendChild(exportShopBtn);
+
+    const exportDockBtn = document.createElement('button');
+    exportDockBtn.innerText = '🏝️ Export Full Dock (.glb)';
+    exportDockBtn.title = 'Export complete dock, shop stall, island, and pier to Blender (.glb)';
+    exportDockBtn.style.cssText = 'padding:10px; cursor:pointer; background:rgba(40,50,70,0.85); color:white; border:1px solid #556688; border-radius:5px; font-family:sans-serif; transition: all 0.2s;';
+    exportDockBtn.onmouseenter = () => exportDockBtn.style.background = 'rgba(50,65,90,1)';
+    exportDockBtn.onmouseleave = () => exportDockBtn.style.background = 'rgba(40,50,70,0.85)';
+
+    exportDockBtn.onclick = async () => {
+      exportDockBtn.disabled = true;
+      exportDockBtn.innerText = '⏳ Exporting...';
+      try {
+        const target = this.dockStall?.group;
+        await exportToGLB(target, 'dock_full_environment.glb');
+        exportDockBtn.innerText = '✅ Downloaded!';
+      } catch (err) {
+        console.error('Failed to export dock:', err);
+        exportDockBtn.innerText = '❌ Failed';
+      } finally {
+        setTimeout(() => {
+          exportDockBtn.disabled = false;
+          exportDockBtn.innerText = '🏝️ Export Full Dock (.glb)';
+        }, 2500);
+      }
+    };
+    actionsRow.appendChild(exportDockBtn);
+
+    this.root.appendChild(actionsRow);
 
     this._onModeChange = ({ mode }) => {
       updateBtnText(mode);

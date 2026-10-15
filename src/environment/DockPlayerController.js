@@ -51,12 +51,13 @@ export class DockPlayerController {
     this.downRaycaster = new THREE.Raycaster();
     this.downRaycaster.far = 10.0;
     this.interactRaycaster = new THREE.Raycaster();
-    this.interactRaycaster.far = 5.2;
+    this.interactRaycaster.far = 6.5;
 
     // Mouse & Pointer Lock
     this.isLocked = false;
     this.mouseCoords = new THREE.Vector2(-999, -999);
     this.hoveredDoor = null;
+    this.hoveredBunny = null;
 
     // UI elements
     this._createUI();
@@ -205,7 +206,9 @@ export class DockPlayerController {
         break;
       case 'KeyE':
         // Interaction key
-        if (this.hoveredDoor) {
+        if (this.hoveredBunny) {
+          this._interactWithBunny();
+        } else if (this.hoveredDoor) {
           this.toggleShop();
         }
         break;
@@ -264,6 +267,11 @@ export class DockPlayerController {
     if (e.button !== 0) return;
     if (this.emoteWheel && this.emoteWheel.isOpen) return;
 
+    if (this.hoveredBunny) {
+      this._interactWithBunny();
+      return;
+    }
+
     if (this.hoveredDoor) {
       this.toggleShop();
       return;
@@ -302,6 +310,14 @@ export class DockPlayerController {
       this.enterShop();
     } else {
       this.exitShop();
+    }
+  }
+
+  _interactWithBunny() {
+    if (this.dockStall && this.dockStall.bunny) {
+      const playerPos = new THREE.Vector3();
+      this.camera.getWorldPosition(playerPos);
+      this.dockStall.bunny.interact(playerPos);
     }
   }
 
@@ -489,8 +505,8 @@ export class DockPlayerController {
       // Exclude water/below water level
       if (hit.point.y < 0.2) continue;
 
-      // Make sure the hit object isn't the door or ceiling
-      if (hit.object && hit.object.userData && hit.object.userData.isShopDoor) continue;
+      // Make sure the hit object isn't the door or ceiling or bunny
+      if (hit.object && hit.object.userData && (hit.object.userData.isShopDoor || hit.object.userData.isBunny)) continue;
 
       // Exclude any part of the shop stall (counter, floor, desk, apron, roof)
       let parent = hit.object;
@@ -511,7 +527,20 @@ export class DockPlayerController {
   }
 
   _updateInteractionRaycast() {
-    if (!this.dockStall || !this.dockStall.doorInteractables || this.dockStall.doorInteractables.length === 0) {
+    if (!this.dockStall) {
+      this._setHoverState(null);
+      return;
+    }
+
+    const interactables = [];
+    if (this.dockStall.doorInteractables) {
+      interactables.push(...this.dockStall.doorInteractables);
+    }
+    if (this.dockStall.bunnyInteractables) {
+      interactables.push(...this.dockStall.bunnyInteractables);
+    }
+
+    if (interactables.length === 0) {
       this._setHoverState(null);
       return;
     }
@@ -528,31 +557,42 @@ export class DockPlayerController {
       this.interactRaycaster.setFromCamera(this.mouseCoords, this.camera);
     }
 
-    const hits = this.interactRaycaster.intersectObjects(this.dockStall.doorInteractables, true);
-    if (hits.length > 0) {
-      const hit = hits[0];
-      // In shop mode, distance can be slightly further (looking from behind counter)
-      const maxDist = this.mode === 'shop' ? 5.5 : 4.0;
-      if (hit.distance <= maxDist) {
-        this._setHoverState(hit.object);
-        return;
+    const hits = this.interactRaycaster.intersectObjects(interactables, true);
+    for (let i = 0; i < hits.length; i++) {
+      const hit = hits[i];
+      if (hit.object && hit.object.userData) {
+        if (hit.object.userData.isBunny) {
+          if (hit.distance <= 6.5) {
+            this._setHoverState(hit.object, 'bunny');
+            return;
+          }
+        } else if (hit.object.userData.isShopDoor) {
+          const maxDist = this.mode === 'shop' ? 5.5 : 4.0;
+          if (hit.distance <= maxDist) {
+            this._setHoverState(hit.object, 'door');
+            return;
+          }
+        }
       }
     }
 
     this._setHoverState(null);
   }
 
-  _setHoverState(obj) {
-    this.hoveredDoor = obj;
+  _setHoverState(obj, type = null) {
+    this.hoveredDoor = type === 'door' ? obj : null;
+    this.hoveredBunny = type === 'bunny' ? obj : null;
 
-    if (obj) {
+    if (type) {
       this.domElement.style.cursor = 'pointer';
       this.crosshair.style.transform = 'translate(-50%, -50%) scale(1.6)';
       this.crosshair.style.background = '#ffd700';
       this.crosshair.style.borderColor = '#ffffff';
 
       this.prompt.style.display = 'flex';
-      if (this.mode === 'player') {
+      if (type === 'bunny') {
+        this.prompt.innerHTML = `🐰 <span style="background:#4a3520; padding:2px 6px; border-radius:3px; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Pet Bunny`;
+      } else if (this.mode === 'player') {
         this.prompt.innerHTML = `🚪 <span style="background:#4a3520; padding:2px 6px; border-radius:3px; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shop`;
       } else {
         this.prompt.innerHTML = `🚪 <span style="background:#4a3520; padding:2px 6px; border-radius:3px; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Exit Shop`;

@@ -169,7 +169,11 @@ export class FogVolume {
           // Also fade out very high up so it blends into clouds
           float topFade = smoothstep(200.0, 100.0, heightAboveOcean);
           
-          float alpha = density * edgeFadeY * topFade * 0.45; // Max opacity 0.45
+          // Radial fade towards boundary so fog volume never forms a hard sphere boundary
+          float distFromCenter = length(vWorldPosition.xz - uShipPos.xz);
+          float radialFade = smoothstep(300.0, 180.0, distFromCenter);
+          
+          float alpha = density * edgeFadeY * topFade * radialFade * 0.45; // Max opacity 0.45
           
           gl_FragColor = vec4(uColor, alpha);
         }
@@ -178,6 +182,8 @@ export class FogVolume {
 
     this.mesh = new THREE.Mesh(geometry, material);
     this.mesh.frustumCulled = false;
+    this.mesh.userData.noGodRays = true;
+    this.mesh.userData.noOcclusion = true;
     this._scene.add(this.mesh);
   }
 

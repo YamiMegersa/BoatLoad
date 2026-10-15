@@ -16,6 +16,8 @@ import { GodRays } from './environment/GodRays.js';
 import { PaperFilter } from './environment/PaperFilter.js';
 import { AudioManager } from './utils/AudioManager.js';
 import { DEBUG } from './utils/debug.js';
+import { exportToGLB } from './utils/exportGLTF.js';
+import { DirectorMode } from './director/DirectorMode.js';
 import './ui/ui.css';
 
 // ---------------------------------------------------------------------------
@@ -42,9 +44,16 @@ const ambient = new THREE.HemisphereLight(0xffffff, 0xffffff, 1.0);
 scene.add(ambient);
 
 const sun = new THREE.DirectionalLight(0xffffff, 1.0);
+sun.name = 'sunLight';
 sun.position.set(10, 20, 10);
 sun.castShadow = true;
 scene.add(sun);
+
+const moon = new THREE.DirectionalLight(0x9bc0f5, 0.35);
+moon.name = 'moonLight';
+moon.position.set(-10, -20, -10);
+moon.castShadow = true;
+scene.add(moon);
 
 // ---------------------------------------------------------------------------
 // God Rays post-processing
@@ -75,6 +84,11 @@ let userPaperStyle = 0;
 const gameState = new GameState(scene, camera, renderer);
 gameState._ambient = ambient;
 gameState._sun = sun;
+gameState._moon = moon;
+gameState._godRays = godRays;
+window.gameState = gameState;
+window.godRays = godRays;
+window.exportToGLB = exportToGLB;
 
 // Dev-only test helpers (?debug) — used by the iteration-2 test matrix to
 // reach hard-to-reach states quickly (sink, low water, day jumps).
@@ -108,6 +122,16 @@ const dialogue = new DialogueBox();
 const pauseMenu = new PauseMenu();
 const particles = new ParticleSystem(scene);
 
+const directorMode = new DirectorMode({
+  scene,
+  camera,
+  renderer,
+  gameState,
+  godRays,
+  paperFilter
+});
+window.directorMode = directorMode;
+
 // ---------------------------------------------------------------------------
 // Resize handler
 // ---------------------------------------------------------------------------
@@ -116,7 +140,12 @@ window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
 
-  if (gameState.activeCamera && gameState.activeCamera !== camera) {
+  if (directorMode.camera) {
+    directorMode.camera.aspect = window.innerWidth / window.innerHeight;
+    directorMode.camera.updateProjectionMatrix();
+  }
+
+  if (gameState.activeCamera && gameState.activeCamera !== camera && gameState.activeCamera !== directorMode.camera) {
     gameState.activeCamera.aspect = window.innerWidth / window.innerHeight;
     gameState.activeCamera.updateProjectionMatrix();
   }
@@ -155,9 +184,27 @@ function tick() {
   const now = performance.now();
   const delta = Math.min(clock.getDelta(), 0.05); // cap at 50ms to avoid spiral of death
 
+  // Calculate simulation delta according to Director Mode state
+  let simDelta = delta;
+  if (directorMode.isActive) {
+    directorMode.update(delta);
+    if (directorMode.stepFrameRequested) {
+      simDelta = 1 / 60;
+    } else if (directorMode.isHalted) {
+      simDelta = 0;
+    } else {
+      simDelta = delta * directorMode.timeScale;
+    }
+  }
+
   if (!isPaused) {
-    gameState.update(delta);
-    particles.update(delta);
+    if (simDelta > 0) {
+      gameState.update(simDelta);
+      particles.update(simDelta);
+    } else if (directorMode.isActive && directorMode.keepWavesMoving && gameState._ocean) {
+      // Keep ocean waves softly rolling even while ship/world is halted for epic cinematic shots
+      gameState._ocean.update(delta * 0.25);
+    }
   }
 
   frameCount++;
@@ -167,7 +214,7 @@ function tick() {
     lastFpsTime = now;
   }
 
-  const activeCam = gameState.activeCamera || camera;
+  const activeCam = directorMode.isActive ? directorMode.camera : (gameState.activeCamera || camera);
   godRays._camera = activeCam;
 
   const isMainMenu = gameState.currentPhase === GamePhase.MAIN_MENU;
@@ -179,10 +226,10 @@ function tick() {
     } else {
       paperFilter.setStyle(userPaperStyle);
     }
-    godRays.render(sun, mainRT);
+    godRays.render(sun, moon, mainRT);
     paperFilter.render(mainRT);
   } else {
-    godRays.render(sun, null);
+    godRays.render(sun, moon, null);
   }
 }
 
@@ -312,6 +359,8 @@ async function boot() {
         seaweedModels: level.seaweedModels,
         waveModels: level.waveModels,
         islandModels: level.islandModels,
+        sirenModel: level.sirenModel,
+        krakenModel: level.krakenModel,
       };
     }
 
@@ -325,6 +374,7 @@ async function boot() {
         rockModels: level.rockModels, pickupModels: level.pickupModels,
         seaweedModels: level.seaweedModels, waveModels: level.waveModels,
         islandModels: level.islandModels,
+        sirenModel: level.sirenModel, krakenModel: level.krakenModel,
       };
     }
 
@@ -376,7 +426,10 @@ async function boot() {
       }
     });
 
-    // Wire up Paper Shader sliders
+    // Wire up God Rays & Paper Shader toggles/sliders
+    on('editorToggleGodRays', d => {
+      godRays.enabled = !!d.enabled;
+    });
     on('editorTogglePaperShader', d => paperShaderEnabled = d.enabled);
     on('editorSetPaperStyle', d => {
       userPaperStyle = d.style;
