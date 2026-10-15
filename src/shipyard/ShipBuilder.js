@@ -22,21 +22,23 @@ export class ShipBuilder {
     const grid = new VoxelGrid(W, H, D);
 
     const loader = new GLTFLoader();
+    const modelPath = shipDef.modelUrl || `/src/assets/ships/${shipDef.id}.glb`;
     let gltf;
     try {
-      gltf = await loader.loadAsync(`/src/assets/ships/${shipDef.id}.glb`);
+      gltf = await loader.loadAsync(modelPath);
     } catch (e) {
-      console.warn(`ShipBuilder: Failed to load ${shipDef.id}.glb. Falling back to JSON zone bounds.`);
-      // Fallback: fill all cells that fall inside any zone as INTACT.
-      for (const [, zoneDefs] of Object.entries(shipDef.zones)) {
-        for (const region of zoneDefs) {
-          ShipBuilder._fillRegion(grid, region, CellState.INTACT);
+      console.warn(`ShipBuilder: Failed to load ${modelPath}. Falling back to default zones.`);
+      if (shipDef.zones) {
+        for (const [, zoneDefs] of Object.entries(shipDef.zones)) {
+          for (const region of zoneDefs) {
+            ShipBuilder._fillRegion(grid, region, CellState.INTACT);
+          }
         }
       }
       this._applyDamage(grid, levelCfg);
       grid.dirtySet.clear();
       grid.topologyDirty = false;
-      return { grid, zones: shipDef.zones, def: shipDef };
+      return { grid, zones: shipDef.zones || {}, def: shipDef };
     }
 
     // 1. Voxelize the GLB to find occupied cells and their colors

@@ -33,9 +33,15 @@ export class PlayerShip {
    * @param {import('../shipyard/ChunkRenderer.js').ChunkRenderer} [chunkRenderer]
    * @param {import('../shipyard/VoxelGrid.js').VoxelGrid} [grid]
    */
-  constructor(stats, scene, chunkRenderer, grid, qteSystem) {
-    this.speedMultiplier = stats.speedMultiplier  ?? 1.0;
-    this._laneHalfWidth  = stats.laneHalfWidth   ?? 6;
+  constructor(stats = {}, scene, chunkRenderer, grid, qteSystem) {
+    const profile = stats.profile || {};
+    this.shipProfile = profile;
+    this.speedMultiplier = stats.speedMultiplier ?? profile.speedMultiplier ?? 1.0;
+    this._laneHalfWidth  = stats.laneHalfWidth ?? 6;
+    this.turnAccel       = stats.turnAccel ?? profile.turnAccel ?? 2.0;
+    this.turnDamping     = stats.turnDamping ?? profile.turnDamping ?? 3.0;
+    this.isGagTruck      = !!(stats.isGagTruck || profile.isGagTruck);
+    this.shipScale       = stats.scale ?? profile.scale ?? 0.10;
 
     this.chunkRenderer = chunkRenderer;
     this.grid = grid;
@@ -44,13 +50,13 @@ export class PlayerShip {
 
     // Leak System
     this.waterLevel = 0;
-    this.maxWaterLevel = 100;
-    this.waterlineY = 4; // Any hole below Y=4 leaks water
+    this.maxWaterLevel = stats.waterCapacity ?? profile.waterCapacity ?? 100;
+    this.waterlineY = stats.waterlineY ?? profile.waterlineY ?? 4; // Any hole below Y leaks water
     this.numLeaks = 0;
 
     // HP System
-    this.hullHP = stats.hullHP ?? 100;
-    this.maxHullHP = stats.hullHP ?? 100;
+    this.hullHP = stats.hullHP ?? profile.health ?? 100;
+    this.maxHullHP = stats.maxHullHP ?? profile.health ?? 100;
 
     /** @type {number} Steering input in [-1, +1] from wheel drag or keyboard */
     this.steerInput = 0;
@@ -98,8 +104,8 @@ export class PlayerShip {
       // Offset so the ship is centered on X and Z, resting on Y=0
       chunkRenderer.container.position.set(-center.x, -tempBox.min.y, -center.z);
       
-      // Scale the wrapper down so the massive 24x48 voxel ship fits the 12-unit wide lane
-      wrapper.scale.setScalar(0.1);
+      // Scale the wrapper according to ship profile scale
+      wrapper.scale.setScalar(this.shipScale);
       
       // The voxel model faces +Z by default, but we move towards -Z
       wrapper.rotation.y = Math.PI;
@@ -178,6 +184,40 @@ export class PlayerShip {
   update(delta, ocean, windManager) {
     if (this.sunk) return;
 
+    // Gag Truck: Immediately nose-dives and sinks!
+    if (this.isGagTruck) {
+      this.truckSinkTimer = (this.truckSinkTimer || 0) + delta;
+
+      // Heavy forward nose-dive pitch (-75 degrees)
+      this.pitch = Math.max(-1.35, this.pitch - delta * 2.6);
+      this.roll += Math.sin(this.truckSinkTimer * 10.0) * 0.05;
+
+      // Rapidly sink into the water
+      this.mesh.position.y -= delta * 5.0;
+      this.mesh.position.z -= delta * 2.5; // slight forward slide as nose goes under
+
+      this.mesh.rotation.order = 'YXZ';
+      this.mesh.rotation.x = this.pitch;
+      this.mesh.rotation.y = this.yaw;
+      this.mesh.rotation.z = this.roll;
+
+      // Immediately flood
+      this.waterLevel = this.maxWaterLevel;
+      emit('playerWaterLevel', { level: this.waterLevel, max: this.maxWaterLevel });
+      this.hullHP = Math.max(0, this.hullHP - delta * 40);
+      emit('playerHealth', { hp: this.hullHP, max: this.maxHullHP });
+
+      if (Math.random() < 0.35) {
+        emit('spawnParticles', { type: 'splash', position: this.mesh.position });
+      }
+
+      if (this.truckSinkTimer >= 1.1 && !this.sunk) {
+        this.sunk = true;
+        emit('playerSunk', { gag: true, reason: 'TRUCKS DO NOT FLOAT!' });
+      }
+      return;
+    }
+
     // Time for natural bobbing
     const time = performance.now() / 1000;
 
@@ -242,8 +282,8 @@ export class PlayerShip {
     const handlingMultiplier = Math.max(0.1, 1.0 - (waterRatio * 1.2)); // Drops handling drastically as water fills
     
     // Driving Model: Steer input controls Yaw with inertia (heavy boat feel)
-    const turnAccel = 2.0 * handlingMultiplier;      // How fast the rudder can apply turning force
-    const damping = 3.0 * (1.0 + waterRatio * 2.0);  // Water resistance against turning (heavier when flooded)
+    const turnAccel = (this.turnAccel || 2.0) * handlingMultiplier;      // How fast the rudder can apply turning force
+    const damping = (this.turnDamping || 3.0) * (1.0 + waterRatio * 2.0);  // Water resistance against turning (heavier when flooded)
     
     // Base turning acceleration from player input
     let yawAccel = -this.steerInput * turnAccel;

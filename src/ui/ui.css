@@ -2223,3 +2223,156 @@ body {
   border-color: #ffd700;
   color: #fff;
 }
+
+/* ==========================================================================
+   Ship & Vessel Workspace Tab
+   ========================================================================== */
+.ship-cards-scroll {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  height: 64px;
+  padding: 2px 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(212, 175, 55, 0.4) transparent;
+}
+
+.ship-cards-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+
+.ship-cards-scroll::-webkit-scrollbar-thumb {
+  background: rgba(212, 175, 55, 0.4);
+  border-radius: 2px;
+}
+
+.ship-card {
+  background: rgba(20, 28, 40, 0.85);
+  border: 1px solid rgba(154, 91, 46, 0.45);
+  border-radius: 6px;
+  color: #e0d6c8;
+  padding: 4px 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 175px;
+  height: 56px;
+  flex-shrink: 0;
+  transition: all 0.16s ease;
+  position: relative;
+  text-align: left;
+}
+
+.ship-card:hover {
+  background: rgba(35, 50, 72, 0.95);
+  border-color: #ffd700;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+}
+
+.ship-card.active {
+  background: linear-gradient(135deg, rgba(50, 75, 110, 0.95), rgba(28, 42, 64, 0.95));
+  border: 1.5px solid #ffd700;
+  box-shadow: 0 0 12px rgba(255, 215, 0, 0.45);
+}
+
+.ship-card-icon {
+  font-size: 24px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.ship-card-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.ship-card-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ship-card-meta {
+  display: flex;
+  gap: 6px;
+  font-size: 9.5px;
+  color: #b5c3d4;
+  white-space: nowrap;
+}
+
+.ship-card-meta span strong {
+  color: #ffd700;
+}
+
+.ship-card.gag-ship {
+  border-color: rgba(220, 80, 50, 0.6);
+}
+
+.ship-card.gag-ship.active {
+  border-color: #ff5533;
+  box-shadow: 0 0 12px rgba(255, 75, 50, 0.5);
+}
+
+.ship-card-gag-badge {
+  position: absolute;
+  top: -4px;
+  right: 6px;
+  background: #b71c1c;
+  color: white;
+  font-size: 8px;
+  font-weight: 800;
+  padding: 1px 4px;
+  border-radius: 3px;
+  letter-spacing: 0.3px;
+  border: 1px solid #ff7777;
+}
+
+.ship-attached-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(15, 22, 33, 0.8);
+  border: 1px solid rgba(212, 175, 55, 0.4);
+  padding: 4px 10px;
+  border-radius: 5px;
+  font-size: 11px;
+  color: #dcd2bf;
+}
+
+.ship-attached-indicator strong {
+  color: #ffd700;
+}
+
+.ship-action-btn-sail {
+  background: linear-gradient(135deg, #2e7d32, #1b5e20) !important;
+  border-color: #66bb6a !important;
+  color: white !important;
+  font-weight: 700 !important;
+}
+
+.ship-action-btn-sail:hover {
+  background: linear-gradient(135deg, #388e3c, #2e7d32) !important;
+  box-shadow: 0 0 10px rgba(76, 175, 80, 0.4) !important;
+}
+
+.ship-action-btn-dock {
+  background: linear-gradient(135deg, #9a5b2e, #6f3e1b) !important;
+  border-color: #d4af37 !important;
+  color: white !important;
+  font-weight: 700 !important;
+}
+
+.ship-action-btn-dock:hover {
+  background: linear-gradient(135deg, #b26834, #874c22) !important;
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.4) !important;
+}
+

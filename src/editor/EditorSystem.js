@@ -1,8 +1,10 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { emit, on, off } from '../core/EventBus.js';
 import { buildObstacle } from '../obstacle/ObstacleManager.js';
 import { EnvironmentManager } from '../environment/EnvironmentManager.js';
 import { VoxelTerrain } from './VoxelTerrain.js';
+import { getShipProfile, DEFAULT_SHIP_ID } from '../config/ShipRegistry.js';
 
 export class EditorSystem {
   constructor() {
@@ -16,6 +18,10 @@ export class EditorSystem {
     this._islandModels = [];
     this._sirenModel = null;
     this._krakenModel = null;
+    // Ship selection & ghost preview state
+    this._selectedShipId = DEFAULT_SHIP_ID;
+    this._shipGhostGroup = null;
+    this._shipGhostVisible = true;
     // State
     this._activeType = null; // 'rock', 'barrel', etc. or null
     this._activeUrl = null;
@@ -161,6 +167,12 @@ export class EditorSystem {
         this._envManager._updateTimeAndLighting(0);
       }
 
+      // Ship assignment
+      if (cfg.ship) {
+        this._selectedShipId = cfg.ship;
+        this._updateShipGhost();
+      }
+
       emit('editorConfigLoaded', { config: cfg });
       this._emitState();
     });
@@ -290,6 +302,21 @@ export class EditorSystem {
       this._updateBossVisuals();
       this._emitBossConfig();
     });
+
+    on('editorSelectShip', d => {
+      if (!d || !d.shipId) return;
+      this._selectedShipId = d.shipId;
+      if (this._levelCfg) this._levelCfg.ship = d.shipId;
+      this._updateShipGhost();
+      this._emitState();
+    });
+
+    on('editorToggleShipGhost', d => {
+      this._shipGhostVisible = !!d.enabled;
+      if (this._shipGhostGroup) {
+        this._shipGhostGroup.visible = this._shipGhostVisible;
+      }
+    });
   }
 
   _emitState() {
@@ -300,7 +327,8 @@ export class EditorSystem {
       activeUrl: this._activeUrl,
       scale: this._currentScale,
       y: this._currentY,
-      rotation: this._currentRotation
+      rotation: this._currentRotation,
+      selectedShipId: this._selectedShipId
     });
   }
 
@@ -330,6 +358,10 @@ export class EditorSystem {
     const initialWindDir = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), THREE.MathUtils.degToRad(windDirAngle)).normalize();
     this._windArrowHelper = new THREE.ArrowHelper(initialWindDir, new THREE.Vector3(0, 10, 0), 30, 0x00ffff, 8, 4);
     this._scene.add(this._windArrowHelper);
+
+    // Initialize Ship Spawn Ghost Preview
+    this._selectedShipId = this._levelCfg?.ship || DEFAULT_SHIP_ID;
+    this._updateShipGhost();
 
     this._renderer.domElement.addEventListener('pointerdown', this._boundPointerDown);
     this._renderer.domElement.addEventListener('pointermove', this._boundPointerMove);
@@ -794,6 +826,7 @@ export class EditorSystem {
 
     return {
       ...this._levelCfg,
+      ship: this._selectedShipId || this._levelCfg?.ship || DEFAULT_SHIP_ID,
       worldSize: this._levelCfg?.worldSize || 200,
       globalWindDir: this._levelCfg?.globalWindDir || 0,
       fogDensity: this._levelCfg?.fogDensity !== undefined ? this._levelCfg.fogDensity : 0.006,
@@ -1102,6 +1135,109 @@ export class EditorSystem {
     document.body.removeChild(a);
     
     console.log("Level Exported", exportData);
+  }
+
+  _updateShipGhost() {
+    if (!this._scene) return;
+    if (this._shipGhostGroup) {
+      this._scene.remove(this._shipGhostGroup);
+      this._shipGhostGroup.traverse(child => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) {
+          if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+          else child.material.dispose();
+        }
+      });
+      this._shipGhostGroup = null;
+    }
+
+    const profile = getShipProfile(this._selectedShipId);
+    this._shipGhostGroup = new THREE.Group();
+    this._shipGhostGroup.name = 'editorShipGhost';
+    this._shipGhostGroup.visible = this._shipGhostVisible;
+
+    // Load ship model with translucent wireframe / ghost holographic material
+    const loader = new GLTFLoader();
+    const modelUrl = profile.modelUrl || `/src/assets/ships/${profile.id}.glb`;
+    loader.load(modelUrl, (gltf) => {
+      if (!this._shipGhostGroup) return; // disposed in the meantime
+      const model = gltf.scene;
+
+      // Scale model based on ship profile
+      const box = new THREE.Box3().setFromObject(model);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+
+      // Centered and resting on water
+      model.position.set(-center.x, -box.min.y, -center.z);
+
+      const wrapper = new THREE.Group();
+      wrapper.add(model);
+      wrapper.scale.setScalar(profile.scale);
+
+      // Apply holographic cyan / red tint
+      model.traverse((child) => {
+        if (child.isMesh) {
+          child.material = new THREE.MeshStandardMaterial({
+            color: profile.isGagTruck ? 0xff4422 : 0x00e5ff,
+            emissive: profile.isGagTruck ? 0xaa2200 : 0x006688,
+            emissiveIntensity: 0.5,
+            transparent: true,
+            opacity: 0.6,
+            depthWrite: false
+          });
+        }
+      });
+
+      // Facing -Z (default sailing direction)
+      wrapper.rotation.y = Math.PI;
+      this._shipGhostGroup.add(wrapper);
+
+      // Add a floating marker ring on water at (0, 0, 0)
+      const ringGeo = new THREE.RingGeometry(profile.collisionRadius * 0.9, profile.collisionRadius * 1.05, 32);
+      ringGeo.rotateX(-Math.PI / 2);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: profile.isGagTruck ? 0xff3300 : 0x00e5ff,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.75
+      });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.position.y = 0.15;
+      this._shipGhostGroup.add(ring);
+    });
+
+    this._scene.add(this._shipGhostGroup);
+  }
+
+  dispose() {
+    if (this._shipGhostGroup) {
+      this._scene?.remove(this._shipGhostGroup);
+      this._shipGhostGroup = null;
+    }
+
+    if (this._windArrowHelper) {
+      this._scene?.remove(this._windArrowHelper);
+      this._windArrowHelper = null;
+    }
+
+    if (this._krakenVisualGroup) {
+      this._scene?.remove(this._krakenVisualGroup);
+      this._krakenVisualGroup = null;
+    }
+
+    if (this._previewMesh) {
+      this._scene?.remove(this._previewMesh.mesh);
+      this._previewMesh = null;
+    }
+
+    this._renderer?.domElement.removeEventListener('pointerdown', this._boundPointerDown);
+    this._renderer?.domElement.removeEventListener('pointermove', this._boundPointerMove);
+    window.removeEventListener('pointerup', this._boundPointerUp);
+    this._renderer?.domElement.removeEventListener('wheel', this._boundWheel);
+    window.removeEventListener('keydown', this._boundKeyDown);
   }
 
   update(delta) {

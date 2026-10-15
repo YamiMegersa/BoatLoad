@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GameState, GamePhase } from './core/GameState.js';
 import { LevelConfig } from './core/LevelConfig.js';
+import { ShipRegistry, DEFAULT_SHIP_ID } from './config/ShipRegistry.js';
 import { on, emit } from './core/EventBus.js';
 import { BuildMenu } from './ui/BuildMenu.js';
 import { DocketSheet } from './ui/DocketSheet.js';
@@ -260,20 +261,27 @@ async function boot() {
     };
     document.getElementById('btn-dock').onclick = () => {
       logEvent('Transitioning to Dock...');
-      gameState.transition(GamePhase.DOCK, { levelCfg });
+      const activeShipId = gameState._levelCfg?.ship || levelCfg?.ship || DEFAULT_SHIP_ID;
+      const activeShipDef = LevelConfig.getShipDef(activeShipId);
+      gameState.transition(GamePhase.DOCK, { shipDef: activeShipDef, levelCfg: gameState._levelCfg || levelCfg, fishModels });
     };
     document.getElementById('btn-shipyard').onclick = () => {
       logEvent('Transitioning to Shipyard...');
-      gameState.transition(GamePhase.SHIPYARD, { shipDef, levelCfg, fishModels });
+      const activeShipId = gameState._levelCfg?.ship || levelCfg?.ship || DEFAULT_SHIP_ID;
+      const activeShipDef = LevelConfig.getShipDef(activeShipId);
+      gameState.transition(GamePhase.SHIPYARD, { shipDef: activeShipDef, levelCfg: gameState._levelCfg || levelCfg, fishModels });
     };
     document.getElementById('btn-obstacle').onclick = () => {
       logEvent('Transitioning to Sailing...');
-      let hp = 100;
+      const activeShipId = gameState._levelCfg?.ship || levelCfg?.ship || DEFAULT_SHIP_ID;
+      const activeShipDef = LevelConfig.getShipDef(activeShipId);
+      const profile = ShipRegistry.get(activeShipId);
+      let hp = profile.hullHP;
       if (gameState._grid) {
-        hp = DamageSystem.getSummary(gameState._grid).integrityPct;
+        hp = Math.round((DamageSystem.getSummary(gameState._grid).integrityPct / 100) * profile.hullHP);
       }
       gameState.transition(GamePhase.OBSTACLE, { 
-        shipDef, 
+        shipDef: activeShipDef, 
         levelCfg: gameState._levelCfg || levelCfg, 
         shipStats: { hullHP: hp }, 
         rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel 
@@ -295,36 +303,51 @@ async function boot() {
     on('playerDamaged',      () => logEvent(`[Collision] Hull breached!`));
     on('playerSunk',         () => logEvent('[SUNK] Game Over'));
 
-    // Start sailing from shipyard
+    // Start sailing from shipyard or dock
     on('startSailing', () => {
-      let hp = 100;
+      const activeShipId = gameState._levelCfg?.ship || levelCfg?.ship || DEFAULT_SHIP_ID;
+      const activeShipDef = LevelConfig.getShipDef(activeShipId);
+      const profile = ShipRegistry.get(activeShipId);
+      let hp = profile.hullHP;
       if (gameState._grid) {
-        hp = DamageSystem.getSummary(gameState._grid).integrityPct;
+        hp = Math.round((DamageSystem.getSummary(gameState._grid).integrityPct / 100) * profile.hullHP);
       }
       gameState.transition(GamePhase.OBSTACLE, {
-        shipDef,
+        shipDef: activeShipDef,
         levelCfg: gameState._levelCfg || levelCfg,
         shipStats: { hullHP: hp },
         rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel
       });
     });
 
-    on('editorRequestPlay', () => {
+    on('editorRequestPlay', (d) => {
       if (gameState.currentPhase === GamePhase.EDITOR && gameState._editorSystem) {
-        logEvent('Playing Custom Level from Editor...');
         const customLevelCfg = gameState._editorSystem.getPlayableConfig();
+        const activeShipId = customLevelCfg.ship || DEFAULT_SHIP_ID;
+        const activeShipDef = LevelConfig.getShipDef(activeShipId);
+        const profile = ShipRegistry.get(activeShipId);
 
-        let hp = 100;
-        if (gameState._grid) {
-          hp = DamageSystem.getSummary(gameState._grid).integrityPct;
+        if (d && d.mode === 'dock') {
+          logEvent(`Docking custom level with vessel [${profile.name}]...`);
+          gameState.transition(GamePhase.DOCK, {
+            shipDef: activeShipDef,
+            levelCfg: customLevelCfg,
+            fishModels
+          });
+        } else {
+          logEvent(`Playing Custom Level from Editor with vessel [${profile.name}]...`);
+          let hp = profile.hullHP;
+          if (gameState._grid) {
+            hp = Math.round((DamageSystem.getSummary(gameState._grid).integrityPct / 100) * profile.hullHP);
+          }
+
+          gameState.transition(GamePhase.OBSTACLE, { 
+            shipDef: activeShipDef, 
+            levelCfg: customLevelCfg, 
+            shipStats: { hullHP: hp }, 
+            rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel 
+          });
         }
-
-        gameState.transition(GamePhase.OBSTACLE, { 
-          shipDef, 
-          levelCfg: customLevelCfg, 
-          shipStats: { hullHP: hp }, 
-          rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel 
-        });
       }
     });
 
@@ -350,21 +373,28 @@ async function boot() {
         gameState.transition(GamePhase.MAIN_MENU);
       } else if (phase === GamePhase.DOCK) {
         logEvent('Setting Sail -> Arriving at Dock...');
-        gameState.transition(GamePhase.DOCK, { levelCfg });
+        const activeShipId = gameState._levelCfg?.ship || levelCfg?.ship || DEFAULT_SHIP_ID;
+        const activeShipDef = LevelConfig.getShipDef(activeShipId);
+        gameState.transition(GamePhase.DOCK, { shipDef: activeShipDef, levelCfg: gameState._levelCfg || levelCfg, fishModels });
       } else if (phase === GamePhase.SHIPYARD) {
         logEvent('Entering Shipyard...');
-        gameState.transition(GamePhase.SHIPYARD, { shipDef, levelCfg, fishModels });
+        const activeShipId = gameState._levelCfg?.ship || levelCfg?.ship || DEFAULT_SHIP_ID;
+        const activeShipDef = LevelConfig.getShipDef(activeShipId);
+        gameState.transition(GamePhase.SHIPYARD, { shipDef: activeShipDef, levelCfg: gameState._levelCfg || levelCfg, fishModels });
       } else if (phase === GamePhase.OBSTACLE) {
         logEvent('Setting Sail -> Heading to High Seas...');
-        let hp = 100;
+        const activeShipId = gameState._levelCfg?.ship || levelCfg?.ship || DEFAULT_SHIP_ID;
+        const activeShipDef = LevelConfig.getShipDef(activeShipId);
+        const profile = ShipRegistry.get(activeShipId);
+        let hp = profile.hullHP;
         if (gameState._grid) {
-          hp = DamageSystem.getSummary(gameState._grid).integrityPct;
+          hp = Math.round((DamageSystem.getSummary(gameState._grid).integrityPct / 100) * profile.hullHP);
         }
         gameState.transition(GamePhase.OBSTACLE, {
-          shipDef,
+          shipDef: activeShipDef,
           levelCfg: gameState._levelCfg || levelCfg,
           shipStats: { hullHP: hp },
-          rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels
+          rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel
         });
       } else if (phase === GamePhase.EDITOR) {
         logEvent('Opening Map Maker / Level Editor...');

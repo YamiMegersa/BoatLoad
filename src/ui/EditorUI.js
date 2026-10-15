@@ -1,16 +1,19 @@
 import { emit, on, off } from '../core/EventBus.js';
 import { LevelConfig } from '../core/LevelConfig.js';
+import { ShipRegistry, DEFAULT_SHIP_ID } from '../config/ShipRegistry.js';
 
 export class EditorUI {
   constructor() {
     this._el = null;
-    this._activeTab = 'assets'; // 'assets', 'terrain', 'world', 'paper'
+    this._activeTab = 'assets'; // 'assets', 'terrain', 'boss', 'ship', 'world', 'paper'
     this._activeCategory = 'rocks'; // 'rocks', 'islands', 'seaweed', 'waves', 'pickups', 'hazards'
     this._activeTool = 'select'; // 'select', 'delete', 'place', 'terrain_raise', 'terrain_lower'
     this._activeType = null;
     this._activeUrl = null;
     this._activeItemName = 'None';
     this._ribbonCollapsed = false;
+    this._selectedShipId = DEFAULT_SHIP_ID;
+    this._showShipGhost = true;
 
     // Transform cache
     this._scale = 1.0;
@@ -31,6 +34,7 @@ export class EditorUI {
     if (this._el) this.unmount();
     
     const levelCfg = d?.levelCfg || {};
+    this._selectedShipId = levelCfg.ship || DEFAULT_SHIP_ID;
     const worldSize = levelCfg.worldSize || 200;
     const globalWindDir = levelCfg.globalWindDir || 0;
     const fogDensity = levelCfg.fogDensity !== undefined ? levelCfg.fogDensity : 0.006;
@@ -271,6 +275,9 @@ export class EditorUI {
           <button class="ribbon-tab-btn" data-tab="boss">
             <span class="tab-icon">🐙</span> Boss (Kraken)
           </button>
+          <button class="ribbon-tab-btn" data-tab="ship">
+            <span class="tab-icon">🚢</span> Flagship &amp; Fleet
+          </button>
           <button class="ribbon-tab-btn" data-tab="world">
             <span class="tab-icon">🌍</span> Environment &amp; World
           </button>
@@ -471,6 +478,59 @@ export class EditorUI {
               <button class="shelf-btn btn-danger-hover" id="btn-remove-boss" title="Remove Boss encounter from level">
                 <span class="shelf-btn-icon">🗑️</span>
                 <span class="shelf-btn-text">Clear Boss</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================== TAB 2.5: SHIP / FLEET ==================== -->
+        <div class="ribbon-pane" id="pane-ship">
+          <div class="ribbon-group" style="flex: 1; min-width: 320px;">
+            <span class="ribbon-group-label">Level Flagship / Vessel (Select to Assign)</span>
+            <div class="ship-cards-scroll" id="ship-cards-list">
+              ${ShipRegistry.getAll().map(ship => `
+                <button class="ship-card ${ship.id === this._selectedShipId ? 'active' : ''} ${ship.isGagTruck ? 'gag-ship' : ''}" data-ship-id="${ship.id}">
+                  ${ship.isGagTruck ? '<span class="ship-card-gag-badge">GAG TRUCK</span>' : ''}
+                  <span class="ship-card-icon">${ship.icon || '⛵'}</span>
+                  <div class="ship-card-details">
+                    <div class="ship-card-title">${ship.name}</div>
+                    <div class="ship-card-meta">
+                      <span>HP: <strong>${ship.hullHP}</strong></span>
+                      <span>Speed: <strong>${ship.speedMultiplier.toFixed(2)}x</strong></span>
+                      <span>Turn: <strong>${ship.turnAccel.toFixed(1)}</strong></span>
+                    </div>
+                  </div>
+                </button>
+              `).join('')}
+            </div>
+          </div>
+
+          <div class="ribbon-divider"></div>
+
+          <div class="ribbon-group" style="min-width: 175px;">
+            <span class="ribbon-group-label">Vessel Assignment</span>
+            <div class="ship-attached-indicator">
+              <span>Attached: <strong id="ship-attached-name">${ShipRegistry.get(this._selectedShipId).name}</strong></span>
+            </div>
+            <label class="editor-toggle-switch" style="margin-top: 6px;">
+              <input type="checkbox" id="ship-ghost-check" checked>
+              <span class="toggle-slider"></span>
+              <span class="toggle-label" style="font-size: 11px;">👻 3D Ghost Preview</span>
+            </label>
+          </div>
+
+          <div class="ribbon-divider"></div>
+
+          <div class="ribbon-group">
+            <span class="ribbon-group-label">Test Sail Vessel</span>
+            <div class="ribbon-group-row">
+              <button class="shelf-btn ship-action-btn-sail" id="btn-ship-test-sail" title="Sail this vessel immediately on the map">
+                <span class="shelf-btn-icon">⛵</span>
+                <span class="shelf-btn-text">Test Sail</span>
+              </button>
+              <button class="shelf-btn ship-action-btn-dock" id="btn-ship-test-dock" title="Test this vessel moored in the dock and shipyard">
+                <span class="shelf-btn-icon">⚓</span>
+                <span class="shelf-btn-text">Test in Dock</span>
               </button>
             </div>
           </div>
@@ -707,6 +767,7 @@ export class EditorUI {
     this._bindRibbonTabs();
     this._bindTransformControls();
     this._bindBossControls();
+    this._bindShipControls();
     this._bindWorldSliders(levelCfg);
     this._bindPaperSliders();
     this._bindFileOperations();
@@ -1427,6 +1488,69 @@ export class EditorUI {
   }
 
   // -------------------------------------------------------------------------
+  // Ship Selection & Fleet Controls
+  // -------------------------------------------------------------------------
+  _bindShipControls() {
+    const list = this._el.querySelector('#ship-cards-list');
+    if (list) {
+      const cards = list.querySelectorAll('.ship-card');
+      cards.forEach(card => {
+        card.onclick = () => {
+          const shipId = card.dataset.shipId;
+          this._selectShip(shipId, true);
+        };
+      });
+    }
+
+    const ghostCheck = this._el.querySelector('#ship-ghost-check');
+    if (ghostCheck) {
+      ghostCheck.onchange = (e) => {
+        this._showShipGhost = !!e.target.checked;
+        emit('editorToggleShipGhost', { enabled: this._showShipGhost });
+      };
+    }
+
+    const testSailBtn = this._el.querySelector('#btn-ship-test-sail');
+    if (testSailBtn) {
+      testSailBtn.onclick = () => {
+        emit('editorRequestPlay', { mode: 'sail' });
+      };
+    }
+
+    const testDockBtn = this._el.querySelector('#btn-ship-test-dock');
+    if (testDockBtn) {
+      testDockBtn.onclick = () => {
+        emit('editorRequestPlay', { mode: 'dock' });
+      };
+    }
+  }
+
+  _selectShip(shipId, emitEvent = true) {
+    if (!shipId) return;
+    this._selectedShipId = shipId;
+
+    const cards = this._el.querySelectorAll('#ship-cards-list .ship-card');
+    cards.forEach(c => {
+      if (c.dataset.shipId === shipId) {
+        c.classList.add('active');
+      } else {
+        c.classList.remove('active');
+      }
+    });
+
+    const attachedName = this._el.querySelector('#ship-attached-name');
+    const profile = ShipRegistry.get(shipId);
+    if (attachedName && profile) {
+      attachedName.innerText = profile.name;
+    }
+
+    if (emitEvent) {
+      emit('editorSelectShip', { shipId });
+      this._showToast(`Vessel attached to level: ${profile.name}`);
+    }
+  }
+
+  // -------------------------------------------------------------------------
   // State Sync & Toast Notifications
   // -------------------------------------------------------------------------
   _handleStateUpdated(d) {
@@ -1456,12 +1580,20 @@ export class EditorUI {
       if (badgeRot) badgeRot.innerText = `${deg < 0 ? deg + 360 : deg}°`;
     }
 
+    if (d.selectedShipId !== undefined && d.selectedShipId !== this._selectedShipId) {
+      this._selectShip(d.selectedShipId, false);
+    }
+
     this._updateStatusBadges();
   }
 
   _handleConfigLoaded(d) {
     if (!d || !d.config) return;
     const cfg = d.config;
+
+    if (cfg.ship !== undefined) {
+      this._selectShip(cfg.ship, false);
+    }
 
     // Update World inputs
     if (cfg.worldSize !== undefined) {

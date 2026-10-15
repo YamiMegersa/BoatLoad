@@ -23,6 +23,8 @@ import { Sky }                from '../environment/Sky.js';
 import { DockStall }          from '../environment/DockStall.js';
 import { DockPlayerController } from '../environment/DockPlayerController.js';
 import { WeatherSystem }      from '../environment/WeatherSystem.js';
+import { LevelConfig }        from './LevelConfig.js';
+import { ShipRegistry, DEFAULT_SHIP_ID } from '../config/ShipRegistry.js';
 import { emit, on, off, clear } from './EventBus.js';
 
 // ---------------------------------------------------------------------------
@@ -184,6 +186,18 @@ export class GameState {
         if (this._dockStall) this._dockStall.update(delta, this._time);
         if (this._dockPlayerController) this._dockPlayerController.update(delta);
         if (this._dockOrbitControls && this._dockOrbitControls.enabled) this._dockOrbitControls.update();
+        if (this._chunkRenderer && this._chunkRenderer.container && this._chunkRenderer.container.visible) {
+          const isTruck = this._mooredShipProfile?.isGagTruck;
+          const bob = Math.sin(this._time * 1.6) * 0.08;
+          const roll = Math.sin(this._time * 1.1) * 0.03;
+          this._chunkRenderer.container.position.y = -0.65 + bob;
+          this._chunkRenderer.container.rotation.z = roll;
+          if (isTruck) {
+            this._chunkRenderer.container.rotation.x = -0.45 + Math.sin(this._time * 2.5) * 0.04;
+          } else {
+            this._chunkRenderer.container.rotation.x = Math.sin(this._time * 1.3) * 0.02;
+          }
+        }
         break;
 
       case GamePhase.SHIPYARD:
@@ -277,9 +291,44 @@ export class GameState {
   // =========================================================================
 
   async _enterDock(opts) {
+    if (opts?.levelCfg) this._levelCfg = opts.levelCfg;
+
+    const activeShipId = opts?.shipDef?.id || opts?.levelCfg?.ship || this._levelCfg?.ship || this.shipId || DEFAULT_SHIP_ID;
+    const activeShipDef = opts?.shipDef || LevelConfig.getShipDef(activeShipId);
+    const shipProfile = ShipRegistry.get(activeShipId);
+    this._mooredShipProfile = shipProfile;
+
+    // Build or update ship model if needed so it displays moored in the dock
+    if (!this._grid || this._currentShipId !== activeShipId) {
+      this._currentShipId = activeShipId;
+      const { grid, zones, def, gltfScene } = await ShipBuilder.build(activeShipDef, this._levelCfg);
+      this._grid  = grid;
+      this._zones = zones;
+      if (this._chunkRenderer) {
+        this._chunkRenderer.dispose(this._scene);
+      }
+      this._chunkRenderer = new ChunkRenderer();
+      this._chunkRenderer.init(grid, this._scene, gltfScene);
+    }
+
     if (this._chunkRenderer && this._chunkRenderer.container) {
       this._chunkRenderer.container.visible = true;
-      this._chunkRenderer.container.position.set(15, -0.5, 0);
+      this._chunkRenderer.container.position.set(13.8, -0.65, 1.8);
+      this._chunkRenderer.container.rotation.set(0, Math.PI / 2, 0);
+      this._chunkRenderer.container.userData.isMooredShip = true;
+      this._chunkRenderer.container.traverse(c => {
+        c.userData.isMooredShip = true;
+      });
+      if (this._dockStall) {
+        this._dockStall.shipInteractables = [this._chunkRenderer.container];
+      }
+    }
+
+    // Check if repairs are required
+    const integrity = this._grid ? DamageSystem.getSummary(this._grid).integrityPct : 100;
+    if (this._dockStall) {
+      this._dockStall.shipNeedsRepair = integrity < 100;
+      this._dockStall.activeShipProfile = shipProfile;
     }
     // Set up fixed cinematic camera
     this._camera.position.set(0, 5, 20);
@@ -320,6 +369,11 @@ export class GameState {
   _exitDock() {
     this._scene.remove(this._dockStall.group);
     this._ocean.breakwaterEnabled = false;
+
+    if (this._chunkRenderer && this._chunkRenderer.container) {
+      this._chunkRenderer.container.visible = false;
+      this._chunkRenderer.container.position.set(0, -999, 0);
+    }
 
     if (this._dockPlayerController) {
       this._dockPlayerController.dispose();
@@ -570,8 +624,12 @@ export class GameState {
   _enterObstacle({ levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel }) {
     this._levelCfg = levelCfg;
 
+    const profile = ShipRegistry.get(levelCfg?.ship || this._levelCfg?.ship || DEFAULT_SHIP_ID);
+    const camDist = profile.cameraDist ?? 16;
+    const camHeight = profile.cameraHeight ?? 5;
+
     // Chase camera initial position
-    this._camera.position.set(0, 5, 16);
+    this._camera.position.set(0, camHeight, camDist);
     this._camera.lookAt(0, 0, -5);
 
     if (this._ocean) {
@@ -658,9 +716,12 @@ export class GameState {
       const shipDir = new THREE.Vector3(-Math.sin(shipYaw), 0, -Math.cos(shipYaw));
       const rightDir = new THREE.Vector3(Math.cos(shipYaw), 0, -Math.sin(shipYaw));
 
+      const camDist = this._playerShip.shipProfile?.cameraDist ?? 16;
+      const camHeight = this._playerShip.shipProfile?.cameraHeight ?? 5;
+
       // 1. Base Target
-      const baseTarget = p.clone().add(shipDir.clone().multiplyScalar(-16));
-      baseTarget.y += 5;
+      const baseTarget = p.clone().add(shipDir.clone().multiplyScalar(-camDist));
+      baseTarget.y += camHeight;
 
       // 2. Overshoot Spring
       if (this._camOvershoot === undefined) {

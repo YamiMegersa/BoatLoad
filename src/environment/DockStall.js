@@ -210,6 +210,9 @@ export class DockStall {
     this.doorInteractables = [];
     this.bunny = null;
     this.bunnyInteractables = [];
+    this.shipInteractables = [];
+    this.shipNeedsRepair = false;
+    this.activeShipProfile = null;
     this._isBuilt = false;
   }
 
