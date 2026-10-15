@@ -2819,126 +2819,7 @@ export class DockStall {
 
     dockGroup.add(cargoGroup2);
 
-    // 7. Moored Coastal Trading Sloop Vessel
-    // Moored alongside northern face of pier at X: -52.0, Z: 21.2
-    const sloopGroup = new THREE.Group();
-    sloopGroup.position.set(-52.0, 0.6, 21.2);
-
-    const hullLen = 11.2;
-    const hullW = 3.6;
-
-    // Solid Keel
-    const sKeel = createVoxelBox(hullLen, 0.42, 0.44, mats.woodDark);
-    sKeel.position.y = 0.2;
-    sloopGroup.add(sKeel);
-
-    // Lower hull bottom
-    const sBottom = createVoxelBox(hullLen - 1.2, 0.35, hullW - 0.8, mats.woodDark);
-    sBottom.position.y = 0.45;
-    sloopGroup.add(sBottom);
-
-    // Hull topsides (Port and Starboard planking)
-    [-hullW / 2 + 0.18, hullW / 2 - 0.18].forEach(sz => {
-      const strakeLower = createVoxelBox(hullLen - 0.4, 0.55, 0.26, mats.woodMid);
-      strakeLower.position.set(0, 0.85, sz);
-      sloopGroup.add(strakeLower);
-
-      const sheerStrake = createVoxelBox(hullLen, 0.32, 0.28, mats.woodTrim);
-      sheerStrake.position.set(0, 1.25, sz);
-      sloopGroup.add(sheerStrake);
-    });
-
-    // Bow stem (Angled forward into the water)
-    const sStem = createVoxelBox(0.44, 1.3, 0.44, mats.woodDark);
-    sStem.position.set(-hullLen / 2 + 0.25, 0.9, 0);
-    sStem.rotation.z = 0.3;
-    sloopGroup.add(sStem);
-
-    // Transom stern (Aft)
-    const sTransom = createVoxelBox(0.32, 1.1, hullW - 0.4, mats.woodTrim);
-    sTransom.position.set(hullLen / 2 - 0.2, 0.85, 0);
-    sloopGroup.add(sTransom);
-
-    // Main Deck planking (Walkable!)
-    const sDeck = createVoxelBox(hullLen - 1.2, 0.14, hullW - 0.6, mats.plank);
-    sDeck.position.y = 1.05;
-    sloopGroup.add(sDeck);
-
-    // Raised Aft Cabin Trunk
-    const cabin = createVoxelBox(3.4, 0.65, 2.2, mats.woodTrim);
-    cabin.position.set(2.4, 1.42, 0);
-    sloopGroup.add(cabin);
-
-    const cabinRoof = createVoxelBox(3.6, 0.12, 2.4, mats.woodHi);
-    cabinRoof.position.set(2.4, 1.78, 0);
-    sloopGroup.add(cabinRoof);
-
-    // Cabin Brass Portholes
-    [-1, 1].forEach(side => {
-      const portHole = createVoxelOctagonRing(0.16, 0.04, 0.08, mats.brass);
-      portHole.position.set(2.4, 1.45, side * 1.14);
-      sloopGroup.add(portHole);
-    });
-
-    // Helm Tiller Arm
-    const tiller = createVoxelBox(1.4, 0.08, 0.08, mats.woodHi);
-    tiller.position.set(4.6, 1.35, 0);
-    tiller.rotation.z = -0.15;
-    sloopGroup.add(tiller);
-
-    // Bowsprit spar projecting forward
-    const bowsprit = createVoxelBox(3.2, 0.18, 0.18, mats.woodTrim);
-    bowsprit.position.set(-hullLen / 2 - 1.2, 1.45, 0);
-    bowsprit.rotation.z = 0.1;
-    sloopGroup.add(bowsprit);
-
-    // Tall Ship's Mast (Height 8.5m)
-    const mast = createVoxelBox(0.32, 8.5, 0.32, mats.woodTrim);
-    mast.position.set(-1.8, 5.0, 0);
-    sloopGroup.add(mast);
-
-    // Mast cross-trestle
-    const crossTree = createVoxelBox(0.18, 0.14, 1.6, mats.woodDark);
-    crossTree.position.set(-1.8, 7.8, 0);
-    sloopGroup.add(crossTree);
-
-    // Main boom with furled sail cloth bundled along it
-    const mainBoom = createVoxelBox(5.6, 0.2, 0.2, mats.woodTrim);
-    mainBoom.position.set(0.9, 2.2, 0);
-    sloopGroup.add(mainBoom);
-
-    // Furled canvas mainsail
-    const furledSail = createVoxelBox(5.0, 0.38, 0.38, mats.sailCloth);
-    furledSail.position.set(0.9, 2.38, 0);
-    sloopGroup.add(furledSail);
-
-    // Sail tie rope gaskets
-    for (let g = 0; g < 6; g++) {
-      const gasket = createVoxelBox(0.08, 0.44, 0.44, mats.rope);
-      gasket.position.set(-1.2 + g * 0.9, 2.38, 0);
-      sloopGroup.add(gasket);
-    }
-
-    // Wooden boarding gangplank connecting dock to vessel deck
-    const gangplank = createVoxelBox(1.2, 0.08, 2.8, mats.plankDark);
-    gangplank.position.set(-52.0, 1.48, 19.3);
-    gangplank.rotation.x = -0.22;
-    dockGroup.add(gangplank);
-
-    // Mooring lines tied from boat cleats to dock bollards
-    const mooringLine1 = createVoxelBox(0.06, 0.06, 2.8, mats.rope);
-    mooringLine1.position.set(-56.5, 1.6, 19.4);
-    mooringLine1.rotation.y = 0.3;
-    dockGroup.add(mooringLine1);
-
-    const mooringLine2 = createVoxelBox(0.06, 0.06, 2.8, mats.rope);
-    mooringLine2.position.set(-47.0, 1.6, 19.4);
-    mooringLine2.rotation.y = -0.3;
-    dockGroup.add(mooringLine2);
-
-    dockGroup.add(sloopGroup);
-
-    // 8. Invisible Smooth Walkway Colliders for fluid navigation
+    // 7. Invisible Smooth Walkway Collider for fluid navigation
     // Main pier walkway collider (Allows walking whole 28m length of dock)
     const pierCollider = new THREE.Mesh(
       new THREE.BoxGeometry(28.0, 0.35, 6.8),
@@ -2946,14 +2827,6 @@ export class DockStall {
     );
     pierCollider.position.set(-52.0, 1.76, 14.5);
     dockGroup.add(pierCollider);
-
-    // Sloop deck walkable collider (Allows walking onto the boat!)
-    const sloopCollider = new THREE.Mesh(
-      new THREE.BoxGeometry(10.5, 0.35, 3.4),
-      new THREE.MeshBasicMaterial({ visible: false, colorWrite: false, depthWrite: false })
-    );
-    sloopCollider.position.set(-52.0, 1.65, 21.2);
-    dockGroup.add(sloopCollider);
   }
 
   update(delta, time) {

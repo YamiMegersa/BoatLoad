@@ -260,7 +260,7 @@ async function boot() {
     };
     document.getElementById('btn-dock').onclick = () => {
       logEvent('Transitioning to Dock...');
-      gameState.transition(GamePhase.DOCK, { levelCfg });
+      gameState.transition(GamePhase.DOCK, { shipDef, levelCfg, fishModels });
     };
     document.getElementById('btn-shipyard').onclick = () => {
       logEvent('Transitioning to Shipyard...');
@@ -350,7 +350,7 @@ async function boot() {
         gameState.transition(GamePhase.MAIN_MENU);
       } else if (phase === GamePhase.DOCK) {
         logEvent('Setting Sail -> Arriving at Dock...');
-        gameState.transition(GamePhase.DOCK, { levelCfg });
+        gameState.transition(GamePhase.DOCK, { shipDef, levelCfg, fishModels });
       } else if (phase === GamePhase.SHIPYARD) {
         logEvent('Entering Shipyard...');
         gameState.transition(GamePhase.SHIPYARD, { shipDef, levelCfg, fishModels });

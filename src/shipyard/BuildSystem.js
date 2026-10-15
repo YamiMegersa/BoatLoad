@@ -49,13 +49,15 @@ export class BuildSystem {
     };
   }
 
-  init(grid, scene) {
+  init(grid, scene, container = null) {
     this._grid = grid;
     this._scene = scene;
+    this._container = container;
     
-    // Add ghost preview to scene
-    this._scene.add(this._ghostMesh);
-    this._scene.add(this._ghostBox);
+    // Add ghost preview to container (or scene if container is null)
+    const parent = container || scene;
+    parent.add(this._ghostMesh);
+    parent.add(this._ghostBox);
 
     on('blueprintSelected', this._onBlueprintSelected);
     on('rotateBlueprint', this._onRotate);
@@ -65,13 +67,16 @@ export class BuildSystem {
     off('blueprintSelected', this._onBlueprintSelected);
     off('rotateBlueprint', this._onRotate);
     
-    if (this._scene) {
-      this._scene.remove(this._ghostMesh);
-      this._scene.remove(this._ghostBox);
+    if (this._ghostMesh.parent) {
+      this._ghostMesh.parent.remove(this._ghostMesh);
+    }
+    if (this._ghostBox.parent) {
+      this._ghostBox.parent.remove(this._ghostBox);
     }
     
     this._grid = null;
     this._scene = null;
+    this._container = null;
   }
 
   _updateGhostMesh() {
