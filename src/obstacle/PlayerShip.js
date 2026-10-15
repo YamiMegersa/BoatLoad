@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { emit, on, off } from '../core/EventBus.js';
 import { OBB } from 'three/examples/jsm/math/OBB.js';
+import { DEBUG } from '../utils/debug.js';
 
 // ---------------------------------------------------------------------------
 // Obstacle type definitions
@@ -123,12 +124,14 @@ export class PlayerShip {
     localBox.getCenter(this.baseOBB.center);
     localBox.getSize(this.baseOBB.halfSize).multiplyScalar(0.5);
 
-    // HITBOX VISUALIZATION
-    const wireMat = new THREE.LineBasicMaterial({ color: 0x00ff00 });
-    const wireGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(this.baseOBB.halfSize.x * 2, this.baseOBB.halfSize.y * 2, this.baseOBB.halfSize.z * 2));
-    const wireMesh = new THREE.LineSegments(wireGeo, wireMat);
-    wireMesh.position.copy(this.baseOBB.center);
-    this.mesh.add(wireMesh);
+    // HITBOX VISUALIZATION (debug only — shown with ?debug)
+    if (DEBUG) {
+      const wireMat = new THREE.LineBasicMaterial({ color: 0x00ff00 });
+      const wireGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(this.baseOBB.halfSize.x * 2, this.baseOBB.halfSize.y * 2, this.baseOBB.halfSize.z * 2));
+      const wireMesh = new THREE.LineSegments(wireGeo, wireMat);
+      wireMesh.position.copy(this.baseOBB.center);
+      this.mesh.add(wireMesh);
+    }
 
     this.obb = new OBB();
 

@@ -14,6 +14,7 @@ import { ParticleSystem } from './environment/ParticleSystem.js';
 import { DamageSystem } from './shipyard/DamageSystem.js';
 import { GodRays } from './environment/GodRays.js';
 import { PaperFilter } from './environment/PaperFilter.js';
+import { DEBUG } from './utils/debug.js';
 import './ui/ui.css';
 
 // ---------------------------------------------------------------------------
@@ -73,6 +74,18 @@ let userPaperStyle = 0;
 const gameState = new GameState(scene, camera, renderer);
 gameState._ambient = ambient;
 gameState._sun = sun;
+
+// Dev-only test helpers (?debug) — used by the iteration-2 test matrix to
+// reach hard-to-reach states quickly (sink, low water, day jumps).
+if (DEBUG) {
+  window.__dev = {
+    sink:     () => emit('playerSunk'),
+    setWater: (n)  => { if (gameState._playerShip) gameState._playerShip.waterLevel = n; },
+    damage:   (n)  => gameState._playerShip?.takeDamage(n, 'dev'),
+    day:      (n)  => { gameState.day = n; },
+  };
+  console.info('[BoatLoad] Debug mode — window.__dev helpers: sink(), setWater(n), damage(n), day(n)');
+}
 
 const buildMenu = new BuildMenu();
 const docket = new DocketSheet();

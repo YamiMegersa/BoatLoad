@@ -172,9 +172,6 @@ export class ShipBuilder {
       for (const [cx, cy, cz] of entry.cells) {
         if (grid.inBounds(cx, cy, cz)) {
           grid.setState(cx, cy, cz, targetState);
-          console.log(`[DEBUG _applyDamage] Applied ${targetState} at ${cx},${cy},${cz} (zone: ${entry.zone})`);
-        } else {
-          console.log(`[DEBUG _applyDamage] OOB ${cx},${cy},${cz} (zone: ${entry.zone})`);
         }
       }
     }

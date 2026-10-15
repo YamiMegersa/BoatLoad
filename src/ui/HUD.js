@@ -1,4 +1,5 @@
 import { emit, on, off } from '../core/EventBus.js';
+import { DEBUG } from '../utils/debug.js';
 import wheelImage from '../assets/wheels/wheel_threshold.png';
 
 /**
@@ -82,13 +83,14 @@ export class HUD {
           <input type="checkbox" id="chk-densefog"> Dense Fog (F)
         </label>
       </div>
+      ${DEBUG ? `
       <div id="hud-qte-debug" style="margin-top: 10px; pointer-events: auto;">
         <span>QTE Debug:</span>
         <button type="button" data-qte-source="barrel">Shoot</button>
         <button type="button" data-qte-source="shark">Harpoon</button>
         <button type="button" data-qte-source="bail">Bail</button>
         <button type="button" data-qte-source="siren">Siren</button>
-      </div>
+      </div>` : ''}
 
       <!-- Interactive QTE Reticle Prompt -->
       <div id="hud-qte" style="display:none">
