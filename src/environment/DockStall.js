@@ -1,25 +1,203 @@
 import * as THREE from 'three';
+import { VoxelLopBunny } from './VoxelLopBunny.js';
 
+// ---------------------------------------------------------------------------
+// Voxel Palette & Procedural Voxel Texture Generators
+// ---------------------------------------------------------------------------
 const Palette = {
-    skyTop: '#8cb1d1',
-    skyHorizon: '#e0cfa4',
-    sun: '#ffffff',
-    ambientSky: '#7093b1',
-    ambientGround: '#9e917d',
-    sea: '#4a6f78',
-    seaDeep: '#1c343d',
-    dockPlank: 0x9b7a5a,
-    dockDark: 0x7c5d41,
-    woodHi: 0xb58b5e,
-    woodMid: 0x785332,
-    woodDark: 0x3d2716,
-    brass: 0x8a7042,
-    rope: 0x8a7c64,
-    awningCream: 0xd8d3c5,
-    paper: 0xe6e1cc,
-    sealRed: 0x7a221f
+  // Dock & Shop Timber
+  dockPlank: 0x9b7a5a,
+  dockDark: 0x75573b,
+  woodHi: 0xb58b5e,
+  woodMid: 0x785332,
+  woodDark: 0x3d2716,
+  woodAged: 0x514438,
+  woodTrim: 0x2e1d10,
+  roofTile: 0x613a1e,
+  roofTileDark: 0x4f2d15,
+  roofRidge: 0x3b1f0d,
+
+  // Landmass / Island
+  grassTop: 0x5b7f3d,
+  grassEdge: 0x47662e,
+  grassDark: 0x3d5926,
+  dirt: 0x5c4228,
+  dirtDark: 0x45311c,
+  stone: 0x6e7378,
+  stoneDark: 0x52565a,
+  stoneLight: 0x868b90,
+  stonePath: 0x8a8e91,
+  sand: 0xbfa779,
+  sandWet: 0x96825a,
+
+  // Pine Trees
+  pineTrunk: 0x3d2514,
+  pineLeaves1: 0x234421,
+  pineLeaves2: 0x1b3719,
+  pineLeaves3: 0x2c532a,
+
+  // Metals & Glass
+  brass: 0xc8a44b,
+  brassDark: 0x8a6e2e,
+  iron: 0x34373d,
+  ironLight: 0x52575e,
+  goldCoin: 0xe5b836,
+  glassPorthole: 0x78a8be,
+  lanternGlass: 0xffd277,
+
+  // Props & Goods
+  rope: 0x9e8c6e,
+  ropeDark: 0x796a52,
+  paper: 0xe6e1cc,
+  sealRed: 0x8f2824,
+  bottleGreen: 0x2d6143,
+  bottleAmber: 0x8c5b29,
+  bottleBlue: 0x274d75,
+  bottleWine: 0x5c2738,
+  cork: 0xb56c36,
+  sackBurlap: 0x9c855d,
+  fishBody: 0x5a7d8c,
+  fishBelly: 0xa8c2cb,
+  seagullWhite: 0xedebe6,
+  seagullGrey: 0x7d858c,
+  seagullBeak: 0xd98829
 };
 
+/**
+ * Procedural pixel-art voxel wood texture generator.
+ * Produces crisp, stepped wood grain pixels using nearest-neighbor filtering.
+ */
+function createVoxelWoodTexture(baseR, baseG, baseB, contrast = 0.18) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = `rgb(${baseR},${baseG},${baseB})`;
+  ctx.fillRect(0, 0, 64, 64);
+
+  // Pixelated horizontal plank grain lines
+  for (let y = 0; y < 64; y += 4) {
+    const shadeFactor = 1.0 + (Math.sin(y * 1.5) * 0.5) * contrast;
+    const r = Math.min(255, Math.floor(baseR * shadeFactor));
+    const g = Math.min(255, Math.floor(baseG * shadeFactor));
+    const b = Math.min(255, Math.floor(baseB * shadeFactor));
+    ctx.fillStyle = `rgb(${r},${g},${b})`;
+
+    for (let x = 0; x < 64; x += 4) {
+      if ((x + y * 3) % 7 !== 0) {
+        ctx.fillRect(x, y, 4, 3);
+      }
+    }
+  }
+
+  // A couple of pixel knots
+  [[16, 20], [44, 40]].forEach(([kx, ky]) => {
+    ctx.fillStyle = `rgb(${Math.floor(baseR * 0.6)},${Math.floor(baseG * 0.55)},${Math.floor(baseB * 0.5)})`;
+    ctx.fillRect(kx, ky, 6, 6);
+    ctx.fillRect(kx + 2, ky - 2, 2, 2);
+    ctx.fillRect(kx + 2, ky + 6, 2, 2);
+  });
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  return tex;
+}
+
+/**
+ * Creates a flat-shaded standard material matching VoxelArms / ChunkRenderer aesthetics.
+ */
+function createVoxelMat(color, opts = {}) {
+  return new THREE.MeshStandardMaterial({
+    color,
+    roughness: opts.roughness ?? 0.85,
+    metalness: opts.metalness ?? 0.12,
+    flatShading: true,
+    map: opts.map ?? null,
+    transparent: opts.transparent ?? false,
+    opacity: opts.opacity ?? 1.0,
+    emissive: opts.emissive ?? 0x000000,
+    emissiveIntensity: opts.emissiveIntensity ?? 1.0,
+    wireframe: opts.wireframe ?? false
+  });
+}
+
+/**
+ * Creates a single voxel box with shadow casting/receiving.
+ */
+function createVoxelBox(w, h, d, material, castShadow = true, receiveShadow = true) {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+  mesh.castShadow = castShadow;
+  mesh.receiveShadow = receiveShadow;
+  return mesh;
+}
+
+/**
+ * Builds an 8-sided faceted voxel ring for portholes and rope rings.
+ */
+function createVoxelOctagonRing(radius, thickness, depth, material) {
+  const group = new THREE.Group();
+  const sideLen = radius * 0.828; // 2 * radius * tan(PI / 8)
+  for (let i = 0; i < 8; i++) {
+    const angle = (i * Math.PI) / 4;
+    const seg = createVoxelBox(sideLen, thickness, depth, material);
+    seg.position.set(Math.cos(angle) * radius, Math.sin(angle) * radius, 0);
+    seg.rotation.z = angle + Math.PI / 2;
+    group.add(seg);
+  }
+  return group;
+}
+
+/**
+ * Builds a solid 8-sided faceted voxel barrel with staves and cap lids.
+ * Uses clean octagonal geometry without intersecting internal square boxes.
+ */
+function createVoxelBarrel(radius, height, woodMat, bandMat) {
+  const barrel = new THREE.Group();
+  const sideLen = radius * 0.828;
+  const staveThick = 0.08;
+
+  // 8 outer staves
+  for (let i = 0; i < 8; i++) {
+    const angle = (i * Math.PI) / 4;
+    const stave = createVoxelBox(sideLen - 0.01, staveThick, height, woodMat);
+    stave.position.set(Math.cos(angle) * (radius - staveThick / 2), Math.sin(angle) * (radius - staveThick / 2), 0);
+    stave.rotation.z = angle + Math.PI / 2;
+    barrel.add(stave);
+  }
+
+  // Top & bottom octagonal cap lids (built from two overlapping rotated slabs)
+  [-height / 2 + 0.04, height / 2 - 0.04].forEach(capY => {
+    const cap1 = createVoxelBox(radius * 1.84, radius * 0.76, 0.06, woodMat);
+    cap1.position.z = capY;
+    barrel.add(cap1);
+    const cap2 = createVoxelBox(radius * 0.76, radius * 1.84, 0.06, woodMat);
+    cap2.position.z = capY;
+    barrel.add(cap2);
+  });
+
+  // 3 Iron hoop bands wrapped cleanly on the outside with zero Z-fighting
+  [-height * 0.35, 0, height * 0.35].forEach(bandZ => {
+    for (let i = 0; i < 8; i++) {
+      const angle = (i * Math.PI) / 4;
+      const bandSeg = createVoxelBox(sideLen + 0.01, 0.035, 0.09, bandMat);
+      bandSeg.position.set(Math.cos(angle) * (radius + 0.02), Math.sin(angle) * (radius + 0.02), bandZ);
+      bandSeg.rotation.z = angle + Math.PI / 2;
+      barrel.add(bandSeg);
+    }
+  });
+
+  // Stand barrel upright (Z becomes Y)
+  barrel.rotation.x = Math.PI / 2;
+  return barrel;
+}
+
+// ---------------------------------------------------------------------------
+// DockStall Environment Class
+// ---------------------------------------------------------------------------
 export class DockStall {
   constructor() {
     this.group = new THREE.Group();
@@ -30,1003 +208,1139 @@ export class DockStall {
     this.shopGroup = null;
     this.shopDoor = null;
     this.doorInteractables = [];
+    this.bunny = null;
+    this.bunnyInteractables = [];
+    this._isBuilt = false;
   }
 
   build() {
     if (this._isBuilt) return this.group;
     this._isBuilt = true;
 
+    // Generate stylized voxel wood textures
+    const texWoodHi   = createVoxelWoodTexture(181, 139, 94, 0.16);
+    const texWoodMid  = createVoxelWoodTexture(120, 83, 50, 0.20);
+    const texWoodDark = createVoxelWoodTexture(61, 39, 22, 0.22);
+    const texPlank    = createVoxelWoodTexture(155, 122, 90, 0.18);
+
+    // Voxel Material Palette
+    const mats = {
+      plank: createVoxelMat(Palette.dockPlank, { roughness: 0.88, map: texPlank }),
+      plankDark: createVoxelMat(Palette.dockDark, { roughness: 0.9, map: texWoodDark }),
+      plankHi: createVoxelMat(Palette.woodHi, { roughness: 0.8, map: texWoodHi }),
+      woodHi: createVoxelMat(Palette.woodHi, { roughness: 0.8, map: texWoodHi }), // Defined to prevent unlit white fallback!
+      woodMid: createVoxelMat(Palette.woodMid, { roughness: 0.85, map: texWoodMid }),
+      woodDark: createVoxelMat(Palette.woodDark, { roughness: 0.9, map: texWoodDark }),
+      woodTrim: createVoxelMat(Palette.woodTrim, { roughness: 0.92, map: texWoodDark }),
+      woodAged: createVoxelMat(Palette.woodAged, { roughness: 0.88, map: texWoodMid }),
+      roofTile: createVoxelMat(Palette.roofTile, { roughness: 0.95 }),
+      roofRidge: createVoxelMat(Palette.roofRidge, { roughness: 0.95 }),
+      grassTop: createVoxelMat(Palette.grassTop, { roughness: 0.95 }),
+      grassDark: createVoxelMat(Palette.grassDark, { roughness: 0.95 }),
+      dirt: createVoxelMat(Palette.dirt, { roughness: 0.92 }),
+      stone: createVoxelMat(Palette.stone, { roughness: 0.88 }),
+      stoneDark: createVoxelMat(Palette.stoneDark, { roughness: 0.9 }),
+      stonePath: createVoxelMat(Palette.stonePath, { roughness: 0.85 }),
+      sand: createVoxelMat(Palette.sand, { roughness: 0.95 }),
+      sandWet: createVoxelMat(Palette.sandWet, { roughness: 0.9 }),
+      brass: createVoxelMat(Palette.brass, { metalness: 0.65, roughness: 0.35 }),
+      brassDark: createVoxelMat(Palette.brassDark, { metalness: 0.55, roughness: 0.45 }),
+      iron: createVoxelMat(Palette.iron, { metalness: 0.5, roughness: 0.6 }),
+      rope: createVoxelMat(Palette.rope, { roughness: 0.9 }),
+      paper: createVoxelMat(Palette.paper, { roughness: 0.7 }),
+      glass: createVoxelMat(Palette.glassPorthole, { transparent: true, opacity: 0.55, roughness: 0.15, metalness: 0.3 }),
+      lanternGlow: createVoxelMat(Palette.lanternGlass, { emissive: 0xffaa33, emissiveIntensity: 0.85, transparent: true, opacity: 0.7 })
+    };
+
+    // =========================================================================
+    // 1. EXTENDED DOCK PIER (Full Support for Shop Backside & Wharf Walkway)
+    // =========================================================================
     const dockGroup = new THREE.Group();
     dockGroup.position.y = 1.5;
     this.group.add(dockGroup);
-            const plankMat = new THREE.MeshStandardMaterial({ color: Palette.dockPlank, roughness: 0.9 });
-            const plankDarkMat = new THREE.MeshStandardMaterial({ color: Palette.dockDark, roughness: 0.9 });
-            // Dock now runs left-to-right along X, with the shop positioned off to
-            // the side (along +Z) rather than sitting in the dock's own path.
-            const dockLength = 18, dockWidth = 10, plankCount = 14;
-            for (let i = 0; i < plankCount; i++) {
-                const plank = new THREE.Mesh(
-                    new THREE.BoxGeometry(dockLength / plankCount * 0.9, 0.3, dockWidth),
-                    i % 2 === 0 ? plankMat : plankDarkMat
-                );
-                plank.position.set(-dockLength / 2 + i * (dockLength / plankCount) + dockLength / plankCount / 2, 0.5, 0);
-                plank.receiveShadow = true; plank.castShadow = true;
-                dockGroup.add(plank);
-            }
 
-            // Invisible solid collision deck over dock to ensure smooth walking without catching plank gaps
-            const dockCollisionDeck = new THREE.Mesh(
-                new THREE.BoxGeometry(dockLength, 0.35, dockWidth),
-                new THREE.MeshBasicMaterial({ visible: false })
-            );
-            dockCollisionDeck.position.set(0, 0.5, 0);
-            dockGroup.add(dockCollisionDeck);
-            const postMat = new THREE.MeshStandardMaterial({ color: Palette.woodDark, roughness: 0.95 });
-            [[-8, -4.5], [-8, 4.5], [0, -4.5], [0, 4.5], [8, -4.5], [8, 4.5]].forEach(([x, z]) => {
-                const post = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.3, 5.5, 8), postMat);
-                post.position.set(x, -2.05, z);
-                post.castShadow = true;
-                dockGroup.add(post);
-            });
-
-            // ==========================================================================
-            // Landmass (Island)
-            // ==========================================================================
-            const islandGroup = new THREE.Group();
-            islandGroup.position.set(-22, 0, 0); 
-            this.group.add(islandGroup);
-
-            // Procedural grass/dirt texture
-            const grassCanvas = document.createElement('canvas');
-            grassCanvas.width = 256; grassCanvas.height = 256;
-            const gCtx = grassCanvas.getContext('2d');
-            gCtx.fillStyle = '#4a5e3a';
-            gCtx.fillRect(0, 0, 256, 256);
-            for (let i = 0; i < 400; i++) {
-                gCtx.fillStyle = Math.random() > 0.5 ? 'rgba(85,110,65,0.4)' : 'rgba(55,80,45,0.4)';
-                gCtx.fillRect(Math.random() * 256, Math.random() * 256, 4 + Math.random() * 12, 4 + Math.random() * 12);
-            }
-            const grassTex = new THREE.CanvasTexture(grassCanvas);
-            grassTex.wrapS = grassTex.wrapT = THREE.RepeatWrapping;
-            grassTex.repeat.set(4, 4);
-
-            const rockCanvas = document.createElement('canvas');
-            rockCanvas.width = 256; rockCanvas.height = 256;
-            const rCtx = rockCanvas.getContext('2d');
-            rCtx.fillStyle = '#555555';
-            rCtx.fillRect(0, 0, 256, 256);
-            for (let i = 0; i < 300; i++) {
-                rCtx.fillStyle = Math.random() > 0.5 ? 'rgba(100,100,100,0.5)' : 'rgba(60,60,60,0.5)';
-                rCtx.beginPath();
-                rCtx.arc(Math.random()*256, Math.random()*256, 2 + Math.random()*15, 0, Math.PI*2);
-                rCtx.fill();
-            }
-            const rockTex = new THREE.CanvasTexture(rockCanvas);
-            rockTex.wrapS = rockTex.wrapT = THREE.RepeatWrapping;
-            rockTex.repeat.set(2, 1);
-
-            const islandTopMat = new THREE.MeshStandardMaterial({ color: 0x99aa77, map: grassTex, roughness: 0.95 });
-            const islandSideMat = new THREE.MeshStandardMaterial({ color: 0x888888, map: rockTex, roughness: 0.9 });
-            
-            // Main body
-            const bodyGeo = new THREE.CylinderGeometry(14, 15.5, 8, 32);
-            const islandBody = new THREE.Mesh(bodyGeo, [islandSideMat, islandTopMat, islandSideMat]);
-            islandBody.position.set(0, -2.2, 0); // Top is at y = 1.8
-            islandBody.receiveShadow = true; islandBody.castShadow = true;
-            islandGroup.add(islandBody);
-
-            // A slightly higher hill on the far side
-            const hillGeo = new THREE.CylinderGeometry(8, 12, 6, 24);
-            const hill = new THREE.Mesh(hillGeo, [islandSideMat, islandTopMat, islandSideMat]);
-            hill.position.set(-5, 0.5, -4); // Top at y = 3.5
-            hill.receiveShadow = true; hill.castShadow = true;
-            islandGroup.add(hill);
-
-            // A lower rocky shelf near the water
-            const shelfGeo = new THREE.CylinderGeometry(7, 8, 3, 16);
-            const shelf = new THREE.Mesh(shelfGeo, islandSideMat); // all rock
-            shelf.position.set(10, -3.5, 7); // Top at y = -2
-            shelf.receiveShadow = true; shelf.castShadow = true;
-            islandGroup.add(shelf);
-
-            // Trees (Pine trees)
-            const trunkMat = new THREE.MeshStandardMaterial({ color: 0x3a2410, roughness: 0.9 });
-            const leafMat = new THREE.MeshStandardMaterial({ color: 0x2e4a2a, roughness: 0.8 });
-            
-            function addTree(x, y, z, scale) {
-                const tree = new THREE.Group();
-                tree.position.set(x, y, z);
-                tree.scale.set(scale, scale, scale);
-                
-                const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 1.5, 6), trunkMat);
-                trunk.position.y = 0.75;
-                trunk.castShadow = true;
-                tree.add(trunk);
-                
-                for(let i=0; i<3; i++) {
-                    const leaves = new THREE.Mesh(new THREE.ConeGeometry(2 - i*0.4, 3, 7), leafMat);
-                    leaves.position.y = 2.0 + i*1.2;
-                    leaves.castShadow = true; leaves.receiveShadow = true;
-                    tree.add(leaves);
-                }
-                islandGroup.add(tree);
-            }
-
-            addTree(-2, 1.8, -4, 1.2);
-            addTree(-7, 3.5, -6, 1.5);
-            addTree(-3, 1.8, -9, 1.0);
-            addTree(-10, 3.5, 0, 1.3);
-            addTree(1, 1.8, 8, 1.1);
-            addTree(5, 1.8, -5, 0.9);
-
-            // Basic Infrastructure: A path from the dock and some crates
-            const pathMat = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.9 });
-            for(let i=0; i<6; i++) {
-                const step = new THREE.Mesh(new THREE.BoxGeometry(2, 0.1, 1.2), pathMat);
-                const t = i / 5; // 0 is near dock (y=2.1), 1 is inland (y=1.8)
-                const stepY = 2.1 - t * 0.3; 
-                step.position.set(13 - i*2, stepY, Math.sin(i)*0.5);
-                step.rotation.y = Math.sin(i*2)*0.2;
-                step.receiveShadow = true; step.castShadow = true;
-                islandGroup.add(step);
-            }
-            
-            const islandCrateMat = new THREE.MeshStandardMaterial({ color: Palette.woodMid, roughness: 0.9 });
-            for(let i=0; i<3; i++) {
-                const s = 0.8 + Math.random()*0.4;
-                const cr = new THREE.Mesh(new THREE.BoxGeometry(s, s, s), islandCrateMat);
-                cr.position.set(10 + Math.random()*2, 1.8 + s/2, -3 - Math.random()*2);
-                cr.rotation.y = Math.random() * Math.PI;
-                cr.castShadow = true; cr.receiveShadow = true;
-                islandGroup.add(cr);
-            }
-
-            // ==========================================================================
-            // Shop stall — a cosy dockside trading post.  Everything hangs off one
-            // `shop` group so the whole thing can be repositioned/rotated as a unit.
-            // Parent/child hierarchy: shop → cornerPosts, desk, roof, sign rig,
-            // exterior props.  The sign pivot is a child of the crossbeam so the
-            // sign swings with any crossbeam motion — the relationship the brief
-            // asks you to justify.
-            // ==========================================================================
-            const shop = new THREE.Group();
-            shop.position.set(2.1, 2.15, 4);
-            shop.rotation.y = -Math.PI;
-            this.shopGroup = shop;
-            this.group.add(shop);
-
-            // Shared dimensions
-            const shopW = 6.0, shopD = 5.0, shopH = 5.4;
-            const facadeW = shopW, frontZ = shopD / 2, backZ = -shopD / 2;
-
-            // Reusable materials — procedural wood-grain via canvas textures
-            function makeWoodTex(baseR, baseG, baseB, grainCount) {
-                const c = document.createElement('canvas');
-                c.width = 256; c.height = 256;
-                const ctx = c.getContext('2d');
-                ctx.fillStyle = `rgb(${baseR},${baseG},${baseB})`;
-                ctx.fillRect(0, 0, 256, 256);
-                for (let i = 0; i < grainCount; i++) {
-                    const y = Math.random() * 256;
-                    const h = 1 + Math.random() * 3;
-                    const shade = Math.floor(baseR * (0.7 + Math.random() * 0.4));
-                    ctx.fillStyle = `rgba(${shade},${Math.floor(shade * 0.7)},${Math.floor(shade * 0.4)},${0.15 + Math.random() * 0.25})`;
-                    ctx.fillRect(0, y, 256, h);
-                }
-                // Knots
-                for (let i = 0; i < 3; i++) {
-                    const kx = Math.random() * 256, ky = Math.random() * 256;
-                    ctx.beginPath();
-                    ctx.arc(kx, ky, 4 + Math.random() * 8, 0, Math.PI * 2);
-                    ctx.fillStyle = `rgba(${Math.floor(baseR * 0.5)},${Math.floor(baseG * 0.4)},${Math.floor(baseB * 0.3)},0.4)`;
-                    ctx.fill();
-                }
-                const tex = new THREE.CanvasTexture(c);
-                tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-                return tex;
-            }
-
-            const woodTexMid = makeWoodTex(90, 58, 32, 40);
-            const woodTexHi = makeWoodTex(138, 95, 52, 35);
-            const woodTexDark = makeWoodTex(58, 36, 16, 50);
-            const plankTex = makeWoodTex(138, 118, 88, 30);
-
-            const facadeMat = new THREE.MeshStandardMaterial({ color: Palette.woodMid, roughness: 0.9, map: woodTexMid });
-            const frameMat = new THREE.MeshStandardMaterial({ color: Palette.woodDark, roughness: 0.85, map: woodTexDark });
-            const plankMat2 = new THREE.MeshStandardMaterial({ color: Palette.woodHi, roughness: 0.75, map: woodTexHi });
-            const brassMat = new THREE.MeshStandardMaterial({ color: Palette.brass, metalness: 0.6, roughness: 0.35 });
-            const ropeMat = new THREE.MeshStandardMaterial({ color: Palette.rope, roughness: 0.9 });
-            const creamMat = new THREE.MeshStandardMaterial({ color: Palette.awningCream, roughness: 0.8 });
-
-            // -----------------------------------------------------------------------
-            // Floor — planked, slightly inset
-            // -----------------------------------------------------------------------
-            const floor = new THREE.Mesh(
-                new THREE.BoxGeometry(shopW - 0.1, 0.15, shopD - 0.1),
-                new THREE.MeshStandardMaterial({ color: Palette.dockPlank, roughness: 0.9 })
-            );
-            floor.position.set(0, 0.07, 0);
-            floor.receiveShadow = true;
-            shop.add(floor);
-
-            // -----------------------------------------------------------------------
-            // Corner posts — four sturdy timbers from floor to roof
-            // -----------------------------------------------------------------------
-            const cornerGeo = new THREE.BoxGeometry(0.3, shopH, 0.3);
-            [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sz]) => {
-                const post = new THREE.Mesh(cornerGeo, frameMat);
-                post.position.set(sx * (shopW / 2 - 0.15), shopH / 2, sz * (shopD / 2 - 0.15));
-                post.castShadow = true;
-                shop.add(post);
-            });
-
-            // -----------------------------------------------------------------------
-            // Walls — back wall (solid planks) + two side walls
-            // -----------------------------------------------------------------------
-            // Back wall
-            const backWall = new THREE.Mesh(
-                new THREE.BoxGeometry(shopW, shopH, 0.18), facadeMat
-            );
-            backWall.position.set(0, shopH / 2, backZ);
-            backWall.receiveShadow = true;
-            shop.add(backWall);
-
-            // Horizontal trim strips on back wall (weathered plank effect)
-            for (let i = 0; i < 4; i++) {
-                const strip = new THREE.Mesh(
-                    new THREE.BoxGeometry(shopW + 0.04, 0.06, 0.22),
-                    frameMat
-                );
-                strip.position.set(0, 1.0 + i * 1.3, backZ);
-                shop.add(strip);
-            }
-
-            // Side walls — now with portholes!
-            const portholeZ = -0.5; 
-            const portholeY = 3.0;
-            const portholeR = 0.6;
-
-            const sideShape = new THREE.Shape();
-            sideShape.moveTo(-shopD / 2, 0);
-            sideShape.lineTo(shopD / 2, 0);
-            sideShape.lineTo(shopD / 2, shopH);
-            sideShape.lineTo(-shopD / 2, shopH);
-            sideShape.lineTo(-shopD / 2, 0);
-            
-            const hole = new THREE.Path();
-            hole.absarc(portholeZ, portholeY, portholeR, 0, Math.PI * 2, false);
-            sideShape.holes.push(hole);
-
-            const extrudeSettings = { depth: 0.18, bevelEnabled: false };
-            const sideGeo = new THREE.ExtrudeGeometry(sideShape, extrudeSettings);
-            
-            // Normalize UVs so the texture fits exactly once per wall as it did with BoxGeometry
-            const pos = sideGeo.attributes.position;
-            const uvs = sideGeo.attributes.uv;
-            for (let i = 0; i < uvs.count; i++) {
-                let u = (pos.getX(i) + shopD / 2) / shopD;
-                let v = pos.getY(i) / shopH;
-                uvs.setXY(i, u, v);
-            }
-
-            sideGeo.translate(0, 0, -0.09);
-            sideGeo.rotateY(-Math.PI / 2);
-
-            const leftWall = new THREE.Mesh(sideGeo, facadeMat);
-            leftWall.position.set(-shopW / 2, 0, 0);
-            leftWall.castShadow = true; leftWall.receiveShadow = true;
-            shop.add(leftWall);
-
-            // Left wall porthole frame and glass
-            const leftFrame = new THREE.Mesh(new THREE.TorusGeometry(portholeR, 0.06, 16, 32), brassMat);
-            leftFrame.rotation.y = Math.PI / 2;
-            leftFrame.position.set(-shopW / 2 + 0.05, portholeY, portholeZ);
-            leftFrame.castShadow = true; leftFrame.receiveShadow = true;
-            shop.add(leftFrame);
-
-            const leftGlass = new THREE.Mesh(
-                new THREE.CylinderGeometry(portholeR - 0.02, portholeR - 0.02, 0.04, 32),
-                new THREE.MeshStandardMaterial({ color: 0x88ccff, transparent: true, opacity: 0.4, roughness: 0.1, metalness: 0.8 })
-            );
-            leftGlass.rotation.z = Math.PI / 2;
-            leftGlass.position.set(-shopW / 2, portholeY, portholeZ);
-            shop.add(leftGlass);
-
-            // Left wall plank grooves
-            for (let i = 0; i < 6; i++) {
-                const grooveY = 0.8 + i * 0.85;
-                const x = -shopW / 2 - 0.01;
-                const dy = Math.abs(grooveY - portholeY);
-                if (dy < portholeR) {
-                    const dz = Math.sqrt(portholeR * portholeR - dy * dy);
-                    const backStart = -shopD / 2;
-                    const backEnd = portholeZ - dz;
-                    const backLen = backEnd - backStart;
-                    if (backLen > 0) {
-                        const gBack = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.03, backLen), frameMat);
-                        gBack.position.set(x, grooveY, backStart + backLen / 2);
-                        shop.add(gBack);
-                    }
-                    const frontStart = portholeZ + dz;
-                    const frontEnd = shopD / 2;
-                    const frontLen = frontEnd - frontStart;
-                    if (frontLen > 0) {
-                        const gFront = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.03, frontLen), frameMat);
-                        gFront.position.set(x, grooveY, frontStart + frontLen / 2);
-                        shop.add(gFront);
-                    }
-                } else {
-                    const groove = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.03, shopD + 0.02), frameMat);
-                    groove.position.set(x, grooveY, 0);
-                    shop.add(groove);
-                }
-            }
-
-            // =======================================================================
-            // Right wall with Doorway & Interactive Shop Door (facing island ramp)
-            // =======================================================================
-            const doorW = 1.65;
-            const doorH = 3.65;
-            const doorZ = -0.35; // Center of door
-            const rightX = shopW / 2;
-
-            // 1. Back panel (from backZ to door start: -2.5 to doorZ - doorW / 2)
-            const rwBackLen = (doorZ - doorW / 2) - (-shopD / 2);
-            const rwBack = new THREE.Mesh(new THREE.BoxGeometry(0.18, shopH, rwBackLen), facadeMat);
-            rwBack.position.set(rightX, shopH / 2, -shopD / 2 + rwBackLen / 2);
-            rwBack.castShadow = true; rwBack.receiveShadow = true;
-            shop.add(rwBack);
-
-            // 2. Front panel (from door end to frontZ: doorZ + doorW / 2 to 2.5)
-            const rwFrontLen = (shopD / 2) - (doorZ + doorW / 2);
-            const rwFront = new THREE.Mesh(new THREE.BoxGeometry(0.18, shopH, rwFrontLen), facadeMat);
-            rwFront.position.set(rightX, shopH / 2, shopD / 2 - rwFrontLen / 2);
-            rwFront.castShadow = true; rwFront.receiveShadow = true;
-            shop.add(rwFront);
-
-            // 3. Lintel panel above door
-            const lintelH = shopH - doorH;
-            const rwLintel = new THREE.Mesh(new THREE.BoxGeometry(0.18, lintelH, doorW), facadeMat);
-            rwLintel.position.set(rightX, doorH + lintelH / 2, doorZ);
-            rwLintel.castShadow = true; rwLintel.receiveShadow = true;
-            shop.add(rwLintel);
-
-            // Transom porthole window above door in lintel
-            const transomY = doorH + 0.85;
-            const transomR = 0.32;
-            const transomFrame = new THREE.Mesh(new THREE.TorusGeometry(transomR, 0.045, 12, 24), brassMat);
-            transomFrame.rotation.y = Math.PI / 2;
-            transomFrame.position.set(rightX + 0.02, transomY, doorZ);
-            shop.add(transomFrame);
-
-            const transomGlass = new THREE.Mesh(
-                new THREE.CylinderGeometry(transomR - 0.02, transomR - 0.02, 0.04, 24),
-                new THREE.MeshStandardMaterial({ color: 0x88ccff, transparent: true, opacity: 0.45, roughness: 0.1, metalness: 0.7 })
-            );
-            transomGlass.rotation.z = Math.PI / 2;
-            transomGlass.position.set(rightX, transomY, doorZ);
-            shop.add(transomGlass);
-
-            // Door Frame (dark timber posts, header & threshold)
-            const frameGeoV = new THREE.BoxGeometry(0.26, doorH, 0.16);
-            const framePostBack = new THREE.Mesh(frameGeoV, frameMat);
-            framePostBack.position.set(rightX, doorH / 2, doorZ - doorW / 2 - 0.08);
-            framePostBack.castShadow = true;
-            shop.add(framePostBack);
-
-            const framePostFront = new THREE.Mesh(frameGeoV, frameMat);
-            framePostFront.position.set(rightX, doorH / 2, doorZ + doorW / 2 + 0.08);
-            framePostFront.castShadow = true;
-            shop.add(framePostFront);
-
-            const frameHeader = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.16, doorW + 0.32), frameMat);
-            frameHeader.position.set(rightX, doorH + 0.08, doorZ);
-            frameHeader.castShadow = true;
-            shop.add(frameHeader);
-
-            const threshold = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.08, doorW + 0.16), frameMat);
-            threshold.position.set(rightX, 0.04, doorZ);
-            shop.add(threshold);
-
-            // -----------------------------------------------------------------------
-            // Interactive Door Slab
-            // -----------------------------------------------------------------------
-            const doorGroup = new THREE.Group();
-            doorGroup.position.set(rightX, 0.07, doorZ);
-            shop.add(doorGroup);
-
-            // Door leaf
-            const doorLeafH = doorH - 0.08;
-            const doorLeafW = doorW - 0.06;
-            const doorLeafGeo = new THREE.BoxGeometry(0.09, doorLeafH, doorLeafW);
-            const doorLeafMat = new THREE.MeshStandardMaterial({
-                color: Palette.woodHi,
-                roughness: 0.75,
-                map: woodTexHi
-            });
-            const doorLeaf = new THREE.Mesh(doorLeafGeo, doorLeafMat);
-            doorLeaf.position.set(0, doorLeafH / 2, 0);
-            doorLeaf.castShadow = true;
-            doorLeaf.receiveShadow = true;
-            doorLeaf.userData = { isShopDoor: true, name: 'shopDoorLeaf' };
-            doorGroup.add(doorLeaf);
-
-            // Wood Z-braces / horizontal rails on exterior and interior
-            [-0.05, 0.05].forEach(offsetX => {
-                [0.4, doorLeafH * 0.45, doorLeafH - 0.4].forEach(railY => {
-                    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.15, doorLeafW - 0.06), frameMat);
-                    rail.position.set(offsetX, railY, 0);
-                    rail.userData = { isShopDoor: true };
-                    doorGroup.add(rail);
-                });
-            });
-
-            // Brass Door Handles on Exterior and Interior
-            const handleGeo = new THREE.CylinderGeometry(0.025, 0.025, 0.22, 8);
-            const backPlateGeo = new THREE.BoxGeometry(0.025, 0.30, 0.07);
-
-            // Exterior handle (+X) at height 1.65m
-            const extPlate = new THREE.Mesh(backPlateGeo, brassMat);
-            extPlate.position.set(0.06, 1.65, doorLeafW / 2 - 0.22);
-            extPlate.userData = { isShopDoor: true };
-            doorGroup.add(extPlate);
-
-            const extHandle = new THREE.Mesh(handleGeo, brassMat);
-            extHandle.position.set(0.09, 1.65, doorLeafW / 2 - 0.22);
-            extHandle.userData = { isShopDoor: true };
-            doorGroup.add(extHandle);
-
-            // Interior handle (-X) at height 1.65m
-            const intPlate = new THREE.Mesh(backPlateGeo, brassMat);
-            intPlate.position.set(-0.06, 1.65, doorLeafW / 2 - 0.22);
-            intPlate.userData = { isShopDoor: true };
-            doorGroup.add(intPlate);
-
-            const intHandle = new THREE.Mesh(handleGeo, brassMat);
-            intHandle.position.set(-0.09, 1.65, doorLeafW / 2 - 0.22);
-            intHandle.userData = { isShopDoor: true };
-            doorGroup.add(intHandle);
-
-            // Carved "SHOP" sign plaque above the door on exterior
-            const signBacking = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.26, 0.95), frameMat);
-            signBacking.position.set(rightX + 0.10, doorH + 0.35, doorZ);
-            shop.add(signBacking);
-
-            const signCanvas = document.createElement('canvas');
-            signCanvas.width = 256; signCanvas.height = 64;
-            const sCtx = signCanvas.getContext('2d');
-            sCtx.fillStyle = '#e8dcc4';
-            sCtx.fillRect(0, 0, 256, 64);
-            sCtx.fillStyle = '#3a2211';
-            sCtx.font = 'bold 34px Georgia, serif';
-            sCtx.textAlign = 'center';
-            sCtx.textBaseline = 'middle';
-            sCtx.fillText('CHANDLERY', 128, 32);
-            sCtx.lineWidth = 4;
-            sCtx.strokeStyle = '#3a2211';
-            sCtx.strokeRect(4, 4, 248, 56);
-            const signTex = new THREE.CanvasTexture(signCanvas);
-
-            const signFace = new THREE.Mesh(
-                new THREE.BoxGeometry(0.02, 0.22, 0.91),
-                new THREE.MeshStandardMaterial({ map: signTex, roughness: 0.8 })
-            );
-            signFace.position.set(rightX + 0.125, doorH + 0.35, doorZ);
-            shop.add(signFace);
-
-            // Expose door and interactables for raycasting
-            this.shopDoor = doorLeaf;
-            this.doorInteractables = [doorLeaf, extHandle, extPlate, intHandle, intPlate];
-
-            // Nail heads on back wall trim strips
-            const nailMat = new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.5, roughness: 0.6 });
-            for (let i = 0; i < 4; i++) {
-                [-shopW / 2 + 0.5, -shopW / 2 + 2, shopW / 2 - 0.5, shopW / 2 - 2].forEach(nx => {
-                    const nail = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.04, 6), nailMat);
-                    nail.rotation.x = Math.PI / 2;
-                    nail.position.set(nx, 1.0 + i * 1.3, backZ + 0.12);
-                    shop.add(nail);
-                });
-            }
-
-            // -----------------------------------------------------------------------
-            // Pitched roof — two sloped planes + ridge beam + rafters
-            // -----------------------------------------------------------------------
-            const roofGroup = new THREE.Group();
-            shop.add(roofGroup);
-
-            const roofOverhang = 0.8;
-            const roofW = shopW + roofOverhang * 2;
-            const roofSlope = shopD / 2 + roofOverhang;
-            const roofPitch = 0.38;                     // radians
-            const roofY = shopH + 0.1;
-            const roofMat = new THREE.MeshStandardMaterial({ color: 0x6b4226, roughness: 0.95 });
-
-            // Left slope
-            const slopeGeo = new THREE.BoxGeometry(roofW, 0.12, roofSlope / Math.cos(roofPitch));
-            const leftSlope = new THREE.Mesh(slopeGeo, roofMat);
-            leftSlope.position.set(0, roofY + Math.sin(roofPitch) * roofSlope * 0.5,
-                -roofSlope * 0.5 * Math.cos(roofPitch));
-            leftSlope.rotation.x = -roofPitch;
-            leftSlope.castShadow = true; leftSlope.receiveShadow = true;
-            roofGroup.add(leftSlope);
-
-            // Right slope (mirrored)
-            const rightSlope = new THREE.Mesh(slopeGeo, roofMat);
-            rightSlope.position.set(0, roofY + Math.sin(roofPitch) * roofSlope * 0.5,
-                roofSlope * 0.5 * Math.cos(roofPitch));
-            rightSlope.rotation.x = roofPitch;
-            rightSlope.castShadow = true; rightSlope.receiveShadow = true;
-            roofGroup.add(rightSlope);
-
-            // Ridge beam
-            const ridge = new THREE.Mesh(
-                new THREE.BoxGeometry(roofW + 0.2, 0.2, 0.2), frameMat
-            );
-            ridge.position.set(0, roofY + Math.sin(roofPitch) * roofSlope, 0);
-            ridge.castShadow = true;
-            roofGroup.add(ridge);
-
-            // Rafters — exposed beams under the roof
-            const rafterGeo = new THREE.BoxGeometry(0.12, 0.12, shopD + roofOverhang * 2);
-            for (let i = 0; i < 5; i++) {
-                const rafter = new THREE.Mesh(rafterGeo, frameMat);
-                const rx = -shopW / 2 + 0.6 + i * (shopW - 1.2) / 4;
-                rafter.position.set(rx, roofY - 0.1, 0);
-                rafter.castShadow = true;
-                roofGroup.add(rafter);
-            }
-
-            // -----------------------------------------------------------------------
-            // Serving counter — wider than the old desk, with overhang to the front
-            // -----------------------------------------------------------------------
-            const deskGroup = new THREE.Group();
-            shop.add(deskGroup);
-
-            const deskW = shopW - 0.8, deskD = 1.8;
-            const counterY = 2.0;
-
-            // Legs
-            const legMat = new THREE.MeshStandardMaterial({ color: Palette.woodHi, roughness: 0.8 });
-            const legGeo = new THREE.BoxGeometry(0.22, counterY, 0.22);
-            [[-deskW / 2 + 0.15, frontZ - 0.4], [deskW / 2 - 0.15, frontZ - 0.4],
-            [-deskW / 2 + 0.15, frontZ - deskD + 0.2], [deskW / 2 - 0.15, frontZ - deskD + 0.2]
-            ].forEach(([x, z]) => {
-                const leg = new THREE.Mesh(legGeo, legMat);
-                leg.position.set(x, counterY / 2, z);
-                leg.castShadow = true;
-                deskGroup.add(leg);
-            });
-
-            // Shelves (two interior shelves)
-            const shelfMat = new THREE.MeshStandardMaterial({ color: Palette.woodMid, roughness: 0.85 });
-            [0.75, 1.5].forEach(y => {
-                const shelf = new THREE.Mesh(new THREE.BoxGeometry(deskW, 0.10, deskD - 0.3), shelfMat);
-                shelf.position.set(0, y, frontZ - deskD / 2 - 0.05);
-                shelf.castShadow = true; shelf.receiveShadow = true;
-                deskGroup.add(shelf);
-            });
-
-            // Counter top + brass trim
-            const topMat = new THREE.MeshStandardMaterial({ color: Palette.woodHi, roughness: 0.65, map: woodTexHi });
-            const top = new THREE.Mesh(new THREE.BoxGeometry(deskW + 0.3, 0.16, deskD + 0.4), topMat);
-            top.position.set(0, counterY, frontZ - deskD / 2 + 0.15);
-            top.castShadow = true; top.receiveShadow = true;
-            deskGroup.add(top);
-
-            const trim = new THREE.Mesh(new THREE.BoxGeometry(deskW + 0.3, 0.04, deskD + 0.4), brassMat);
-            trim.position.set(0, counterY + 0.1, frontZ - deskD / 2 + 0.15);
-            deskGroup.add(trim);
-
-            // Front apron panel under counter (hides the legs from the customer)
-            const apronMat = new THREE.MeshStandardMaterial({ color: Palette.woodMid, roughness: 0.9, map: woodTexMid });
-            const apron = new THREE.Mesh(
-                new THREE.BoxGeometry(deskW, counterY - 0.1, 0.12), apronMat
-            );
-            apron.position.set(0, counterY / 2, frontZ - 0.15);
-            apron.receiveShadow = true;
-            deskGroup.add(apron);
-
-            // -----------------------------------------------------------------------
-            // Counter-top props — positioned around the edges, centre kept clear
-            // -----------------------------------------------------------------------
-            // Far-left: open ledger book
-            const ledger = new THREE.Mesh(
-                new THREE.BoxGeometry(0.55, 0.08, 0.4),
-                new THREE.MeshStandardMaterial({ color: Palette.paper })
-            );
-            ledger.position.set(-deskW / 2 + 0.5, 0.12, 0.3);
-            ledger.rotation.y = 0.1;
-            ledger.castShadow = true;
-            top.add(ledger);
-            // Quill in inkpot next to ledger
-            const inkpot = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.08, 8),
-                new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.4 }));
-            inkpot.position.set(-deskW / 2 + 0.9, 0.12, 0.35);
-            inkpot.castShadow = true;
-            top.add(inkpot);
-            const quill = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.005, 0.25, 4),
-                new THREE.MeshStandardMaterial({ color: 0xeeeeee }));
-            quill.position.set(0, 0.12, 0);
-            quill.rotation.z = -0.5;
-            inkpot.add(quill);
-
-            // Left side: stack of coins
-            for (let i = 0; i < 4; i++) {
-                const coin = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.015, 10), brassMat);
-                coin.position.set(-deskW / 2 + 0.4, 0.09 + i * 0.016, -0.2);
-                coin.castShadow = true;
-                top.add(coin);
-            }
-
-            // Left-back: money pouch (a small soft sphere)
-            const pouchMat = new THREE.MeshStandardMaterial({ color: 0x6b4226, roughness: 0.9 });
-            const pouch = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), pouchMat);
-            pouch.scale.set(1, 0.7, 1);
-            pouch.position.set(-deskW / 2 + 0.6, 0.1, -0.4);
-            pouch.castShadow = true;
-            top.add(pouch);
-            // Drawstring
-            const drawstring = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.18, 4), ropeMat);
-            drawstring.position.set(0, 0.08, 0);
-            drawstring.rotation.z = 0.8;
-            pouch.add(drawstring);
-
-            // Right side: weighing scale
-            const weighScale = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.28, 0.18, 12), brassMat);
-            weighScale.position.set(deskW / 2 - 0.6, 0.13, 0.15);
-            weighScale.castShadow = true;
-            top.add(weighScale);
-            const scaleArm = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.04, 0.04), brassMat);
-            scaleArm.position.set(deskW / 2 - 0.6, 0.24, 0.15);
-            top.add(scaleArm);
-            [deskW / 2 - 0.85, deskW / 2 - 0.35].forEach(x => {
-                const pan = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.02, 10), brassMat);
-                pan.position.set(x, 0.2, 0.15);
-                top.add(pan);
-            });
-
-            // Far-right: lantern
-            const lanternGroup = new THREE.Group();
-            lanternGroup.position.set(deskW / 2 - 0.2, 0.22, -0.3);
-            top.add(lanternGroup);
-            const lantern = new THREE.Mesh(
-                new THREE.BoxGeometry(0.22, 0.36, 0.22),
-                new THREE.MeshStandardMaterial({ color: Palette.woodDark, emissive: 0xffcc77, emissiveIntensity: 0.5 })
-            );
-            lanternGroup.add(lantern);
-            const glowMat = new THREE.MeshStandardMaterial({ color: 0xffdd99, emissive: 0xffaa44, emissiveIntensity: 0.7, transparent: true, opacity: 0.6 });
-            [[-0.12, 0], [0.12, 0], [0, -0.12], [0, 0.12]].forEach(([dx, dz]) => {
-                const pane = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 0.28), glowMat);
-                pane.position.set(dx, 0, dz);
-                pane.lookAt(new THREE.Vector3(dx * 2, 0, dz * 2));
-                lanternGroup.add(pane);
-            });
-            const lanternLight = new THREE.PointLight(0xffcc77, 2.8, 8, 2);
-            lanternLight.position.set(0, 0.3, 0);
-            lanternLight.castShadow = true;
-            lanternGroup.add(lanternLight);
-            this.lanternLight = lanternLight;
-
-            // Right-front corner: rope coil
-            const ropeCoil = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.06, 8, 16), ropeMat);
-            ropeCoil.rotation.x = Math.PI / 2;
-            ropeCoil.position.set(deskW / 2 - 0.3, 0.1, 0.5);
-            top.add(ropeCoil);
-
-            // Small bell on counter edge (right side)
-            const bellMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, metalness: 0.7, roughness: 0.3 });
-            const bell = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), bellMat);
-            bell.scale.y = 0.7;
-            bell.position.set(deskW / 2 - 1.2, 0.11, 0.55);
-            bell.castShadow = true;
-            top.add(bell);
-            const bellBase = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.02, 8), bellMat);
-            bellBase.position.set(0, -0.04, 0);
-            bell.add(bellBase);
-
-            // -----------------------------------------------------------------------
-            // Shelf goods — rich variety on both shelves
-            // -----------------------------------------------------------------------
-            const bottleColors = [0x3d6b4f, 0x2a5a8b, 0x6b3d3d, 0x4a6b3d, 0x5a3d6b];
-            const bottleMat2 = col => new THREE.MeshStandardMaterial({ color: col, roughness: 0.25, transparent: true, opacity: 0.85 });
-
-            // Lower shelf: varied bottles with cork stoppers
-            for (let i = 0; i < 7; i++) {
-                const h = 0.24 + Math.random() * 0.14;
-                const r = 0.05 + Math.random() * 0.03;
-                const bottle = new THREE.Mesh(
-                    new THREE.CylinderGeometry(r * 0.7, r, h, 8),
-                    bottleMat2(bottleColors[i % bottleColors.length])
-                );
-                bottle.position.set(-deskW / 2 + 0.35 + i * 0.32, 0.75 + h / 2, frontZ - deskD / 2 - 0.05);
-                bottle.castShadow = true;
-                deskGroup.add(bottle);
-                // Cork stopper
-                const cork = new THREE.Mesh(
-                    new THREE.CylinderGeometry(r * 0.5, r * 0.6, 0.04, 6),
-                    new THREE.MeshStandardMaterial({ color: 0xc4a56e, roughness: 0.8 })
-                );
-                cork.position.set(0, h / 2 + 0.02, 0);
-                bottle.add(cork);
-            }
-
-            // Upper shelf: jars with labels, burlap sacks, rolled scrolls, small crate
-            const jarMat = new THREE.MeshStandardMaterial({ color: 0x8b6d4a, roughness: 0.6 });
-            const labelMat = new THREE.MeshStandardMaterial({ color: Palette.paper, roughness: 0.5 });
-
-            for (let i = 0; i < 4; i++) {
-                const jar = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.22, 8), jarMat);
-                jar.position.set(deskW / 2 - 0.35 - i * 0.38, 1.61, frontZ - deskD / 2 - 0.05);
-                jar.castShadow = true;
-                deskGroup.add(jar);
-                const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.03, 8), brassMat);
-                lid.position.set(0, 0.12, 0);
-                jar.add(lid);
-                // Paper label
-                const label = new THREE.Mesh(new THREE.PlaneGeometry(0.12, 0.08), labelMat);
-                label.position.set(0, 0, 0.101);
-                jar.add(label);
-            }
-
-            // Burlap sacks (spices/grain)
-            const sackMat = new THREE.MeshStandardMaterial({ color: 0xa08860, roughness: 0.95 });
-            [{ x: -deskW / 2 + 0.4, s: 0.16 }, { x: -deskW / 2 + 0.75, s: 0.13 }].forEach(({ x, s }) => {
-                const sack = new THREE.Mesh(new THREE.SphereGeometry(s, 6, 5), sackMat);
-                sack.scale.set(1, 0.75, 0.9);
-                sack.position.set(x, 1.55 + s * 0.7, frontZ - deskD / 2 - 0.05);
-                sack.castShadow = true;
-                deskGroup.add(sack);
-            });
-
-            // Rolled scrolls / maps
-            const scrollMat = new THREE.MeshStandardMaterial({ color: 0xd4c9a0, roughness: 0.7 });
-            [0.4, 0.7].forEach((x, i) => {
-                const scroll = new THREE.Mesh(
-                    new THREE.CylinderGeometry(0.04, 0.04, 0.3 + i * 0.1, 8), scrollMat
-                );
-                scroll.rotation.z = Math.PI / 2;
-                scroll.rotation.y = 0.2 + i * 0.3;
-                scroll.position.set(x, 1.56, frontZ - deskD / 2 - 0.05);
-                scroll.castShadow = true;
-                deskGroup.add(scroll);
-            });
-
-            // Small crate on upper shelf
-            const shelfCrate = new THREE.Mesh(
-                new THREE.BoxGeometry(0.4, 0.25, 0.3),
-                new THREE.MeshStandardMaterial({ color: Palette.woodHi, roughness: 0.9, map: woodTexHi })
-            );
-            shelfCrate.position.set(1.3, 1.62, frontZ - deskD / 2 - 0.05);
-            shelfCrate.rotation.y = 0.15;
-            shelfCrate.castShadow = true;
-            deskGroup.add(shelfCrate);
-
-            // -----------------------------------------------------------------------
-            // Back-wall decor — hanging items visible from inside
-            // -----------------------------------------------------------------------
-            // Fishing net draped on back wall
-            const netMat = new THREE.MeshStandardMaterial({ color: 0x8a8a6a, roughness: 0.9, wireframe: true });
-            const net = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 1.5, 6, 6), netMat);
-            net.position.set(-1.2, 3.8, backZ + 0.12);
-            shop.add(net);
-
-            // Hanging fish (trophy catch!)
-            const fishMat = new THREE.MeshStandardMaterial({ color: 0x7a9aaa, roughness: 0.5, metalness: 0.1 });
-            const fishBody = new THREE.Mesh(
-                new THREE.CylinderGeometry(0.08, 0.15, 0.6, 8), fishMat
-            );
-            fishBody.rotation.z = Math.PI / 2;
-            fishBody.position.set(1.5, 3.6, backZ + 0.18);
-            shop.add(fishBody);
-            // Tail
-            const tail = new THREE.Mesh(
-                new THREE.BoxGeometry(0.02, 0.25, 0.15), fishMat
-            );
-            tail.position.set(0.35, 0, 0);
-            tail.rotation.z = 0.3;
-            fishBody.add(tail);
-
-            // -----------------------------------------------------------------------
-            // Sign rig — crossbeam + hanging sign with wax seal
-            // -----------------------------------------------------------------------
-            const rigging = new THREE.Group();
-            shop.add(rigging);
-
-            // The crossbeam sits just under the roof, spanning the front opening
-            const crossbeam = new THREE.Mesh(
-                new THREE.BoxGeometry(shopW + 0.4, 0.22, 0.28), shelfMat
-            );
-            crossbeam.position.set(0, shopH - 0.3, frontZ + 0.3);
-            crossbeam.castShadow = true;
-            rigging.add(crossbeam);
-
-            // Bracket supports under crossbeam
-            [-shopW / 2 + 0.3, shopW / 2 - 0.3].forEach(x => {
-                const bracket = new THREE.Mesh(
-                    new THREE.BoxGeometry(0.12, 0.5, 0.12), frameMat
-                );
-                bracket.position.set(x, -0.35, 0);
-                bracket.castShadow = true;
-                crossbeam.add(bracket);
-                // Diagonal brace
-                const brace = new THREE.Mesh(
-                    new THREE.BoxGeometry(0.08, 0.55, 0.08), frameMat
-                );
-                brace.position.set(x > 0 ? -0.2 : 0.2, -0.3, -0.15);
-                brace.rotation.z = x > 0 ? 0.6 : -0.6;
-                crossbeam.add(brace);
-            });
-
-            // signPivot is a child of crossbeam — rotating the pivot swings the
-            // sign and ropes together, inheriting any crossbeam transform.
-            const signPivot = new THREE.Group();
-            signPivot.position.set(0, -0.12, 0.15);
-            crossbeam.add(signPivot);
-
-            // Hanging ropes
-            const ropeGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.55, 6);
-            const ropeL = new THREE.Mesh(ropeGeo, ropeMat);
-            ropeL.position.set(-0.85, -0.28, 0);
-            signPivot.add(ropeL);
-            const ropeR = new THREE.Mesh(ropeGeo, ropeMat);
-            ropeR.position.set(0.85, -0.28, 0);
-            signPivot.add(ropeR);
-
-            // Sign board
-            const sign = new THREE.Mesh(
-                new THREE.BoxGeometry(2.4, 0.75, 0.08),
-                new THREE.MeshStandardMaterial({ color: Palette.woodHi, roughness: 0.6 })
-            );
-            sign.position.set(0, -0.9, 0);
-            sign.castShadow = true;
-            signPivot.add(sign);
-
-            // Wax seal on sign
-            const seal = new THREE.Mesh(
-                new THREE.CylinderGeometry(0.12, 0.12, 0.03, 12),
-                new THREE.MeshStandardMaterial({ color: Palette.sealRed, roughness: 0.4 })
-            );
-            seal.rotation.x = Math.PI / 2;
-            seal.position.set(0.7, -0.1, 0.05);
-            sign.add(seal);
-
-            // Sign border trim
-            const signTrim = new THREE.Mesh(
-                new THREE.BoxGeometry(2.5, 0.82, 0.04), frameMat
-            );
-            signTrim.position.set(0, 0, -0.04);
-            sign.add(signTrim);
-
-            // -----------------------------------------------------------------------
-            // Exterior props — barrels, crates, mooring cleats, rope on post
-            // -----------------------------------------------------------------------
-            // Barrels next to the shop (children of shop, so they move with it)
-            const barrelMat = new THREE.MeshStandardMaterial({ color: 0x6d4c2a, roughness: 0.85 });
-            const barrelBandMat = new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.4, roughness: 0.6 });
-
-            [{ x: -shopW / 2 - 0.7, z: -0.5, h: 1.2, r: 0.35 },
-            { x: -shopW / 2 - 0.6, z: 0.6, h: 1.0, r: 0.3 },
-            { x: shopW / 2 + 0.65, z: -2.0, h: 1.3, r: 0.38 }
-            ].forEach(b => {
-                const barrel = new THREE.Mesh(
-                    new THREE.CylinderGeometry(b.r * 0.9, b.r, b.h, 12), barrelMat
-                );
-                barrel.position.set(b.x, b.h / 2, b.z);
-                barrel.castShadow = true;
-                shop.add(barrel);
-                // Metal bands
-                [-0.3, 0, 0.3].forEach(yOff => {
-                    const band = new THREE.Mesh(
-                        new THREE.TorusGeometry(b.r * 0.92, 0.02, 6, 16), barrelBandMat
-                    );
-                    band.rotation.x = Math.PI / 2;
-                    band.position.set(b.x, b.h / 2 + yOff * b.h / 1.2, b.z);
-                    shop.add(band);
-                });
-            });
-
-            // Stacked crates beside shop (moved clear of the doorway)
-            const crateMat = new THREE.MeshStandardMaterial({ color: Palette.woodHi, roughness: 0.9 });
-            const crate1 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.6, 0.7), crateMat);
-            crate1.position.set(shopW / 2 + 0.7, 0.3, 1.4);
-            crate1.rotation.y = 0.15;
-            crate1.castShadow = true;
-            shop.add(crate1);
-
-            const crate2 = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.5, 0.55), crateMat);
-            crate2.position.set(shopW / 2 + 0.6, 0.85, 1.45);
-            crate2.rotation.y = -0.3;
-            crate2.castShadow = true;
-            shop.add(crate2);
-
-            // Rope coils hanging on the left side wall (away from the door)
-            [1.5, 2.8].forEach(y => {
-                const hangRope = new THREE.Mesh(
-                    new THREE.TorusGeometry(0.22, 0.05, 8, 16), ropeMat
-                );
-                hangRope.rotation.z = Math.PI / 2;
-                hangRope.position.set(-shopW / 2 - 0.1, y, -0.4);
-                shop.add(hangRope);
-            });
-
-            // Mooring cleats on the front posts
-            [-shopW / 2 + 0.15, shopW / 2 - 0.15].forEach(x => {
-                const cleat = new THREE.Mesh(
-                    new THREE.BoxGeometry(0.3, 0.08, 0.12), brassMat
-                );
-                cleat.position.set(x, 1.0, frontZ + 0.08);
-                shop.add(cleat);
-                // Vertical peg
-                const peg = new THREE.Mesh(
-                    new THREE.CylinderGeometry(0.03, 0.03, 0.14, 6), brassMat
-                );
-                peg.position.set(0, 0.1, 0);
-                cleat.add(peg);
-            });
-
-            // -----------------------------------------------------------------------
-            // Exterior bracket lantern — hung from the right corner post
-            // -----------------------------------------------------------------------
-            const extLanternGroup = new THREE.Group();
-            extLanternGroup.position.set(shopW / 2 + 0.3, 3.5, frontZ);
-            shop.add(extLanternGroup);
-
-            // Bracket arm
-            const bracketArm = new THREE.Mesh(
-                new THREE.BoxGeometry(0.6, 0.08, 0.08), frameMat
-            );
-            bracketArm.position.set(0.15, 0, 0);
-            extLanternGroup.add(bracketArm);
-
-            // Hanging chain
-            const chain = new THREE.Mesh(
-                new THREE.CylinderGeometry(0.015, 0.015, 0.45, 6), barrelBandMat
-            );
-            chain.position.set(0.4, -0.25, 0);
-            extLanternGroup.add(chain);
-
-            // Lantern body
-            const extLantern = new THREE.Mesh(
-                new THREE.BoxGeometry(0.2, 0.3, 0.2),
-                new THREE.MeshStandardMaterial({ color: Palette.woodDark, emissive: 0xffaa44, emissiveIntensity: 0.5 })
-            );
-            extLantern.position.set(0.4, -0.6, 0);
-            extLanternGroup.add(extLantern);
-
-            // Exterior lantern light
-            const extLight = new THREE.PointLight(0xffaa44, 0.6, 6, 2);
-            extLight.position.set(0.4, -0.4, 0);
-            extLanternGroup.add(extLight);
-
-
-            // ==========================================================================
-            // Gulls — tiny bobbing marks up in the sky
-            // ==========================================================================
-            function makeGull() {
-                const g = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.4, 4), new THREE.MeshStandardMaterial({ color: 0x1e1a16 }));
-                g.rotation.z = Math.PI / 2;
-                return g;
-            }
-            const gulls = [
-                { mesh: makeGull(), baseX: -6, baseY: 9, phase: 0 },
-                { mesh: makeGull(), baseX: 2, baseY: 10, phase: 1.7 },
-                { mesh: makeGull(), baseX: 8, baseY: 8.5, phase: 3.1 },
-            ];
-            gulls.forEach(g => this.group.add(g.mesh));
-    this.gulls = gulls; // save array for updates
-    this.group.add(dockGroup);
+    // Extend dock from Z = -5.0 all the way to Z = +8.6 so the shop backside
+    // (reaching world Z = 6.5) and roof eaves (Z = 7.35) sit fully on timber decking!
+    const dockLength = 18;
+    const dockFrontZ = -5.0;
+    const dockBackZ = 8.6;
+    const dockWidth = dockBackZ - dockFrontZ; // 13.6m wide
+    const dockCenterZ = (dockFrontZ + dockBackZ) / 2; // Z = 1.8m
+
+    const plankCount = 14;
+    const plankWidth = dockLength / plankCount;
+
+    // Modular Deck Planks split into 4 staggered Z sections per row
+    const zCuts = [-5.0, -1.5, 1.8, 5.2, 8.6];
+    const nailGeo = new THREE.BoxGeometry(0.04, 0.02, 0.04);
+
+    for (let i = 0; i < plankCount; i++) {
+      const px = -dockLength / 2 + i * plankWidth + plankWidth / 2;
+      const baseMat = i % 2 === 0 ? mats.plank : mats.plankDark;
+
+      for (let s = 0; s < 4; s++) {
+        const segLen = zCuts[s + 1] - zCuts[s] - 0.035;
+        const segZ = zCuts[s] + segLen / 2 + 0.018;
+        const segMat = (i + s) % 3 === 0 ? mats.plankHi : baseMat;
+        const plank = createVoxelBox(plankWidth - 0.035, 0.28, segLen, segMat);
+        plank.position.set(px, 0.49, segZ);
+        dockGroup.add(plank);
+
+        // Voxel iron nail heads over stringer beams
+        [-plankWidth * 0.35, plankWidth * 0.35].forEach(nx => {
+          const nail1 = new THREE.Mesh(nailGeo, mats.iron);
+          nail1.position.set(px + nx, 0.635, segZ - segLen * 0.42);
+          dockGroup.add(nail1);
+          const nail2 = new THREE.Mesh(nailGeo, mats.iron);
+          nail2.position.set(px + nx, 0.635, segZ + segLen * 0.42);
+          dockGroup.add(nail2);
+        });
+      }
+    }
+
+    // Heavy Timber Edge Curb Rails (Front at -5.0 and Rear at +8.6)
+    const frontCurb = createVoxelBox(dockLength + 0.2, 0.22, 0.32, mats.woodDark);
+    frontCurb.position.set(0, 0.64, dockFrontZ + 0.16);
+    dockGroup.add(frontCurb);
+
+    const backCurb = createVoxelBox(dockLength + 0.2, 0.22, 0.32, mats.woodDark);
+    backCurb.position.set(0, 0.64, dockBackZ - 0.16);
+    dockGroup.add(backCurb);
+
+    // End curb on water-facing side (+X)
+    const endCurb = createVoxelBox(0.32, 0.22, dockWidth, mats.woodDark);
+    endCurb.position.set(dockLength / 2 - 0.16, 0.64, dockCenterZ);
+    dockGroup.add(endCurb);
+
+    // Invisible Smooth Deck Collider (Color and depth writes disabled to avoid white glitch)
+    const dockCollisionDeck = new THREE.Mesh(
+      new THREE.BoxGeometry(dockLength, 0.35, dockWidth),
+      new THREE.MeshBasicMaterial({ visible: false, colorWrite: false, depthWrite: false })
+    );
+    dockCollisionDeck.position.set(0, 0.5, dockCenterZ);
+    dockGroup.add(dockCollisionDeck);
+
+    // Square Timber Pilings (Posts supporting the full extended wharf)
+    const pilingLocations = [
+      [-8, -4.5], [-8, 0], [-8, 4.5], [-8, 8.0],
+      [-3, -4.5], [-3, 0], [-3, 4.5], [-3, 8.0],
+      [2, -4.5],  [2, 0],  [2, 4.5],  [2, 8.0],
+      [8, -4.5],  [8, 0],  [8, 4.5],  [8, 8.0]
+    ];
+    pilingLocations.forEach(([x, z]) => {
+      // Main square pile
+      const post = createVoxelBox(0.58, 5.8, 0.58, mats.woodTrim);
+      post.position.set(x, -2.1, z);
+      dockGroup.add(post);
+
+      // Pile head extending slightly above deck
+      const postTop = createVoxelBox(0.62, 0.36, 0.62, mats.woodDark);
+      postTop.position.set(x, 0.72, z);
+      dockGroup.add(postTop);
+
+      // Iron bracket collar
+      const collar = createVoxelBox(0.68, 0.16, 0.68, mats.iron);
+      collar.position.set(x, 0.46, z);
+      dockGroup.add(collar);
+
+      // Mooring post rope coil on select perimeter pilings
+      if (z === -4.5 && (Math.abs(x) > 6 || x === 2)) {
+        const ropeRing = createVoxelBox(0.78, 0.22, 0.78, mats.rope);
+        ropeRing.position.set(x, 0.62, z);
+        dockGroup.add(ropeRing);
+      }
+    });
+
+    // Sub-deck support stringers (heavy square timber beams connecting the pilings)
+    [-4.5, 0, 4.5, 8.0].forEach(z => {
+      const beam = createVoxelBox(dockLength - 0.5, 0.42, 0.45, mats.woodTrim);
+      beam.position.set(0, 0.18, z);
+      dockGroup.add(beam);
+    });
+    [-8, -3, 2, 8].forEach(x => {
+      const crossBeam = createVoxelBox(0.45, 0.42, dockWidth - 0.8, mats.woodTrim);
+      crossBeam.position.set(x, 0.16, dockCenterZ);
+      dockGroup.add(crossBeam);
+    });
+
+    // Voxel Mooring Cleats on Front Pier Edge
+    [-5, 0, 5].forEach(x => {
+      const cleatBase = createVoxelBox(0.48, 0.08, 0.18, mats.iron);
+      cleatBase.position.set(x, 0.76, dockFrontZ + 0.16);
+      dockGroup.add(cleatBase);
+
+      const cleatBar = createVoxelBox(0.72, 0.08, 0.09, mats.iron);
+      cleatBar.position.set(x, 0.84, dockFrontZ + 0.16);
+      dockGroup.add(cleatBar);
+    });
+
+    // =========================================================================
+    // 2. ISLAND LANDMASS & SOLIDLY PLANTED PINE TREES (No Floating)
+    // =========================================================================
+    const islandGroup = new THREE.Group();
+    islandGroup.position.set(-22, 0, 0);
     this.group.add(islandGroup);
-    this.group.add(shop);
-    // Add gulls to main group instead of scene
-    gulls.forEach(g => this.group.add(g.mesh));
 
+    // Terraced Voxel Contours: Stepped elevation tiers from sea floor up to hill
+    const shelfSlices = [
+      { w: 32, d: 30, h: 2.2, y: -2.8, mat: mats.stoneDark },
+      { w: 29, d: 27, h: 1.4, y: -1.0, mat: mats.stone },
+      { w: 26, d: 24, h: 0.9, y: 0.15, mat: mats.sandWet },
+      { w: 24, d: 22, h: 0.6, y: 0.9, mat: mats.sand }
+    ];
+    shelfSlices.forEach(s => {
+      const slice = createVoxelBox(s.w, s.h, s.d, s.mat);
+      slice.position.set(0, s.y, 0);
+      islandGroup.add(slice);
+    });
+
+    // Layer 1: Main Grass Plateau (Top is at y = 2.0)
+    const dirtTier = createVoxelBox(22, 0.9, 20, mats.dirt);
+    dirtTier.position.set(0, 1.35, 0);
+    islandGroup.add(dirtTier);
+
+    const grassTier = createVoxelBox(22.2, 0.35, 20.2, mats.grassTop);
+    grassTier.position.set(0, 1.82, 0);
+    islandGroup.add(grassTier);
+
+    // Layer 2: Inland Hill Plateaus
+    // Lower hill tier: top at y = 3.08 (bounds: x from -12 to 2, z from -10.5 to 2.5)
+    const hillLowerDirt = createVoxelBox(14, 0.9, 13, mats.dirt);
+    hillLowerDirt.position.set(-5, 2.45, -4);
+    islandGroup.add(hillLowerDirt);
+
+    const hillLowerGrass = createVoxelBox(14.2, 0.35, 13.2, mats.grassTop);
+    hillLowerGrass.position.set(-5, 2.9, -4);
+    islandGroup.add(hillLowerGrass);
+
+    // Upper hill peak: top at y = 4.18 (bounds: x from -10.35 to -1.65, z from -8.6 to -0.4)
+    const hillUpperDirt = createVoxelBox(8.5, 0.9, 8, mats.dirt);
+    hillUpperDirt.position.set(-6, 3.55, -4.5);
+    islandGroup.add(hillUpperDirt);
+
+    const hillUpperGrass = createVoxelBox(8.7, 0.35, 8.2, mats.grassTop);
+    hillUpperGrass.position.set(-6, 4.0, -4.5);
+    islandGroup.add(hillUpperGrass);
+
+    // Coastal Rocky Shelf near water (+X, +Z)
+    const coastalShelfTiers = [
+      { x: 10, z: 7, w: 11, d: 10, h: 1.2, y: -1.2, mat: mats.stoneDark },
+      { x: 9.5, z: 6.8, w: 8.5, d: 8, h: 1.0, y: -0.1, mat: mats.stone },
+      { x: 9.0, z: 6.5, w: 6.5, d: 6, h: 0.6, y: 0.7, mat: mats.sandWet }
+    ];
+    coastalShelfTiers.forEach(cs => {
+      const rockBlock = createVoxelBox(cs.w, cs.h, cs.d, cs.mat);
+      rockBlock.position.set(cs.x, cs.y, cs.z);
+      islandGroup.add(rockBlock);
+    });
+
+    // Solidly Planted Voxel Pine Trees (With deep underground root embed to prevent any floating)
+    const leafMats = [mats.grassDark, createVoxelMat(Palette.pineLeaves1), createVoxelMat(Palette.pineLeaves2), createVoxelMat(Palette.pineLeaves3)];
+    function addVoxelPineTree(x, surfaceY, z, scale = 1.0) {
+      const tree = new THREE.Group();
+      tree.position.set(x, surfaceY, z);
+      tree.scale.setScalar(scale);
+
+      // Deep root trunk anchor (extends 0.9m underground so bottom never floats)
+      const trunk = createVoxelBox(0.48, 3.8, 0.48, mats.woodDark);
+      trunk.position.y = 1.1; // Extends from y = -0.8 to y = +3.0
+      tree.add(trunk);
+
+      // 4 tiered stepped canopy layers
+      const canopyLayers = [
+        { w: 3.2, h: 0.8, y: 2.2, mat: leafMats[1] },
+        { w: 2.4, h: 0.8, y: 2.9, mat: leafMats[2] },
+        { w: 1.6, h: 0.8, y: 3.6, mat: leafMats[3] },
+        { w: 0.85, h: 0.9, y: 4.3, mat: leafMats[0] }
+      ];
+      canopyLayers.forEach(c => {
+        const layer = createVoxelBox(c.w, c.h, c.w, c.mat);
+        layer.position.y = c.y;
+        tree.add(layer);
+
+        // Edge voxel accent notches for organic silhouette
+        const notch = createVoxelBox(c.w + 0.16, c.h * 0.45, c.w * 0.55, c.mat);
+        notch.position.y = c.y - c.h * 0.1;
+        tree.add(notch);
+      });
+
+      islandGroup.add(tree);
+    }
+
+    // Precise terrain surface coordinates for every tree:
+    addVoxelPineTree(-6.5, 4.18, -4.5, 1.35); // Upper hill peak
+    addVoxelPineTree(-7.8, 4.18, -6.0, 1.25); // Upper hill peak
+    addVoxelPineTree(-3.5, 3.08, -2.5, 1.15); // Lower hill tier
+    addVoxelPineTree(-10.2, 3.08, -3.5, 1.20); // Lower hill tier
+    addVoxelPineTree(2.5, 2.0, 6.0, 1.15);    // Main grass plateau
+    addVoxelPineTree(5.5, 2.0, -5.0, 1.0);    // Main grass plateau
+    addVoxelPineTree(-6.0, 2.0, 6.5, 1.1);    // Main grass plateau
+
+    // Stepped Stone Walkway connecting Dock to Island
+    for (let i = 0; i < 7; i++) {
+      const t = i / 6;
+      const stepX = 13 - i * 1.85;
+      const stepY = 2.05 - t * 0.15;
+      const stepZ = Math.sin(i * 0.8) * 0.4;
+      const step = createVoxelBox(1.9, 0.22, 1.3, i % 2 === 0 ? mats.stonePath : mats.stoneDark);
+      step.position.set(stepX, stepY, stepZ);
+      step.rotation.y = Math.sin(i * 1.5) * 0.15;
+      islandGroup.add(step);
+
+      const border1 = createVoxelBox(0.24, 0.28, 1.3, mats.stone);
+      border1.position.set(stepX, stepY + 0.04, stepZ - 0.72);
+      islandGroup.add(border1);
+      const border2 = createVoxelBox(0.24, 0.28, 1.3, mats.stone);
+      border2.position.set(stepX, stepY + 0.04, stepZ + 0.72);
+      islandGroup.add(border2);
+    }
+
+    // Smooth invisible ramp along path (Color & depth writes disabled)
+    const pathCollider = new THREE.Mesh(
+      new THREE.BoxGeometry(13.5, 0.35, 2.6),
+      new THREE.MeshBasicMaterial({ visible: false, colorWrite: false, depthWrite: false })
+    );
+    pathCollider.position.set(7.5, 1.95, 0);
+    islandGroup.add(pathCollider);
+
+    // Voxel Cargo Crates on Island
+    const cratePlacements = [
+      { x: 10.5, z: -3.5, s: 1.1, rot: 0.2 },
+      { x: 11.6, z: -3.8, s: 0.9, rot: -0.4 },
+      { x: 10.8, z: -4.8, s: 1.25, rot: 0.75 }
+    ];
+    cratePlacements.forEach(cp => {
+      const crateGroup = new THREE.Group();
+      crateGroup.position.set(cp.x, 2.0 + cp.s / 2, cp.z);
+      crateGroup.rotation.y = cp.rot;
+
+      const body = createVoxelBox(cp.s, cp.s, cp.s, mats.plankHi);
+      crateGroup.add(body);
+
+      // Dark wooden edge framing
+      const frameThick = 0.08 * cp.s;
+      [-0.5, 0.5].forEach(ox => {
+        [-0.5, 0.5].forEach(oz => {
+          const cornerPost = createVoxelBox(frameThick, cp.s + 0.02, frameThick, mats.woodDark);
+          cornerPost.position.set(ox * (cp.s - frameThick), 0, oz * (cp.s - frameThick));
+          crateGroup.add(cornerPost);
+        });
+      });
+      const brace1 = createVoxelBox(cp.s * 1.15, frameThick * 0.8, frameThick * 0.5, mats.woodDark);
+      brace1.rotation.z = Math.PI / 4;
+      brace1.position.z = cp.s / 2 + frameThick * 0.2;
+      crateGroup.add(brace1);
+
+      islandGroup.add(crateGroup);
+    });
+
+    // Easter Egg: Voxel Lop-Eared Bunny hopping around island grass
+    this.bunny = new VoxelLopBunny(islandGroup, new THREE.Vector3(0, 2.0, 2.5), this.group);
+    this.bunnyInteractables = this.bunny.interactables;
+
+    // =========================================================================
+    // 3. CHANDLERY SHOP STALL (Voxel Architecture, Roof & Interior)
+    // =========================================================================
+    const shop = new THREE.Group();
+    shop.position.set(2.1, 2.15, 4);
+    shop.rotation.y = -Math.PI;
+    this.shopGroup = shop;
+    this.group.add(shop);
+
+    const shopW = 6.0;
+    const shopD = 5.0;
+    const shopH = 5.4;
+    const backZ = -shopD / 2;
+    const frontZ = shopD / 2;
+    const rightX = shopW / 2;
+    const leftX = -shopW / 2;
+
+    // Floor — stepped voxel plank platform
+    const floorBase = createVoxelBox(shopW - 0.1, 0.22, shopD - 0.1, mats.plankDark);
+    floorBase.position.set(0, 0.11, 0);
+    shop.add(floorBase);
+
+    // Floor surface planks
+    const floorPlanksCount = 10;
+    const fPlankLen = (shopD - 0.2) / floorPlanksCount;
+    for (let f = 0; f < floorPlanksCount; f++) {
+      const fpz = -shopD / 2 + 0.1 + f * fPlankLen + fPlankLen / 2;
+      const fp = createVoxelBox(shopW - 0.18, 0.04, fPlankLen - 0.03, f % 2 === 0 ? mats.plank : mats.plankHi);
+      fp.position.set(0, 0.23, fpz);
+      shop.add(fp);
+    }
+
+    // Heavy Timber Corner Posts (Recessed wall joint to prevent any texture clipping)
+    const cornerPostLocations = [
+      [leftX + 0.21, backZ + 0.21],
+      [rightX - 0.21, backZ + 0.21],
+      [leftX + 0.21, frontZ - 0.21],
+      [rightX - 0.21, frontZ - 0.21]
+    ];
+    cornerPostLocations.forEach(([cx, cz]) => {
+      const post = createVoxelBox(0.42, shopH, 0.42, mats.woodDark);
+      post.position.set(cx, shopH / 2, cz);
+      shop.add(post);
+
+      const shoe = createVoxelBox(0.48, 0.35, 0.48, mats.iron);
+      shoe.position.set(cx, 0.25, cz);
+      shop.add(shoe);
+
+      const cap = createVoxelBox(0.48, 0.22, 0.48, mats.woodTrim);
+      cap.position.set(cx, shopH - 0.11, cz);
+      shop.add(cap);
+    });
+
+    // Perimeter Header Beams
+    const frontBeam = createVoxelBox(shopW - 0.4, 0.32, 0.38, mats.woodDark);
+    frontBeam.position.set(0, shopH - 0.16, frontZ - 0.21);
+    shop.add(frontBeam);
+
+    const backBeam = createVoxelBox(shopW - 0.4, 0.32, 0.38, mats.woodDark);
+    backBeam.position.set(0, shopH - 0.16, backZ + 0.21);
+    shop.add(backBeam);
+
+    const leftBeam = createVoxelBox(0.38, 0.32, shopD - 0.45, mats.woodDark);
+    leftBeam.position.set(leftX + 0.21, shopH - 0.16, 0);
+    shop.add(leftBeam);
+
+    const rightBeam = createVoxelBox(0.38, 0.32, shopD - 0.45, mats.woodDark);
+    rightBeam.position.set(rightX - 0.21, shopH - 0.16, 0);
+    shop.add(rightBeam);
+
+    // -------------------------------------------------------------------------
+    // Back Wall: Horizontal Voxel Lap Siding & Framing
+    // -------------------------------------------------------------------------
+    const backWallGroup = new THREE.Group();
+    backWallGroup.position.set(0, 0, backZ);
+    shop.add(backWallGroup);
+
+    const wallPlankCount = 12;
+    const wallPlankH = shopH / wallPlankCount;
+    for (let p = 0; p < wallPlankCount; p++) {
+      const py = p * wallPlankH + wallPlankH / 2;
+      const isAlt = p % 2 === 0;
+      const plank = createVoxelBox(shopW - 0.45, wallPlankH - 0.03, 0.22, isAlt ? mats.woodMid : mats.woodAged);
+      plank.position.set(0, py, 0.11);
+      backWallGroup.add(plank);
+
+      if (p % 3 === 0) {
+        const trimBand = createVoxelBox(shopW - 0.4, 0.1, 0.26, mats.woodDark);
+        trimBand.position.set(0, py, 0.12);
+        backWallGroup.add(trimBand);
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // Left Wall: Lap Siding + Perfectly Fitted Voxel Porthole (Zero Gaps, Centered)
+    // -------------------------------------------------------------------------
+    const leftWallGroup = new THREE.Group();
+    leftWallGroup.position.set(leftX, 0, 0);
+    shop.add(leftWallGroup);
+
+    const portholeZ = -0.5;
+    const portholeY = 3.0;
+    const portholeR = 0.65;
+    const octSide = portholeR * 0.828; // ~0.538m
+
+    // Solid wall panels below and above the porthole
+    const yBottomSill = portholeY - portholeR; // 2.35m
+    const yTopHeader  = portholeY + portholeR; // 3.65m
+
+    const wallLower = createVoxelBox(0.22, yBottomSill, shopD - 0.45, mats.woodMid);
+    wallLower.position.set(0.11, yBottomSill / 2, 0);
+    leftWallGroup.add(wallLower);
+
+    const wallUpper = createVoxelBox(0.22, shopH - yTopHeader, shopD - 0.45, mats.woodMid);
+    wallUpper.position.set(0.11, yTopHeader + (shopH - yTopHeader) / 2, 0);
+    leftWallGroup.add(wallUpper);
+
+    // Side jamb panels flanking the porthole opening
+    const openingH = yTopHeader - yBottomSill; // 1.30m
+    const openingHalfW = portholeR; // 0.65m
+
+    // Back side of porthole: from back edge to opening
+    const leftBackLen = (portholeZ - openingHalfW) - (-shopD / 2 + 0.25);
+    const leftBackPanel = createVoxelBox(0.22, openingH, leftBackLen, mats.woodMid);
+    leftBackPanel.position.set(0.11, portholeY, -shopD / 2 + 0.25 + leftBackLen / 2);
+    leftWallGroup.add(leftBackPanel);
+
+    // Front side of porthole: from opening to front edge
+    const leftFrontLen = (shopD / 2 - 0.25) - (portholeZ + openingHalfW);
+    const leftFrontPanel = createVoxelBox(0.22, openingH, leftFrontLen, mats.woodMid);
+    leftFrontPanel.position.set(0.11, portholeY, shopD / 2 - 0.25 - leftFrontLen / 2);
+    leftWallGroup.add(leftFrontPanel);
+
+    // Fitted octagonal corner infill blocks to completely seal all 4 diagonal corners!
+    const cornerSize = openingHalfW * 0.45;
+    [
+      [portholeZ - openingHalfW * 0.72, portholeY - openingHalfW * 0.72],
+      [portholeZ + openingHalfW * 0.72, portholeY - openingHalfW * 0.72],
+      [portholeZ - openingHalfW * 0.72, portholeY + openingHalfW * 0.72],
+      [portholeZ + openingHalfW * 0.72, portholeY + openingHalfW * 0.72]
+    ].forEach(([cz, cy]) => {
+      const cornerInfill = createVoxelBox(0.22, cornerSize, cornerSize, mats.woodTrim);
+      cornerInfill.position.set(0.11, cy, cz);
+      leftWallGroup.add(cornerInfill);
+    });
+
+    // Exterior Octagonal Brass Frame (Outside face at x = -0.02)
+    const extOctRing = createVoxelOctagonRing(portholeR, 0.12, 0.08, mats.brass);
+    extOctRing.rotation.y = Math.PI / 2;
+    extOctRing.position.set(-0.02, portholeY, portholeZ);
+    leftWallGroup.add(extOctRing);
+
+    // Interior Octagonal Brass Frame (Inside face at x = 0.24, perfectly visible & centered!)
+    const intOctRing = createVoxelOctagonRing(portholeR, 0.12, 0.08, mats.brass);
+    intOctRing.rotation.y = Math.PI / 2;
+    intOctRing.position.set(0.24, portholeY, portholeZ);
+    leftWallGroup.add(intOctRing);
+
+    // Brass inner lining collar bridging through the wall
+    const collarRing = createVoxelOctagonRing(portholeR - 0.05, 0.06, 0.24, mats.brassDark);
+    collarRing.rotation.y = Math.PI / 2;
+    collarRing.position.set(0.11, portholeY, portholeZ);
+    leftWallGroup.add(collarRing);
+
+    // Perfectly Centered Translucent Porthole Glass
+    const portholeGlass = createVoxelBox(0.04, portholeR * 1.5, portholeR * 1.5, mats.glass);
+    portholeGlass.position.set(0.11, portholeY, portholeZ);
+    leftWallGroup.add(portholeGlass);
+
+    // Centered Cross-Muntin Bars
+    const muntinH = createVoxelBox(0.06, 0.05, portholeR * 1.6, mats.brass);
+    muntinH.position.set(0.11, portholeY, portholeZ);
+    leftWallGroup.add(muntinH);
+    const muntinV = createVoxelBox(0.06, portholeR * 1.6, 0.05, mats.brass);
+    muntinV.position.set(0.11, portholeY, portholeZ);
+    leftWallGroup.add(muntinV);
+
+    // -------------------------------------------------------------------------
+    // Right Wall: Doorway, Lintel & Interactive Voxel Shop Door
+    // -------------------------------------------------------------------------
+    const rightWallGroup = new THREE.Group();
+    rightWallGroup.position.set(rightX, 0, 0);
+    shop.add(rightWallGroup);
+
+    const doorW = 1.65;
+    const doorH = 3.65;
+    const doorZ = -0.35;
+
+    // Back wall panel of right side (from backZ to door frame)
+    const rwBackLen = doorZ - doorW / 2 - (-shopD / 2 + 0.25);
+    const rwBack = createVoxelBox(0.22, shopH, rwBackLen, mats.woodMid);
+    rwBack.position.set(-0.11, shopH / 2, -shopD / 2 + 0.25 + rwBackLen / 2);
+    rightWallGroup.add(rwBack);
+
+    // Front wall panel of right side (from door frame to frontZ)
+    const rwFrontLen = shopD / 2 - 0.25 - (doorZ + doorW / 2);
+    const rwFront = createVoxelBox(0.22, shopH, rwFrontLen, mats.woodMid);
+    rwFront.position.set(-0.11, shopH / 2, shopD / 2 - 0.25 - rwFrontLen / 2);
+    rightWallGroup.add(rwFront);
+
+    // Lintel panel above doorway
+    const lintelH = shopH - doorH;
+    const rwLintel = createVoxelBox(0.22, lintelH, doorW, mats.woodMid);
+    rwLintel.position.set(-0.11, doorH + lintelH / 2, doorZ);
+    rightWallGroup.add(rwLintel);
+
+    // Transom Window above door
+    const transomY = doorH + 0.85;
+    const transomFrame = createVoxelBox(0.26, 0.58, 0.95, mats.woodTrim);
+    transomFrame.position.set(-0.11, transomY, doorZ);
+    rightWallGroup.add(transomFrame);
+
+    const transomGlass = createVoxelBox(0.06, 0.44, 0.82, mats.glass);
+    transomGlass.position.set(-0.11, transomY, doorZ);
+    rightWallGroup.add(transomGlass);
+
+    // Voxel Door Frame Jambs and Header
+    const jambGeo = new THREE.BoxGeometry(0.32, doorH, 0.18);
+    const jambBack = new THREE.Mesh(jambGeo, mats.woodDark);
+    jambBack.position.set(-0.11, doorH / 2, doorZ - doorW / 2 - 0.09);
+    rightWallGroup.add(jambBack);
+
+    const jambFront = new THREE.Mesh(jambGeo, mats.woodDark);
+    jambFront.position.set(-0.11, doorH / 2, doorZ + doorW / 2 + 0.09);
+    rightWallGroup.add(jambFront);
+
+    const jambHeader = createVoxelBox(0.32, 0.2, doorW + 0.36, mats.woodDark);
+    jambHeader.position.set(-0.11, doorH + 0.08, doorZ);
+    rightWallGroup.add(jambHeader);
+
+    const threshold = createVoxelBox(0.34, 0.1, doorW + 0.2, mats.woodDark);
+    threshold.position.set(-0.11, 0.05, doorZ);
+    rightWallGroup.add(threshold);
+
+    // -------------------------------------------------------------------------
+    // Interactive Voxel Door Slab
+    // -------------------------------------------------------------------------
+    const doorGroup = new THREE.Group();
+    doorGroup.position.set(rightX, 0.08, doorZ);
+    shop.add(doorGroup);
+
+    const doorLeafH = doorH - 0.1;
+    const doorLeafW = doorW - 0.08;
+
+    const doorLeaf = createVoxelBox(0.12, doorLeafH, doorLeafW, mats.woodHi);
+    doorLeaf.position.set(0, doorLeafH / 2, 0);
+    doorLeaf.userData = { isShopDoor: true, name: 'shopDoorLeaf' };
+    doorGroup.add(doorLeaf);
+
+    // Voxel Tongue-and-Groove vertical plank ridges
+    for (let vp = 0; vp < 5; vp++) {
+      const vZ = -doorLeafW / 2 + 0.14 + vp * (doorLeafW - 0.28) / 4;
+      const vRidge = createVoxelBox(0.14, doorLeafH - 0.1, 0.03, mats.woodMid);
+      vRidge.position.set(0, doorLeafH / 2, vZ);
+      vRidge.userData = { isShopDoor: true };
+      doorGroup.add(vRidge);
+    }
+
+    // Horizontal Rails and Diagonal Z-Brace (Exterior & Interior)
+    [-0.07, 0.07].forEach(ox => {
+      [0.35, doorLeafH * 0.5, doorLeafH - 0.35].forEach(ry => {
+        const hRail = createVoxelBox(0.035, 0.18, doorLeafW - 0.08, mats.woodDark);
+        hRail.position.set(ox, ry, 0);
+        hRail.userData = { isShopDoor: true };
+        doorGroup.add(hRail);
+      });
+
+      const diagBrace = createVoxelBox(0.035, doorLeafH * 0.42, 0.15, mats.woodDark);
+      diagBrace.position.set(ox, doorLeafH * 0.72, 0);
+      diagBrace.rotation.x = 0.5;
+      diagBrace.userData = { isShopDoor: true };
+      doorGroup.add(diagBrace);
+    });
+
+    // Voxel Brass Door Handles
+    const handleY = 1.65;
+    const handleZ = doorLeafW / 2 - 0.22;
+
+    const extPlate = createVoxelBox(0.03, 0.38, 0.1, mats.brass);
+    extPlate.position.set(0.08, handleY, handleZ);
+    extPlate.userData = { isShopDoor: true };
+    doorGroup.add(extPlate);
+
+    const extHandle = createVoxelBox(0.08, 0.05, 0.24, mats.brassDark);
+    extHandle.position.set(0.13, handleY, handleZ);
+    extHandle.userData = { isShopDoor: true };
+    doorGroup.add(extHandle);
+
+    const intPlate = createVoxelBox(0.03, 0.38, 0.1, mats.brass);
+    intPlate.position.set(-0.08, handleY, handleZ);
+    intPlate.userData = { isShopDoor: true };
+    doorGroup.add(intPlate);
+
+    const intHandle = createVoxelBox(0.08, 0.05, 0.24, mats.brassDark);
+    intHandle.position.set(-0.13, handleY, handleZ);
+    intHandle.userData = { isShopDoor: true };
+    doorGroup.add(intHandle);
+
+    this.shopDoor = doorLeaf;
+    this.doorInteractables = [doorLeaf, extHandle, extPlate, intHandle, intPlate];
+
+    // Carved Chandlery Sign Plaque above door
+    const doorSignBack = createVoxelBox(0.06, 0.32, 1.15, mats.woodTrim);
+    doorSignBack.position.set(rightX + 0.12, doorH + 0.38, doorZ);
+    shop.add(doorSignBack);
+
+    const signCanvas = document.createElement('canvas');
+    signCanvas.width = 256;
+    signCanvas.height = 64;
+    const sCtx = signCanvas.getContext('2d');
+    sCtx.fillStyle = '#e8dcc4';
+    sCtx.fillRect(0, 0, 256, 64);
+    sCtx.fillStyle = '#3a2211';
+    sCtx.font = 'bold 32px Georgia, serif';
+    sCtx.textAlign = 'center';
+    sCtx.textBaseline = 'middle';
+    sCtx.fillText('CHANDLERY', 128, 32);
+    sCtx.lineWidth = 4;
+    sCtx.strokeStyle = '#3a2211';
+    sCtx.strokeRect(4, 4, 248, 56);
+    const doorSignTex = new THREE.CanvasTexture(signCanvas);
+
+    const doorSignFace = new THREE.Mesh(
+      new THREE.BoxGeometry(0.03, 0.26, 1.08),
+      new THREE.MeshStandardMaterial({ map: doorSignTex, roughness: 0.8, flatShading: true })
+    );
+    doorSignFace.position.set(rightX + 0.155, doorH + 0.38, doorZ);
+    shop.add(doorSignFace);
+
+    // -------------------------------------------------------------------------
+    // Stepped Voxel Pitched Roof (Overlapping Shingle Tiers & Ridge Beam)
+    // -------------------------------------------------------------------------
+    const roofGroup = new THREE.Group();
+    shop.add(roofGroup);
+
+    const roofOverhang = 0.85;
+    const roofW = shopW + roofOverhang * 2;
+    const roofBaseY = shopH + 0.08;
+    const roofPeakY = shopH + 1.85;
+    const shingleSteps = 8;
+
+    for (let s = 0; s < shingleSteps; s++) {
+      const t = s / shingleSteps;
+      const nextT = (s + 1) / shingleSteps;
+
+      const y = roofBaseY + t * (roofPeakY - roofBaseY);
+      const stepH = (roofPeakY - roofBaseY) / shingleSteps + 0.08;
+      const zExtent = (shopD / 2 + roofOverhang) * (1.0 - t * 0.95);
+      const nextZExtent = (shopD / 2 + roofOverhang) * (1.0 - nextT * 0.95);
+      const stepDepth = Math.max(0.35, zExtent - nextZExtent + 0.12);
+      const stepZ = (zExtent + nextZExtent) / 2;
+
+      const tileMat = s % 2 === 0 ? mats.roofTile : createVoxelMat(Palette.roofTileDark, { roughness: 0.95 });
+
+      const frontStep = createVoxelBox(roofW, stepH, stepDepth, tileMat);
+      frontStep.position.set(0, y + stepH / 2, stepZ);
+      roofGroup.add(frontStep);
+
+      const backStep = createVoxelBox(roofW, stepH, stepDepth, tileMat);
+      backStep.position.set(0, y + stepH / 2, -stepZ);
+      roofGroup.add(backStep);
+
+      if (s === 0) {
+        [-roofW / 2 + 0.4, -shopW / 4, 0, shopW / 4, roofW / 2 - 0.4].forEach(rx => {
+          const rafterFront = createVoxelBox(0.18, 0.22, 0.45, mats.woodDark);
+          rafterFront.position.set(rx, y - 0.1, stepZ + 0.1);
+          roofGroup.add(rafterFront);
+
+          const rafterBack = createVoxelBox(0.18, 0.22, 0.45, mats.woodDark);
+          rafterBack.position.set(rx, y - 0.1, -stepZ - 0.1);
+          roofGroup.add(rafterBack);
+        });
+      }
+    }
+
+    const ridgeBeam = createVoxelBox(roofW + 0.35, 0.28, 0.45, mats.roofRidge);
+    ridgeBeam.position.set(0, roofPeakY + 0.14, 0);
+    roofGroup.add(ridgeBeam);
+
+    [-roofW / 2 - 0.15, roofW / 2 + 0.15].forEach(fx => {
+      const finial = createVoxelBox(0.2, 0.45, 0.35, mats.woodDark);
+      finial.position.set(fx, roofPeakY + 0.25, 0);
+      roofGroup.add(finial);
+    });
+
+    [leftX, rightX].forEach(gx => {
+      for (let g = 0; g < 4; g++) {
+        const gt = g / 4;
+        const gy = roofBaseY + gt * (roofPeakY - roofBaseY);
+        const gw = (shopD - 0.2) * (1.0 - gt * 0.9);
+        const gableTier = createVoxelBox(0.22, 0.45, gw, mats.woodAged);
+        gableTier.position.set(gx + (gx > 0 ? -0.11 : 0.11), gy + 0.22, 0);
+        roofGroup.add(gableTier);
+      }
+    });
+
+    // -------------------------------------------------------------------------
+    // 4. SERVING COUNTER & DISPLAY SHELVES (With Finished Textured Underside)
+    // -------------------------------------------------------------------------
+    const deskGroup = new THREE.Group();
+    shop.add(deskGroup);
+
+    const deskW = shopW - 0.8;
+    const deskD = 1.8;
+    const counterY = 2.0;
+
+    // Corner Legs
+    const legGeo = new THREE.BoxGeometry(0.26, counterY, 0.26);
+    [
+      [-deskW / 2 + 0.18, frontZ - 0.4],
+      [deskW / 2 - 0.18, frontZ - 0.4],
+      [-deskW / 2 + 0.18, frontZ - deskD + 0.2],
+      [deskW / 2 - 0.18, frontZ - deskD + 0.2]
+    ].forEach(([x, z]) => {
+      const leg = new THREE.Mesh(legGeo, mats.woodDark);
+      leg.position.set(x, counterY / 2, z);
+      deskGroup.add(leg);
+
+      const boot = createVoxelBox(0.32, 0.25, 0.32, mats.brass);
+      boot.position.set(x, 0.125, z);
+      deskGroup.add(boot);
+    });
+
+    // Lower and Upper Storage Shelves
+    [0.72, 1.45].forEach(sy => {
+      const shelfPlank = createVoxelBox(deskW, 0.12, deskD - 0.25, mats.woodMid);
+      shelfPlank.position.set(0, sy, frontZ - deskD / 2 - 0.05);
+      deskGroup.add(shelfPlank);
+    });
+
+    // Front Apron Panel (Facing Customer) with carved recessed panels
+    const apron = createVoxelBox(deskW, counterY - 0.15, 0.16, mats.woodMid);
+    apron.position.set(0, counterY / 2, frontZ - 0.18);
+    deskGroup.add(apron);
+
+    for (let c = 0; c < 3; c++) {
+      const cx = -deskW / 3 + c * (deskW / 3);
+      const panelFrame = createVoxelBox(deskW / 3.8, counterY * 0.65, 0.04, mats.woodTrim);
+      panelFrame.position.set(cx, counterY * 0.52, frontZ - 0.08);
+      deskGroup.add(panelFrame);
+    }
+
+    // Thick Counter Top (Properly using mats.woodHi with rich voxel wood texture!)
+    const topPlank = createVoxelBox(deskW + 0.35, 0.18, deskD + 0.42, mats.woodHi);
+    topPlank.position.set(0, counterY, frontZ - deskD / 2 + 0.15);
+    deskGroup.add(topPlank);
+
+    // Finished wooden underside beam & brackets under the counter overhang
+    const undersideSoffit = createVoxelBox(deskW + 0.30, 0.06, 0.38, mats.woodDark);
+    undersideSoffit.position.set(0, counterY - 0.12, frontZ + 0.05);
+    deskGroup.add(undersideSoffit);
+
+    [-deskW / 2 + 0.4, 0, deskW / 2 - 0.4].forEach(bx => {
+      const bracket = createVoxelBox(0.12, 0.28, 0.22, mats.woodTrim);
+      bracket.position.set(bx, counterY - 0.22, frontZ - 0.05);
+      deskGroup.add(bracket);
+    });
+
+    const brassEdgeTrim = createVoxelBox(deskW + 0.38, 0.06, deskD + 0.45, mats.brass);
+    brassEdgeTrim.position.set(0, counterY + 0.11, frontZ - deskD / 2 + 0.15);
+    deskGroup.add(brassEdgeTrim);
+
+    // -------------------------------------------------------------------------
+    // 5. COUNTERTOP & SHELF PROPS
+    // -------------------------------------------------------------------------
+    // (a) Open Ledger Book & Inkpot
+    const ledgerGroup = new THREE.Group();
+    ledgerGroup.position.set(-deskW / 2 + 0.55, counterY + 0.12, frontZ - 0.45);
+    ledgerGroup.rotation.y = 0.15;
+    deskGroup.add(ledgerGroup);
+
+    const cover = createVoxelBox(0.62, 0.04, 0.44, mats.woodDark);
+    ledgerGroup.add(cover);
+    const pagesLeft = createVoxelBox(0.28, 0.06, 0.4, mats.paper);
+    pagesLeft.position.set(-0.14, 0.04, 0);
+    pagesLeft.rotation.z = -0.06;
+    ledgerGroup.add(pagesLeft);
+    const pagesRight = createVoxelBox(0.28, 0.06, 0.4, mats.paper);
+    pagesRight.position.set(0.14, 0.04, 0);
+    pagesRight.rotation.z = 0.06;
+    ledgerGroup.add(pagesRight);
+
+    const inkwell = createVoxelBox(0.12, 0.12, 0.12, mats.iron);
+    inkwell.position.set(0.42, 0.06, 0.05);
+    ledgerGroup.add(inkwell);
+    const quill = createVoxelBox(0.03, 0.32, 0.05, mats.paper);
+    quill.position.set(0.42, 0.22, 0.05);
+    quill.rotation.z = -0.45;
+    ledgerGroup.add(quill);
+
+    // (b) Voxel Stacks of Gold Coins
+    const coinMat = createVoxelMat(Palette.goldCoin, { metalness: 0.7, roughness: 0.3 });
+    [
+      { x: -deskW / 2 + 0.4, z: frontZ - 0.95, count: 5 },
+      { x: -deskW / 2 + 0.52, z: frontZ - 1.02, count: 3 }
+    ].forEach(stack => {
+      for (let c = 0; c < stack.count; c++) {
+        const coin = createVoxelBox(0.12, 0.022, 0.12, coinMat);
+        coin.position.set(stack.x, counterY + 0.11 + c * 0.024, stack.z);
+        coin.rotation.y = c * 0.4;
+        deskGroup.add(coin);
+      }
+    });
+
+    // (c) Voxel Weighing Scales
+    const scaleGroup = new THREE.Group();
+    scaleGroup.position.set(deskW / 2 - 0.65, counterY + 0.1, frontZ - 0.6);
+    deskGroup.add(scaleGroup);
+
+    const scaleBase = createVoxelBox(0.38, 0.08, 0.38, mats.brass);
+    scaleGroup.add(scaleBase);
+    const scaleShaft = createVoxelBox(0.08, 0.42, 0.08, mats.brass);
+    scaleShaft.position.y = 0.24;
+    scaleGroup.add(scaleShaft);
+
+    const balanceBeam = createVoxelBox(0.68, 0.05, 0.05, mats.brass);
+    balanceBeam.position.y = 0.45;
+    scaleGroup.add(balanceBeam);
+
+    [-0.3, 0.3].forEach(px => {
+      const chain = createVoxelBox(0.02, 0.16, 0.02, mats.brassDark);
+      chain.position.set(px, 0.35, 0);
+      scaleGroup.add(chain);
+
+      const pan = createVoxelBox(0.22, 0.03, 0.22, mats.brass);
+      pan.position.set(px, 0.25, 0);
+      scaleGroup.add(pan);
+    });
+
+    // (d) Counter Lantern & PointLight
+    const lanternGroup = new THREE.Group();
+    lanternGroup.position.set(deskW / 2 - 0.25, counterY + 0.1, frontZ - 1.1);
+    deskGroup.add(lanternGroup);
+
+    const lanternFrame = createVoxelBox(0.26, 0.38, 0.26, mats.woodDark);
+    lanternGroup.add(lanternFrame);
+
+    const lanternPane = createVoxelBox(0.24, 0.32, 0.24, mats.lanternGlow, false, true);
+    lanternGroup.add(lanternPane);
+
+    const lanternLight = new THREE.PointLight(0xffcc77, 2.8, 8, 2);
+    lanternLight.position.set(0, 0.2, 0);
+    lanternLight.castShadow = true;
+    lanternGroup.add(lanternLight);
     this.lanternLight = lanternLight;
+
+    // (e) Counter Bell and Rope Coil
+    const bellBase = createVoxelBox(0.14, 0.04, 0.14, mats.brassDark);
+    bellBase.position.set(deskW / 2 - 1.25, counterY + 0.11, frontZ - 0.25);
+    deskGroup.add(bellBase);
+    const bellDome = createVoxelBox(0.1, 0.09, 0.1, mats.brass);
+    bellDome.position.set(deskW / 2 - 1.25, counterY + 0.17, frontZ - 0.25);
+    deskGroup.add(bellDome);
+
+    const counterRope = createVoxelOctagonRing(0.18, 0.07, 0.07, mats.rope);
+    counterRope.rotation.x = Math.PI / 2;
+    counterRope.position.set(deskW / 2 - 0.35, counterY + 0.14, frontZ - 0.25);
+    deskGroup.add(counterRope);
+
+    // -------------------------------------------------------------------------
+    // Display Goods on Lower and Upper Shelves
+    // -------------------------------------------------------------------------
+    // Lower Shelf: 7 Voxel Apothecary Flasks & Bottles
+    const bottleColors = [Palette.bottleGreen, Palette.bottleBlue, Palette.bottleAmber, Palette.bottleWine];
+    for (let b = 0; b < 7; b++) {
+      const bx = -deskW / 2 + 0.4 + b * 0.32;
+      const bColor = bottleColors[b % bottleColors.length];
+      const bMat = createVoxelMat(bColor, { roughness: 0.2, transparent: true, opacity: 0.82 });
+
+      const bodyH = 0.26 + (b % 3) * 0.05;
+      const bottleBody = createVoxelBox(0.14, bodyH, 0.14, bMat);
+      bottleBody.position.set(bx, 0.78 + bodyH / 2, frontZ - deskD / 2 - 0.05);
+      deskGroup.add(bottleBody);
+
+      const bottleNeck = createVoxelBox(0.06, 0.09, 0.06, bMat);
+      bottleNeck.position.set(bx, 0.78 + bodyH + 0.045, frontZ - deskD / 2 - 0.05);
+      deskGroup.add(bottleNeck);
+
+      const corkMesh = createVoxelBox(0.075, 0.04, 0.075, createVoxelMat(Palette.cork));
+      corkMesh.position.set(bx, 0.78 + bodyH + 0.105, frontZ - deskD / 2 - 0.05);
+      deskGroup.add(corkMesh);
+    }
+
+    // Upper Shelf: 4 Spice Jars, 2 Burlap Sacks, Rolled Scrolls & Table Crate
+    for (let j = 0; j < 4; j++) {
+      const jx = deskW / 2 - 0.4 - j * 0.36;
+      const jarBody = createVoxelBox(0.18, 0.24, 0.18, mats.dirt);
+      jarBody.position.set(jx, 1.51 + 0.12, frontZ - deskD / 2 - 0.05);
+      deskGroup.add(jarBody);
+
+      const jarLid = createVoxelBox(0.2, 0.04, 0.2, mats.brass);
+      jarLid.position.set(jx, 1.51 + 0.25, frontZ - deskD / 2 - 0.05);
+      deskGroup.add(jarLid);
+
+      const jarLabel = createVoxelBox(0.19, 0.12, 0.02, mats.paper);
+      jarLabel.position.set(jx, 1.51 + 0.12, frontZ - deskD / 2 + 0.05);
+      deskGroup.add(jarLabel);
+    }
+
+    // Stepped Burlap Sacks (Spices & Grains)
+    const sackMat = createVoxelMat(Palette.sackBurlap, { roughness: 0.95 });
+    [-deskW / 2 + 0.45, -deskW / 2 + 0.85].forEach((sx, idx) => {
+      const sackBase = createVoxelBox(0.32 - idx * 0.04, 0.25, 0.3 - idx * 0.04, sackMat);
+      sackBase.position.set(sx, 1.51 + 0.125, frontZ - deskD / 2 - 0.05);
+      deskGroup.add(sackBase);
+
+      const sackTie = createVoxelBox(0.18, 0.06, 0.18, mats.rope);
+      sackTie.position.set(sx, 1.51 + 0.27, frontZ - deskD / 2 - 0.05);
+      deskGroup.add(sackTie);
+    });
+
+    // Rolled Sea Charts / Maps
+    [0.35, 0.65].forEach((rx, idx) => {
+      const scroll = createVoxelBox(0.08, 0.08, 0.35 + idx * 0.08, mats.paper);
+      scroll.position.set(rx, 1.55, frontZ - deskD / 2 - 0.05);
+      scroll.rotation.y = 0.2 + idx * 0.25;
+      deskGroup.add(scroll);
+    });
+
+    // Shelf tabletop crate
+    const shelfCrate = createVoxelBox(0.42, 0.24, 0.32, mats.woodHi);
+    shelfCrate.position.set(1.2, 1.51 + 0.12, frontZ - deskD / 2 - 0.05);
+    shelfCrate.rotation.y = 0.15;
+    deskGroup.add(shelfCrate);
+
+    // -------------------------------------------------------------------------
+    // Back Wall Decor (Voxel Trophy Fish & Fishing Net)
+    // -------------------------------------------------------------------------
+    const netMesh = createVoxelBox(2.2, 1.6, 0.02, createVoxelMat(Palette.ropeDark, { wireframe: true }));
+    netMesh.position.set(-1.2, 3.8, backZ + 0.15);
+    shop.add(netMesh);
+
+    const fishGroup = new THREE.Group();
+    fishGroup.position.set(1.4, 3.6, backZ + 0.2);
+    fishGroup.rotation.z = 0.08;
+    shop.add(fishGroup);
+
+    const fishPlaque = createVoxelBox(0.95, 0.45, 0.06, mats.woodDark);
+    fishGroup.add(fishPlaque);
+
+    const fishBody = createVoxelBox(0.68, 0.24, 0.12, createVoxelMat(Palette.fishBody));
+    fishBody.position.z = 0.07;
+    fishGroup.add(fishBody);
+
+    const fishBelly = createVoxelBox(0.64, 0.08, 0.13, createVoxelMat(Palette.fishBelly));
+    fishBelly.position.set(0, -0.08, 0.07);
+    fishGroup.add(fishBelly);
+
+    const fishTail = createVoxelBox(0.18, 0.24, 0.06, createVoxelMat(Palette.fishBody));
+    fishTail.position.set(-0.42, 0, 0.07);
+    fishGroup.add(fishTail);
+
+    // -------------------------------------------------------------------------
+    // 6. SWINGING SIGN RIG & CHANDLERY SIGN
+    // -------------------------------------------------------------------------
+    const rigging = new THREE.Group();
+    shop.add(rigging);
+
+    const crossbeam = createVoxelBox(shopW + 0.4, 0.24, 0.32, mats.woodDark);
+    crossbeam.position.set(0, shopH - 0.32, frontZ + 0.3);
+    rigging.add(crossbeam);
+
+    [-shopW / 2 + 0.35, shopW / 2 - 0.35].forEach(bx => {
+      const bracket = createVoxelBox(0.16, 0.52, 0.16, mats.woodDark);
+      bracket.position.set(bx, -0.36, 0);
+      crossbeam.add(bracket);
+
+      const diagStrut = createVoxelBox(0.12, 0.58, 0.12, mats.woodDark);
+      diagStrut.position.set(bx > 0 ? -0.22 : 0.22, -0.32, -0.16);
+      diagStrut.rotation.z = bx > 0 ? 0.6 : -0.6;
+      crossbeam.add(diagStrut);
+    });
+
+    const signPivot = new THREE.Group();
+    signPivot.position.set(0, -0.14, 0.16);
+    crossbeam.add(signPivot);
     this.signPivot = signPivot;
-    
-    // Create the shopkeeper camera relative to the shop
+
+    [-0.9, 0.9].forEach(cx => {
+      for (let cl = 0; cl < 3; cl++) {
+        const link = createVoxelBox(0.04, 0.16, 0.04, mats.iron);
+        link.position.set(cx, -0.12 - cl * 0.15, 0);
+        signPivot.add(link);
+      }
+    });
+
+    const mainSign = createVoxelBox(2.4, 0.78, 0.1, mats.woodHi);
+    mainSign.position.set(0, -0.92, 0);
+    signPivot.add(mainSign);
+
+    const signBorder = createVoxelBox(2.52, 0.88, 0.06, mats.woodDark);
+    signBorder.position.set(0, -0.92, -0.03);
+    signPivot.add(signBorder);
+
+    const waxSeal = createVoxelBox(0.24, 0.24, 0.06, createVoxelMat(Palette.sealRed, { roughness: 0.4 }));
+    waxSeal.position.set(0.72, -0.92, 0.07);
+    signPivot.add(waxSeal);
+
+    // -------------------------------------------------------------------------
+    // 7. EXTERIOR PROPS (Faceted Voxel Barrels & Crates with Zero Clipping)
+    // -------------------------------------------------------------------------
+    // 3 Octagonal Voxel Barrels (Built with clean faceted staves and offset bands)
+    const barrelLocations = [
+      { x: leftX - 0.75, z: -0.5, h: 1.25, r: 0.38 },
+      { x: leftX - 0.65, z: 0.65, h: 1.05, r: 0.32 },
+      { x: rightX + 0.72, z: -2.0, h: 1.35, r: 0.4 } // Sits securely on the extended dock!
+    ];
+    barrelLocations.forEach(b => {
+      const barrel = createVoxelBarrel(b.r, b.h, mats.woodAged, mats.iron);
+      barrel.position.set(b.x, b.h / 2, b.z);
+      shop.add(barrel);
+    });
+
+    // Stacked Exterior Crates (Properly using mats.woodHi with rich voxel wood texture!)
+    const extCrate1 = createVoxelBox(0.85, 0.65, 0.75, mats.woodHi);
+    extCrate1.position.set(rightX + 0.75, 0.33, 1.45);
+    extCrate1.rotation.y = 0.18;
+    shop.add(extCrate1);
+
+    const extCrate2 = createVoxelBox(0.68, 0.52, 0.58, mats.plank);
+    extCrate2.position.set(rightX + 0.68, 0.88, 1.48);
+    extCrate2.rotation.y = -0.28;
+    shop.add(extCrate2);
+
+    // Wall-hung rope coils on left wall
+    [1.6, 2.9].forEach(ry => {
+      const wallRope = createVoxelOctagonRing(0.22, 0.06, 0.06, mats.rope);
+      wallRope.rotation.y = Math.PI / 2;
+      wallRope.position.set(leftX - 0.14, ry, -0.4);
+      shop.add(wallRope);
+    });
+
+    // Exterior Wall Lantern Bracket on right corner post
+    const extLanternGroup = new THREE.Group();
+    extLanternGroup.position.set(rightX + 0.32, 3.6, frontZ - 0.2);
+    shop.add(extLanternGroup);
+
+    const bracketBeam = createVoxelBox(0.65, 0.1, 0.1, mats.woodDark);
+    bracketBeam.position.set(0.2, 0, 0);
+    extLanternGroup.add(bracketBeam);
+
+    const extChain = createVoxelBox(0.04, 0.42, 0.04, mats.iron);
+    extChain.position.set(0.42, -0.24, 0);
+    extLanternGroup.add(extChain);
+
+    const extLanternCage = createVoxelBox(0.24, 0.32, 0.24, mats.woodDark);
+    extLanternCage.position.set(0.42, -0.55, 0);
+    extLanternGroup.add(extLanternCage);
+
+    const extLanternGlass = createVoxelBox(0.22, 0.26, 0.22, mats.lanternGlow, false, true);
+    extLanternGlass.position.set(0.42, -0.55, 0);
+    extLanternGroup.add(extLanternGlass);
+
+    const extLight = new THREE.PointLight(0xffaa44, 0.65, 6, 2);
+    extLight.position.set(0.42, -0.45, 0);
+    extLanternGroup.add(extLight);
+
+    // =========================================================================
+    // 8. VOXEL SEAGULLS (Sky Flapping Birds)
+    // =========================================================================
+    function makeVoxelGull() {
+      const gull = new THREE.Group();
+      const whiteMat = createVoxelMat(Palette.seagullWhite);
+      const greyMat = createVoxelMat(Palette.seagullGrey);
+      const beakMat = createVoxelMat(Palette.seagullBeak);
+
+      const body = createVoxelBox(0.18, 0.14, 0.38, whiteMat);
+      gull.add(body);
+
+      const leftWing = createVoxelBox(0.42, 0.04, 0.2, greyMat);
+      leftWing.position.set(-0.28, 0.04, -0.02);
+      leftWing.rotation.z = 0.15;
+      gull.add(leftWing);
+
+      const rightWing = createVoxelBox(0.42, 0.04, 0.2, greyMat);
+      rightWing.position.set(0.28, 0.04, -0.02);
+      rightWing.rotation.z = -0.15;
+      gull.add(rightWing);
+
+      const head = createVoxelBox(0.12, 0.12, 0.16, whiteMat);
+      head.position.set(0, 0.08, 0.22);
+      gull.add(head);
+
+      const beak = createVoxelBox(0.06, 0.05, 0.14, beakMat);
+      beak.position.set(0, 0.06, 0.34);
+      gull.add(beak);
+
+      return gull;
+    }
+
+    const gulls = [
+      { mesh: makeVoxelGull(), baseX: -6, baseY: 9, phase: 0 },
+      { mesh: makeVoxelGull(), baseX: 2, baseY: 10, phase: 1.7 },
+      { mesh: makeVoxelGull(), baseX: 8, baseY: 8.5, phase: 3.1 }
+    ];
+    gulls.forEach(g => this.group.add(g.mesh));
+    this.gulls = gulls;
+
+    // -------------------------------------------------------------------------
+    // 9. SHOPKEEPER CAMERA STATION
+    // -------------------------------------------------------------------------
     this.shopCam = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 500);
-    this.shopCam.position.set(0, 2.85, -0.6); 
+    this.shopCam.position.set(0, 2.85, -0.6);
     this.shopCam.rotation.set(0, 0, 0);
     shop.add(this.shopCam);
 
@@ -1044,22 +1358,29 @@ export class DockStall {
         -6 + Math.cos(time * 0.3 + g.phase) * 2
       );
     });
+    if (this.bunny) {
+      this.bunny.update(delta, time);
+    }
   }
 
   dispose() {
+    if (this.bunny) {
+      this.bunny.dispose();
+      this.bunny = null;
+    }
     this.group.traverse(child => {
-        if (child.isMesh) {
-            child.geometry.dispose();
-            if (Array.isArray(child.material)) {
-                child.material.forEach(m => {
-                    if (m.map) m.map.dispose();
-                    m.dispose();
-                });
-            } else {
-                if (child.material.map) child.material.map.dispose();
-                child.material.dispose();
-            }
+      if (child.isMesh) {
+        if (child.geometry) child.geometry.dispose();
+        if (Array.isArray(child.material)) {
+          child.material.forEach(m => {
+            if (m.map) m.map.dispose();
+            m.dispose();
+          });
+        } else if (child.material) {
+          if (child.material.map) child.material.map.dispose();
+          child.material.dispose();
         }
+      }
     });
   }
 }
