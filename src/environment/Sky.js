@@ -8,6 +8,8 @@ export class Sky {
   init(scene) {
     const skyMat = new THREE.ShaderMaterial({
       side: THREE.BackSide,
+      depthWrite: false,
+      depthTest: true,
       uniforms: {
         uTop: { value: new THREE.Color('#8cb1d1') },
         uHorizon: { value: new THREE.Color('#e0cfa4') },
@@ -21,7 +23,11 @@ export class Sky {
         varying vec3 vPos;
         void main() {
           vPos = normalize(position);
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          // Always center sky sphere on the camera world position
+          vec4 worldPosition = vec4(position + cameraPosition, 1.0);
+          vec4 p = projectionMatrix * viewMatrix * worldPosition;
+          // Set depth to the far plane (z = w, so z/w = 1.0 in NDC)
+          gl_Position = p.xyww;
         }
       `,
       fragmentShader: `
@@ -71,9 +77,16 @@ export class Sky {
       `
     });
 
-    const skyGeo = new THREE.SphereGeometry(400, 32, 16);
+    const skyGeo = new THREE.SphereGeometry(100, 32, 16);
     this.mesh = new THREE.Mesh(skyGeo, skyMat);
     this.mesh.name = 'skyMesh';
+    this.mesh.frustumCulled = false;
+    this.mesh.renderOrder = -1000;
+    this.mesh.userData.noGodRays = true;
+    this.mesh.userData.noOcclusion = true;
+    this.mesh.onBeforeRender = (renderer, scene, camera) => {
+      this.mesh.position.copy(camera.position);
+    };
     scene.add(this.mesh);
   }
 

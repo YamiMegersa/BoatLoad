@@ -1116,7 +1116,7 @@ export class EditorSystem {
     }
     
     if (this._envManager) {
-      this._envManager.update(delta, { getWindAt: () => new THREE.Vector3(0, 0, -1) }, new THREE.Vector3());
+      this._envManager.update(delta, { getWindAt: () => new THREE.Vector3(0, 0, -1) }, this._camera.position);
     }
   }
 }

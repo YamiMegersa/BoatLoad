@@ -460,6 +460,8 @@ export class EnvironmentManager {
         if (u.uNightFactor) u.uNightFactor.value = nightFactor;
         if (u.uMoonColor) u.uMoonColor.value.set(0x9bc0f5);
         if (u.uSunColor) u.uSunColor.value.copy(cSun);
+        if (u.uTop) u.uTop.value.copy(cSky);
+        if (u.uHorizon) u.uHorizon.value.copy(cFog);
       }
     }
 
