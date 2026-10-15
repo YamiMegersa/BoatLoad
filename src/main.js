@@ -9,7 +9,6 @@ import { DialogueBox } from './ui/DialogueBox.js';
 import { PauseMenu } from './ui/PauseMenu.js';
 import { DockUI } from './ui/DockUI.js';
 import { MainMenuUI } from './ui/MainMenuUI.js';
-import { ResultsUI } from './ui/ResultsUI.js';
 import { ParticleSystem } from './environment/ParticleSystem.js';
 import { DamageSystem } from './shipyard/DamageSystem.js';
 import { GodRays } from './environment/GodRays.js';
@@ -116,7 +115,6 @@ const buildMenu = new BuildMenu();
 const docket = new DocketSheet();
 const dockUI = new DockUI();
 const mainMenuUI = new MainMenuUI();
-const resultsUI = new ResultsUI();
 const hud = new HUD();
 const dialogue = new DialogueBox();
 const pauseMenu = new PauseMenu();
@@ -303,8 +301,7 @@ async function boot() {
       ? Math.max(1, Math.min(MAX_DAY, parseInt(new URLSearchParams(location.search).get('day')) || 1))
       : 1;
 
-    // The active day's content. Reloaded via syncLevel() whenever gameState.day
-    // changes (passing a voyage increments the day in GameState._enterResults).
+    // The active day's content. Reloaded via syncLevel() whenever gameState.day changes.
     let level = await LevelConfig.load(startDay);
     let loadedDay = startDay;
     gameState.day = startDay;
@@ -406,6 +403,11 @@ async function boot() {
     on('obstacleHit',        d => logEvent(`[Obstacle] hit by ${d.type} -${d.damage} HP`));
     on('playerDamaged',      () => logEvent(`[Collision] Hull breached!`));
     on('playerSunk',         () => logEvent('[SUNK] Game Over'));
+    on('voyageLost', async () => {
+      setPaused(false);
+      showNotice('Voyage lost — repair the wreck before setting sail again.', 6000);
+      await gameState.transition(GamePhase.SHIPYARD, shipyardPayload());
+    });
 
     // Start sailing from shipyard
     on('startSailing', async () => {
@@ -473,16 +475,14 @@ async function boot() {
     }
 
     function togglePause() {
-      if (gameState.currentPhase === GamePhase.DOCK || gameState.currentPhase === GamePhase.RESULTS || gameState.currentPhase === GamePhase.MAIN_MENU) return;
+      if (gameState.currentPhase === GamePhase.DOCK || gameState.currentPhase === GamePhase.OBSTACLE ||
+          gameState.currentPhase === GamePhase.MAIN_MENU || directorMode.isActive) return;
       setPaused(!isPaused);
     }
 
     window.addEventListener('keydown', (e) => {
-      if (e.code === 'Escape') togglePause();
+      if (e.code === 'Escape' && !directorMode.isActive) togglePause();
     });
-
-    // HUD pause button emits the same request as Esc
-    on('pauseRequest', togglePause);
 
     on('resumeGame', () => {
       setPaused(false);

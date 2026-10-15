@@ -65,6 +65,11 @@ export class HUD {
     on('waterBailed',       d => this._showBanner({ label: `BAILED ${d.removed}% WATER — CIRCLE ${d.accuracy}%` }));
     on('waterBailFailed',   () => this._showBanner({ label: 'INCOMPLETE LOOP — TRY AGAIN' }));
     on('qteDebugResult',    d => this._showDebugQTEResult(d));
+    this._onSirenEffect = ({ state }) => {
+      if (state === 'resistant') this._showBanner({ label: 'SONG RESISTED — ESCAPE NOW' });
+      else if (state === 'disoriented') this._showBanner({ label: 'DISORIENTED — STEERING REVERSED' });
+    };
+    on('sirenEffect', this._onSirenEffect);
     on('gamePaused', this._onPause);
 
     // Kraken boss events
@@ -170,9 +175,6 @@ export class HUD {
           <span class="harpoon-text">HARPOON</span>
         </button>
       </div>
-
-      <!-- Pause button (same action as Esc) -->
-      <button id="hud-pause-btn" type="button" aria-label="Pause">⏸</button>
 
       <!-- Non-blocking warning banner (e.g. first siren encounter) -->
       <div id="hud-banner"></div>
@@ -285,13 +287,6 @@ export class HUD {
         emit('qteInput', { kind: 'tap' });
       });
     }
-
-    // Pause button — same action as Esc
-    this._el.querySelector('#hud-pause-btn')?.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      emit('pauseRequest');
-    });
 
     // Cannon: FIRE button for touch; Space only fires while the prompt is up,
     // so the key still reaches the active QTE otherwise.
@@ -773,6 +768,7 @@ export class HUD {
     off('waterBailed');
     off('waterBailFailed');
     off('qteDebugResult');
+    off('sirenEffect', this._onSirenEffect);
     off('gamePaused', this._onPause);
     off('krakenFightStarted'); off('krakenHealthChanged');
     off('krakenRaceTimerUpdate'); off('krakenWaypointProgress');

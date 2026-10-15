@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { ShipBuilder }    from '../shipyard/ShipBuilder.js';
 import { ChunkRenderer }  from '../shipyard/ChunkRenderer.js';
-import { VoxelGrid }      from '../shipyard/VoxelGrid.js';
+import { VoxelGrid, CellState } from '../shipyard/VoxelGrid.js';
 import { ShipRaycaster }  from '../shipyard/ShipRaycaster.js';
 import { BuildSystem }    from '../shipyard/BuildSystem.js';
 import { DamageSystem }   from '../shipyard/DamageSystem.js';
@@ -36,7 +36,6 @@ export const GamePhase = Object.freeze({
   DOCK:     'DOCK',
   SHIPYARD: 'SHIPYARD',
   OBSTACLE: 'OBSTACLE',
-  RESULTS:  'RESULTS',
   EDITOR:   'EDITOR',
 });
 
@@ -77,8 +76,11 @@ export class GameState {
     this._zones         = null;
     this._levelCfg      = null;
     this._docket        = null;   // current repair docket (shipyard)
+    this._damageDebugOverlay = null;
     this._sinkSnapshot  = null;   // wreck grid captured on playerSunk
     this._allRepairsEmitted = false;
+    this._onCellRepaired = null;
+    this._onShipyardGridDirty = null;
 
     this._chunkRenderer = null;
     this._raycaster     = null;
@@ -95,6 +97,7 @@ export class GameState {
     this._obstacleManager = null;
     this._environmentManager = null;
     this._qteSystem       = null;
+    this._onPlayerSunk    = null;
     this._minimap         = new Minimap();
     this.score            = 0;
     this._onScoreAdded    = (d) => { this.score += (d.points || 0); };
@@ -245,10 +248,6 @@ export class GameState {
         this._enterObstacle(opts);
         break;
 
-      case GamePhase.RESULTS:
-        this._enterResults(opts);
-        break;
-
       case GamePhase.EDITOR:
         this._enterEditor(opts);
         break;
@@ -281,10 +280,6 @@ export class GameState {
 
       case GamePhase.EDITOR:
         this._exitEditor();
-        break;
-
-      case GamePhase.RESULTS:
-        emit('uiUnmount', { screen: 'results' });
         break;
 
       default:
@@ -491,23 +486,25 @@ export class GameState {
 
     // Rebuild BVH when topology changes (repair fills a MISSING cell) and
     // refresh the repair docket so items check off as zones get fixed.
-    on('cellRepaired', () => {
+    this._onCellRepaired = ({ cells = [] } = {}) => {
       if (this._grid?.consumeTopologyDirty()) {
         this._raycaster.rebuild(this._grid);
       }
-      this._refreshDocket();
-    });
+      this._refreshDocket(cells);
+    };
+    on('cellRepaired', this._onCellRepaired);
 
     // Sync renderer on dirty events
-    on('gridDirty', () => {
+    this._onShipyardGridDirty = () => {
       if (this._grid && this._chunkRenderer) {
         this._chunkRenderer.sync(this._grid);
       }
-    });
+    };
+    on('gridDirty', this._onShipyardGridDirty);
 
     // Derive the repair docket from actual grid damage (works for both the
     // level's authored damage and a restored wreck) and gate Set Sail on it.
-    this._docket = DamageSystem.buildDocket(grid, zones);
+    this._docket = DamageSystem.buildDocket(grid, zones, levelCfg?.docket ?? []);
     this._allRepairsEmitted = false;
     emit('uiMount', { screen: 'shipyard', docket: this._docket });
     this._refreshDocket();  // enable Set Sail immediately when nothing is mandatory
@@ -555,8 +552,11 @@ export class GameState {
     // Remove event listeners
     this._renderer.domElement.removeEventListener('pointerdown', this._boundPointerDown);
     this._renderer.domElement.removeEventListener('pointermove', this._boundPointerMove);
-    off('cellRepaired');
-    off('gridDirty');
+    if (this._onCellRepaired) off('cellRepaired', this._onCellRepaired);
+    if (this._onShipyardGridDirty) off('gridDirty', this._onShipyardGridDirty);
+    this._onCellRepaired = null;
+    this._onShipyardGridDirty = null;
+    this._disposeDamageDebugOverlay();
 
     // Dispose all Three.js objects except the ChunkRenderer and VoxelGrid
     this._raycaster?.dispose(this._scene);
@@ -583,20 +583,67 @@ export class GameState {
    * repaired, and emit allRepairsDone once no mandatory items remain (Set Sail
    * unlocks). Emits nothing when the docket is unchanged.
    */
-  _refreshDocket() {
-    if (!this._grid || !this._zones || !this._docket?.length) return;
-    const fresh = DamageSystem.buildDocket(this._grid, this._zones);
-    for (const prev of this._docket) {
-      if (prev.completed) continue;
-      if (!fresh.some(item => item.zone === prev.zone)) {
-        prev.completed = true;
-        emit('docketItemCompleted', { itemId: prev.id, label: prev.label });
+  _refreshDocket(changedCells = []) {
+    if (!this._grid || !this._zones || !this._docket) return;
+    const fresh = DamageSystem.getDocketProgress(this._grid, this._docket);
+    for (let index = 0; index < this._docket.length; index++) {
+      const previous = this._docket[index];
+      const current = fresh[index];
+      if (previous.remaining !== current.remaining) {
+        emit('docketProgress', {
+          itemId: previous.id,
+          remaining: current.remaining,
+          total: previous.total,
+          completed: current.completed,
+          changedCells,
+        });
       }
+      if (!previous.completed && current.completed) {
+        emit('docketItemCompleted', { itemId: previous.id, label: previous.label });
+      }
+      previous.remaining = current.remaining;
+      previous.completed = current.completed;
     }
+    this._syncDamageDebugOverlay();
     if (!this._allRepairsEmitted && !this._docket.some(item => item.mandatory && !item.completed)) {
       this._allRepairsEmitted = true;
       emit('allRepairsDone', {});
     }
+  }
+
+  _syncDamageDebugOverlay() {
+    this._disposeDamageDebugOverlay();
+    if (!DEBUG || !this._grid || !this._docket?.length) return;
+
+    const group = new THREE.Group();
+    group.name = 'damageDocketDebugOverlay';
+    const geometry = new THREE.BoxGeometry(1.04, 1.04, 1.04);
+    const materials = {
+      [CellState.MISSING]: new THREE.MeshBasicMaterial({ color: 0xff3939, wireframe: true, depthTest: false }),
+      [CellState.DAMAGED]: new THREE.MeshBasicMaterial({ color: 0xffc247, wireframe: true, depthTest: false }),
+      [CellState.FLOODED]: new THREE.MeshBasicMaterial({ color: 0x39d8ff, wireframe: true, depthTest: false }),
+    };
+    for (const task of this._docket) {
+      for (const cell of task.targetCells) {
+        const state = this._grid.getState(cell.x, cell.y, cell.z);
+        if (!materials[state]) continue;
+        const marker = new THREE.Mesh(geometry, materials[state]);
+        marker.position.copy(this._grid.toWorldPos(cell.x, cell.y, cell.z));
+        marker.userData.docketTaskId = task.id;
+        group.add(marker);
+      }
+    }
+    this._scene.add(group);
+    this._damageDebugOverlay = { group, geometry, materials };
+  }
+
+  _disposeDamageDebugOverlay() {
+    if (!this._damageDebugOverlay) return;
+    const { group, geometry, materials } = this._damageDebugOverlay;
+    this._scene.remove(group);
+    geometry.dispose();
+    Object.values(materials).forEach(material => material.dispose());
+    this._damageDebugOverlay = null;
   }
 
   // Pointer handler — Shipyard phase only
@@ -726,10 +773,11 @@ export class GameState {
 
     // When player sinks, capture the wreck (so its damage persists into the
     // shipyard) and transition to results.
-    on('playerSunk', () => {
+    this._onPlayerSunk = () => {
       this._sinkSnapshot = this._grid?.snapshot() ?? null;
-      this.transition(GamePhase.RESULTS, { passed: false });
-    });
+      emit('voyageLost');
+    };
+    on('playerSunk', this._onPlayerSunk);
 
     this._wasCinematicActive = false;
     this.score = 0;
@@ -858,7 +906,8 @@ export class GameState {
     if (DEBUG) off('qteDebugTrigger', this._onDebugQTE);
     off('cannonFire', this._onCannonFire);
     off('sharkHitConfirmed', this._onSharkHit);
-    off('playerSunk');
+    if (this._onPlayerSunk) off('playerSunk', this._onPlayerSunk);
+    this._onPlayerSunk = null;
 
     this._sirenManager?.dispose();
     this._sirenManager = null;
@@ -869,7 +918,6 @@ export class GameState {
     this._obstacleManager?.dispose();
     this._environmentManager?.dispose();
     this._sirenManager?.dispose();
-    this._qteStats = this._qteSystem?.getStats() ?? null;
     this._qteSystem?.dispose();
     this._chunkRenderer?.dispose(this._scene);
 
@@ -933,20 +981,6 @@ export class GameState {
     emit('spawnParticles', { type: 'cannonShot', start, end: targetPosition });
     this._ammo--;
     emit('ammoChanged', { ammo: this._ammo, cannon: this._hasCannon });
-  }
-
-  // =========================================================================
-  // RESULTS
-  // =========================================================================
-
-  _enterResults({ passed }) {
-    emit('uiMount', { screen: 'results', passed, day: this.day, score: this.score, qteStats: this._qteStats });
-    if (passed) {
-      this.day++;
-      // A clean pass resets the wreck — the next shipyard entry rebuilds from
-      // the pristine cache plus the new day's authored damage.
-      this._sinkSnapshot = null;
-    }
   }
 
   // =========================================================================
