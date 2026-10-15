@@ -39,7 +39,8 @@ export const GamePhase = Object.freeze({
 });
 
 // Mooring position & orientation at the West yard dock (T-head perpendicular berth across west pier terminus)
-export const SHIP_MOORED_POS = new THREE.Vector3(-115.0, -3.0, -9.5);
+// Y = -1.4 places the keel submerged while raising the interior floor above water level to keep the deck dry
+export const SHIP_MOORED_POS = new THREE.Vector3(-115.0, -1.4, -9.5);
 export const SHIP_MOORED_ROT = new THREE.Euler(0, 0, 0);
 
 // ---------------------------------------------------------------------------
@@ -289,6 +290,20 @@ export class GameState {
     if (opts?.shipDef) this._shipDef = opts.shipDef;
     if (opts?.levelCfg) this._levelCfg = opts.levelCfg;
 
+    // Clean up any lingering editor system, editor environment group, or voxel terrain
+    if (this._editorSystem) {
+      this._editorSystem.dispose();
+      this._editorSystem = null;
+    }
+    const lingeringEditorGroup = this._scene.getObjectByName('EditorEnvironmentGroup');
+    if (lingeringEditorGroup) {
+      this._scene.remove(lingeringEditorGroup);
+    }
+    if (this._voxelTerrain) {
+      this._voxelTerrain.dispose();
+      this._voxelTerrain = null;
+    }
+
     if (!this._chunkRenderer && this._shipDef) {
       const { grid, zones, def: builtDef, gltfScene } = await ShipBuilder.build(this._shipDef, this._levelCfg);
       this._grid  = grid;
@@ -418,6 +433,20 @@ export class GameState {
     this._levelCfg = levelCfg || this._levelCfg;
     if (this._ocean) {
       this._ocean.setWorldSize(this._levelCfg?.worldSize || 200);
+    }
+
+    // Clean up any lingering editor system, editor environment group, or voxel terrain
+    if (this._editorSystem) {
+      this._editorSystem.dispose();
+      this._editorSystem = null;
+    }
+    const lingeringEditorGroup = this._scene.getObjectByName('EditorEnvironmentGroup');
+    if (lingeringEditorGroup) {
+      this._scene.remove(lingeringEditorGroup);
+    }
+    if (this._voxelTerrain) {
+      this._voxelTerrain.dispose();
+      this._voxelTerrain = null;
     }
 
     if (shipDef) this._shipDef = shipDef;
@@ -850,11 +879,8 @@ export class GameState {
     this._windManager     = null;
 
     if (this._voxelTerrain) {
-       this._scene.remove(this._voxelTerrain.meshGroup);
-       for (const chunkMesh of this._voxelTerrain.meshGroup.children) {
-         if (chunkMesh.geometry) chunkMesh.geometry.dispose();
-       }
-       this._voxelTerrain = null;
+      this._voxelTerrain.dispose();
+      this._voxelTerrain = null;
     }
 
     emit('uiUnmount', { screen: 'obstacle' });
@@ -875,6 +901,14 @@ export class GameState {
 
   _enterEditor({ levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel }) {
     this._levelCfg = levelCfg;
+
+    // Ensure the dock/shipyard island environment and breakwater are not active in the editor
+    if (this._dockStall?.group && this._dockStall.group.parent === this._scene) {
+      this._scene.remove(this._dockStall.group);
+    }
+    if (this._ocean) {
+      this._ocean.breakwaterEnabled = false;
+    }
 
     if (this._chunkRenderer && this._chunkRenderer.container) {
       this._chunkRenderer.container.visible = false;

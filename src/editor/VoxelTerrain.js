@@ -324,4 +324,29 @@ export class VoxelTerrain {
       this.previewMesh.instanceMatrix.needsUpdate = true;
     }
   }
+
+  dispose() {
+    if (this.meshGroup) {
+      if (this.meshGroup.parent) {
+        this.meshGroup.parent.remove(this.meshGroup);
+      }
+      for (const mesh of this.meshes.values()) {
+        mesh.geometry?.dispose();
+      }
+      this.meshes.clear();
+      if (this.previewMesh) {
+        this.previewMesh.geometry?.dispose();
+        if (Array.isArray(this.previewMesh.material)) {
+          this.previewMesh.material.forEach(m => m.dispose());
+        } else {
+          this.previewMesh.material?.dispose();
+        }
+        this.previewMesh = null;
+      }
+      this.material?.dispose();
+    }
+    this.chunks.clear();
+    this.dirtyChunks.clear();
+  }
 }
+
