@@ -38,9 +38,9 @@ export const GamePhase = Object.freeze({
   EDITOR:   'EDITOR',
 });
 
-// Mooring position & orientation at the West yard dock
-export const SHIP_MOORED_POS = new THREE.Vector3(-50.0, -3.0, 20.8);
-export const SHIP_MOORED_ROT = new THREE.Euler(0, -Math.PI / 2, 0);
+// Mooring position & orientation at the West yard dock (T-head perpendicular berth across west pier terminus)
+export const SHIP_MOORED_POS = new THREE.Vector3(-115.0, -3.0, -9.5);
+export const SHIP_MOORED_ROT = new THREE.Euler(0, 0, 0);
 
 // ---------------------------------------------------------------------------
 // GameState — finite state machine
@@ -489,24 +489,22 @@ export class GameState {
     this._orbitControls = new OrbitControls(this._camera, this._renderer.domElement);
     this._orbitControls.enableDamping = true;
 
-    // Calculate boat center in world coordinates
+    // Calculate boat center in world coordinates (with rotation = 0, local axes match world axes)
     const gx = def?.grid?.x ?? this._grid.width;
     const gy = def?.grid?.y ?? this._grid.height;
     const gz = def?.grid?.z ?? this._grid.depth;
-    // Local center before rotation: (gx*0.5, gy*0.5, gz*0.5)
-    // Rotated by -PI/2 around Y: x' = -z, z' = x
     const shipWorldCenter = new THREE.Vector3(
-      SHIP_MOORED_POS.x - gz * 0.5,
+      SHIP_MOORED_POS.x + gx * 0.5,
       SHIP_MOORED_POS.y + gy * 0.5,
-      SHIP_MOORED_POS.z + gx * 0.5
+      SHIP_MOORED_POS.z + gz * 0.5
     );
 
     // Target the center of the ship and position camera nicely for viewing and repairing
     this._orbitControls.target.copy(shipWorldCenter);
     this._camera.position.set(
-      shipWorldCenter.x + 28.0,
-      shipWorldCenter.y + 16.0,
-      shipWorldCenter.z + 28.0
+      shipWorldCenter.x + 32.0,
+      shipWorldCenter.y + 18.0,
+      shipWorldCenter.z + 30.0
     );
     this._orbitControls.update();
 
@@ -520,7 +518,7 @@ export class GameState {
       this._debugShark = fishModel.scene;
       const normScale = fishModel.normSharkScale ?? 1;
       this._debugShark.scale.setScalar(normScale);
-      this._debugShark.position.set(shipWorldCenter.x + 8, shipWorldCenter.y - 3, shipWorldCenter.z + 6);
+      this._debugShark.position.set(shipWorldCenter.x - 8, shipWorldCenter.y - 3, shipWorldCenter.z + 6);
       this._scene.add(this._debugShark);
       
       // Repair the missing skin so the Tail bone can deform the mesh
