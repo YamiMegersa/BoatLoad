@@ -74,6 +74,9 @@ export class GameState {
     this._grid          = null;
     this._zones         = null;
     this._levelCfg      = null;
+    this._docket        = null;   // current repair docket (shipyard)
+    this._sinkSnapshot  = null;   // wreck grid captured on playerSunk
+    this._allRepairsEmitted = false;
 
     this._chunkRenderer = null;
     this._raycaster     = null;
@@ -423,6 +426,15 @@ export class GameState {
     this._grid  = grid;
     this._zones = zones;
 
+    // A sunk voyage keeps its damage: restore the wreck over the
+    // pristine+authored build so the player must actually repair it.
+    if (this._sinkSnapshot) {
+      grid.restore(this._sinkSnapshot);
+      this._sinkSnapshot = null;
+      grid.dirtySet.clear();
+      grid.topologyDirty = false;
+    }
+
     // Chunk renderer
     this._chunkRenderer = new ChunkRenderer();
     this._chunkRenderer.init(grid, this._scene);
@@ -474,11 +486,13 @@ export class GameState {
     this._renderer.domElement.addEventListener('pointerdown', this._boundPointerDown);
     this._renderer.domElement.addEventListener('pointermove', this._boundPointerMove);
 
-    // Rebuild BVH when topology changes (repair fills a MISSING cell)
+    // Rebuild BVH when topology changes (repair fills a MISSING cell) and
+    // refresh the repair docket so items check off as zones get fixed.
     on('cellRepaired', () => {
       if (this._grid?.consumeTopologyDirty()) {
         this._raycaster.rebuild(this._grid);
       }
+      this._refreshDocket();
     });
 
     // Sync renderer on dirty events
@@ -488,7 +502,12 @@ export class GameState {
       }
     });
 
-    emit('uiMount', { screen: 'shipyard' });
+    // Derive the repair docket from actual grid damage (works for both the
+    // level's authored damage and a restored wreck) and gate Set Sail on it.
+    this._docket = DamageSystem.buildDocket(grid, zones);
+    this._allRepairsEmitted = false;
+    emit('uiMount', { screen: 'shipyard', docket: this._docket });
+    this._refreshDocket();  // enable Set Sail immediately when nothing is mandatory
   }
 
   _updateShipyard(delta) {
@@ -548,11 +567,33 @@ export class GameState {
     }
 
     this._zones         = null;
+    this._docket        = null;
     this._raycaster     = null;
     this._buildSystem   = null;
     this._orbitControls = null;
 
     emit('uiUnmount', { screen: 'shipyard' });
+  }
+
+  /**
+   * Recount grid damage per zone: check off docket items whose zone is fully
+   * repaired, and emit allRepairsDone once no mandatory items remain (Set Sail
+   * unlocks). Emits nothing when the docket is unchanged.
+   */
+  _refreshDocket() {
+    if (!this._grid || !this._zones || !this._docket?.length) return;
+    const fresh = DamageSystem.buildDocket(this._grid, this._zones);
+    for (const prev of this._docket) {
+      if (prev.completed) continue;
+      if (!fresh.some(item => item.zone === prev.zone)) {
+        prev.completed = true;
+        emit('docketItemCompleted', { itemId: prev.id, label: prev.label });
+      }
+    }
+    if (!this._allRepairsEmitted && !this._docket.some(item => item.mandatory && !item.completed)) {
+      this._allRepairsEmitted = true;
+      emit('allRepairsDone', {});
+    }
   }
 
   // Pointer handler — Shipyard phase only
@@ -655,8 +696,10 @@ export class GameState {
     this._onSharkHit = () => { this._camImpulse = 0.08; };
     on('sharkHitConfirmed', this._onSharkHit);
 
-    // When player sinks, transition to results
+    // When player sinks, capture the wreck (so its damage persists into the
+    // shipyard) and transition to results.
     on('playerSunk', () => {
+      this._sinkSnapshot = this._grid?.snapshot() ?? null;
       this.transition(GamePhase.RESULTS, { passed: false });
     });
 
@@ -772,7 +815,12 @@ export class GameState {
 
   _enterResults({ passed }) {
     emit('uiMount', { screen: 'results', passed, day: this.day, score: this.score, qteStats: this._qteStats });
-    if (passed) this.day++;
+    if (passed) {
+      this.day++;
+      // A clean pass resets the wreck — the next shipyard entry rebuilds from
+      // the pristine cache plus the new day's authored damage.
+      this._sinkSnapshot = null;
+    }
   }
 
   // =========================================================================

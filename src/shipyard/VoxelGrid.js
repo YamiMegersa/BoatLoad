@@ -22,6 +22,13 @@ export const CellState = Object.freeze({
 // ---------------------------------------------------------------------------
 export const CELL_SIZE = 1.0;
 
+/**
+ * Cells at or below this grid Y sit at/below the waterline: hull holes here
+ * leak water (PlayerShip leak rate) and gate the repair docket's Set Sail.
+ * Shared single source of truth — do not duplicate the literal elsewhere.
+ */
+export const WATERLINE_Y = 4;
+
 // Half-cell offset so cell (0,0,0) is centred at (0.5, 0.5, 0.5) rather than
 // at the origin corner — this makes the grid symmetrical when centred.
 const HALF = CELL_SIZE * 0.5;

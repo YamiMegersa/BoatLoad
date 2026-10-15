@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { emit, on, off } from '../core/EventBus.js';
 import { OBB } from 'three/examples/jsm/math/OBB.js';
 import { DEBUG } from '../utils/debug.js';
+import { WATERLINE_Y } from '../shipyard/VoxelGrid.js';
 
 // ---------------------------------------------------------------------------
 // Obstacle type definitions
@@ -46,7 +47,7 @@ export class PlayerShip {
     // Leak System
     this.waterLevel = 0;
     this.maxWaterLevel = 100;
-    this.waterlineY = 4; // Any hole below Y=4 leaks water
+    this.waterlineY = WATERLINE_Y; // Any hole at/below the waterline leaks water
     this.numLeaks = 0;
 
     // HP System

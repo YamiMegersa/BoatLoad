@@ -1,5 +1,9 @@
-import { CellState } from './VoxelGrid.js';
+import { CellState, WATERLINE_Y } from './VoxelGrid.js';
 import { emit } from '../core/EventBus.js';
+import { ShipBuilder } from './ShipBuilder.js';
+
+/** Tool implied by each ship zone — mirrors the docket UI's toolkit. */
+const TOOL_BY_ZONE = { hull: 'hammer', deck: 'hammer', sail: 'needle', mast: 'rope' };
 
 /**
  * DamageSystem — applies and queries damage patterns on a VoxelGrid.
@@ -10,6 +14,50 @@ import { emit } from '../core/EventBus.js';
  *  - Compute a "damage summary" (HP percentage) based on cell states.
  */
 export class DamageSystem {
+  /**
+   * Derive a repair docket from actual grid damage, grouped by zone.
+   *
+   * One item per zone containing damaged cells, with the tool implied by the
+   * zone and a count of the remaining cells. An item is mandatory when it
+   * includes hull cells at or below the waterline — those leak and can sink
+   * the ship, so they gate Set Sail.
+   *
+   * Used for BOTH the level's authored damage and a restored sunk-run wreck,
+   * so persistence needs no separate docket path.
+   *
+   * @param {import('./VoxelGrid.js').VoxelGrid} grid
+   * @param {object} zones  shipDef.zones (name → [{ xRange, yRange, zRange }])
+   * @returns {Array<{ id: string, label: string, mandatory: boolean, zone: string,
+   *                    tool: string, remaining: number, leaks: number }>}
+   */
+  static buildDocket(grid, zones) {
+    const counts = new Map(); // zone → { total, leaks }
+
+    for (let z = 0; z < grid.depth; z++) {
+      for (let y = 0; y < grid.height; y++) {
+        for (let x = 0; x < grid.width; x++) {
+          const state = grid.getState(x, y, z);
+          if (state !== CellState.MISSING && state !== CellState.DAMAGED && state !== CellState.FLOODED) continue;
+          const zone = ShipBuilder.zoneOf({ x, y, z }, zones) ?? 'superstructure';
+          const entry = counts.get(zone) ?? { total: 0, leaks: 0 };
+          entry.total++;
+          if (zone === 'hull' && y <= WATERLINE_Y) entry.leaks++;
+          counts.set(zone, entry);
+        }
+      }
+    }
+
+    return [...counts.entries()].map(([zone, { total, leaks }]) => ({
+      id: `repair-${zone}`,
+      label: `Repair the ${zone} (${total} ${total === 1 ? 'cell' : 'cells'}${leaks ? `, ${leaks} leaking` : ''})`,
+      mandatory: leaks > 0,
+      zone,
+      tool: TOOL_BY_ZONE[zone] ?? 'hammer',
+      remaining: total,
+      leaks,
+    }));
+  }
+
   /**
    * Apply all damage entries from a level config to a grid.
    * Typically called by ShipBuilder, but exposed here for runtime damage
