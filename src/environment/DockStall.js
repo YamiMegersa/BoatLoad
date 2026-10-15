@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 // ---------------------------------------------------------------------------
-// Voxel Palette & Material Helper
+// Voxel Palette & Procedural Voxel Texture Generators
 // ---------------------------------------------------------------------------
 const Palette = {
   // Dock & Shop Timber
@@ -26,13 +26,11 @@ const Palette = {
   stoneDark: 0x52565a,
   stoneLight: 0x868b90,
   stonePath: 0x8a8e91,
-  stonePathDark: 0x6b6f72,
   sand: 0xbfa779,
   sandWet: 0x96825a,
 
   // Pine Trees
   pineTrunk: 0x3d2514,
-  pineTrunkDark: 0x2b190d,
   pineLeaves1: 0x234421,
   pineLeaves2: 0x1b3719,
   pineLeaves3: 0x2c532a,
@@ -57,13 +55,56 @@ const Palette = {
   bottleWine: 0x5c2738,
   cork: 0xb56c36,
   sackBurlap: 0x9c855d,
-  sackBurlapDark: 0x826d4a,
   fishBody: 0x5a7d8c,
   fishBelly: 0xa8c2cb,
   seagullWhite: 0xedebe6,
   seagullGrey: 0x7d858c,
   seagullBeak: 0xd98829
 };
+
+/**
+ * Procedural pixel-art voxel wood texture generator.
+ * Produces crisp, stepped wood grain pixels using nearest-neighbor filtering.
+ */
+function createVoxelWoodTexture(baseR, baseG, baseB, contrast = 0.18) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = `rgb(${baseR},${baseG},${baseB})`;
+  ctx.fillRect(0, 0, 64, 64);
+
+  // Pixelated horizontal plank grain lines
+  for (let y = 0; y < 64; y += 4) {
+    const shadeFactor = 1.0 + (Math.sin(y * 1.5) * 0.5) * contrast;
+    const r = Math.min(255, Math.floor(baseR * shadeFactor));
+    const g = Math.min(255, Math.floor(baseG * shadeFactor));
+    const b = Math.min(255, Math.floor(baseB * shadeFactor));
+    ctx.fillStyle = `rgb(${r},${g},${b})`;
+
+    for (let x = 0; x < 64; x += 4) {
+      if ((x + y * 3) % 7 !== 0) {
+        ctx.fillRect(x, y, 4, 3);
+      }
+    }
+  }
+
+  // A couple of pixel knots
+  [[16, 20], [44, 40]].forEach(([kx, ky]) => {
+    ctx.fillStyle = `rgb(${Math.floor(baseR * 0.6)},${Math.floor(baseG * 0.55)},${Math.floor(baseB * 0.5)})`;
+    ctx.fillRect(kx, ky, 6, 6);
+    ctx.fillRect(kx + 2, ky - 2, 2, 2);
+    ctx.fillRect(kx + 2, ky + 6, 2, 2);
+  });
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  return tex;
+}
 
 /**
  * Creates a flat-shaded standard material matching VoxelArms / ChunkRenderer aesthetics.
@@ -74,6 +115,7 @@ function createVoxelMat(color, opts = {}) {
     roughness: opts.roughness ?? 0.85,
     metalness: opts.metalness ?? 0.12,
     flatShading: true,
+    map: opts.map ?? null,
     transparent: opts.transparent ?? false,
     opacity: opts.opacity ?? 1.0,
     emissive: opts.emissive ?? 0x000000,
@@ -93,7 +135,7 @@ function createVoxelBox(w, h, d, material, castShadow = true, receiveShadow = tr
 }
 
 /**
- * Helper to build an 8-sided faceted voxel ring for portholes, rope rings, and barrels.
+ * Builds an 8-sided faceted voxel ring for portholes and rope rings.
  */
 function createVoxelOctagonRing(radius, thickness, depth, material) {
   const group = new THREE.Group();
@@ -106,6 +148,50 @@ function createVoxelOctagonRing(radius, thickness, depth, material) {
     group.add(seg);
   }
   return group;
+}
+
+/**
+ * Builds a solid 8-sided faceted voxel barrel with staves and cap lids.
+ * Uses clean octagonal geometry without intersecting internal square boxes.
+ */
+function createVoxelBarrel(radius, height, woodMat, bandMat) {
+  const barrel = new THREE.Group();
+  const sideLen = radius * 0.828;
+  const staveThick = 0.08;
+
+  // 8 outer staves
+  for (let i = 0; i < 8; i++) {
+    const angle = (i * Math.PI) / 4;
+    const stave = createVoxelBox(sideLen - 0.01, staveThick, height, woodMat);
+    stave.position.set(Math.cos(angle) * (radius - staveThick / 2), Math.sin(angle) * (radius - staveThick / 2), 0);
+    stave.rotation.z = angle + Math.PI / 2;
+    barrel.add(stave);
+  }
+
+  // Top & bottom octagonal cap lids (built from two overlapping rotated slabs)
+  [-height / 2 + 0.04, height / 2 - 0.04].forEach(capY => {
+    const cap1 = createVoxelBox(radius * 1.84, radius * 0.76, 0.06, woodMat);
+    cap1.position.z = capY;
+    barrel.add(cap1);
+    const cap2 = createVoxelBox(radius * 0.76, radius * 1.84, 0.06, woodMat);
+    cap2.position.z = capY;
+    barrel.add(cap2);
+  });
+
+  // 3 Iron hoop bands wrapped cleanly on the outside with zero Z-fighting
+  [-height * 0.35, 0, height * 0.35].forEach(bandZ => {
+    for (let i = 0; i < 8; i++) {
+      const angle = (i * Math.PI) / 4;
+      const bandSeg = createVoxelBox(sideLen + 0.01, 0.035, 0.09, bandMat);
+      bandSeg.position.set(Math.cos(angle) * (radius + 0.02), Math.sin(angle) * (radius + 0.02), bandZ);
+      bandSeg.rotation.z = angle + Math.PI / 2;
+      barrel.add(bandSeg);
+    }
+  });
+
+  // Stand barrel upright (Z becomes Y)
+  barrel.rotation.x = Math.PI / 2;
+  return barrel;
 }
 
 // ---------------------------------------------------------------------------
@@ -128,15 +214,22 @@ export class DockStall {
     if (this._isBuilt) return this.group;
     this._isBuilt = true;
 
-    // Cache common materials
+    // Generate stylized voxel wood textures
+    const texWoodHi   = createVoxelWoodTexture(181, 139, 94, 0.16);
+    const texWoodMid  = createVoxelWoodTexture(120, 83, 50, 0.20);
+    const texWoodDark = createVoxelWoodTexture(61, 39, 22, 0.22);
+    const texPlank    = createVoxelWoodTexture(155, 122, 90, 0.18);
+
+    // Voxel Material Palette
     const mats = {
-      plank: createVoxelMat(Palette.dockPlank, { roughness: 0.88 }),
-      plankDark: createVoxelMat(Palette.dockDark, { roughness: 0.9 }),
-      plankHi: createVoxelMat(Palette.woodHi, { roughness: 0.8 }),
-      woodMid: createVoxelMat(Palette.woodMid, { roughness: 0.85 }),
-      woodDark: createVoxelMat(Palette.woodDark, { roughness: 0.9 }),
-      woodTrim: createVoxelMat(Palette.woodTrim, { roughness: 0.92 }),
-      woodAged: createVoxelMat(Palette.woodAged, { roughness: 0.88 }),
+      plank: createVoxelMat(Palette.dockPlank, { roughness: 0.88, map: texPlank }),
+      plankDark: createVoxelMat(Palette.dockDark, { roughness: 0.9, map: texWoodDark }),
+      plankHi: createVoxelMat(Palette.woodHi, { roughness: 0.8, map: texWoodHi }),
+      woodHi: createVoxelMat(Palette.woodHi, { roughness: 0.8, map: texWoodHi }), // Defined to prevent unlit white fallback!
+      woodMid: createVoxelMat(Palette.woodMid, { roughness: 0.85, map: texWoodMid }),
+      woodDark: createVoxelMat(Palette.woodDark, { roughness: 0.9, map: texWoodDark }),
+      woodTrim: createVoxelMat(Palette.woodTrim, { roughness: 0.92, map: texWoodDark }),
+      woodAged: createVoxelMat(Palette.woodAged, { roughness: 0.88, map: texWoodMid }),
       roofTile: createVoxelMat(Palette.roofTile, { roughness: 0.95 }),
       roofRidge: createVoxelMat(Palette.roofRidge, { roughness: 0.95 }),
       grassTop: createVoxelMat(Palette.grassTop, { roughness: 0.95 }),
@@ -157,35 +250,40 @@ export class DockStall {
     };
 
     // =========================================================================
-    // 1. DOCK PIER (Timber Pilings, Crossbeams & Voxel Decking)
+    // 1. EXTENDED DOCK PIER (Full Support for Shop Backside & Wharf Walkway)
     // =========================================================================
     const dockGroup = new THREE.Group();
     dockGroup.position.y = 1.5;
     this.group.add(dockGroup);
 
+    // Extend dock from Z = -5.0 all the way to Z = +8.6 so the shop backside
+    // (reaching world Z = 6.5) and roof eaves (Z = 7.35) sit fully on timber decking!
     const dockLength = 18;
-    const dockWidth = 10;
+    const dockFrontZ = -5.0;
+    const dockBackZ = 8.6;
+    const dockWidth = dockBackZ - dockFrontZ; // 13.6m wide
+    const dockCenterZ = (dockFrontZ + dockBackZ) / 2; // Z = 1.8m
+
     const plankCount = 14;
     const plankWidth = dockLength / plankCount;
 
-    // Voxel Deck Planks: Split along Z into 3 staggered plank sections per row
-    // with subtle height/tone variation and iron nail studs
+    // Modular Deck Planks split into 4 staggered Z sections per row
+    const zCuts = [-5.0, -1.5, 1.8, 5.2, 8.6];
     const nailGeo = new THREE.BoxGeometry(0.04, 0.02, 0.04);
+
     for (let i = 0; i < plankCount; i++) {
       const px = -dockLength / 2 + i * plankWidth + plankWidth / 2;
       const baseMat = i % 2 === 0 ? mats.plank : mats.plankDark;
 
-      // 3 staggered plank segments across dock width
-      const cuts = [-5, -1.8, 1.6, 5];
-      for (let s = 0; s < 3; s++) {
-        const segLen = cuts[s + 1] - cuts[s] - 0.04;
-        const segZ = cuts[s] + segLen / 2 + 0.02;
+      for (let s = 0; s < 4; s++) {
+        const segLen = zCuts[s + 1] - zCuts[s] - 0.035;
+        const segZ = zCuts[s] + segLen / 2 + 0.018;
         const segMat = (i + s) % 3 === 0 ? mats.plankHi : baseMat;
-        const plank = createVoxelBox(plankWidth - 0.04, 0.28, segLen, segMat);
+        const plank = createVoxelBox(plankWidth - 0.035, 0.28, segLen, segMat);
         plank.position.set(px, 0.49, segZ);
         dockGroup.add(plank);
 
-        // Voxel iron nail heads at beam supports
+        // Voxel iron nail heads over stringer beams
         [-plankWidth * 0.35, plankWidth * 0.35].forEach(nx => {
           const nail1 = new THREE.Mesh(nailGeo, mats.iron);
           nail1.position.set(px + nx, 0.635, segZ - segLen * 0.42);
@@ -197,92 +295,90 @@ export class DockStall {
       }
     }
 
-    // Heavy Timber Edge Curb Rails (Front and Rear bulling timbers)
+    // Heavy Timber Edge Curb Rails (Front at -5.0 and Rear at +8.6)
     const frontCurb = createVoxelBox(dockLength + 0.2, 0.22, 0.32, mats.woodDark);
-    frontCurb.position.set(0, 0.64, -dockWidth / 2 + 0.16);
+    frontCurb.position.set(0, 0.64, dockFrontZ + 0.16);
     dockGroup.add(frontCurb);
 
     const backCurb = createVoxelBox(dockLength + 0.2, 0.22, 0.32, mats.woodDark);
-    backCurb.position.set(0, 0.64, dockWidth / 2 - 0.16);
+    backCurb.position.set(0, 0.64, dockBackZ - 0.16);
     dockGroup.add(backCurb);
 
     // End curb on water-facing side (+X)
     const endCurb = createVoxelBox(0.32, 0.22, dockWidth, mats.woodDark);
-    endCurb.position.set(dockLength / 2 - 0.16, 0.64, 0);
+    endCurb.position.set(dockLength / 2 - 0.16, 0.64, dockCenterZ);
     dockGroup.add(endCurb);
 
-    // Invisible smooth deck collider (preserves seamless FPS walking)
+    // Invisible Smooth Deck Collider (Color and depth writes disabled to avoid white glitch)
     const dockCollisionDeck = new THREE.Mesh(
       new THREE.BoxGeometry(dockLength, 0.35, dockWidth),
-      new THREE.MeshBasicMaterial({ visible: false })
+      new THREE.MeshBasicMaterial({ visible: false, colorWrite: false, depthWrite: false })
     );
-    dockCollisionDeck.position.set(0, 0.5, 0);
+    dockCollisionDeck.position.set(0, 0.5, dockCenterZ);
     dockGroup.add(dockCollisionDeck);
 
-    // Voxel Timber Pilings (Square cross-section posts with iron collars)
+    // Square Timber Pilings (Posts supporting the full extended wharf)
     const pilingLocations = [
-      [-8, -4.5], [-8, 4.5],
-      [-3, -4.5], [-3, 4.5],
-      [2, -4.5], [2, 4.5],
-      [8, -4.5], [8, 4.5],
-      [8, 0]
+      [-8, -4.5], [-8, 0], [-8, 4.5], [-8, 8.0],
+      [-3, -4.5], [-3, 0], [-3, 4.5], [-3, 8.0],
+      [2, -4.5],  [2, 0],  [2, 4.5],  [2, 8.0],
+      [8, -4.5],  [8, 0],  [8, 4.5],  [8, 8.0]
     ];
     pilingLocations.forEach(([x, z]) => {
       // Main square pile
-      const post = createVoxelBox(0.62, 5.8, 0.62, mats.woodTrim);
+      const post = createVoxelBox(0.58, 5.8, 0.58, mats.woodTrim);
       post.position.set(x, -2.1, z);
       dockGroup.add(post);
 
       // Pile head extending slightly above deck
-      const postTop = createVoxelBox(0.66, 0.4, 0.66, mats.woodDark);
+      const postTop = createVoxelBox(0.62, 0.36, 0.62, mats.woodDark);
       postTop.position.set(x, 0.72, z);
       dockGroup.add(postTop);
 
       // Iron bracket collar
-      const collar = createVoxelBox(0.72, 0.16, 0.72, mats.iron);
-      collar.position.set(x, 0.45, z);
+      const collar = createVoxelBox(0.68, 0.16, 0.68, mats.iron);
+      collar.position.set(x, 0.46, z);
       dockGroup.add(collar);
 
       // Mooring post rope coil on select perimeter pilings
-      if (Math.abs(x) > 6 || x === 2) {
-        const ropeRing = createVoxelBox(0.82, 0.22, 0.82, mats.rope);
+      if (z === -4.5 && (Math.abs(x) > 6 || x === 2)) {
+        const ropeRing = createVoxelBox(0.78, 0.22, 0.78, mats.rope);
         ropeRing.position.set(x, 0.62, z);
         dockGroup.add(ropeRing);
       }
     });
 
     // Sub-deck support stringers (heavy square timber beams connecting the pilings)
-    [-4.5, 4.5].forEach(z => {
+    [-4.5, 0, 4.5, 8.0].forEach(z => {
       const beam = createVoxelBox(dockLength - 0.5, 0.42, 0.45, mats.woodTrim);
       beam.position.set(0, 0.18, z);
       dockGroup.add(beam);
     });
     [-8, -3, 2, 8].forEach(x => {
       const crossBeam = createVoxelBox(0.45, 0.42, dockWidth - 0.8, mats.woodTrim);
-      crossBeam.position.set(x, 0.16, 0);
+      crossBeam.position.set(x, 0.16, dockCenterZ);
       dockGroup.add(crossBeam);
     });
 
-    // Voxel Mooring Cleats on Pier Edge
+    // Voxel Mooring Cleats on Front Pier Edge
     [-5, 0, 5].forEach(x => {
       const cleatBase = createVoxelBox(0.48, 0.08, 0.18, mats.iron);
-      cleatBase.position.set(x, 0.76, -dockWidth / 2 + 0.16);
+      cleatBase.position.set(x, 0.76, dockFrontZ + 0.16);
       dockGroup.add(cleatBase);
 
       const cleatBar = createVoxelBox(0.72, 0.08, 0.09, mats.iron);
-      cleatBar.position.set(x, 0.84, -dockWidth / 2 + 0.16);
+      cleatBar.position.set(x, 0.84, dockFrontZ + 0.16);
       dockGroup.add(cleatBar);
     });
 
     // =========================================================================
-    // 2. ISLAND LANDMASS (Terraced Voxel Contours, Nature & Paths)
+    // 2. ISLAND LANDMASS & SOLIDLY PLANTED PINE TREES (No Floating)
     // =========================================================================
     const islandGroup = new THREE.Group();
     islandGroup.position.set(-22, 0, 0);
     this.group.add(islandGroup);
 
     // Terraced Voxel Contours: Stepped elevation tiers from sea floor up to hill
-    // Layer 0: Underwater & Sand Shoreline Shelf (y = -3.2 to 0.4)
     const shelfSlices = [
       { w: 32, d: 30, h: 2.2, y: -2.8, mat: mats.stoneDark },
       { w: 29, d: 27, h: 1.4, y: -1.0, mat: mats.stone },
@@ -295,29 +391,33 @@ export class DockStall {
       islandGroup.add(slice);
     });
 
-    // Layer 1: Main Grass Plateaus (y = 1.2 to 2.1)
-    // Base soil
+    // Layer 1: Main Grass Plateau (Top is at y = 2.0)
     const dirtTier = createVoxelBox(22, 0.9, 20, mats.dirt);
     dirtTier.position.set(0, 1.35, 0);
     islandGroup.add(dirtTier);
 
-    // Top grass block tier
     const grassTier = createVoxelBox(22.2, 0.35, 20.2, mats.grassTop);
     grassTier.position.set(0, 1.82, 0);
     islandGroup.add(grassTier);
 
-    // Layer 2: Inland Higher Hill Plateau (facing -X / -Z)
-    const hillTiers = [
-      { x: -5, z: -4, w: 14, d: 13, h: 0.9, y: 2.45, mat: mats.dirt },
-      { x: -5, z: -4, w: 14.2, d: 13.2, h: 0.35, y: 2.9, mat: mats.grassTop },
-      { x: -6, z: -4.5, w: 8.5, d: 8, h: 0.9, y: 3.55, mat: mats.dirt },
-      { x: -6, z: -4.5, w: 8.7, d: 8.2, h: 0.35, y: 4.0, mat: mats.grassTop }
-    ];
-    hillTiers.forEach(h => {
-      const tier = createVoxelBox(h.w, h.h, h.d, h.mat);
-      tier.position.set(h.x, h.y, h.z);
-      islandGroup.add(tier);
-    });
+    // Layer 2: Inland Hill Plateaus
+    // Lower hill tier: top at y = 3.08 (bounds: x from -12 to 2, z from -10.5 to 2.5)
+    const hillLowerDirt = createVoxelBox(14, 0.9, 13, mats.dirt);
+    hillLowerDirt.position.set(-5, 2.45, -4);
+    islandGroup.add(hillLowerDirt);
+
+    const hillLowerGrass = createVoxelBox(14.2, 0.35, 13.2, mats.grassTop);
+    hillLowerGrass.position.set(-5, 2.9, -4);
+    islandGroup.add(hillLowerGrass);
+
+    // Upper hill peak: top at y = 4.18 (bounds: x from -10.35 to -1.65, z from -8.6 to -0.4)
+    const hillUpperDirt = createVoxelBox(8.5, 0.9, 8, mats.dirt);
+    hillUpperDirt.position.set(-6, 3.55, -4.5);
+    islandGroup.add(hillUpperDirt);
+
+    const hillUpperGrass = createVoxelBox(8.7, 0.35, 8.2, mats.grassTop);
+    hillUpperGrass.position.set(-6, 4.0, -4.5);
+    islandGroup.add(hillUpperGrass);
 
     // Coastal Rocky Shelf near water (+X, +Z)
     const coastalShelfTiers = [
@@ -331,16 +431,16 @@ export class DockStall {
       islandGroup.add(rockBlock);
     });
 
-    // Voxel Pine Trees: Stepped pyramid foliage tiers over square timber trunks
+    // Solidly Planted Voxel Pine Trees (With deep underground root embed to prevent any floating)
     const leafMats = [mats.grassDark, createVoxelMat(Palette.pineLeaves1), createVoxelMat(Palette.pineLeaves2), createVoxelMat(Palette.pineLeaves3)];
-    function addVoxelPineTree(x, y, z, scale = 1.0) {
+    function addVoxelPineTree(x, surfaceY, z, scale = 1.0) {
       const tree = new THREE.Group();
-      tree.position.set(x, y, z);
+      tree.position.set(x, surfaceY, z);
       tree.scale.setScalar(scale);
 
-      // Square timber trunk
-      const trunk = createVoxelBox(0.48, 2.8, 0.48, mats.woodDark);
-      trunk.position.y = 1.4;
+      // Deep root trunk anchor (extends 0.9m underground so bottom never floats)
+      const trunk = createVoxelBox(0.48, 3.8, 0.48, mats.woodDark);
+      trunk.position.y = 1.1; // Extends from y = -0.8 to y = +3.0
       tree.add(trunk);
 
       // 4 tiered stepped canopy layers
@@ -364,16 +464,16 @@ export class DockStall {
       islandGroup.add(tree);
     }
 
-    addVoxelPineTree(-2, 2.0, -4, 1.25);
-    addVoxelPineTree(-7, 4.2, -6, 1.4);
-    addVoxelPineTree(-3, 2.0, -9, 1.05);
-    addVoxelPineTree(-10, 4.2, 0, 1.3);
-    addVoxelPineTree(1, 2.0, 8, 1.15);
-    addVoxelPineTree(5, 2.0, -5, 0.95);
-    addVoxelPineTree(-8, 3.1, 5, 1.1);
+    // Precise terrain surface coordinates for every tree:
+    addVoxelPineTree(-6.5, 4.18, -4.5, 1.35); // Upper hill peak
+    addVoxelPineTree(-7.8, 4.18, -6.0, 1.25); // Upper hill peak
+    addVoxelPineTree(-3.5, 3.08, -2.5, 1.15); // Lower hill tier
+    addVoxelPineTree(-10.2, 3.08, -3.5, 1.20); // Lower hill tier
+    addVoxelPineTree(2.5, 2.0, 6.0, 1.15);    // Main grass plateau
+    addVoxelPineTree(5.5, 2.0, -5.0, 1.0);    // Main grass plateau
+    addVoxelPineTree(-6.0, 2.0, 6.5, 1.1);    // Main grass plateau
 
     // Stepped Stone Walkway connecting Dock to Island
-    // Dock deck is at y = 2.0 (dockGroup y=1.5 + 0.5), Island main plateau is y = 2.0
     for (let i = 0; i < 7; i++) {
       const t = i / 6;
       const stepX = 13 - i * 1.85;
@@ -384,7 +484,6 @@ export class DockStall {
       step.rotation.y = Math.sin(i * 1.5) * 0.15;
       islandGroup.add(step);
 
-      // Flanking stone curb blocks
       const border1 = createVoxelBox(0.24, 0.28, 1.3, mats.stone);
       border1.position.set(stepX, stepY + 0.04, stepZ - 0.72);
       islandGroup.add(border1);
@@ -393,10 +492,10 @@ export class DockStall {
       islandGroup.add(border2);
     }
 
-    // Smooth invisible ramp along the path for zero-snag collision raycasting
+    // Smooth invisible ramp along path (Color & depth writes disabled)
     const pathCollider = new THREE.Mesh(
       new THREE.BoxGeometry(13.5, 0.35, 2.6),
-      new THREE.MeshBasicMaterial({ visible: false })
+      new THREE.MeshBasicMaterial({ visible: false, colorWrite: false, depthWrite: false })
     );
     pathCollider.position.set(7.5, 1.95, 0);
     islandGroup.add(pathCollider);
@@ -424,7 +523,6 @@ export class DockStall {
           crateGroup.add(cornerPost);
         });
       });
-      // Diagonal brace on front and top
       const brace1 = createVoxelBox(cp.s * 1.15, frameThick * 0.8, frameThick * 0.5, mats.woodDark);
       brace1.rotation.z = Math.PI / 4;
       brace1.position.z = cp.s / 2 + frameThick * 0.2;
@@ -465,45 +563,42 @@ export class DockStall {
       shop.add(fp);
     }
 
-    // Heavy Timber Corner Posts (Square section with iron footings)
+    // Heavy Timber Corner Posts (Recessed wall joint to prevent any texture clipping)
     const cornerPostLocations = [
-      [leftX + 0.2, backZ + 0.2],
-      [rightX - 0.2, backZ + 0.2],
-      [leftX + 0.2, frontZ - 0.2],
-      [rightX - 0.2, frontZ - 0.2]
+      [leftX + 0.21, backZ + 0.21],
+      [rightX - 0.21, backZ + 0.21],
+      [leftX + 0.21, frontZ - 0.21],
+      [rightX - 0.21, frontZ - 0.21]
     ];
     cornerPostLocations.forEach(([cx, cz]) => {
-      // Main timber column
-      const post = createVoxelBox(0.4, shopH, 0.4, mats.woodDark);
+      const post = createVoxelBox(0.42, shopH, 0.42, mats.woodDark);
       post.position.set(cx, shopH / 2, cz);
       shop.add(post);
 
-      // Iron base shoe
       const shoe = createVoxelBox(0.48, 0.35, 0.48, mats.iron);
       shoe.position.set(cx, 0.25, cz);
       shop.add(shoe);
 
-      // Top capital block
       const cap = createVoxelBox(0.48, 0.22, 0.48, mats.woodTrim);
       cap.position.set(cx, shopH - 0.11, cz);
       shop.add(cap);
     });
 
-    // Perimeter Header Beams spanning the top of the walls
-    const frontBeam = createVoxelBox(shopW + 0.2, 0.32, 0.42, mats.woodDark);
-    frontBeam.position.set(0, shopH - 0.16, frontZ - 0.2);
+    // Perimeter Header Beams
+    const frontBeam = createVoxelBox(shopW - 0.4, 0.32, 0.38, mats.woodDark);
+    frontBeam.position.set(0, shopH - 0.16, frontZ - 0.21);
     shop.add(frontBeam);
 
-    const backBeam = createVoxelBox(shopW + 0.2, 0.32, 0.42, mats.woodDark);
-    backBeam.position.set(0, shopH - 0.16, backZ + 0.2);
+    const backBeam = createVoxelBox(shopW - 0.4, 0.32, 0.38, mats.woodDark);
+    backBeam.position.set(0, shopH - 0.16, backZ + 0.21);
     shop.add(backBeam);
 
-    const leftBeam = createVoxelBox(0.42, 0.32, shopD - 0.4, mats.woodDark);
-    leftBeam.position.set(leftX + 0.2, shopH - 0.16, 0);
+    const leftBeam = createVoxelBox(0.38, 0.32, shopD - 0.45, mats.woodDark);
+    leftBeam.position.set(leftX + 0.21, shopH - 0.16, 0);
     shop.add(leftBeam);
 
-    const rightBeam = createVoxelBox(0.42, 0.32, shopD - 0.4, mats.woodDark);
-    rightBeam.position.set(rightX - 0.2, shopH - 0.16, 0);
+    const rightBeam = createVoxelBox(0.38, 0.32, shopD - 0.45, mats.woodDark);
+    rightBeam.position.set(rightX - 0.21, shopH - 0.16, 0);
     shop.add(rightBeam);
 
     // -------------------------------------------------------------------------
@@ -518,20 +613,19 @@ export class DockStall {
     for (let p = 0; p < wallPlankCount; p++) {
       const py = p * wallPlankH + wallPlankH / 2;
       const isAlt = p % 2 === 0;
-      const plank = createVoxelBox(shopW - 0.1, wallPlankH - 0.03, 0.22, isAlt ? mats.woodMid : mats.woodAged);
+      const plank = createVoxelBox(shopW - 0.45, wallPlankH - 0.03, 0.22, isAlt ? mats.woodMid : mats.woodAged);
       plank.position.set(0, py, 0.11);
       backWallGroup.add(plank);
 
-      // Horizontal relief trim band every 3 planks
       if (p % 3 === 0) {
-        const trimBand = createVoxelBox(shopW + 0.08, 0.1, 0.28, mats.woodDark);
+        const trimBand = createVoxelBox(shopW - 0.4, 0.1, 0.26, mats.woodDark);
         trimBand.position.set(0, py, 0.12);
         backWallGroup.add(trimBand);
       }
     }
 
     // -------------------------------------------------------------------------
-    // Left Wall: Lap Siding + Stepped Octagonal Voxel Porthole
+    // Left Wall: Lap Siding + Perfectly Fitted Voxel Porthole (Zero Gaps, Centered)
     // -------------------------------------------------------------------------
     const leftWallGroup = new THREE.Group();
     leftWallGroup.position.set(leftX, 0, 0);
@@ -540,67 +634,77 @@ export class DockStall {
     const portholeZ = -0.5;
     const portholeY = 3.0;
     const portholeR = 0.65;
+    const octSide = portholeR * 0.828; // ~0.538m
 
-    // Wall panels around the porthole opening
-    for (let p = 0; p < wallPlankCount; p++) {
-      const py = p * wallPlankH + wallPlankH / 2;
-      const dy = Math.abs(py - portholeY);
+    // Solid wall panels below and above the porthole
+    const yBottomSill = portholeY - portholeR; // 2.35m
+    const yTopHeader  = portholeY + portholeR; // 3.65m
 
-      if (dy < portholeR) {
-        // Break plank into back and front segments leaving the window opening
-        const gapHalf = portholeR + 0.08;
-        const backStart = -shopD / 2 + 0.1;
-        const backEnd = portholeZ - gapHalf;
-        const backLen = backEnd - backStart;
-        if (backLen > 0) {
-          const pBack = createVoxelBox(0.22, wallPlankH - 0.03, backLen, p % 2 === 0 ? mats.woodMid : mats.woodAged);
-          pBack.position.set(0.11, py, backStart + backLen / 2);
-          leftWallGroup.add(pBack);
-        }
+    const wallLower = createVoxelBox(0.22, yBottomSill, shopD - 0.45, mats.woodMid);
+    wallLower.position.set(0.11, yBottomSill / 2, 0);
+    leftWallGroup.add(wallLower);
 
-        const frontStart = portholeZ + gapHalf;
-        const frontEnd = shopD / 2 - 0.1;
-        const frontLen = frontEnd - frontStart;
-        if (frontLen > 0) {
-          const pFront = createVoxelBox(0.22, wallPlankH - 0.03, frontLen, p % 2 === 0 ? mats.woodMid : mats.woodAged);
-          pFront.position.set(0.11, py, frontStart + frontLen / 2);
-          leftWallGroup.add(pFront);
-        }
-      } else {
-        const fullPlank = createVoxelBox(0.22, wallPlankH - 0.03, shopD - 0.2, p % 2 === 0 ? mats.woodMid : mats.woodAged);
-        fullPlank.position.set(0.11, py, 0);
-        leftWallGroup.add(fullPlank);
-      }
-    }
+    const wallUpper = createVoxelBox(0.22, shopH - yTopHeader, shopD - 0.45, mats.woodMid);
+    wallUpper.position.set(0.11, yTopHeader + (shopH - yTopHeader) / 2, 0);
+    leftWallGroup.add(wallUpper);
 
-    // Stepped Octagonal Voxel Brass Porthole Frame
-    const octRing = createVoxelOctagonRing(portholeR, 0.12, 0.28, mats.brass);
-    octRing.rotation.y = Math.PI / 2;
-    octRing.position.set(0.11, portholeY, portholeZ);
-    leftWallGroup.add(octRing);
+    // Side jamb panels flanking the porthole opening
+    const openingH = yTopHeader - yBottomSill; // 1.30m
+    const openingHalfW = portholeR; // 0.65m
 
-    // Brass Rivet Studs around the Octagonal Frame
-    for (let r = 0; r < 8; r++) {
-      const ang = (r * Math.PI) / 4;
-      const rivet = createVoxelBox(0.06, 0.06, 0.06, mats.brassDark);
-      rivet.position.set(
-        -0.05,
-        portholeY + Math.sin(ang) * (portholeR + 0.08),
-        portholeZ + Math.cos(ang) * (portholeR + 0.08)
-      );
-      leftWallGroup.add(rivet);
-    }
+    // Back side of porthole: from back edge to opening
+    const leftBackLen = (portholeZ - openingHalfW) - (-shopD / 2 + 0.25);
+    const leftBackPanel = createVoxelBox(0.22, openingH, leftBackLen, mats.woodMid);
+    leftBackPanel.position.set(0.11, portholeY, -shopD / 2 + 0.25 + leftBackLen / 2);
+    leftWallGroup.add(leftBackPanel);
 
-    // Flat-shaded translucent glass pane
+    // Front side of porthole: from opening to front edge
+    const leftFrontLen = (shopD / 2 - 0.25) - (portholeZ + openingHalfW);
+    const leftFrontPanel = createVoxelBox(0.22, openingH, leftFrontLen, mats.woodMid);
+    leftFrontPanel.position.set(0.11, portholeY, shopD / 2 - 0.25 - leftFrontLen / 2);
+    leftWallGroup.add(leftFrontPanel);
+
+    // Fitted octagonal corner infill blocks to completely seal all 4 diagonal corners!
+    const cornerSize = openingHalfW * 0.45;
+    [
+      [portholeZ - openingHalfW * 0.72, portholeY - openingHalfW * 0.72],
+      [portholeZ + openingHalfW * 0.72, portholeY - openingHalfW * 0.72],
+      [portholeZ - openingHalfW * 0.72, portholeY + openingHalfW * 0.72],
+      [portholeZ + openingHalfW * 0.72, portholeY + openingHalfW * 0.72]
+    ].forEach(([cz, cy]) => {
+      const cornerInfill = createVoxelBox(0.22, cornerSize, cornerSize, mats.woodTrim);
+      cornerInfill.position.set(0.11, cy, cz);
+      leftWallGroup.add(cornerInfill);
+    });
+
+    // Exterior Octagonal Brass Frame (Outside face at x = -0.02)
+    const extOctRing = createVoxelOctagonRing(portholeR, 0.12, 0.08, mats.brass);
+    extOctRing.rotation.y = Math.PI / 2;
+    extOctRing.position.set(-0.02, portholeY, portholeZ);
+    leftWallGroup.add(extOctRing);
+
+    // Interior Octagonal Brass Frame (Inside face at x = 0.24, perfectly visible & centered!)
+    const intOctRing = createVoxelOctagonRing(portholeR, 0.12, 0.08, mats.brass);
+    intOctRing.rotation.y = Math.PI / 2;
+    intOctRing.position.set(0.24, portholeY, portholeZ);
+    leftWallGroup.add(intOctRing);
+
+    // Brass inner lining collar bridging through the wall
+    const collarRing = createVoxelOctagonRing(portholeR - 0.05, 0.06, 0.24, mats.brassDark);
+    collarRing.rotation.y = Math.PI / 2;
+    collarRing.position.set(0.11, portholeY, portholeZ);
+    leftWallGroup.add(collarRing);
+
+    // Perfectly Centered Translucent Porthole Glass
     const portholeGlass = createVoxelBox(0.04, portholeR * 1.5, portholeR * 1.5, mats.glass);
     portholeGlass.position.set(0.11, portholeY, portholeZ);
     leftWallGroup.add(portholeGlass);
 
-    // Cross-muntin bars inside porthole
-    const muntinH = createVoxelBox(0.06, 0.06, portholeR * 1.6, mats.brass);
+    // Centered Cross-Muntin Bars
+    const muntinH = createVoxelBox(0.06, 0.05, portholeR * 1.6, mats.brass);
     muntinH.position.set(0.11, portholeY, portholeZ);
     leftWallGroup.add(muntinH);
-    const muntinV = createVoxelBox(0.06, portholeR * 1.6, 0.06, mats.brass);
+    const muntinV = createVoxelBox(0.06, portholeR * 1.6, 0.05, mats.brass);
     muntinV.position.set(0.11, portholeY, portholeZ);
     leftWallGroup.add(muntinV);
 
@@ -616,15 +720,15 @@ export class DockStall {
     const doorZ = -0.35;
 
     // Back wall panel of right side (from backZ to door frame)
-    const rwBackLen = doorZ - doorW / 2 - (-shopD / 2);
+    const rwBackLen = doorZ - doorW / 2 - (-shopD / 2 + 0.25);
     const rwBack = createVoxelBox(0.22, shopH, rwBackLen, mats.woodMid);
-    rwBack.position.set(-0.11, shopH / 2, -shopD / 2 + rwBackLen / 2);
+    rwBack.position.set(-0.11, shopH / 2, -shopD / 2 + 0.25 + rwBackLen / 2);
     rightWallGroup.add(rwBack);
 
     // Front wall panel of right side (from door frame to frontZ)
-    const rwFrontLen = shopD / 2 - (doorZ + doorW / 2);
+    const rwFrontLen = shopD / 2 - 0.25 - (doorZ + doorW / 2);
     const rwFront = createVoxelBox(0.22, shopH, rwFrontLen, mats.woodMid);
-    rwFront.position.set(-0.11, shopH / 2, shopD / 2 - rwFrontLen / 2);
+    rwFront.position.set(-0.11, shopH / 2, shopD / 2 - 0.25 - rwFrontLen / 2);
     rightWallGroup.add(rwFront);
 
     // Lintel panel above doorway
@@ -644,13 +748,13 @@ export class DockStall {
     rightWallGroup.add(transomGlass);
 
     // Voxel Door Frame Jambs and Header
-    const jambGeo = new THREE.BoxGeometry(0.32, doorH, 0.2);
+    const jambGeo = new THREE.BoxGeometry(0.32, doorH, 0.18);
     const jambBack = new THREE.Mesh(jambGeo, mats.woodDark);
-    jambBack.position.set(-0.11, doorH / 2, doorZ - doorW / 2 - 0.08);
+    jambBack.position.set(-0.11, doorH / 2, doorZ - doorW / 2 - 0.09);
     rightWallGroup.add(jambBack);
 
     const jambFront = new THREE.Mesh(jambGeo, mats.woodDark);
-    jambFront.position.set(-0.11, doorH / 2, doorZ + doorW / 2 + 0.08);
+    jambFront.position.set(-0.11, doorH / 2, doorZ + doorW / 2 + 0.09);
     rightWallGroup.add(jambFront);
 
     const jambHeader = createVoxelBox(0.32, 0.2, doorW + 0.36, mats.woodDark);
@@ -671,8 +775,7 @@ export class DockStall {
     const doorLeafH = doorH - 0.1;
     const doorLeafW = doorW - 0.08;
 
-    // Main door leaf slab
-    const doorLeaf = createVoxelBox(0.12, doorLeafH, doorLeafW, mats.plankHi);
+    const doorLeaf = createVoxelBox(0.12, doorLeafH, doorLeafW, mats.woodHi);
     doorLeaf.position.set(0, doorLeafH / 2, 0);
     doorLeaf.userData = { isShopDoor: true, name: 'shopDoorLeaf' };
     doorGroup.add(doorLeaf);
@@ -695,7 +798,6 @@ export class DockStall {
         doorGroup.add(hRail);
       });
 
-      // Diagonal Z-brace
       const diagBrace = createVoxelBox(0.035, doorLeafH * 0.42, 0.15, mats.woodDark);
       diagBrace.position.set(ox, doorLeafH * 0.72, 0);
       diagBrace.rotation.x = 0.5;
@@ -703,7 +805,7 @@ export class DockStall {
       doorGroup.add(diagBrace);
     });
 
-    // Voxel Brass Door Handles (Exterior +X, Interior -X)
+    // Voxel Brass Door Handles
     const handleY = 1.65;
     const handleZ = doorLeafW / 2 - 0.22;
 
@@ -727,7 +829,6 @@ export class DockStall {
     intHandle.userData = { isShopDoor: true };
     doorGroup.add(intHandle);
 
-    // Register door references for player interaction and raycasting
     this.shopDoor = doorLeaf;
     this.doorInteractables = [doorLeaf, extHandle, extPlate, intHandle, intPlate];
 
@@ -771,7 +872,6 @@ export class DockStall {
     const roofPeakY = shopH + 1.85;
     const shingleSteps = 8;
 
-    // Left and right stepped shingle tiers climbing towards the ridge at Z = 0
     for (let s = 0; s < shingleSteps; s++) {
       const t = s / shingleSteps;
       const nextT = (s + 1) / shingleSteps;
@@ -785,17 +885,14 @@ export class DockStall {
 
       const tileMat = s % 2 === 0 ? mats.roofTile : createVoxelMat(Palette.roofTileDark, { roughness: 0.95 });
 
-      // Front slope tier (+Z)
       const frontStep = createVoxelBox(roofW, stepH, stepDepth, tileMat);
       frontStep.position.set(0, y + stepH / 2, stepZ);
       roofGroup.add(frontStep);
 
-      // Back slope tier (-Z)
       const backStep = createVoxelBox(roofW, stepH, stepDepth, tileMat);
       backStep.position.set(0, y + stepH / 2, -stepZ);
       roofGroup.add(backStep);
 
-      // Eaves rafter brackets on the lowest 2 steps
       if (s === 0) {
         [-roofW / 2 + 0.4, -shopW / 4, 0, shopW / 4, roofW / 2 - 0.4].forEach(rx => {
           const rafterFront = createVoxelBox(0.18, 0.22, 0.45, mats.woodDark);
@@ -809,19 +906,16 @@ export class DockStall {
       }
     }
 
-    // Heavy Ridge Cap Beam along the peak
     const ridgeBeam = createVoxelBox(roofW + 0.35, 0.28, 0.45, mats.roofRidge);
     ridgeBeam.position.set(0, roofPeakY + 0.14, 0);
     roofGroup.add(ridgeBeam);
 
-    // Ridge end finials
     [-roofW / 2 - 0.15, roofW / 2 + 0.15].forEach(fx => {
       const finial = createVoxelBox(0.2, 0.45, 0.35, mats.woodDark);
       finial.position.set(fx, roofPeakY + 0.25, 0);
       roofGroup.add(finial);
     });
 
-    // Gable triangular wall infills (Left & Right)
     [leftX, rightX].forEach(gx => {
       for (let g = 0; g < 4; g++) {
         const gt = g / 4;
@@ -834,7 +928,7 @@ export class DockStall {
     });
 
     // -------------------------------------------------------------------------
-    // 4. SERVING COUNTER & DISPLAY SHELVES
+    // 4. SERVING COUNTER & DISPLAY SHELVES (With Finished Textured Underside)
     // -------------------------------------------------------------------------
     const deskGroup = new THREE.Group();
     shop.add(deskGroup);
@@ -843,8 +937,8 @@ export class DockStall {
     const deskD = 1.8;
     const counterY = 2.0;
 
-    // Heavy Voxel Corner Legs
-    const legGeo = new THREE.BoxGeometry(0.28, counterY, 0.28);
+    // Corner Legs
+    const legGeo = new THREE.BoxGeometry(0.26, counterY, 0.26);
     [
       [-deskW / 2 + 0.18, frontZ - 0.4],
       [deskW / 2 - 0.18, frontZ - 0.4],
@@ -855,7 +949,7 @@ export class DockStall {
       leg.position.set(x, counterY / 2, z);
       deskGroup.add(leg);
 
-      const boot = createVoxelBox(0.34, 0.25, 0.34, mats.brass);
+      const boot = createVoxelBox(0.32, 0.25, 0.32, mats.brass);
       boot.position.set(x, 0.125, z);
       deskGroup.add(boot);
     });
@@ -872,7 +966,6 @@ export class DockStall {
     apron.position.set(0, counterY / 2, frontZ - 0.18);
     deskGroup.add(apron);
 
-    // 3 Recessed carved frame details on front apron
     for (let c = 0; c < 3; c++) {
       const cx = -deskW / 3 + c * (deskW / 3);
       const panelFrame = createVoxelBox(deskW / 3.8, counterY * 0.65, 0.04, mats.woodTrim);
@@ -880,17 +973,28 @@ export class DockStall {
       deskGroup.add(panelFrame);
     }
 
-    // Thick Counter Top with Voxel Brass Inset Trim
+    // Thick Counter Top (Properly using mats.woodHi with rich voxel wood texture!)
     const topPlank = createVoxelBox(deskW + 0.35, 0.18, deskD + 0.42, mats.woodHi);
     topPlank.position.set(0, counterY, frontZ - deskD / 2 + 0.15);
     deskGroup.add(topPlank);
+
+    // Finished wooden underside beam & brackets under the counter overhang
+    const undersideSoffit = createVoxelBox(deskW + 0.30, 0.06, 0.38, mats.woodDark);
+    undersideSoffit.position.set(0, counterY - 0.12, frontZ + 0.05);
+    deskGroup.add(undersideSoffit);
+
+    [-deskW / 2 + 0.4, 0, deskW / 2 - 0.4].forEach(bx => {
+      const bracket = createVoxelBox(0.12, 0.28, 0.22, mats.woodTrim);
+      bracket.position.set(bx, counterY - 0.22, frontZ - 0.05);
+      deskGroup.add(bracket);
+    });
 
     const brassEdgeTrim = createVoxelBox(deskW + 0.38, 0.06, deskD + 0.45, mats.brass);
     brassEdgeTrim.position.set(0, counterY + 0.11, frontZ - deskD / 2 + 0.15);
     deskGroup.add(brassEdgeTrim);
 
     // -------------------------------------------------------------------------
-    // 5. COUNTERTOP & SHELF PROPS (Voxel Models)
+    // 5. COUNTERTOP & SHELF PROPS
     // -------------------------------------------------------------------------
     // (a) Open Ledger Book & Inkpot
     const ledgerGroup = new THREE.Group();
@@ -898,7 +1002,6 @@ export class DockStall {
     ledgerGroup.rotation.y = 0.15;
     deskGroup.add(ledgerGroup);
 
-    // Stepped leather cover + paper pages
     const cover = createVoxelBox(0.62, 0.04, 0.44, mats.woodDark);
     ledgerGroup.add(cover);
     const pagesLeft = createVoxelBox(0.28, 0.06, 0.4, mats.paper);
@@ -910,7 +1013,6 @@ export class DockStall {
     pagesRight.rotation.z = 0.06;
     ledgerGroup.add(pagesRight);
 
-    // Inkpot & Voxel Quill
     const inkwell = createVoxelBox(0.12, 0.12, 0.12, mats.iron);
     inkwell.position.set(0.42, 0.06, 0.05);
     ledgerGroup.add(inkwell);
@@ -938,19 +1040,16 @@ export class DockStall {
     scaleGroup.position.set(deskW / 2 - 0.65, counterY + 0.1, frontZ - 0.6);
     deskGroup.add(scaleGroup);
 
-    // Stepped pedestal & central column
     const scaleBase = createVoxelBox(0.38, 0.08, 0.38, mats.brass);
     scaleGroup.add(scaleBase);
     const scaleShaft = createVoxelBox(0.08, 0.42, 0.08, mats.brass);
     scaleShaft.position.y = 0.24;
     scaleGroup.add(scaleShaft);
 
-    // Horizontal balance beam
     const balanceBeam = createVoxelBox(0.68, 0.05, 0.05, mats.brass);
     balanceBeam.position.y = 0.45;
     scaleGroup.add(balanceBeam);
 
-    // Left and right hanging pans (faceted octagonal boxes)
     [-0.3, 0.3].forEach(px => {
       const chain = createVoxelBox(0.02, 0.16, 0.02, mats.brassDark);
       chain.position.set(px, 0.35, 0);
@@ -966,15 +1065,12 @@ export class DockStall {
     lanternGroup.position.set(deskW / 2 - 0.25, counterY + 0.1, frontZ - 1.1);
     deskGroup.add(lanternGroup);
 
-    // Lantern cage frame
     const lanternFrame = createVoxelBox(0.26, 0.38, 0.26, mats.woodDark);
     lanternGroup.add(lanternFrame);
 
-    // Glowing translucent panes
-    const lanternPane = createVoxelBox(0.24, 0.32, 0.24, mats.lanternGlow);
+    const lanternPane = createVoxelBox(0.24, 0.32, 0.24, mats.lanternGlow, false, true);
     lanternGroup.add(lanternPane);
 
-    // Internal PointLight for night/weather integration
     const lanternLight = new THREE.PointLight(0xffcc77, 2.8, 8, 2);
     lanternLight.position.set(0, 0.2, 0);
     lanternLight.castShadow = true;
@@ -1004,7 +1100,6 @@ export class DockStall {
       const bColor = bottleColors[b % bottleColors.length];
       const bMat = createVoxelMat(bColor, { roughness: 0.2, transparent: true, opacity: 0.82 });
 
-      // Stepped voxel bottle body + neck
       const bodyH = 0.26 + (b % 3) * 0.05;
       const bottleBody = createVoxelBox(0.14, bodyH, 0.14, bMat);
       bottleBody.position.set(bx, 0.78 + bodyH / 2, frontZ - deskD / 2 - 0.05);
@@ -1056,7 +1151,7 @@ export class DockStall {
     });
 
     // Shelf tabletop crate
-    const shelfCrate = createVoxelBox(0.42, 0.24, 0.32, mats.plankHi);
+    const shelfCrate = createVoxelBox(0.42, 0.24, 0.32, mats.woodHi);
     shelfCrate.position.set(1.2, 1.51 + 0.12, frontZ - deskD / 2 - 0.05);
     shelfCrate.rotation.y = 0.15;
     deskGroup.add(shelfCrate);
@@ -1068,7 +1163,6 @@ export class DockStall {
     netMesh.position.set(-1.2, 3.8, backZ + 0.15);
     shop.add(netMesh);
 
-    // Voxel Trophy Fish
     const fishGroup = new THREE.Group();
     fishGroup.position.set(1.4, 3.6, backZ + 0.2);
     fishGroup.rotation.z = 0.08;
@@ -1095,12 +1189,10 @@ export class DockStall {
     const rigging = new THREE.Group();
     shop.add(rigging);
 
-    // Heavy crossbeam spanning the front entrance
     const crossbeam = createVoxelBox(shopW + 0.4, 0.24, 0.32, mats.woodDark);
     crossbeam.position.set(0, shopH - 0.32, frontZ + 0.3);
     rigging.add(crossbeam);
 
-    // Diagonal corner brackets under crossbeam
     [-shopW / 2 + 0.35, shopW / 2 - 0.35].forEach(bx => {
       const bracket = createVoxelBox(0.16, 0.52, 0.16, mats.woodDark);
       bracket.position.set(bx, -0.36, 0);
@@ -1112,13 +1204,11 @@ export class DockStall {
       crossbeam.add(diagStrut);
     });
 
-    // signPivot is animated in update() to swing gently in the breeze
     const signPivot = new THREE.Group();
     signPivot.position.set(0, -0.14, 0.16);
     crossbeam.add(signPivot);
     this.signPivot = signPivot;
 
-    // Voxel hanging chain links
     [-0.9, 0.9].forEach(cx => {
       for (let cl = 0; cl < 3; cl++) {
         const link = createVoxelBox(0.04, 0.16, 0.04, mats.iron);
@@ -1127,7 +1217,6 @@ export class DockStall {
       }
     });
 
-    // Wooden Hanging Sign Board
     const mainSign = createVoxelBox(2.4, 0.78, 0.1, mats.woodHi);
     mainSign.position.set(0, -0.92, 0);
     signPivot.add(mainSign);
@@ -1136,45 +1225,26 @@ export class DockStall {
     signBorder.position.set(0, -0.92, -0.03);
     signPivot.add(signBorder);
 
-    // Voxel Wax Seal Stamp
     const waxSeal = createVoxelBox(0.24, 0.24, 0.06, createVoxelMat(Palette.sealRed, { roughness: 0.4 }));
     waxSeal.position.set(0.72, -0.92, 0.07);
     signPivot.add(waxSeal);
 
     // -------------------------------------------------------------------------
-    // 7. EXTERIOR PROPS (Voxel Barrels, Crates & Lantern Bracket)
+    // 7. EXTERIOR PROPS (Faceted Voxel Barrels & Crates with Zero Clipping)
     // -------------------------------------------------------------------------
-    // 3 Octagonal Voxel Barrels
+    // 3 Octagonal Voxel Barrels (Built with clean faceted staves and offset bands)
     const barrelLocations = [
       { x: leftX - 0.75, z: -0.5, h: 1.25, r: 0.38 },
       { x: leftX - 0.65, z: 0.65, h: 1.05, r: 0.32 },
-      { x: rightX + 0.72, z: -2.0, h: 1.35, r: 0.4 }
+      { x: rightX + 0.72, z: -2.0, h: 1.35, r: 0.4 } // Sits securely on the extended dock!
     ];
     barrelLocations.forEach(b => {
-      const barrelGroup = new THREE.Group();
-      barrelGroup.position.set(b.x, b.h / 2, b.z);
-
-      // Octagonal barrel staves
-      const staves = createVoxelOctagonRing(b.r, b.r * 0.75, b.h, mats.woodAged);
-      staves.rotation.x = Math.PI / 2;
-      barrelGroup.add(staves);
-
-      // Central solid core
-      const core = createVoxelBox(b.r * 1.5, b.h, b.r * 1.5, mats.woodMid);
-      barrelGroup.add(core);
-
-      // Iron hoop bands
-      [-0.32, 0, 0.32].forEach(yOff => {
-        const band = createVoxelOctagonRing(b.r * 1.04, 0.04, 0.08, mats.iron);
-        band.rotation.x = Math.PI / 2;
-        band.position.y = yOff * b.h;
-        barrelGroup.add(band);
-      });
-
-      shop.add(barrelGroup);
+      const barrel = createVoxelBarrel(b.r, b.h, mats.woodAged, mats.iron);
+      barrel.position.set(b.x, b.h / 2, b.z);
+      shop.add(barrel);
     });
 
-    // Stacked Exterior Crates (Moved clear of the doorway)
+    // Stacked Exterior Crates (Properly using mats.woodHi with rich voxel wood texture!)
     const extCrate1 = createVoxelBox(0.85, 0.65, 0.75, mats.woodHi);
     extCrate1.position.set(rightX + 0.75, 0.33, 1.45);
     extCrate1.rotation.y = 0.18;
@@ -1210,7 +1280,7 @@ export class DockStall {
     extLanternCage.position.set(0.42, -0.55, 0);
     extLanternGroup.add(extLanternCage);
 
-    const extLanternGlass = createVoxelBox(0.22, 0.26, 0.22, mats.lanternGlow);
+    const extLanternGlass = createVoxelBox(0.22, 0.26, 0.22, mats.lanternGlow, false, true);
     extLanternGlass.position.set(0.42, -0.55, 0);
     extLanternGroup.add(extLanternGlass);
 
@@ -1227,11 +1297,9 @@ export class DockStall {
       const greyMat = createVoxelMat(Palette.seagullGrey);
       const beakMat = createVoxelMat(Palette.seagullBeak);
 
-      // Body
       const body = createVoxelBox(0.18, 0.14, 0.38, whiteMat);
       gull.add(body);
 
-      // Wings (Spread)
       const leftWing = createVoxelBox(0.42, 0.04, 0.2, greyMat);
       leftWing.position.set(-0.28, 0.04, -0.02);
       leftWing.rotation.z = 0.15;
@@ -1242,7 +1310,6 @@ export class DockStall {
       rightWing.rotation.z = -0.15;
       gull.add(rightWing);
 
-      // Head & Beak
       const head = createVoxelBox(0.12, 0.12, 0.16, whiteMat);
       head.position.set(0, 0.08, 0.22);
       gull.add(head);
