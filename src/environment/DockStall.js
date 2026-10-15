@@ -535,7 +535,7 @@ export class DockStall {
     });
 
     // Easter Egg: Voxel Lop-Eared Bunny hopping around island grass
-    this.bunny = new VoxelLopBunny(islandGroup, new THREE.Vector3(0, 2.0, 2.5));
+    this.bunny = new VoxelLopBunny(islandGroup, new THREE.Vector3(0, 2.0, 2.5), this.group);
     this.bunnyInteractables = this.bunny.interactables;
 
     // =========================================================================

@@ -562,7 +562,7 @@ export class DockPlayerController {
       const hit = hits[i];
       if (hit.object && hit.object.userData) {
         if (hit.object.userData.isBunny) {
-          if (hit.distance <= 5.8) {
+          if (hit.distance <= 6.5) {
             this._setHoverState(hit.object, 'bunny');
             return;
           }

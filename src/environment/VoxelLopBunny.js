@@ -129,12 +129,18 @@ export class VoxelLopBunny {
   /**
    * @param {THREE.Group} parentGroup - Island group to attach the bunny to
    * @param {THREE.Vector3} initialPos - Starting local position on island
+   * @param {THREE.Object3D} [terrainRoot] - Environment root to raycast ground terrain against
    */
-  constructor(parentGroup, initialPos = new THREE.Vector3(0, 2.0, 2.5)) {
+  constructor(parentGroup, initialPos = new THREE.Vector3(0, 2.0, 2.5), terrainRoot = null) {
     this.parentGroup = parentGroup;
+    this.terrainRoot = terrainRoot || parentGroup;
     this.group = new THREE.Group();
     this.group.position.copy(initialPos);
+    this.group.scale.setScalar(1.45); // Scale bunny up ~45% larger
     this.baseY = initialPos.y;
+
+    this.downRaycaster = new THREE.Raycaster();
+    this.downRaycaster.far = 15.0;
 
     this.audio = new BunnyAudio();
 
@@ -154,11 +160,11 @@ export class VoxelLopBunny {
     this.state = 'idle';
     this.stateTimer = 1.5;
 
-    // Movement & AI Bounds (Island local coordinates on flat grass meadow)
-    this.minX = -4.0;
-    this.maxX = 4.0;
-    this.minZ = -3.5;
-    this.maxZ = 4.0;
+    // Movement & AI Bounds across the island landmass
+    this.minX = -9.5;
+    this.maxX = 8.5;
+    this.minZ = -8.0;
+    this.maxZ = 7.5;
 
     this.targetPos = new THREE.Vector3(initialPos.x, initialPos.y, initialPos.z);
     this.moveVelocity = new THREE.Vector3();
@@ -363,18 +369,64 @@ export class VoxelLopBunny {
       1.0 + Math.sin(time * 4) * 0.015
     );
 
+    // Keep grounded in idle (track tiered ground beneath feet)
+    const groundY = this._getGroundHeightAt(this.group.position.x, this.group.position.z);
+    if (groundY !== null) {
+      this.baseY += (groundY - this.baseY) * Math.min(1.0, delta * 10.0);
+      this.group.position.y = this.baseY;
+    }
+
     // Time to pick a new spot and hop!
     if (this.stateTimer <= 0) {
       this._pickNewHopTarget();
     }
   }
 
-  _pickNewHopTarget() {
-    // Pick random target within island grass territory
-    const tx = this.minX + Math.random() * (this.maxX - this.minX);
-    const tz = this.minZ + Math.random() * (this.maxZ - this.minZ);
-    this.targetPos.set(tx, this.baseY, tz);
+  _getGroundHeightAt(localX, localZ) {
+    if (!this.terrainRoot || !this.parentGroup) return 2.0;
 
+    // Convert local position to world coordinates for raycasting
+    const worldOrigin = new THREE.Vector3(localX, 12.0, localZ);
+    this.parentGroup.localToWorld(worldOrigin);
+
+    this.downRaycaster.set(worldOrigin, new THREE.Vector3(0, -1, 0));
+    const hits = this.downRaycaster.intersectObject(this.terrainRoot, true);
+
+    for (let i = 0; i < hits.length; i++) {
+      const hit = hits[i];
+      // Ignore bunny's own meshes or hitboxes
+      if (hit.object && hit.object.userData && hit.object.userData.isBunny) continue;
+      // Ignore high elements (roofs, sign, high trees above 5.0m)
+      if (hit.point.y > 5.0) continue;
+      // Ignore below water level
+      if (hit.point.y < 0.5) continue;
+
+      // Convert world hit point back to island local coordinates
+      const localHit = this.parentGroup.worldToLocal(hit.point.clone());
+      return localHit.y;
+    }
+
+    return null;
+  }
+
+  _pickNewHopTarget() {
+    let bestTarget = null;
+    for (let attempts = 0; attempts < 6; attempts++) {
+      const tx = this.minX + Math.random() * (this.maxX - this.minX);
+      const tz = this.minZ + Math.random() * (this.maxZ - this.minZ);
+      const ty = this._getGroundHeightAt(tx, tz);
+      if (ty !== null) {
+        bestTarget = new THREE.Vector3(tx, ty, tz);
+        break;
+      }
+    }
+
+    if (!bestTarget) {
+      this.stateTimer = 1.5;
+      return;
+    }
+
+    this.targetPos.copy(bestTarget);
     const diff = new THREE.Vector3().subVectors(this.targetPos, this.group.position);
     diff.y = 0;
     const dist = diff.length();
@@ -384,7 +436,7 @@ export class VoxelLopBunny {
       return;
     }
 
-    this.hopsRemaining = Math.min(5, Math.max(2, Math.floor(dist / 0.55)));
+    this.hopsRemaining = Math.min(6, Math.max(2, Math.floor(dist / 0.55)));
     this.state = 'hop';
     this.hopTimer = 0;
 
@@ -403,8 +455,27 @@ export class VoxelLopBunny {
     this.hopTimer += delta;
     const progress = (this.hopTimer % this.hopDuration) / this.hopDuration;
 
+    // Move forward in facing direction during middle of hop
+    if (progress > 0.15 && progress < 0.85) {
+      const hopSpeed = 1.45;
+      const forward = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.group.rotation.y);
+      const nextX = this.group.position.x + forward.x * hopSpeed * delta;
+      const nextZ = this.group.position.z + forward.z * hopSpeed * delta;
+
+      const groundY = this._getGroundHeightAt(nextX, nextZ);
+      if (groundY !== null) {
+        // Can climb up or descend tiers (up to 1.35m step, covering all island hill tiers)
+        if (Math.abs(groundY - this.baseY) <= 1.35) {
+          this.group.position.x = nextX;
+          this.group.position.z = nextZ;
+          // Smoothly climb or descend to new tier elevation
+          this.baseY += (groundY - this.baseY) * Math.min(1.0, delta * 12.0);
+        }
+      }
+    }
+
     // Parabolic vertical hop arc
-    const hopHeight = Math.sin(progress * Math.PI) * 0.16;
+    const hopHeight = Math.sin(progress * Math.PI) * 0.22;
     this.group.position.y = this.baseY + hopHeight;
 
     // Body pitch tilt forward during leap
@@ -420,20 +491,18 @@ export class VoxelLopBunny {
     this.legBL.position.y = -0.07 - Math.sin(progress * Math.PI) * 0.05;
     this.legBR.position.y = -0.07 - Math.sin(progress * Math.PI) * 0.05;
 
-    // Move forward in facing direction during middle of hop
-    if (progress > 0.15 && progress < 0.85) {
-      const hopSpeed = 1.35;
-      const forward = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.group.rotation.y);
-      this.group.position.addScaledVector(forward, hopSpeed * delta);
-    }
-
     // Completed one hop
     if (this.hopTimer >= this.hopDuration) {
       this.hopTimer = 0;
       this.hopsRemaining--;
 
+      const groundAtLand = this._getGroundHeightAt(this.group.position.x, this.group.position.z);
+      if (groundAtLand !== null) {
+        this.baseY = groundAtLand;
+      }
+      this.group.position.y = this.baseY;
+
       if (this.hopsRemaining <= 0) {
-        this.group.position.y = this.baseY;
         this.bodyGroup.rotation.x = 0;
         this.state = 'idle';
         this.stateTimer = 1.2 + Math.random() * 2.5;
