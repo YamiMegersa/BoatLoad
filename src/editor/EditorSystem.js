@@ -215,6 +215,13 @@ export class EditorSystem {
       }
     });
 
+    on('editorToggleGodRays', d => {
+      if (this._levelCfg) this._levelCfg.godRays = d.enabled;
+      if (this._envManager) {
+        this._envManager._godRaysEnabled = d.enabled;
+      }
+    });
+
     on('editorExport', () => this.exportLevel());
 
     // Boss Encounter Events
@@ -439,6 +446,7 @@ export class EditorSystem {
     off('editorSetFogDensity');
     off('editorSetTimeOfDay');
     off('editorSetStormy');
+    off('editorToggleGodRays');
     off('editorExport');
     off('editorSelectTentacle');
     off('editorAddTentacle');
@@ -791,6 +799,7 @@ export class EditorSystem {
       fogDensity: this._levelCfg?.fogDensity !== undefined ? this._levelCfg.fogDensity : 0.006,
       timeOfDay: this._levelCfg?.timeOfDay !== undefined ? this._levelCfg.timeOfDay : 8.0,
       isStormy: this._levelCfg?.isStormy || false,
+      godRays: this._levelCfg?.godRays !== undefined ? this._levelCfg.godRays : true,
       voxels: this._voxelTerrain ? this._voxelTerrain.serialize() : null,
       obstacles: this._placedObstacles
         .filter(obs => obs.type !== 'siren')

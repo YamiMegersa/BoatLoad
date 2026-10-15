@@ -36,6 +36,7 @@ export class EditorUI {
     const fogDensity = levelCfg.fogDensity !== undefined ? levelCfg.fogDensity : 0.006;
     const timeOfDay = levelCfg.timeOfDay !== undefined ? levelCfg.timeOfDay : 8.0;
     const isStormy = !!levelCfg.isStormy;
+    this._godRaysEnabled = levelCfg.godRays !== undefined ? !!levelCfg.godRays : (window.godRays ? window.godRays.enabled : true);
 
     this._el = document.createElement('div');
     this._el.id = 'editor-ui-container';
@@ -44,6 +45,14 @@ export class EditorUI {
     this._el.addEventListener('pointerdown', e => e.stopPropagation());
     this._el.addEventListener('click', e => e.stopPropagation());
     this._el.addEventListener('wheel', e => e.stopPropagation());
+
+    this._onKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.code === 'KeyG') {
+        this._setGodRays(!this._godRaysEnabled);
+      }
+    };
+    window.addEventListener('keydown', this._onKeyDown);
 
     // Curated display names
     const getFriendlyName = (url, type) => {
@@ -229,6 +238,12 @@ export class EditorUI {
                 <span class="dropdown-item-icon">⛵</span>
                 <span class="dropdown-item-text">Sea Level View</span>
                 <span class="dropdown-item-hotkey">0</span>
+              </button>
+              <div class="dropdown-divider"></div>
+              <button class="dropdown-item" id="btn-menu-toggle-godrays">
+                <span class="dropdown-item-icon">✨</span>
+                <span class="dropdown-item-text">God Rays</span>
+                <span class="dropdown-item-hotkey" id="godrays-menu-badge">${this._godRaysEnabled !== false ? 'ON (G)' : 'OFF (G)'}</span>
               </button>
             </div>
           </div>
@@ -539,6 +554,17 @@ export class EditorUI {
               <span class="toggle-label">⛈️ Stormy Weather</span>
             </label>
           </div>
+
+          <div class="ribbon-divider"></div>
+
+          <div class="ribbon-group">
+            <span class="ribbon-group-label">Atmosphere</span>
+            <label class="editor-toggle-switch">
+              <input type="checkbox" id="godrays-check" ${this._godRaysEnabled !== false ? 'checked' : ''}>
+              <span class="toggle-slider"></span>
+              <span class="toggle-label">✨ God Rays</span>
+            </label>
+          </div>
         </div>
 
         <!-- ==================== TAB 4: PAPER SHADER & POST-FX ==================== -->
@@ -556,6 +582,17 @@ export class EditorUI {
                 <option value="1">🎨 Kuwahara (Painterly)</option>
               </select>
             </div>
+          </div>
+
+          <div class="ribbon-divider"></div>
+
+          <div class="ribbon-group">
+            <span class="ribbon-group-label">Atmosphere</span>
+            <label class="editor-toggle-switch">
+              <input type="checkbox" id="godrays-check-paper" ${this._godRaysEnabled !== false ? 'checked' : ''}>
+              <span class="toggle-slider"></span>
+              <span class="toggle-label">✨ God Rays</span>
+            </label>
           </div>
 
           <div class="ribbon-divider"></div>
@@ -634,6 +671,7 @@ export class EditorUI {
               <div class="shortcut-row"><span class="shortcut-key">W / A / S / D</span><span class="shortcut-desc">Pan camera forward / left / back / right</span></div>
               <div class="shortcut-row"><span class="shortcut-key">Q / E (or Shift / Space)</span><span class="shortcut-desc">Descend / Ascend camera height</span></div>
               <div class="shortcut-row"><span class="shortcut-key">1 / 7 / 3 / 0</span><span class="shortcut-desc">Snap camera to Default, Top-Down, Isometric, Horizon</span></div>
+              <div class="shortcut-row"><span class="shortcut-key">G</span><span class="shortcut-desc">Toggle God Rays (crepuscular sun/moon rays)</span></div>
             </div>
 
             <div class="shortcut-group">
@@ -762,6 +800,12 @@ export class EditorUI {
         closeAllDropdowns();
         this._showToast(`Switched Camera View: ${btn.querySelector('.dropdown-item-text')?.innerText || btn.dataset.cam}`);
       };
+    });
+
+    // View Menu - God Rays Toggle
+    this._el.querySelector('#btn-menu-toggle-godrays')?.addEventListener('click', () => {
+      closeAllDropdowns();
+      this._setGodRays(!this._godRaysEnabled);
     });
 
     // File Menu items
@@ -1114,6 +1158,14 @@ export class EditorUI {
         emit('editorSetStormy', { isStormy: e.target.checked });
       };
     }
+
+    // God Rays Checkbox (World tab)
+    const godraysCheck = this._el.querySelector('#godrays-check');
+    if (godraysCheck) {
+      godraysCheck.onchange = (e) => {
+        this._setGodRays(e.target.checked);
+      };
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -1124,6 +1176,14 @@ export class EditorUI {
     if (paperCheck) {
       paperCheck.onchange = (e) => {
         emit('editorTogglePaperShader', { enabled: e.target.checked });
+      };
+    }
+
+    // God Rays Checkbox (Paper tab)
+    const godraysCheckPaper = this._el.querySelector('#godrays-check-paper');
+    if (godraysCheckPaper) {
+      godraysCheckPaper.onchange = (e) => {
+        this._setGodRays(e.target.checked);
       };
     }
 
@@ -1235,6 +1295,21 @@ export class EditorUI {
       applyShaderPreset(7.0, 2, 0.20, 0.50, 0.0010, 0);
       this._showToast('Applied "Comic Ink" shader preset.');
     });
+  }
+
+  _setGodRays(enabled) {
+    this._godRaysEnabled = !!enabled;
+    const badge = this._el?.querySelector('#godrays-menu-badge');
+    if (badge) badge.innerText = this._godRaysEnabled ? 'ON (G)' : 'OFF (G)';
+
+    const check1 = this._el?.querySelector('#godrays-check');
+    if (check1) check1.checked = this._godRaysEnabled;
+
+    const check2 = this._el?.querySelector('#godrays-check-paper');
+    if (check2) check2.checked = this._godRaysEnabled;
+
+    emit('editorToggleGodRays', { enabled: this._godRaysEnabled });
+    this._showToast(`God Rays: ${this._godRaysEnabled ? 'Enabled' : 'Disabled'}`);
   }
 
   // -------------------------------------------------------------------------
@@ -1423,6 +1498,10 @@ export class EditorUI {
       const stormCheck = this._el?.querySelector('#storm-check');
       if (stormCheck) stormCheck.checked = !!cfg.isStormy;
     }
+
+    if (cfg.godRays !== undefined) {
+      this._setGodRays(cfg.godRays);
+    }
   }
 
   _updateStatusBadges() {
@@ -1486,6 +1565,10 @@ export class EditorUI {
   }
 
   unmount() {
+    if (this._onKeyDown) {
+      window.removeEventListener('keydown', this._onKeyDown);
+      this._onKeyDown = null;
+    }
     if (this._onBossConfigUpdated) {
       off('editorBossConfigUpdated', this._onBossConfigUpdated);
       this._onBossConfigUpdated = null;

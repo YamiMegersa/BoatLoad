@@ -83,7 +83,9 @@ const gameState = new GameState(scene, camera, renderer);
 gameState._ambient = ambient;
 gameState._sun = sun;
 gameState._moon = moon;
+gameState._godRays = godRays;
 window.gameState = gameState;
+window.godRays = godRays;
 window.exportToGLB = exportToGLB;
 
 const buildMenu = new BuildMenu();
@@ -326,7 +328,10 @@ async function boot() {
       }
     });
 
-    // Wire up Paper Shader sliders
+    // Wire up God Rays & Paper Shader toggles/sliders
+    on('editorToggleGodRays', d => {
+      godRays.enabled = !!d.enabled;
+    });
     on('editorTogglePaperShader', d => paperShaderEnabled = d.enabled);
     on('editorSetPaperStyle', d => {
       userPaperStyle = d.style;
