@@ -10,11 +10,12 @@ import { DialogueBox } from './ui/DialogueBox.js';
 import { PauseMenu } from './ui/PauseMenu.js';
 import { DockUI } from './ui/DockUI.js';
 import { MainMenuUI } from './ui/MainMenuUI.js';
-import { ResultsUI } from './ui/ResultsUI.js';
 import { ParticleSystem } from './environment/ParticleSystem.js';
 import { DamageSystem } from './shipyard/DamageSystem.js';
 import { GodRays } from './environment/GodRays.js';
 import { PaperFilter } from './environment/PaperFilter.js';
+import { AudioManager } from './utils/AudioManager.js';
+import { DEBUG } from './utils/debug.js';
 import { exportToGLB } from './utils/exportGLTF.js';
 import { DirectorMode } from './director/DirectorMode.js';
 import './ui/ui.css';
@@ -89,11 +90,32 @@ window.gameState = gameState;
 window.godRays = godRays;
 window.exportToGLB = exportToGLB;
 
+// Dev-only test helpers (?debug) — used by the iteration-2 test matrix to
+// reach hard-to-reach states quickly (sink, low water, day jumps).
+if (DEBUG) {
+  window.__dev = {
+    sink:     () => emit('playerSunk'),
+    setWater: (n)  => { if (gameState._playerShip) gameState._playerShip.waterLevel = n; },
+    damage:   (n)  => gameState._playerShip?.takeDamage(n, 'dev'),
+    day:      (n)  => { gameState.day = n; },
+  };
+  console.info('[BoatLoad] Debug mode — window.__dev helpers: sink(), setWater(n), damage(n), day(n)');
+}
+
+// Audio: one global instance. Browsers suspend AudioContexts until the first
+// user gesture, so unlock on the first pointer/key input; M toggles mute.
+const audio = new AudioManager();
+const unlockAudio = () => audio.unlock();
+window.addEventListener('pointerdown', unlockAudio, { once: true });
+window.addEventListener('keydown', unlockAudio, { once: true });
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'KeyM') audio.toggleMute();
+});
+
 const buildMenu = new BuildMenu();
 const docket = new DocketSheet();
 const dockUI = new DockUI();
 const mainMenuUI = new MainMenuUI();
-const resultsUI = new ResultsUI();
 const hud = new HUD();
 const dialogue = new DialogueBox();
 const pauseMenu = new PauseMenu();
@@ -230,69 +252,167 @@ demoUI.innerHTML = `
     <button id="btn-obstacle" style="flex:1; padding: 8px; cursor: pointer;">Sailing</button>
     <button id="btn-editor" style="flex:1; padding: 8px; cursor: pointer; background: #474b6b; color: white; border: 1px solid #556;">Editor</button>
   </div>
-  <div id="demo-log" style="height: 120px; overflow-y: auto; background: #111; padding: 5px; font-size: 11px; color: #0f0; border: 1px solid #333;">
-    Ready.<br>
-  </div>
 `;
 document.getElementById('ui-root')?.appendChild(demoUI);
 
-const logDiv = demoUI.querySelector('#demo-log');
 function logEvent(msg) {
-  if (!logDiv) return;
-  logDiv.innerHTML += `> ${msg}<br>`;
-  logDiv.scrollTop = logDiv.scrollHeight;
+  if (DEBUG) console.info(`[BoatLoad] ${msg}`);
 }
+
+// ---------------------------------------------------------------------------
+// Notice banner (build failures, day progression notes)
+// ---------------------------------------------------------------------------
+
+const noticeBanner = document.createElement('div');
+noticeBanner.id = 'notice-banner';
+noticeBanner.style.cssText = `
+  position: absolute; top: 60px; left: 50%; transform: translateX(-50%);
+  z-index: 200; background: rgba(140, 20, 20, 0.92); color: #fff;
+  padding: 10px 18px; font-family: monospace; font-size: 14px;
+  border-radius: 6px; border: 1px solid #ff6b6b; display: none;
+  pointer-events: none; max-width: 80%;
+`;
+document.getElementById('ui-root')?.appendChild(noticeBanner);
+
+let noticeTimer = null;
+function showNotice(message, ms = 5000) {
+  if (!noticeBanner) return;
+  noticeBanner.textContent = message;
+  noticeBanner.style.display = 'block';
+  clearTimeout(noticeTimer);
+  noticeTimer = setTimeout(() => { noticeBanner.style.display = 'none'; }, ms);
+}
+
+on('buildError', (d) => {
+  console.error('[BoatLoad] Build error:', d.message);
+  logEvent(`[Build] ERROR: ${d.message}`);
+  showNotice(`⚠ ${d.message}`);
+});
 
 // ---------------------------------------------------------------------------
 // Boot
 // ---------------------------------------------------------------------------
 
+const MAX_DAY = 7;
+
 async function boot() {
   try {
-    // Load Day 1 data
-    const { shipDef, levelCfg, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel } = await LevelConfig.load(1);
+    // Start day: ?debug&day=N jumps straight to a day (dev aid), else day 1.
+    const startDay = DEBUG
+      ? Math.max(1, Math.min(MAX_DAY, parseInt(new URLSearchParams(location.search).get('day')) || 1))
+      : 1;
+
+    // The active day's content. Reloaded via syncLevel() whenever gameState.day changes.
+    let level = await LevelConfig.load(startDay);
+    let loadedDay = startDay;
+    gameState.day = startDay;
+
     // Expose to window for debugging if needed
-    window.__DEBUG_ROCK_MODELS = rockModels;
+    window.__DEBUG_ROCK_MODELS = level.rockModels;
+
+    // Reload level content when the day changed (e.g. after passing a voyage).
+    // A missing day JSON falls back to the last valid day with a console error.
+    async function syncLevel() {
+      if (gameState.day === loadedDay) return;
+
+      if (gameState.day > MAX_DAY) {
+        logEvent('[Level] All days cleared — voyage complete! Replaying the final day.');
+        showNotice('⛵ ALL 7 DAYS CLEARED — VOYAGE COMPLETE! ⛵', 8000);
+        gameState.day = MAX_DAY;
+        if (loadedDay === MAX_DAY) return;
+      }
+
+      const day = gameState.day;
+      try {
+        level = await LevelConfig.load(day);
+        loadedDay = day;
+        window.__DEBUG_ROCK_MODELS = level.rockModels;
+        logEvent(`[Level] Day ${day} loaded`);
+      } catch (e) {
+        console.error(`[Level] Failed to load day ${day} — keeping day ${loadedDay}`, e);
+        logEvent(`[Level] Day ${day} unavailable — staying on day ${loadedDay}`);
+        gameState.day = loadedDay;
+      }
+    }
+
+    // Shared payload builders so every handler reads the CURRENT day's content
+    // instead of variables captured once at boot.
+    function sailPayload(levelCfgOverride = null) {
+      let hp = 100;
+      if (gameState._grid) {
+        hp = DamageSystem.getSummary(gameState._grid).integrityPct;
+      }
+      return {
+        shipDef: level.shipDef,
+        levelCfg: levelCfgOverride ?? (gameState._levelCfg || level.levelCfg),
+        shipStats: { hullHP: hp },
+        rockModels: level.rockModels,
+        fishModels: level.fishModels,
+        pickupModels: level.pickupModels,
+        seaweedModels: level.seaweedModels,
+        waveModels: level.waveModels,
+        islandModels: level.islandModels,
+        sirenModel: level.sirenModel,
+        krakenModel: level.krakenModel,
+      };
+    }
+
+    function shipyardPayload() {
+      return { shipDef: level.shipDef, levelCfg: level.levelCfg, fishModels: level.fishModels };
+    }
+
+    function editorPayload() {
+      return {
+        levelCfg: gameState._levelCfg || level.levelCfg,
+        rockModels: level.rockModels, pickupModels: level.pickupModels,
+        seaweedModels: level.seaweedModels, waveModels: level.waveModels,
+        islandModels: level.islandModels,
+        sirenModel: level.sirenModel, krakenModel: level.krakenModel,
+      };
+    }
 
     // Wire buttons
     document.getElementById('btn-main-menu').onclick = () => {
       logEvent('Transitioning to Main Menu...');
       gameState.transition(GamePhase.MAIN_MENU);
     };
-    document.getElementById('btn-dock').onclick = () => {
+    document.getElementById('btn-dock').onclick = async () => {
       logEvent('Transitioning to Dock...');
-      const activeShipId = gameState._levelCfg?.ship || levelCfg?.ship || DEFAULT_SHIP_ID;
+      await syncLevel();
+      const activeShipId = gameState._levelCfg?.ship || level.levelCfg?.ship || DEFAULT_SHIP_ID;
       const activeShipDef = LevelConfig.getShipDef(activeShipId);
-      gameState.transition(GamePhase.DOCK, { shipDef: activeShipDef, levelCfg: gameState._levelCfg || levelCfg, fishModels });
+      gameState.transition(GamePhase.DOCK, { shipDef: activeShipDef, levelCfg: gameState._levelCfg || level.levelCfg, fishModels: level.fishModels });
     };
-    document.getElementById('btn-shipyard').onclick = () => {
+    document.getElementById('btn-shipyard').onclick = async () => {
       logEvent('Transitioning to Shipyard...');
-      const activeShipId = gameState._levelCfg?.ship || levelCfg?.ship || DEFAULT_SHIP_ID;
+      await syncLevel();
+      const activeShipId = gameState._levelCfg?.ship || level.levelCfg?.ship || DEFAULT_SHIP_ID;
       const activeShipDef = LevelConfig.getShipDef(activeShipId);
-      gameState.transition(GamePhase.SHIPYARD, { shipDef: activeShipDef, levelCfg: gameState._levelCfg || levelCfg, fishModels });
+      gameState.transition(GamePhase.SHIPYARD, { shipDef: activeShipDef, levelCfg: gameState._levelCfg || level.levelCfg, fishModels: level.fishModels });
     };
-    document.getElementById('btn-obstacle').onclick = () => {
+    document.getElementById('btn-obstacle').onclick = async () => {
       logEvent('Transitioning to Sailing...');
-      const activeShipId = gameState._levelCfg?.ship || levelCfg?.ship || DEFAULT_SHIP_ID;
+      await syncLevel();
+      const activeShipId = gameState._levelCfg?.ship || level.levelCfg?.ship || DEFAULT_SHIP_ID;
       const activeShipDef = LevelConfig.getShipDef(activeShipId);
       const profile = ShipRegistry.get(activeShipId);
       let hp = profile.hullHP;
       if (gameState._grid) {
         hp = Math.round((DamageSystem.getSummary(gameState._grid).integrityPct / 100) * profile.hullHP);
       }
-      gameState.transition(GamePhase.OBSTACLE, { 
-        shipDef: activeShipDef, 
-        levelCfg: gameState._levelCfg || levelCfg, 
-        shipStats: { hullHP: hp }, 
-        rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel 
+      gameState.transition(GamePhase.OBSTACLE, {
+        shipDef: activeShipDef,
+        levelCfg: gameState._levelCfg || level.levelCfg,
+        shipStats: { hullHP: hp },
+        rockModels: level.rockModels, fishModels: level.fishModels, pickupModels: level.pickupModels,
+        seaweedModels: level.seaweedModels, waveModels: level.waveModels, islandModels: level.islandModels,
+        sirenModel: level.sirenModel, krakenModel: level.krakenModel
       });
     };
-    document.getElementById('btn-editor').onclick = () => {
+    document.getElementById('btn-editor').onclick = async () => {
       logEvent('Transitioning to Level Editor...');
-      gameState.transition(GamePhase.EDITOR, { 
-        levelCfg: gameState._levelCfg || levelCfg, 
-        rockModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel 
-      });
+      await syncLevel();
+      gameState.transition(GamePhase.EDITOR, editorPayload());
     };
 
     // Listen for UI events
@@ -302,10 +422,16 @@ async function boot() {
     on('obstacleHit',        d => logEvent(`[Obstacle] hit by ${d.type} -${d.damage} HP`));
     on('playerDamaged',      () => logEvent(`[Collision] Hull breached!`));
     on('playerSunk',         () => logEvent('[SUNK] Game Over'));
+    on('voyageLost', async () => {
+      setPaused(false);
+      showNotice('Voyage lost — repair the wreck before setting sail again.', 6000);
+      await gameState.transition(GamePhase.SHIPYARD, shipyardPayload());
+    });
 
     // Start sailing from shipyard or dock
-    on('startSailing', () => {
-      const activeShipId = gameState._levelCfg?.ship || levelCfg?.ship || DEFAULT_SHIP_ID;
+    on('startSailing', async () => {
+      await syncLevel();
+      const activeShipId = gameState._levelCfg?.ship || level.levelCfg?.ship || DEFAULT_SHIP_ID;
       const activeShipDef = LevelConfig.getShipDef(activeShipId);
       const profile = ShipRegistry.get(activeShipId);
       let hp = profile.hullHP;
@@ -314,9 +440,11 @@ async function boot() {
       }
       gameState.transition(GamePhase.OBSTACLE, {
         shipDef: activeShipDef,
-        levelCfg: gameState._levelCfg || levelCfg,
+        levelCfg: gameState._levelCfg || level.levelCfg,
         shipStats: { hullHP: hp },
-        rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel
+        rockModels: level.rockModels, fishModels: level.fishModels, pickupModels: level.pickupModels,
+        seaweedModels: level.seaweedModels, waveModels: level.waveModels, islandModels: level.islandModels,
+        sirenModel: level.sirenModel, krakenModel: level.krakenModel
       });
     });
 
@@ -332,7 +460,7 @@ async function boot() {
           gameState.transition(GamePhase.DOCK, {
             shipDef: activeShipDef,
             levelCfg: customLevelCfg,
-            fishModels
+            fishModels: level.fishModels
           });
         } else {
           logEvent(`Playing Custom Level from Editor with vessel [${profile.name}]...`);
@@ -341,11 +469,13 @@ async function boot() {
             hp = Math.round((DamageSystem.getSummary(gameState._grid).integrityPct / 100) * profile.hullHP);
           }
 
-          gameState.transition(GamePhase.OBSTACLE, { 
-            shipDef: activeShipDef, 
-            levelCfg: customLevelCfg, 
-            shipStats: { hullHP: hp, profile }, 
-            rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel 
+          gameState.transition(GamePhase.OBSTACLE, {
+            shipDef: activeShipDef,
+            levelCfg: customLevelCfg,
+            shipStats: { hullHP: hp, profile },
+            rockModels: level.rockModels, fishModels: level.fishModels, pickupModels: level.pickupModels,
+            seaweedModels: level.seaweedModels, waveModels: level.waveModels, islandModels: level.islandModels,
+            sirenModel: level.sirenModel, krakenModel: level.krakenModel
           });
         }
       }
@@ -367,23 +497,26 @@ async function boot() {
     on('editorSetPaperWobble', d => paperFilter.setWobbleIntensity(d.intensity));
 
     // Request phase changes from UI
-    on('requestPhaseChange', ({ phase }) => {
+    on('requestPhaseChange', async ({ phase }) => {
       if (phase === GamePhase.MAIN_MENU) {
         logEvent('Main Menu requested...');
         gameState.transition(GamePhase.MAIN_MENU);
       } else if (phase === GamePhase.DOCK) {
         logEvent('Setting Sail -> Arriving at Dock...');
-        const activeShipId = gameState._levelCfg?.ship || levelCfg?.ship || DEFAULT_SHIP_ID;
+        await syncLevel();
+        const activeShipId = gameState._levelCfg?.ship || level.levelCfg?.ship || DEFAULT_SHIP_ID;
         const activeShipDef = LevelConfig.getShipDef(activeShipId);
-        gameState.transition(GamePhase.DOCK, { shipDef: activeShipDef, levelCfg: gameState._levelCfg || levelCfg, fishModels });
+        gameState.transition(GamePhase.DOCK, { shipDef: activeShipDef, levelCfg: gameState._levelCfg || level.levelCfg, fishModels: level.fishModels });
       } else if (phase === GamePhase.SHIPYARD) {
         logEvent('Entering Shipyard...');
-        const activeShipId = gameState._levelCfg?.ship || levelCfg?.ship || DEFAULT_SHIP_ID;
+        await syncLevel();
+        const activeShipId = gameState._levelCfg?.ship || level.levelCfg?.ship || DEFAULT_SHIP_ID;
         const activeShipDef = LevelConfig.getShipDef(activeShipId);
-        gameState.transition(GamePhase.SHIPYARD, { shipDef: activeShipDef, levelCfg: gameState._levelCfg || levelCfg, fishModels });
+        gameState.transition(GamePhase.SHIPYARD, { shipDef: activeShipDef, levelCfg: gameState._levelCfg || level.levelCfg, fishModels: level.fishModels });
       } else if (phase === GamePhase.OBSTACLE) {
         logEvent('Setting Sail -> Heading to High Seas...');
-        const activeShipId = gameState._levelCfg?.ship || levelCfg?.ship || DEFAULT_SHIP_ID;
+        await syncLevel();
+        const activeShipId = gameState._levelCfg?.ship || level.levelCfg?.ship || DEFAULT_SHIP_ID;
         const activeShipDef = LevelConfig.getShipDef(activeShipId);
         const profile = ShipRegistry.get(activeShipId);
         let hp = profile.hullHP;
@@ -392,64 +525,72 @@ async function boot() {
         }
         gameState.transition(GamePhase.OBSTACLE, {
           shipDef: activeShipDef,
-          levelCfg: gameState._levelCfg || levelCfg,
+          levelCfg: gameState._levelCfg || level.levelCfg,
           shipStats: { hullHP: hp },
-          rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel
+          rockModels: level.rockModels, fishModels: level.fishModels, pickupModels: level.pickupModels,
+          seaweedModels: level.seaweedModels, waveModels: level.waveModels, islandModels: level.islandModels,
+          sirenModel: level.sirenModel, krakenModel: level.krakenModel
         });
       } else if (phase === GamePhase.EDITOR) {
         logEvent('Opening Map Maker / Level Editor...');
-        gameState.transition(GamePhase.EDITOR, { levelCfg: gameState._levelCfg || levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels });
+        await syncLevel();
+        gameState.transition(GamePhase.EDITOR, editorPayload());
       }
     });
 
     // Pause handling
-    window.addEventListener('keydown', (e) => {
-      if (e.code === 'Escape') {
-        if (gameState.currentPhase === GamePhase.DOCK || gameState.currentPhase === GamePhase.RESULTS || gameState.currentPhase === GamePhase.MAIN_MENU) return;
-        isPaused = !isPaused;
-        if (isPaused) {
-          emit('uiMount', { screen: 'pause' });
-        } else {
-          emit('uiUnmount', { screen: 'pause' });
-        }
+    function setPaused(paused) {
+      if (isPaused === paused) return;
+      isPaused = paused;
+      emit('gamePaused', { paused });
+      if (paused) {
+        emit('uiMount', { screen: 'pause' });
+      } else {
+        emit('uiUnmount', { screen: 'pause' });
       }
+    }
+
+    function togglePause() {
+      if (gameState.currentPhase === GamePhase.DOCK || gameState.currentPhase === GamePhase.OBSTACLE ||
+          gameState.currentPhase === GamePhase.MAIN_MENU || directorMode.isActive) return;
+      setPaused(!isPaused);
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Escape' && !directorMode.isActive) togglePause();
     });
 
     on('resumeGame', () => {
-      isPaused = false;
-      emit('uiUnmount', { screen: 'pause' });
+      setPaused(false);
     });
 
-    on('restartPhase', () => {
+    on('restartPhase', async () => {
       if (gameState.currentPhase === GamePhase.OBSTACLE) {
-        gameState.transition(GamePhase.OBSTACLE, { levelCfg: gameState._levelCfg || levelCfg, shipStats: {}, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels }, true);
+        gameState.restartSailing();
       } else if (gameState.currentPhase === GamePhase.SHIPYARD) {
-        gameState.transition(GamePhase.SHIPYARD, { shipDef, levelCfg, fishModels }, true);
+        await syncLevel();
+        gameState.transition(GamePhase.SHIPYARD, shipyardPayload(), true);
       }
     });
 
-    on('gotoShipyard', () => {
-      isPaused = false;
-      emit('uiUnmount', { screen: 'pause' });
-      gameState.transition(GamePhase.SHIPYARD, { shipDef, levelCfg, fishModels });
+    on('gotoShipyard', async () => {
+      setPaused(false);
+      await syncLevel();
+      gameState.transition(GamePhase.SHIPYARD, shipyardPayload());
     });
 
     on('gotoTitle', () => {
-      isPaused = false;
-      emit('uiUnmount', { screen: 'pause' });
+      setPaused(false);
       gameState.transition(GamePhase.MAIN_MENU);
     });
 
     // Start at Main Menu
-    await gameState.transition(GamePhase.MAIN_MENU, { shipDef, levelCfg, fishModels });
+    await gameState.transition(GamePhase.MAIN_MENU, shipyardPayload());
 
     tick();
   } catch (err) {
     console.error('Boot error:', err);
-    const logDiv = document.querySelector('#demo-log');
-    if (logDiv) {
-      logDiv.innerHTML += `> BOOT ERROR: ${err.message}<br>`;
-    }
+    showNotice(`⚠ Boot error: ${err.message}`, 10000);
   }
 }
 

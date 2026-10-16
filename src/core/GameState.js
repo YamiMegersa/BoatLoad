@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { ShipBuilder }    from '../shipyard/ShipBuilder.js';
 import { ChunkRenderer }  from '../shipyard/ChunkRenderer.js';
+import { VoxelGrid, CellState } from '../shipyard/VoxelGrid.js';
 import { ShipRaycaster }  from '../shipyard/ShipRaycaster.js';
 import { BuildSystem }    from '../shipyard/BuildSystem.js';
 import { DamageSystem }   from '../shipyard/DamageSystem.js';
@@ -23,6 +24,7 @@ import { Sky }                from '../environment/Sky.js';
 import { DockStall, DOCK_SCALE } from '../environment/DockStall.js';
 import { DockPlayerController } from '../environment/DockPlayerController.js';
 import { WeatherSystem }      from '../environment/WeatherSystem.js';
+import { DEBUG }              from '../utils/debug.js';
 import { LevelConfig }        from './LevelConfig.js';
 import { ShipRegistry, DEFAULT_SHIP_ID } from '../config/ShipRegistry.js';
 import { emit, on, off, clear } from './EventBus.js';
@@ -36,7 +38,6 @@ export const GamePhase = Object.freeze({
   DOCK:     'DOCK',
   SHIPYARD: 'SHIPYARD',
   OBSTACLE: 'OBSTACLE',
-  RESULTS:  'RESULTS',
   EDITOR:   'EDITOR',
 });
 
@@ -81,6 +82,12 @@ export class GameState {
     this._grid          = null;
     this._zones         = null;
     this._levelCfg      = null;
+    this._docket        = null;   // current repair docket (shipyard)
+    this._damageDebugOverlay = null;
+    this._sinkSnapshot  = null;   // wreck grid captured on playerSunk
+    this._allRepairsEmitted = false;
+    this._onCellRepaired = null;
+    this._onShipyardGridDirty = null;
     this._shipDef       = null;
 
     this._chunkRenderer = null;
@@ -98,6 +105,7 @@ export class GameState {
     this._obstacleManager = null;
     this._environmentManager = null;
     this._qteSystem       = null;
+    this._onPlayerSunk    = null;
     this._minimap         = new Minimap();
     this.score            = 0;
     this._onScoreAdded    = (d) => { this.score += (d.points || 0); };
@@ -178,6 +186,20 @@ export class GameState {
     emit('phaseChanged', { phase: newPhase });
   }
 
+  /**
+   * Restart the sailing phase in the ship's Set Sail condition.
+   *
+   * The voxel snapshot captured on first entering OBSTACLE is restored into a
+   * fresh grid/renderer, while every sailing-runtime system (position, yaw,
+   * obstacles, score, QTE queue/streak, water, sharks, sirens) is rebuilt by
+   * the normal enter/exit flow.
+   */
+  async restartSailing() {
+    if (this.currentPhase !== GamePhase.OBSTACLE || !this._sailSnapshot) return;
+    const shipStats = { ...(this._obstacleOpts?.shipStats ?? {}) };
+    await this.transition(GamePhase.OBSTACLE, { ...this._obstacleOpts, shipStats }, true);
+  }
+
   // -------------------------------------------------------------------------
   // Frame update — delegated from main.js tick()
   // -------------------------------------------------------------------------
@@ -251,10 +273,6 @@ export class GameState {
         await this._enterObstacle(opts);
         break;
 
-      case GamePhase.RESULTS:
-        this._enterResults(opts);
-        break;
-
       case GamePhase.EDITOR:
         this._enterEditor(opts);
         break;
@@ -287,10 +305,6 @@ export class GameState {
 
       case GamePhase.EDITOR:
         this._exitEditor();
-        break;
-
-      case GamePhase.RESULTS:
-        emit('uiUnmount', { screen: 'results' });
         break;
 
       default:
@@ -627,21 +641,30 @@ export class GameState {
     this._renderer.domElement.addEventListener('pointerdown', this._boundPointerDown);
     this._renderer.domElement.addEventListener('pointermove', this._boundPointerMove);
 
-    // Rebuild BVH when topology changes (repair fills a MISSING cell)
-    on('cellRepaired', () => {
+    // Rebuild BVH when topology changes (repair fills a MISSING cell) and
+    // refresh the repair docket so items check off as zones get fixed.
+    this._onCellRepaired = ({ cells = [] } = {}) => {
       if (this._grid?.consumeTopologyDirty()) {
         this._raycaster.rebuild(this._grid);
       }
-    });
+      this._refreshDocket(cells);
+    };
+    on('cellRepaired', this._onCellRepaired);
 
     // Sync renderer on dirty events
-    on('gridDirty', () => {
+    this._onShipyardGridDirty = () => {
       if (this._grid && this._chunkRenderer) {
         this._chunkRenderer.sync(this._grid);
       }
-    });
+    };
+    on('gridDirty', this._onShipyardGridDirty);
 
-    emit('uiMount', { screen: 'shipyard' });
+    // Derive the repair docket from actual grid damage (works for both the
+    // level's authored damage and a restored wreck) and gate Set Sail on it.
+    this._docket = DamageSystem.buildDocket(grid, zones, levelCfg?.docket ?? []);
+    this._allRepairsEmitted = false;
+    emit('uiMount', { screen: 'shipyard', docket: this._docket });
+    this._refreshDocket();  // enable Set Sail immediately when nothing is mandatory
   }
 
   _updateShipyard(delta) {
@@ -691,8 +714,11 @@ export class GameState {
     // Remove event listeners
     this._renderer.domElement.removeEventListener('pointerdown', this._boundPointerDown);
     this._renderer.domElement.removeEventListener('pointermove', this._boundPointerMove);
-    off('cellRepaired');
-    off('gridDirty');
+    if (this._onCellRepaired) off('cellRepaired', this._onCellRepaired);
+    if (this._onShipyardGridDirty) off('gridDirty', this._onShipyardGridDirty);
+    this._onCellRepaired = null;
+    this._onShipyardGridDirty = null;
+    this._disposeDamageDebugOverlay();
 
     // Dispose all Three.js objects except the ChunkRenderer and VoxelGrid
     this._raycaster?.dispose(this._scene);
@@ -710,11 +736,80 @@ export class GameState {
     }
 
     this._zones         = null;
+    this._docket        = null;
     this._raycaster     = null;
     this._buildSystem   = null;
     this._orbitControls = null;
 
     emit('uiUnmount', { screen: 'shipyard' });
+  }
+
+  /**
+   * Recount grid damage per zone: check off docket items whose zone is fully
+   * repaired, and emit allRepairsDone once no mandatory items remain (Set Sail
+   * unlocks). Emits nothing when the docket is unchanged.
+   */
+  _refreshDocket(changedCells = []) {
+    if (!this._grid || !this._zones || !this._docket) return;
+    const fresh = DamageSystem.getDocketProgress(this._grid, this._docket);
+    for (let index = 0; index < this._docket.length; index++) {
+      const previous = this._docket[index];
+      const current = fresh[index];
+      if (previous.remaining !== current.remaining) {
+        emit('docketProgress', {
+          itemId: previous.id,
+          remaining: current.remaining,
+          total: previous.total,
+          completed: current.completed,
+          changedCells,
+        });
+      }
+      if (!previous.completed && current.completed) {
+        emit('docketItemCompleted', { itemId: previous.id, label: previous.label });
+      }
+      previous.remaining = current.remaining;
+      previous.completed = current.completed;
+    }
+    this._syncDamageDebugOverlay();
+    if (!this._allRepairsEmitted && !this._docket.some(item => item.mandatory && !item.completed)) {
+      this._allRepairsEmitted = true;
+      emit('allRepairsDone', {});
+    }
+  }
+
+  _syncDamageDebugOverlay() {
+    this._disposeDamageDebugOverlay();
+    if (!DEBUG || !this._grid || !this._docket?.length) return;
+
+    const group = new THREE.Group();
+    group.name = 'damageDocketDebugOverlay';
+    const geometry = new THREE.BoxGeometry(1.04, 1.04, 1.04);
+    const materials = {
+      [CellState.MISSING]: new THREE.MeshBasicMaterial({ color: 0xff3939, wireframe: true, depthTest: false }),
+      [CellState.DAMAGED]: new THREE.MeshBasicMaterial({ color: 0xffc247, wireframe: true, depthTest: false }),
+      [CellState.FLOODED]: new THREE.MeshBasicMaterial({ color: 0x39d8ff, wireframe: true, depthTest: false }),
+    };
+    for (const task of this._docket) {
+      for (const cell of task.targetCells) {
+        const state = this._grid.getState(cell.x, cell.y, cell.z);
+        if (!materials[state]) continue;
+        const marker = new THREE.Mesh(geometry, materials[state]);
+        marker.position.copy(this._grid.toWorldPos(cell.x, cell.y, cell.z));
+        marker.userData.docketTaskId = task.id;
+        group.add(marker);
+      }
+    }
+    this._scene.add(group);
+    this._damageDebugOverlay = { group, geometry, materials };
+  }
+
+  _disposeDamageDebugOverlay() {
+    if (!this._damageDebugOverlay) return;
+    const { group, geometry, materials } = this._damageDebugOverlay;
+    this._scene.remove(group);
+    geometry.dispose();
+    Object.values(materials).forEach(material => material.dispose());
+    this._damageDebugOverlay = null;
   }
 
   // Pointer handler — Shipyard phase only
@@ -756,6 +851,7 @@ export class GameState {
 
   async _enterObstacle({ shipDef, levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel }) {
     this._levelCfg = levelCfg;
+    this._obstacleOpts = { levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels };
 
     if (this._dockMooredGroup) {
       if (this._chunkRenderer && this._chunkRenderer.container) {
@@ -810,6 +906,23 @@ export class GameState {
       this._voxelTerrain.deserialize(levelCfg.voxels);
     }
 
+    // Ship state. On a fresh Set Sail the shipyard grid/renderer are still live,
+    // so capture the Set Sail condition as the restart snapshot. On Restart
+    // Level they were disposed by _exitObstacle, so rebuild the ship from that
+    // snapshot and derive hullHP from the restored integrity (never from {}).
+    let effectiveStats = shipStats ?? {};
+    if (!this._grid && this._sailSnapshot) {
+      this._grid = new VoxelGrid(this._sailSnapshot.width, this._sailSnapshot.height, this._sailSnapshot.depth);
+      this._grid.restore(this._sailSnapshot);
+      this._grid.consumeDirty();          // ChunkRenderer.init rebuilds everything
+      this._grid.consumeTopologyDirty();
+      this._chunkRenderer = new ChunkRenderer();
+      this._chunkRenderer.init(this._grid, this._scene);
+      effectiveStats = { ...effectiveStats, hullHP: DamageSystem.getSummary(this._grid).integrityPct };
+    } else if (this._grid) {
+      this._sailSnapshot = this._grid.snapshot();
+    }
+
     const qteTuning = { ...(levelCfg?.qte ?? {}) };
     if (levelCfg?.tutorialPrompts) qteTuning.windowScale = (qteTuning.windowScale ?? 1) * 1.25;
     this._qteSystem = new QTESystem(qteTuning, levelCfg?.rewardAbilities);
@@ -854,13 +967,37 @@ export class GameState {
       }
     };
     on('steer', this._onSteer);
-    this._onDebugQTE = ({ type }) => this._qteSystem?.trigger({ type, metadata: { source: 'debug' } });
-    on('qteDebugTrigger', this._onDebugQTE);
+    this._onDebugQTE = ({ source }) => {
+      const accepted = this._qteSystem?.trigger({
+        source,
+        metadata: { source: 'debug', debug: true },
+      }) ?? false;
+      emit('qteDebugResult', { source, accepted });
+    };
+    if (DEBUG) on('qteDebugTrigger', this._onDebugQTE);
 
-    // When player sinks, transition to results
-    on('playerSunk', () => {
-      this.transition(GamePhase.RESULTS, { passed: false });
-    });
+    // Cannon: ammo is per-run (restocked every Set Sail). Day 1 has no cannon
+    // config, so the free proximity barrel QTE stays as the tutorial.
+    this._hasCannon = Boolean(levelCfg?.cannon);
+    this._cannonRange = levelCfg?.cannon?.range ?? 14;
+    this._ammo = levelCfg?.cannon?.ammo ?? 0;
+    this._canFire = false;
+    this._onCannonFire = () => this._fireCannon();
+    on('cannonFire', this._onCannonFire);
+    emit('ammoChanged', { ammo: this._ammo, cannon: this._hasCannon });
+
+    // Subtle camera impulse when a harpooned shark is hit
+    this._camImpulse = 0;
+    this._onSharkHit = () => { this._camImpulse = 0.08; };
+    on('sharkHitConfirmed', this._onSharkHit);
+
+    // When player sinks, capture the wreck (so its damage persists into the
+    // shipyard) and transition to results.
+    this._onPlayerSunk = () => {
+      this._sinkSnapshot = this._grid?.snapshot() ?? null;
+      emit('voyageLost');
+    };
+    on('playerSunk', this._onPlayerSunk);
 
     this._wasCinematicActive = false;
     this.score = 0;
@@ -892,6 +1029,17 @@ export class GameState {
     }
 
     if (this._playerShip) {
+      // Edge-triggered FIRE prompt: shown only while shells remain and a
+      // barrel is in range, so Space stays free for the active QTE otherwise.
+      if (this._hasCannon && this._obstacleManager && this._qteSystem) {
+        const canFire = this._ammo > 0 &&
+          Boolean(this._obstacleManager.findShootTarget(this._cannonRange, this._playerShip));
+        if (canFire !== this._canFire) {
+          this._canFire = canFire;
+          emit('cannonPrompt', { canFire });
+        }
+      }
+
       const p = this._playerShip.mesh.position;
       const shipYaw = this._playerShip.yaw;
       const shipYawVel = this._playerShip.yawVelocity;
@@ -949,6 +1097,12 @@ export class GameState {
       // 3. Final Target P3
       const P3 = baseTarget.clone().add(rightDir.clone().multiplyScalar(this._camOvershoot));
 
+      // Brief vertical impulse on shark impact (60-80 ms, kept subtle for mobile)
+      if (this._camImpulse > 0) {
+        this._camImpulse = Math.max(0, this._camImpulse - delta);
+        P3.y += (this._camImpulse / 0.08) * 0.35;
+      }
+
       // 4. Move camera smoothly towards the spring-loaded target
       // The spring logic in P3 provides the curved sweep and overshoot.
       if (!this.directorModeActive) {
@@ -972,8 +1126,11 @@ export class GameState {
 
   _exitObstacle() {
     off('steer', this._onSteer);
-    off('qteDebugTrigger', this._onDebugQTE);
-    off('playerSunk');
+    if (DEBUG) off('qteDebugTrigger', this._onDebugQTE);
+    off('cannonFire', this._onCannonFire);
+    off('sharkHitConfirmed', this._onSharkHit);
+    if (this._onPlayerSunk) off('playerSunk', this._onPlayerSunk);
+    this._onPlayerSunk = null;
 
     this._sirenManager?.dispose();
     this._sirenManager = null;
@@ -984,7 +1141,6 @@ export class GameState {
     this._obstacleManager?.dispose();
     this._environmentManager?.dispose();
     this._sirenManager?.dispose();
-    this._qteStats = this._qteSystem?.getStats() ?? null;
     this._qteSystem?.dispose();
     this._chunkRenderer?.dispose(this._scene);
 
@@ -1005,13 +1161,46 @@ export class GameState {
     emit('uiUnmount', { screen: 'obstacle' });
   }
 
-  // =========================================================================
-  // RESULTS
-  // =========================================================================
+  /**
+   * FIRE input: open the SHOOT timing QTE on the nearest in-range barrel.
+   * The shell is spent only when the trigger is accepted — while a cannon QTE
+   * is already active/queued trigger() returns false, so Space spam can't
+   * waste ammo.
+   */
+  _fireCannon() {
+    if (!this._hasCannon || this._ammo <= 0) return;
+    const target = this._obstacleManager?.findShootTarget(this._cannonRange, this._playerShip);
+    if (!target) return;
 
-  _enterResults({ passed }) {
-    emit('uiMount', { screen: 'results', passed, day: this.day, score: this.score, qteStats: this._qteStats });
-    if (passed) this.day++;
+    const start = this._playerShip.mesh.localToWorld(new THREE.Vector3(0.65, 0.8, -2));
+    const targetPosition = target.mesh.position.clone();
+    const accepted = this._qteSystem?.trigger({
+      source: 'cannon',
+      metadata: { source: 'cannon' },
+      onSuccess: ({ metadata }) => {
+        if (metadata.debug) return;
+        if (!target.active || target.qteResolved) {
+          emit('cannonResult', { result: 'miss' });
+          return;
+        }
+        target.qteResolved = true;
+        target.active = false;
+        target.mesh.visible = false;
+        emit('spawnParticles', { type: 'explosion', position: target.mesh.position.clone() });
+        emit('cannonResult', { result: 'hit' });
+      },
+      onFail: ({ metadata }) => {
+        if (metadata.debug) return;
+        const splashPosition = start.clone().lerp(targetPosition, 0.8);
+        emit('spawnParticles', { type: 'splash', position: splashPosition });
+        emit('cannonResult', { result: 'miss' });
+      },
+    });
+    if (!accepted) return;
+
+    emit('spawnParticles', { type: 'cannonShot', start, end: targetPosition });
+    this._ammo--;
+    emit('ammoChanged', { ammo: this._ammo, cannon: this._hasCannon });
   }
 
   // =========================================================================

@@ -65,18 +65,20 @@ body {
 
 /* Docket Sheet */
 #docket-sheet {
-  position: absolute;
-  left: 20px;
-  top: 180px;
-  /* Below the demo window */
-  width: 280px;
+  position: fixed;
+  left: clamp(12px, 2vw, 24px);
+  bottom: max(12px, env(safe-area-inset-bottom));
+  width: min(320px, calc(100vw - 24px));
+  max-height: min(52vh, 440px);
+  overflow-y: auto;
+  box-sizing: border-box;
   background: rgba(245, 240, 230, 0.95);
   color: #222;
   padding: 20px;
   border-radius: 4px;
   box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.5);
   pointer-events: auto;
-  z-index: 100;
+  z-index: 110;
   font-family: serif;
 }
 
@@ -115,6 +117,38 @@ body {
 
 .docket-item.optional {
   opacity: 0.8;
+}
+
+.docket-item .label {
+  flex: 1;
+}
+
+.docket-progress,
+.docket-tool {
+  color: #58452d;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.docket-item.completed .docket-progress {
+  color: #28733a;
+}
+
+.docket-debug-map {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px dashed #8d795f;
+  font: 10px/1.4 monospace;
+}
+
+.docket-debug-map summary {
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.docket-debug-map div {
+  margin-top: 4px;
+  overflow-wrap: anywhere;
 }
 
 .tag {
@@ -435,7 +469,7 @@ body {
 
 .floating-bonus-text {
   position: absolute;
-  top: 30%;
+  top: 16%;
   left: 50%;
   color: #ffd700;
   font-weight: 900;
@@ -472,6 +506,41 @@ body {
   }
 }
 
+/* Shark harpoon confirmation — top of the screen, clear of the shark */
+.shark-confirm-text {
+  position: absolute;
+  top: 9%;
+  left: 50%;
+  color: #ff5252;
+  font-weight: 900;
+  font-size: 30px;
+  letter-spacing: 2px;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.95), 0 0 18px rgba(255, 60, 40, 0.9);
+  pointer-events: none;
+  font-family: sans-serif;
+  white-space: nowrap;
+  animation: sharkConfirmPop 1s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+@keyframes sharkConfirmPop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 12px) scale(0.8);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1.1);
+  }
+  65% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -16px) scale(1);
+  }
+}
+
 /* Steering Wheel responsive container */
 #hud-wheel-container {
   position: fixed;
@@ -489,6 +558,12 @@ body {
   user-select: none;
   cursor: grab;
   filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.5));
+}
+
+/* Siren pull: the wheel takes on a violet glow scaled by pull intensity */
+#hud-wheel-container.siren-pull #hud-wheel {
+  filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.5))
+          drop-shadow(0 0 calc(8px + var(--siren-pull, 0) * 22px) rgba(255, 102, 204, 0.9));
 }
 
 @media (max-width: 768px) {
@@ -558,10 +633,63 @@ body {
   100% { transform: scale(1.08); box-shadow: 0 0 28px rgba(255, 235, 59, 0.95); }
 }
 
+/* Siren pull edge cues */
+.hud-siren-edge {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  width: 8vw;
+  max-width: 140px;
+  pointer-events: none;
+  z-index: 140;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.hud-siren-edge.left {
+  left: 0;
+  background: linear-gradient(90deg, rgba(255, 102, 204, 0.55), rgba(255, 102, 204, 0));
+}
+
+.hud-siren-edge.right {
+  right: 0;
+  background: linear-gradient(270deg, rgba(255, 102, 204, 0.55), rgba(255, 102, 204, 0));
+}
+
+/* Non-blocking banner (siren warning, grace notice) */
+#hud-banner {
+  position: fixed;
+  top: 8%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: none;
+  z-index: 160;
+  max-width: min(640px, 90vw);
+  padding: 10px 22px;
+  background: rgba(20, 6, 28, 0.85);
+  border: 2px solid #ff66cc;
+  border-radius: 10px;
+  color: #ffd9f3;
+  font-weight: 900;
+  font-size: 16px;
+  letter-spacing: 1.5px;
+  text-align: center;
+  text-transform: uppercase;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.9);
+  box-shadow: 0 0 24px rgba(255, 102, 204, 0.45);
+  pointer-events: none;
+  transition: opacity 240ms ease;
+  opacity: 1;
+}
+
+#hud-banner.hidden {
+  opacity: 0;
+}
+
 /* Interactive QTE Reticle Prompt */
 #hud-qte {
   position: fixed;
-  top: 45%;
+  top: 70%;
   left: 50%;
   transform: translate(-50%, -50%);
   display: flex;
@@ -579,7 +707,14 @@ body {
   border: 2px solid rgba(255, 152, 0, 0.8);
   box-shadow: 0 0 25px rgba(255, 152, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.8);
   backdrop-filter: blur(4px);
-  transition: transform 0.1s, box-shadow 0.1s;
+  transition: transform 0.1s, box-shadow 0.1s, opacity 0.12s;
+}
+
+/* Rapid fade-out on success/failure so the prompt clears the hit reaction */
+#hud-qte.qte-hiding {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.85);
+  pointer-events: none;
 }
 
 #hud-qte:hover {
@@ -594,7 +729,7 @@ body {
 #hud-qte-action {
   font-size: 22px;
   font-weight: 900;
-  color: #ff9800;
+  color: var(--qte-theme, #ff9800);
   text-transform: uppercase;
   letter-spacing: 2px;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
@@ -669,6 +804,34 @@ body {
   transition: width 80ms ease-out;
 }
 
+#hud-qte-meter.alternate .qte-sweet-spot {
+  display: none;
+}
+
+#hud-qte-meter.alternate .qte-indicator {
+  width: 0;
+  background: linear-gradient(90deg, #d36cff, #ff66cc);
+  box-shadow: none;
+  transition: width 80ms ease-out;
+}
+
+#hud-qte-alternate {
+  width: min(300px, 80vw);
+  gap: 12px;
+  margin-top: 10px;
+}
+
+#hud-qte-alternate button {
+  flex: 1;
+  min-height: 60px;
+  border: 2px solid #ffb5e6;
+  border-radius: 8px;
+  background: #6b285f;
+  color: #fff;
+  font-weight: 900;
+  touch-action: manipulation;
+}
+
 #hud-qte-progress {
   min-height: 18px;
   margin-top: 4px;
@@ -693,54 +856,12 @@ body {
   touch-action: manipulation;
 }
 
-#results-ui {
-  position: fixed;
-  inset: 0;
-  z-index: 300;
-  display: grid;
-  place-content: center;
-  min-height: 100dvh;
-  padding: 24px;
-  color: #fff7dd;
-  text-align: center;
-  background: rgba(8, 15, 29, 0.88);
-  pointer-events: auto;
-}
-
-#results-ui h1,
-#results-ui h2 {
-  margin: 0 0 12px;
-}
-
-#results-ui ul {
-  margin: 0 0 20px;
-  padding: 0;
-  list-style: none;
-  line-height: 1.6;
-}
-
-.results-actions {
-  display: flex;
-  justify-content: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.results-actions button {
-  min-height: 48px;
-  padding: 10px 18px;
-  border: 2px solid #f5dfaa;
-  border-radius: 6px;
-  background: #9a5b2e;
-  color: #fff;
-  font: inherit;
-  touch-action: manipulation;
-}
-
 @media (max-width: 600px) {
   #hud-qte {
-    top: 36%;
-    width: min(340px, 88vw);
+    top: 29vh;
+    right: 10px;
+    width: min(280px, calc(100vw - 20px));
+    padding: 10px 12px;
   }
 
   #hud-qte-key {
@@ -751,6 +872,10 @@ body {
   #hud-mobile-harpoon {
     left: 20px;
     bottom: max(20px, env(safe-area-inset-bottom));
+  }
+
+  #hud-fire-btn {
+    bottom: max(18px, env(safe-area-inset-bottom));
   }
 
   #btn-mobile-harpoon {
@@ -2350,6 +2475,115 @@ body {
   color: #fff;
 }
 
+/* Gameplay HUD refinements (kept last to override legacy center-card rules). */
+#hud #hud-fire-btn {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  padding: 11px 20px;
+  border: 2px solid #d7b77c;
+  border-radius: 5px;
+  background: linear-gradient(#72502f, #39291d);
+  color: #fff1cc;
+  font: 700 16px/1.2 serif;
+  letter-spacing: 1px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.55);
+  cursor: pointer;
+  z-index: 150;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+#hud #hud-qte {
+  top: clamp(270px, 31vh, 330px);
+  right: clamp(12px, 2vw, 28px);
+  left: auto;
+  transform: none;
+  width: min(310px, calc(100vw - 24px));
+  box-sizing: border-box;
+  padding: 12px 16px;
+  border: 1px solid rgba(215, 183, 124, 0.9);
+  border-radius: 6px;
+  background: linear-gradient(145deg, rgba(24, 31, 38, 0.92), rgba(45, 35, 27, 0.9));
+  box-shadow: 0 5px 18px rgba(0, 0, 0, 0.5);
+  backdrop-filter: none;
+  cursor: default;
+  transition: opacity 0.12s, transform 0.12s;
+}
+
+#hud #hud-qte:hover,
+#hud #hud-qte:active {
+  transform: none;
+  box-shadow: 0 5px 18px rgba(0, 0, 0, 0.5);
+}
+
+#hud #hud-qte.qte-hiding {
+  transform: translateX(12px);
+}
+
+#hud #hud-qte-action {
+  font-family: serif;
+  letter-spacing: 1px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+
+#hud #hud-qte-key {
+  font-size: 15px;
+  font-family: serif;
+}
+
+#hud #hud-qte-ring {
+  width: 54px;
+  height: 54px;
+}
+
+#hud #hud-qte-meter {
+  height: 12px;
+  border-color: #d7b77c;
+}
+
+#hud-qte-draw-wrap {
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+#hud-qte-draw {
+  width: min(176px, 52vw);
+  height: min(176px, 52vw);
+  border: 1px solid rgba(215, 183, 124, 0.45);
+  border-radius: 50%;
+  background: rgba(4, 14, 20, 0.45);
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.hud-qte-draw-help {
+  color: #e6dcc7;
+  font: 12px/1.35 serif;
+  text-align: center;
+}
+
+@media (max-width: 600px) {
+  #hud #hud-qte {
+    top: 29vh;
+    right: 10px;
+    width: min(280px, calc(100vw - 20px));
+    padding: 10px 12px;
+  }
+
+  #hud #hud-qte-key {
+    font-size: 15px;
+    text-align: center;
+  }
+
+  #hud #hud-fire-btn {
+    bottom: max(18px, env(safe-area-inset-bottom));
+  }
+}
+
 /* ==========================================================================
    Ship & Vessel Workspace Tab
    ========================================================================== */
@@ -2501,4 +2735,3 @@ body {
   background: linear-gradient(135deg, #b26834, #874c22) !important;
   box-shadow: 0 0 10px rgba(212, 175, 55, 0.4) !important;
 }
-

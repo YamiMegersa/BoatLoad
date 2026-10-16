@@ -344,6 +344,22 @@ function getDamage(type) {
   return map[type] ?? 10;
 }
 
+function createSeededRandom(seed) {
+  const text = String(seed);
+  let state = 2166136261;
+  for (let index = 0; index < text.length; index++) {
+    state ^= text.charCodeAt(index);
+    state = Math.imul(state, 16777619);
+  }
+  return () => {
+    state += 0x6D2B79F5;
+    let value = state;
+    value = Math.imul(value ^ (value >>> 15), value | 1);
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 // ---------------------------------------------------------------------------
 // ObstacleManager
 // ---------------------------------------------------------------------------
@@ -390,8 +406,12 @@ export class ObstacleManager {
     this._islandModels = islandModels;
     this._sirenModel = sirenModel;
     this._qteSystem = qteSystem ?? null;
+    this._cannonCfg = levelCfg?.cannon ?? null; // days with a cannon fire manually
     this._obstacles = [];
     this.playRadius = levelCfg.worldSize || 200;
+    this._waveTime = 0;
+    this._tempCrossWind = new THREE.Vector3();
+    this._random = createSeededRandom(levelCfg.obstacleSeed ?? levelCfg.day ?? 1);
     
     this._spawnAllRandomly(levelCfg.obstacles || []);
   }
@@ -403,6 +423,7 @@ export class ObstacleManager {
    * @param {import('../environment/WindManager.js').WindManager} windManager
    */
   update(delta, playerShip, windManager, voxelTerrain) {
+    this._waveTime += delta;
     if (voxelTerrain && playerShip) {
       const px = playerShip.mesh.position.x;
       const pz = playerShip.mesh.position.z;
@@ -521,14 +542,16 @@ export class ObstacleManager {
       if (obs.type === 'wave_small' && windManager) {
         if (!this._tempWind) this._tempWind = new THREE.Vector3();
         const localWind = windManager.getWindAt(obs.mesh.position.x, obs.mesh.position.z, this._tempWind);
-        obs.mesh.position.x += localWind.x * obs.scrollSpeed * delta;
-        obs.mesh.position.z += localWind.z * obs.scrollSpeed * delta;
+        const drift = obs.scrollSpeed * 0.25 * delta;
+        obs.mesh.position.addScaledVector(localWind, drift);
+        const crossWind = this._tempCrossWind.set(-localWind.z, 0, localWind.x);
+        const sway = Math.sin(this._waveTime * 0.55 + obs.wavePhase) * obs.scrollSpeed * 0.18 * delta;
+        obs.mesh.position.addScaledVector(crossWind, sway);
         
-        // Wrap around bounds
-        if (Math.abs(obs.mesh.position.x) > this.playRadius || Math.abs(obs.mesh.position.z) > this.playRadius) {
-          obs.mesh.position.x = -localWind.x * this.playRadius;
-          obs.mesh.position.z = -localWind.z * this.playRadius;
-        }
+        if (obs.mesh.position.x > this.playRadius) obs.mesh.position.x = -this.playRadius;
+        else if (obs.mesh.position.x < -this.playRadius) obs.mesh.position.x = this.playRadius;
+        if (obs.mesh.position.z > this.playRadius) obs.mesh.position.z = -this.playRadius;
+        else if (obs.mesh.position.z < -this.playRadius) obs.mesh.position.z = this.playRadius;
       }
 
       if (obs.particles) {
@@ -691,11 +714,14 @@ export class ObstacleManager {
 
   _triggerBarrelQTE(obs, ship) {
     if (obs.type !== 'barrel' || obs.qteTriggered || !this._qteSystem || !ship) return;
+    // Days with a cannon (levelCfg.cannon) shoot barrels manually via the FIRE
+    // prompt; the free proximity QTE remains the day-1 tutorial only.
+    if (this._cannonCfg) return;
     const distance = obs.mesh.position.distanceTo(ship.mesh.position);
     if (distance > 10) return;
 
     const accepted = this._qteSystem.trigger({
-      type: 'SHOOT',
+      source: 'barrel',
       metadata: { source: 'barrel' },
       onSuccess: () => {
         obs.qteResolved = true;
@@ -705,6 +731,28 @@ export class ObstacleManager {
       },
     });
     if (accepted) obs.qteTriggered = true;
+  }
+
+  /**
+   * Nearest shootable obstacle (barrels today; mines or sharks later) within
+   * range of the ship, or null. Powers the cannon FIRE prompt.
+   * @param {number} range  World units
+   * @param {import('./PlayerShip.js').PlayerShip} ship
+   * @returns {ObstacleDesc|null}
+   */
+  findShootTarget(range, ship) {
+    if (!ship) return null;
+    let best = null;
+    let bestDist = Infinity;
+    for (const obs of this._obstacles) {
+      if (!obs.active || obs.type !== 'barrel' || obs.qteResolved) continue;
+      const dist = obs.mesh.position.distanceTo(ship.mesh.position);
+      if (dist <= range && dist < bestDist) {
+        best = obs;
+        bestDist = dist;
+      }
+    }
+    return best;
   }
 
   /**
@@ -821,7 +869,7 @@ export class ObstacleManager {
       } else {
         // Randomly placed obstacle
         const count = cfg.count ?? 3;
-        counts[cfg.type] = (counts[cfg.type] || 0) + count * 5; // Multiply by 5 for a larger 2D area
+        counts[cfg.type] = (counts[cfg.type] || 0) + count;
       }
     }
     
@@ -839,6 +887,7 @@ export class ObstacleManager {
         this._islandModels,
         this._sirenModel
       );
+      obs.wavePhase = this._random() * Math.PI * 2;
       this._scene.add(obs.mesh);
       this._obstacles.push(obs);
     }
@@ -846,11 +895,21 @@ export class ObstacleManager {
     // Spawn random obstacles
     for (const [type, count] of Object.entries(counts)) {
       for (let i = 0; i < count; i++) {
-        // Random position within radius (avoiding the immediate center r<30)
-        let r = 30 + Math.random() * (this.playRadius - 30);
-        let theta = Math.random() * Math.PI * 2;
-        let px = Math.cos(theta) * r;
-        let pz = Math.sin(theta) * r;
+        let px = 0;
+        let pz = 0;
+        let attempts = 0;
+        do {
+          const radius = 30 + this._random() * (this.playRadius - 30);
+          const angle = this._random() * Math.PI * 2;
+          px = Math.cos(angle) * radius;
+          pz = Math.sin(angle) * radius;
+          attempts++;
+        } while (
+          attempts < 40 &&
+          this._obstacles.some(existing =>
+            Math.hypot(existing.mesh.position.x - px, existing.mesh.position.z - pz) < 8
+          )
+        );
 
         const obs = buildObstacle(
           type,
@@ -864,6 +923,7 @@ export class ObstacleManager {
           this._islandModels,
           this._sirenModel
         );
+        obs.wavePhase = this._random() * Math.PI * 2;
         this._scene.add(obs.mesh);
         this._obstacles.push(obs);
       }
