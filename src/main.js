@@ -10,6 +10,7 @@ import { PauseMenu } from './ui/PauseMenu.js';
 import { DockUI } from './ui/DockUI.js';
 import { MainMenuUI } from './ui/MainMenuUI.js';
 import { LevelSelectorUI } from './ui/LevelSelectorUI.js';
+import { LoadingScreenUI } from './ui/LoadingScreenUI.js';
 import { ParticleSystem } from './environment/ParticleSystem.js';
 import { DamageSystem } from './shipyard/DamageSystem.js';
 import { GodRays } from './environment/GodRays.js';
@@ -120,6 +121,7 @@ const hud = new HUD();
 const dialogue = new DialogueBox();
 const pauseMenu = new PauseMenu();
 const levelSelectorUI = new LevelSelectorUI();
+const loadingScreenUI = new LoadingScreenUI();
 const particles = new ParticleSystem(scene);
 
 const directorMode = new DirectorMode({
@@ -443,6 +445,7 @@ async function boot() {
 
     // Start sailing from shipyard or dock
     on('startSailing', async () => {
+      emit('showLoading', { title: 'Setting Sail', message: 'Rigging canvas & casting off lines...', progress: 0.1 });
       await syncLevel();
       const activeShipId = gameState._levelCfg?.ship || level.levelCfg?.ship || DEFAULT_SHIP_ID;
       const activeShipDef = LevelConfig.getShipDef(activeShipId);
@@ -463,6 +466,7 @@ async function boot() {
 
     on('editorRequestPlay', (d) => {
       if (gameState.currentPhase === GamePhase.EDITOR && gameState._editorSystem) {
+        emit('showLoading', { title: 'Test Voyage', message: 'Launching vessel into custom map...', progress: 0.1 });
         const customLevelCfg = gameState._editorSystem.getPlayableConfig();
         const activeShipId = customLevelCfg.ship || DEFAULT_SHIP_ID;
         const activeShipDef = LevelConfig.getShipDef(activeShipId);
@@ -516,9 +520,11 @@ async function boot() {
       }
       if (phase === GamePhase.MAIN_MENU) {
         logEvent('Main Menu requested...');
+        emit('showLoading', { title: 'Returning to Port', message: 'Returning to harbor tavern...', progress: 0.1 });
         gameState.transition(GamePhase.MAIN_MENU);
       } else if (phase === GamePhase.DOCK) {
         logEvent('Setting Sail -> Arriving at Dock...');
+        emit('showLoading', { title: 'Mooring at Harbor', message: 'Arriving at harbor dock...', progress: 0.1 });
         await syncLevel();
         const activeShipId = opts?.shipDef?.id || gameState._levelCfg?.ship || level.levelCfg?.ship || DEFAULT_SHIP_ID;
         const activeShipDef = opts?.shipDef || LevelConfig.getShipDef(activeShipId);
@@ -526,12 +532,14 @@ async function boot() {
         gameState.transition(GamePhase.DOCK, { shipDef: activeShipDef, levelCfg: activeLevelCfg, fishModels: level.fishModels });
       } else if (phase === GamePhase.SHIPYARD) {
         logEvent('Entering Shipyard...');
+        emit('showLoading', { title: 'Entering Shipyard', message: 'Entering outfitting berth & inspecting hull...', progress: 0.1 });
         await syncLevel();
         const activeShipId = gameState._levelCfg?.ship || level.levelCfg?.ship || DEFAULT_SHIP_ID;
         const activeShipDef = LevelConfig.getShipDef(activeShipId);
         gameState.transition(GamePhase.SHIPYARD, { shipDef: activeShipDef, levelCfg: gameState._levelCfg || level.levelCfg, fishModels: level.fishModels });
       } else if (phase === GamePhase.OBSTACLE) {
         logEvent('Setting Sail -> Heading to High Seas...');
+        emit('showLoading', { title: 'Setting Sail', message: 'Heading out to open waters...', progress: 0.1 });
         await syncLevel();
         const activeShipId = gameState._levelCfg?.ship || level.levelCfg?.ship || DEFAULT_SHIP_ID;
         const activeShipDef = LevelConfig.getShipDef(activeShipId);
@@ -550,6 +558,7 @@ async function boot() {
         });
       } else if (phase === GamePhase.EDITOR) {
         logEvent('Opening Map Maker / Level Editor...');
+        emit('showLoading', { title: 'Level Editor', message: 'Opening map maker...', progress: 0.1 });
         await syncLevel();
         gameState.transition(GamePhase.EDITOR, editorPayload());
       }
@@ -602,7 +611,7 @@ async function boot() {
     });
 
     // Start at Main Menu
-    await gameState.transition(GamePhase.MAIN_MENU, shipyardPayload());
+    await gameState.transition(GamePhase.MAIN_MENU, { ...shipyardPayload(), skipLoading: true });
 
     tick();
   } catch (err) {

@@ -195,13 +195,57 @@ export class GameState {
   async transition(newPhase, opts = {}, force = false) {
     if (this.currentPhase === newPhase && !force) return;
 
+    const skipLoading = opts?.skipLoading || false;
+    if (!skipLoading) {
+      const titles = {
+        [GamePhase.DOCK]: 'Mooring at Harbor',
+        [GamePhase.SHIPYARD]: 'Entering Shipyard',
+        [GamePhase.OBSTACLE]: 'Setting Sail',
+        [GamePhase.EDITOR]: 'Level Editor',
+        [GamePhase.MAIN_MENU]: 'Returning to Port',
+        [GamePhase.RESULTS]: 'Voyage Complete'
+      };
+
+      const messages = {
+        [GamePhase.DOCK]: 'Mooring vessel and preparing dockyard...',
+        [GamePhase.SHIPYARD]: 'Entering outfitting berth & inspecting hull...',
+        [GamePhase.OBSTACLE]: 'Navigating past treacherous waters & reefs...',
+        [GamePhase.EDITOR]: 'Charting map layout & terrain...',
+        [GamePhase.MAIN_MENU]: 'Returning to harbor tavern...',
+        [GamePhase.RESULTS]: 'Calculating voyage ledger & repairs...'
+      };
+
+      const loadingTitle = opts.loadingTitle || titles[newPhase] || 'Navigating Seas';
+      const loadingMessage = opts.loadingMessage || messages[newPhase] || 'Plotting course...';
+
+      emit('showLoading', { title: loadingTitle, message: loadingMessage, progress: 0.15 });
+    }
+
     this.nextPhase = newPhase;
     await this._onExit(this.currentPhase);
+    if (!skipLoading) emit('updateLoading', { progress: 0.45 });
+
     this.currentPhase = newPhase;
     this.nextPhase = null;
     await this._onEnter(newPhase, opts);
+    if (!skipLoading) emit('updateLoading', { progress: 0.88 });
+
+    // Ensure the 3D scene renders cleanly with character and camera in place before revealing
+    await new Promise(resolve => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(resolve);
+      });
+    });
+
+    if (!skipLoading) {
+      emit('updateLoading', { progress: 1.0 });
+    }
 
     emit('phaseChanged', { phase: newPhase });
+
+    if (!skipLoading) {
+      emit('hideLoading');
+    }
   }
 
   /**
@@ -586,12 +630,18 @@ export class GameState {
 
     this._onLevelSelected = async (data) => {
       const day = data?.day || 1;
+      emit('showLoading', {
+        title: `Summoning Day ${day}`,
+        message: `Preparing vessel & harbor conditions...`,
+        progress: 0.15
+      });
       this.day = day;
 
       // 1. Fetch level config & ship definition for selected day
       const level = await LevelConfig.load(day);
       this._levelCfg = level.levelCfg;
       this._shipDef = level.shipDef;
+      emit('updateLoading', { progress: 0.45 });
 
       // 2. Identify active ship & profile (Day 3 specifies 'sloop')
       const activeShipId = this._levelCfg?.ship || this._shipDef?.id || 'sloop';
@@ -669,6 +719,8 @@ export class GameState {
         this._dockStall.shipInteractables = [];
       }
 
+      emit('updateLoading', { progress: 0.75 });
+
       // 6. Update weather & lighting for selected day
       if (this._weather) {
         await this._weather.loadLevel(this.day, {
@@ -680,6 +732,10 @@ export class GameState {
           scene: this._scene
         });
       }
+
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      emit('updateLoading', { progress: 1.0 });
+      emit('hideLoading');
 
       // 7. Start arrival cutscene
       this._startLevelCutscene();
