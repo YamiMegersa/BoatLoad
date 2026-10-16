@@ -10,6 +10,7 @@ import { PauseMenu } from './ui/PauseMenu.js';
 import { DockUI } from './ui/DockUI.js';
 import { MainMenuUI } from './ui/MainMenuUI.js';
 import { LevelSelectorUI } from './ui/LevelSelectorUI.js';
+import { ResultsUI } from './ui/ResultsUI.js';
 import { ParticleSystem } from './environment/ParticleSystem.js';
 import { DamageSystem } from './shipyard/DamageSystem.js';
 import { GodRays } from './environment/GodRays.js';
@@ -120,6 +121,7 @@ const hud = new HUD();
 const dialogue = new DialogueBox();
 const pauseMenu = new PauseMenu();
 const levelSelectorUI = new LevelSelectorUI();
+const resultsUI = new ResultsUI();
 const particles = new ParticleSystem(scene);
 
 const directorMode = new DirectorMode({
@@ -562,7 +564,8 @@ async function boot() {
 
     function togglePause() {
       if (gameState.currentPhase === GamePhase.DOCK || gameState.currentPhase === GamePhase.OBSTACLE ||
-          gameState.currentPhase === GamePhase.MAIN_MENU || directorMode.isActive) return;
+          gameState.currentPhase === GamePhase.RESULTS || gameState.currentPhase === GamePhase.MAIN_MENU ||
+          directorMode.isActive) return;
       setPaused(!isPaused);
     }
 

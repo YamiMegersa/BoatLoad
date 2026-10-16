@@ -22,7 +22,7 @@ The source code is contained entirely within the `src/` directory, broken down i
 
 ### 2. Core Game Logic (`src/core/`)
 Contains the central state management and configuration loading systems.
-- **`GameState.js`**: The backbone of the game. Implements a Finite State Machine managing transitions between `DOCK`, `SHIPYARD`, `OBSTACLE`, `RESULTS`, and `EDITOR` phases. It owns phase-specific managers and ensures clean teardown of memory/events when switching modes.
+- **`GameState.js`**: The backbone of the game. Implements a Finite State Machine managing transitions between `DOCK`, `SHIPYARD`, `OBSTACLE`, `RESULTS`, and `EDITOR` phases. Reaching a day's harbor goal enters the `RESULTS` phase and shows the `ResultsUI` completion screen before returning to port.
 - **`EventBus.js`**: A lightweight, global event emitter (pub/sub pattern). Used to decouple systems (e.g., UI components trigger events that the GameState listens to).
 - **`LevelConfig.js`**: Responsible for fetching and parsing level definitions (e.g., `day1.json`). It dictates the required repairs, spawned obstacles, and environmental factors for each day.
 

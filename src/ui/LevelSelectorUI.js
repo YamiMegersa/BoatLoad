@@ -59,8 +59,8 @@ export class LevelSelectorUI {
                   <div class="level-card-main">
                     <span class="level-icon">⛵</span>
                     <div class="level-info">
-                      <div class="level-name">Day 1: Maiden Shakedown</div>
-                      <div class="level-meta">Sunny &bull; Light Sloop &bull; 🪙 200</div>
+                      <div class="level-name">Day 1: Calm Shallows</div>
+                      <div class="level-meta">Sunny &bull; Standard Sloop &bull; 🪙 200</div>
                     </div>
                     <span class="level-stamp-indicator">READY</span>
                   </div>
@@ -167,7 +167,7 @@ export class LevelSelectorUI {
                 </div>
                 <div class="dossier-row">
                   <span class="dossier-label">Hazard Rating:</span>
-                  <span class="dossier-value">Low (Barrels &amp; Shallow Rocks)</span>
+                  <span class="dossier-value">Low (Shallow Rocks &amp; Gentle Swells)</span>
                 </div>
               </div>
 

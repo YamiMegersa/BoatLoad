@@ -40,6 +40,7 @@ export const GamePhase = Object.freeze({
   DOCK:     'DOCK',
   SHIPYARD: 'SHIPYARD',
   OBSTACLE: 'OBSTACLE',
+  RESULTS:  'RESULTS',
   EDITOR:   'EDITOR',
 });
 
@@ -347,6 +348,10 @@ export class GameState {
         await this._enterObstacle(opts);
         break;
 
+      case GamePhase.RESULTS:
+        this._enterResults(opts);
+        break;
+
       case GamePhase.EDITOR:
         this._enterEditor(opts);
         break;
@@ -375,6 +380,10 @@ export class GameState {
 
       case GamePhase.OBSTACLE:
         this._exitObstacle();
+        break;
+
+      case GamePhase.RESULTS:
+        this._exitResults();
         break;
 
       case GamePhase.EDITOR:
@@ -1585,6 +1594,14 @@ export class GameState {
     }
 
     emit('uiUnmount', { screen: 'obstacle' });
+  }
+
+  _enterResults({ passed = false } = {}) {
+    emit('uiMount', { screen: 'results', passed, day: this.day });
+  }
+
+  _exitResults() {
+    emit('uiUnmount', { screen: 'results' });
   }
 
   /**
