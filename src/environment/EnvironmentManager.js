@@ -106,6 +106,13 @@ export class EnvironmentManager {
     this._fogVolume = new FogVolume(scene);
     this._stormClouds = new StormClouds(scene);
 
+    if (this._fogVolume?.mesh) {
+      this._fogVolume.mesh.visible = this._isDenseFog;
+    }
+    if (this._stormClouds?.mesh) {
+      this._stormClouds.mesh.visible = this._isStormy;
+    }
+
     this._updateTimeAndLighting(0);
     this.toggleStorm(this._isStormy);
 
@@ -467,6 +474,8 @@ export class EnvironmentManager {
       this._sunLight.position.set(sunX, sunY, sunZ);
       const sunAlt = THREE.MathUtils.clamp((sunY + 5) / (this._sunRadius + 5), 0.0, 1.0);
       this._sunLight.intensity = sunAlt * (this._isStormy ? 0.3 : 1.2);
+      // Dynamic shadow: only render sun shadow map when sun is above horizon
+      this._sunLight.castShadow = (sunY > 0);
     }
 
     if (this._moonLight) {
@@ -477,6 +486,8 @@ export class EnvironmentManager {
       }
       this._moonLight.color.copy(moonCol);
       this._moonLight.intensity = moonAltitude * (this._isStormy ? 0.12 : 0.35);
+      // Dynamic shadow: only render moon shadow map at night when sun is down
+      this._moonLight.castShadow = (moonY > 0 && sunY <= 0);
     }
 
     if (this._ambientLight) {
@@ -564,7 +575,7 @@ export class EnvironmentManager {
     }
     
     if (this._fogVolume && this._fogVolume.mesh) {
-      this._fogVolume.mesh.visible = !this._isDenseFog;
+      this._fogVolume.mesh.visible = this._isDenseFog;
     }
     
     if (this._stormClouds && this._stormClouds.mesh) {

@@ -10,10 +10,11 @@ export class RainManager {
   }
 
   _init() {
-    const rainCount = 15000;
+    // 3,500 instances with slightly thicker profile looks rich without 180,000-vertex GPU stall
+    const rainCount = 3500;
     
     // Cylinder for rain streak to be omnidirectional
-    const cylGeometry = new THREE.CylinderGeometry(0.02, 0.02, 1.5, 3);
+    const cylGeometry = new THREE.CylinderGeometry(0.025, 0.025, 1.8, 3);
     
     const material = new THREE.ShaderMaterial({
       transparent: true,
@@ -78,18 +79,26 @@ export class RainManager {
     }
     
     this.mesh.frustumCulled = false;
+    this.mesh.visible = false; // Hidden when clear weather
+    this.mesh.userData.noGodRays = true;
+    this.mesh.userData.noOcclusion = true;
     this._scene.add(this.mesh);
   }
 
   update(delta, shipPosition, windDir) {
-    this._time += delta;
-    if (this.mesh) {
-      if (this._targetIntensity !== undefined) {
-        const cur = this.mesh.material.uniforms.uOpacity.value;
-        this.mesh.material.uniforms.uOpacity.value += (this._targetIntensity - cur) * Math.min(1.0, delta * 3.0);
-      }
+    if (!this.mesh) return;
 
-      this.mesh.material.uniforms.uTime.value = this._time;
+    if (this._targetIntensity !== undefined) {
+      const cur = this.mesh.material.uniforms.uOpacity.value;
+      const next = cur + (this._targetIntensity - cur) * Math.min(1.0, delta * 3.0);
+      this.mesh.material.uniforms.uOpacity.value = next;
+      this.mesh.visible = (next > 0.005);
+    }
+
+    if (!this.mesh.visible) return;
+
+    this._time += delta;
+    this.mesh.material.uniforms.uTime.value = this._time;
       
       // Rain slants with the wind
       const wDir = windDir || new THREE.Vector3(0, 0, -1);
@@ -113,11 +122,13 @@ export class RainManager {
       if (shipPosition) {
         this.mesh.position.set(shipPosition.x, 0, shipPosition.z);
       }
-    }
   }
 
   setIntensity(val) {
     this._targetIntensity = val;
+    if (val > 0.005 && this.mesh) {
+      this.mesh.visible = true;
+    }
   }
 
   dispose() {

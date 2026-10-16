@@ -1022,7 +1022,7 @@ export class DockStall {
 
     const lanternLight = new THREE.PointLight(0xffcc77, 2.8, 8, 2);
     lanternLight.position.set(0, 0.2, 0);
-    lanternLight.castShadow = true;
+    lanternLight.castShadow = false; // PointLight shadows require 6 cubemap passes — disabled for 60 FPS
     lanternGroup.add(lanternLight);
     this.lanternLight = lanternLight;
 

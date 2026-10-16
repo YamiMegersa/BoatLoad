@@ -182,12 +182,14 @@ export class FogVolume {
 
     this.mesh = new THREE.Mesh(geometry, material);
     this.mesh.frustumCulled = false;
+    this.mesh.visible = false; // Hidden unless dense fog weather is enabled
     this.mesh.userData.noGodRays = true;
     this.mesh.userData.noOcclusion = true;
     this._scene.add(this.mesh);
   }
 
   update(delta, shipPosition, windDir) {
+    if (!this.mesh || !this.mesh.visible) return;
     this._time += delta;
     if (this.mesh) {
       if (!this._displacement) this._displacement = new THREE.Vector3();

@@ -28,10 +28,13 @@ import './ui/ui.css';
 // ---------------------------------------------------------------------------
 
 const canvas = document.querySelector('#canvas');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+// Cap pixel ratio to 1.25: renders crisp on high-DPI displays without 4K fillrate collapse
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
 renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.info.autoReset = false;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x222233);
@@ -50,12 +53,30 @@ const sun = new THREE.DirectionalLight(0xffffff, 1.0);
 sun.name = 'sunLight';
 sun.position.set(10, 20, 10);
 sun.castShadow = true;
+sun.shadow.mapSize.width = 1024;
+sun.shadow.mapSize.height = 1024;
+sun.shadow.camera.near = 0.5;
+sun.shadow.camera.far = 160;
+sun.shadow.camera.left = -50;
+sun.shadow.camera.right = 50;
+sun.shadow.camera.top = 50;
+sun.shadow.camera.bottom = -50;
+sun.shadow.bias = -0.0005;
 scene.add(sun);
 
 const moon = new THREE.DirectionalLight(0x9bc0f5, 0.35);
 moon.name = 'moonLight';
 moon.position.set(-10, -20, -10);
-moon.castShadow = true;
+moon.castShadow = false; // Enabled dynamically only when moon rises
+moon.shadow.mapSize.width = 1024;
+moon.shadow.mapSize.height = 1024;
+moon.shadow.camera.near = 0.5;
+moon.shadow.camera.far = 160;
+moon.shadow.camera.left = -50;
+moon.shadow.camera.right = 50;
+moon.shadow.camera.top = 50;
+moon.shadow.camera.bottom = -50;
+moon.shadow.bias = -0.0005;
 scene.add(moon);
 
 // ---------------------------------------------------------------------------
@@ -155,6 +176,7 @@ window.addEventListener('resize', () => {
   }
 
   renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
   godRays.resize(window.innerWidth, window.innerHeight);
   mainRT.setSize(window.innerWidth, window.innerHeight);
   paperFilter.resize(window.innerWidth, window.innerHeight);
@@ -166,6 +188,9 @@ window.addEventListener('resize', () => {
 
 let frameCount = 0;
 let lastFpsTime = performance.now();
+let lastRecordedCalls = 0;
+let lastRecordedTris = 0;
+
 const fpsCounter = document.createElement('div');
 fpsCounter.id = 'fps-counter';
 fpsCounter.style.cssText = `
@@ -214,7 +239,10 @@ function tick() {
 
   frameCount++;
   if (now - lastFpsTime >= 1000) {
-    fpsCounter.innerText = `FPS: ${frameCount}`;
+    const trisStr = lastRecordedTris >= 1000
+      ? `${Math.round(lastRecordedTris / 1000)}k`
+      : `${lastRecordedTris}`;
+    fpsCounter.innerText = `FPS: ${frameCount} | Calls: ${lastRecordedCalls} | Tris: ${trisStr}`;
     frameCount = 0;
     lastFpsTime = now;
   }
@@ -224,6 +252,9 @@ function tick() {
 
   const isMainMenu = gameState.currentPhase === GamePhase.MAIN_MENU;
   const usePaperShader = isMainMenu || paperShaderEnabled;
+
+  // Clear render metrics once per frame before any render passes execute
+  renderer.info.reset();
 
   if (usePaperShader) {
     if (isMainMenu) {
@@ -236,6 +267,10 @@ function tick() {
   } else {
     godRays.render(sun, moon, null);
   }
+
+  // Capture the true cumulative calls and triangles rendered across the entire frame
+  lastRecordedCalls = renderer.info.render.calls;
+  lastRecordedTris = renderer.info.render.triangles;
 }
 
 // ---------------------------------------------------------------------------
