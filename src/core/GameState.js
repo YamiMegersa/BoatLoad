@@ -536,8 +536,21 @@ export class GameState {
     this._dockOrbitControls.target.set(0, 2, 0);
     this._dockOrbitControls.enabled = false;
 
-    // Listen for player entering stall to trigger cutscene & dialogue
-    this._onDockPlayerEnteredShop = () => {
+    // Trigger cutscene & dialogue when Level 1 is chosen in the logbook
+    this._startLevelCutscene = () => {
+      if (this._dockShipArrived || this._shipArriving) return;
+
+      // Start 2D humanoid sprite walk animation from island to counter
+      if (this._dockStall && this._dockStall.dockNPC) {
+        this._dockStall.dockNPC.startWalkToCounter(() => {
+          this._triggerShipArrivalAndDialogue();
+        });
+      } else {
+        this._triggerShipArrivalAndDialogue();
+      }
+    };
+
+    this._triggerShipArrivalAndDialogue = () => {
       if (!this._shipDocked && !this._shipArriving) {
         this._shipArriving = true;
         this._shipArrivalTimer = 0;
@@ -556,7 +569,7 @@ export class GameState {
         const shipName = shipProfile?.name || 'Vessel';
         emit('showDialogue', {
           dialogue: {
-            portrait: '🧑‍✈️',
+            portrait: '<img src="/assets/npc/custom_npc.png" alt="Captain Barlow" />',
             name: 'Captain Barlow',
             lines: [
               `Ahoy there shipwright! We ran into treacherous hazards offshore!`,
@@ -567,12 +580,39 @@ export class GameState {
         });
       }
     };
+
+    this._onLevelSelected = async (data) => {
+      const day = data?.day || 1;
+      this.day = day;
+
+      if (this._weather) {
+        await this._weather.loadLevel(this.day, {
+          ambient: this._ambient,
+          sun: this._sun,
+          ocean: this._ocean,
+          sky: this._sky,
+          lanternLight: this._dockStall?.lanternLight,
+          scene: this._scene
+        });
+      }
+
+      this._startLevelCutscene();
+    };
+    on('levelSelected', this._onLevelSelected);
+
+    this._onDockPlayerEnteredShop = () => {
+      // Player entered stall — glowing logbook is available on counter to select voyage
+    };
     on('dockPlayerEnteredShop', this._onDockPlayerEnteredShop);
 
     emit('uiMount', { screen: 'dock', dockStall: this._dockStall, gameState: this, dockPlayerController: this._dockPlayerController });
   }
 
   _exitDock() {
+    if (this._onLevelSelected) {
+      off('levelSelected', this._onLevelSelected);
+      this._onLevelSelected = null;
+    }
     if (this._onDockPlayerEnteredShop) {
       off('dockPlayerEnteredShop', this._onDockPlayerEnteredShop);
       this._onDockPlayerEnteredShop = null;
@@ -1103,9 +1143,35 @@ export class GameState {
     const camDist = profile.cameraDist ?? 16;
     const camHeight = profile.cameraHeight ?? 5;
 
-    // Chase camera initial position
-    this._camera.position.set(0, camHeight, camDist);
-    this._camera.lookAt(0, 0, -5);
+    const spawnConfig = levelCfg?.shipSpawn || this._levelCfg?.shipSpawn;
+    let spawnX = 0;
+    let spawnY = 0;
+    let spawnZ = 0;
+    let spawnRot = 0;
+    if (spawnConfig) {
+      if (spawnConfig.position) {
+        spawnX = spawnConfig.position.x ?? 0;
+        spawnY = spawnConfig.position.y ?? 0;
+        spawnZ = spawnConfig.position.z ?? 0;
+      } else if (spawnConfig.x !== undefined) {
+        spawnX = spawnConfig.x ?? 0;
+        spawnY = spawnConfig.y ?? 0;
+        spawnZ = spawnConfig.z ?? 0;
+      }
+      if (spawnConfig.rotation !== undefined) {
+        spawnRot = spawnConfig.rotation;
+      }
+    }
+
+    // Chase camera initial position aligned with ship spawn
+    const shipDir = new THREE.Vector3(-Math.sin(spawnRot), 0, -Math.cos(spawnRot));
+    const initialCamPos = new THREE.Vector3(spawnX, spawnY + camHeight, spawnZ).add(shipDir.clone().multiplyScalar(-camDist));
+    this._camera.position.copy(initialCamPos);
+    this._camera.lookAt(spawnX, spawnY, spawnZ);
+    this._camLookTarget = new THREE.Vector3(spawnX, spawnY, spawnZ);
+    this._camOvershoot = 0;
+    this._camOvershootVel = 0;
+    this._camVelocity = new THREE.Vector3();
 
     if (this._ocean) {
       this._ocean.setWorldSize(levelCfg?.worldSize || 200);
@@ -1154,10 +1220,24 @@ export class GameState {
       waterCapacity: profile.waterCapacity,
       waterlineY: profile.waterlineY,
       hullHP: shipStats?.hullHP ?? profile.health ?? 100,
-      maxHullHP: profile.health ?? 100
+      maxHullHP: profile.health ?? 100,
+      spawnPosition: { x: spawnX, y: spawnY, z: spawnZ },
+      spawnRotation: spawnRot,
+      shipSpawn: spawnConfig
     };
 
     this._playerShip = new PlayerShip(effectiveShipStats, this._scene, this._chunkRenderer, this._grid, this._qteSystem);
+    if (spawnX !== 0 || spawnY !== 0 || spawnZ !== 0) {
+      this._playerShip.mesh.position.set(spawnX, spawnY, spawnZ);
+    }
+    if (spawnRot !== 0) {
+      this._playerShip.yaw = spawnRot;
+      this._playerShip.mesh.rotation.y = spawnRot;
+    }
+    this._playerShip.mesh.updateMatrixWorld(true);
+    if (this._playerShip.baseOBB && this._playerShip.obb) {
+      this._playerShip.obb.copy(this._playerShip.baseOBB).applyMatrix4(this._playerShip.mesh.matrixWorld);
+    }
     this._obstacleManager = new ObstacleManager();
     this._obstacleManager.init(levelCfg, this._scene, rockModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, this._qteSystem);
     this._environmentManager = new EnvironmentManager();

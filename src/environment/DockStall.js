@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { VoxelLopBunny } from './VoxelLopBunny.js';
+import { DockNPC } from './DockNPC.js';
 
 // ---------------------------------------------------------------------------
 // Voxel Palette & Procedural Voxel Texture Generators
@@ -232,12 +233,18 @@ export class DockStall {
     this.shipNeedsRepair = false;
     this.activeShipProfile = null;
     this.shipyardInteractables = [];
+    this.dockNPC = null;
+    this.bookLight = null;
+    this.bookAura = null;
     this._isBuilt = false;
   }
 
   build() {
     if (this._isBuilt) return this.group;
     this._isBuilt = true;
+
+    // Instantiate DockNPC walking humanoid sprite
+    this.dockNPC = new DockNPC(this.group);
 
     // Scale entire dock and island to match human/consistent ship proportions
     this.group.scale.setScalar(DOCK_SCALE);
@@ -895,7 +902,7 @@ export class DockStall {
     // -------------------------------------------------------------------------
     // 5. COUNTERTOP & SHELF PROPS
     // -------------------------------------------------------------------------
-    // (a) Open Ledger Book & Inkpot
+    // (a) Glowing Captain's Logbook & Inkpot
     const ledgerGroup = new THREE.Group();
     ledgerGroup.position.set(-deskW / 2 + 0.55, counterY + 0.12, frontZ - 0.45);
     ledgerGroup.rotation.y = 0.15;
@@ -905,18 +912,55 @@ export class DockStall {
     const cover = createVoxelBox(0.62, 0.04, 0.44, mats.woodDark);
     cover.userData = { isLedger: true };
     ledgerGroup.add(cover);
-    const pagesLeft = createVoxelBox(0.28, 0.06, 0.4, mats.paper);
+
+    // Glowing parchment pages
+    const glowingPaperMat = createVoxelMat(Palette.paper, {
+      roughness: 0.6,
+      emissive: 0xffaa33,
+      emissiveIntensity: 0.55
+    });
+
+    const pagesLeft = createVoxelBox(0.28, 0.06, 0.4, glowingPaperMat);
     pagesLeft.position.set(-0.14, 0.04, 0);
     pagesLeft.rotation.z = -0.06;
     pagesLeft.userData = { isLedger: true };
     ledgerGroup.add(pagesLeft);
-    const pagesRight = createVoxelBox(0.28, 0.06, 0.4, mats.paper);
+
+    const pagesRight = createVoxelBox(0.28, 0.06, 0.4, glowingPaperMat);
     pagesRight.position.set(0.14, 0.04, 0);
     pagesRight.rotation.z = 0.06;
     pagesRight.userData = { isLedger: true };
     ledgerGroup.add(pagesRight);
 
-    this.ledgerInteractables = [ledgerGroup, cover, pagesLeft, pagesRight];
+    // Brass corner clasps
+    const cornerClasp1 = createVoxelBox(0.06, 0.045, 0.06, mats.brass);
+    cornerClasp1.position.set(-0.28, 0.03, -0.19);
+    ledgerGroup.add(cornerClasp1);
+    const cornerClasp2 = createVoxelBox(0.06, 0.045, 0.06, mats.brass);
+    cornerClasp2.position.set(0.28, 0.03, -0.19);
+    ledgerGroup.add(cornerClasp2);
+
+    // Warm pulsating glow point light
+    const bookLight = new THREE.PointLight(0xffb84d, 1.4, 3.0);
+    bookLight.position.set(0, 0.4, 0);
+    ledgerGroup.add(bookLight);
+    this.bookLight = bookLight;
+
+    // Glowing mystical ring / rune hovering over the book
+    const auraGeo = new THREE.RingGeometry(0.16, 0.22, 20);
+    auraGeo.rotateX(-Math.PI / 2);
+    const auraMat = new THREE.MeshBasicMaterial({
+      color: 0xffcc44,
+      transparent: true,
+      opacity: 0.75,
+      side: THREE.DoubleSide
+    });
+    const aura = new THREE.Mesh(auraGeo, auraMat);
+    aura.position.set(0, 0.22, 0);
+    ledgerGroup.add(aura);
+    this.bookAura = aura;
+
+    this.ledgerInteractables = [ledgerGroup, cover, pagesLeft, pagesRight, aura];
 
     const inkwell = createVoxelBox(0.12, 0.12, 0.12, mats.iron);
     inkwell.position.set(0.42, 0.06, 0.05);
@@ -2858,9 +2902,23 @@ export class DockStall {
     if (this.bunny) {
       this.bunny.update(delta, time);
     }
+    if (this.bookLight) {
+      this.bookLight.intensity = 1.1 + Math.sin(time * 3.5) * 0.45;
+    }
+    if (this.bookAura) {
+      this.bookAura.rotation.y = time * 1.5;
+      this.bookAura.position.y = 0.22 + Math.sin(time * 2.5) * 0.04;
+    }
+    if (this.dockNPC) {
+      this.dockNPC.update(delta, time, this.shopCam);
+    }
   }
 
   dispose() {
+    if (this.dockNPC) {
+      this.dockNPC.dispose();
+      this.dockNPC = null;
+    }
     if (this.bunny) {
       this.bunny.dispose();
       this.bunny = null;

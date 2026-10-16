@@ -705,6 +705,15 @@ body {
   align-items: center;
   justify-content: center;
   border: 2px solid #667;
+  overflow: hidden;
+}
+
+#dlg-portrait img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 6px;
+  display: block;
 }
 
 #dlg-content {
@@ -3319,4 +3328,434 @@ body {
 .ship-action-btn-dock:hover {
   background: linear-gradient(135deg, #b26834, #874c22) !important;
   box-shadow: 0 0 10px rgba(212, 175, 55, 0.4) !important;
+}
+
+/* ========================================================================= */
+/* Level Selector Modal Logbook (Shop Counter Glowing Book Interface)        */
+/* ========================================================================= */
+
+.level-selector-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 12, 18, 0.78);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto !important;
+  animation: levelFadeIn 0.25s ease-out;
+}
+
+@keyframes levelFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.level-book-wrapper {
+  position: relative;
+  max-width: 960px;
+  width: 94vw;
+  max-height: 90vh;
+  display: flex;
+  justify-content: center;
+  animation: bookScaleIn 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.15);
+}
+
+@keyframes bookScaleIn {
+  from { transform: scale(0.92) translateY(20px); opacity: 0; }
+  to { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+/* Leather-bound Book Exterior & Interior */
+.level-book {
+  position: relative;
+  display: flex;
+  width: 100%;
+  background: #f5edd6;
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 10px #352013,
+    0 0 0 14px #624024,
+    0 0 0 16px #1f120a,
+    0 25px 60px rgba(0, 0, 0, 0.85);
+  overflow: hidden;
+  font-family: 'Georgia', 'Palatino Linotype', serif;
+  color: #3b2817;
+  user-select: none;
+}
+
+/* Close button - Wax Seal Aesthetic */
+.book-close-btn {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #a83232 0%, #6e1c1c 100%);
+  border: 2px solid #e0a353;
+  color: #fff;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.5);
+  transition: all 0.2s ease;
+}
+
+.book-close-btn:hover {
+  transform: scale(1.1) rotate(90deg);
+  background: radial-gradient(circle, #c43b3b 0%, #872323 100%);
+  box-shadow: 0 4px 12px rgba(224, 163, 83, 0.6);
+}
+
+/* Spine crease & red silk ribbon */
+.book-spine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 32px;
+  transform: translateX(-50%);
+  background: linear-gradient(to right, rgba(0,0,0,0.18), rgba(0,0,0,0.02) 40%, rgba(0,0,0,0.02) 60%, rgba(0,0,0,0.18));
+  pointer-events: none;
+  z-index: 5;
+}
+
+.book-ribbon {
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 22px;
+  height: 180px;
+  background: linear-gradient(to right, #911d1d, #b52929 50%, #751414);
+  box-shadow: 2px 4px 8px rgba(0,0,0,0.35);
+  z-index: 6;
+  pointer-events: none;
+  clip-path: polygon(0 0, 100% 0, 100% 85%, 50% 100%, 0 85%);
+}
+
+.book-pages-spread {
+  display: flex;
+  width: 100%;
+  min-height: 520px;
+  max-height: 78vh;
+}
+
+/* Individual Book Pages */
+.book-page {
+  flex: 1;
+  padding: 28px 34px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  position: relative;
+}
+
+.page-left {
+  background: linear-gradient(135deg, #f7efe0 0%, #f1e4c7 100%);
+  border-right: 1px solid rgba(138, 97, 56, 0.25);
+  padding-right: 36px;
+}
+
+.page-right {
+  background: linear-gradient(135deg, #f3e7cb 0%, #ede0c0 100%);
+  border-left: 1px solid rgba(138, 97, 56, 0.25);
+  padding-left: 36px;
+  display: flex;
+  flex-direction: column;
+}
+
+.page-header {
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.nautical-emblem {
+  font-size: 26px;
+  color: #7d542a;
+}
+
+.book-title {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: #3b2512;
+  margin: 4px 0 2px 0;
+  text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.book-subtitle {
+  font-size: 12px;
+  font-style: italic;
+  color: #6d5036;
+}
+
+.page-divider {
+  height: 2px;
+  margin: 10px auto;
+  width: 80%;
+  background: linear-gradient(to right, transparent, #8a633a, transparent);
+}
+
+/* Level Entry List */
+.level-entry-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.level-card {
+  position: relative;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid #bba37d;
+  border-radius: 6px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.level-card-active:hover {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: #8c5b29;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(100, 70, 40, 0.2);
+}
+
+.level-card.selected {
+  background: #fff8eb;
+  border: 2px solid #b87c2c;
+  box-shadow: 0 0 12px rgba(184, 124, 44, 0.35);
+}
+
+.level-badge {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+}
+
+.level-badge.available {
+  background: #2e6b35;
+  color: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.level-badge.locked {
+  background: #685b52;
+  color: #d1c8c0;
+}
+
+.level-card-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.level-icon {
+  font-size: 24px;
+}
+
+.level-info {
+  flex: 1;
+}
+
+.level-name {
+  font-size: 14px;
+  font-weight: bold;
+  color: #312113;
+}
+
+.level-meta {
+  font-size: 11px;
+  color: #634b35;
+  margin-top: 2px;
+}
+
+.level-stamp-indicator {
+  font-size: 11px;
+  font-weight: 800;
+  color: #9c2e2e;
+  border: 1px solid #9c2e2e;
+  padding: 2px 5px;
+  border-radius: 3px;
+  transform: rotate(-6deg);
+}
+
+.level-card-locked {
+  opacity: 0.65;
+  cursor: not-allowed;
+  background: rgba(220, 210, 195, 0.4);
+}
+
+.lock-icon {
+  font-size: 16px;
+  color: #796658;
+}
+
+/* Dossier (Right Page) */
+.dossier-stamp {
+  align-self: flex-end;
+  font-size: 11px;
+  font-weight: 800;
+  color: #a82e2e;
+  border: 2px solid #a82e2e;
+  padding: 3px 8px;
+  letter-spacing: 1px;
+  transform: rotate(3deg);
+  display: inline-block;
+  margin-bottom: 6px;
+}
+
+.dossier-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #3b2311;
+  margin: 0;
+  letter-spacing: 1px;
+}
+
+.dossier-section {
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px dashed #aa8b66;
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.dossier-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.dossier-label {
+  font-weight: bold;
+  color: #5a3d24;
+}
+
+.dossier-value {
+  color: #2b1c10;
+  font-weight: 600;
+}
+
+.highlight-gold {
+  color: #8c5b16;
+  font-weight: 800;
+}
+
+.dossier-dispatch {
+  background: #fbf7ee;
+  border-left: 3px solid #754f2c;
+  padding: 10px 14px;
+  border-radius: 0 6px 6px 0;
+  margin-bottom: 14px;
+}
+
+.dispatch-title {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #754f2c;
+  margin-bottom: 4px;
+}
+
+.dispatch-body {
+  font-size: 12px;
+  line-height: 1.45;
+  color: #362417;
+  font-style: italic;
+  margin: 0;
+}
+
+.dossier-docket {
+  margin-bottom: 18px;
+}
+
+.docket-title {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #4a3421;
+  margin-bottom: 6px;
+}
+
+.docket-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.docket-list li {
+  font-size: 12px;
+  color: #332215;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.docket-icon {
+  font-size: 14px;
+}
+
+.dossier-actions {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.embark-btn {
+  background: linear-gradient(135deg, #99551c 0%, #6d3a0f 50%, #4a2507 100%);
+  border: 2px solid #e0aa53;
+  border-radius: 8px;
+  color: #fff;
+  padding: 12px 20px;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(80, 40, 10, 0.45);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.embark-btn:hover {
+  transform: translateY(-2px);
+  background: linear-gradient(135deg, #b06221 0%, #834614 50%, #592c0a 100%);
+  border-color: #ffd077;
+  box-shadow: 0 6px 20px rgba(180, 100, 30, 0.6);
+}
+
+.embark-btn:active {
+  transform: translateY(1px);
+}
+
+.embark-main {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
+.embark-sub {
+  font-size: 11px;
+  color: #f7d499;
+  font-style: italic;
 }
