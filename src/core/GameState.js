@@ -536,9 +536,11 @@ export class GameState {
     this._dockOrbitControls.target.set(0, 2, 0);
     this._dockOrbitControls.enabled = false;
 
-    // Trigger cutscene & dialogue when Level 1 is chosen in the logbook
+    // Trigger cutscene & dialogue when a level is chosen in the logbook
     this._startLevelCutscene = () => {
-      if (this._dockShipArrived || this._shipArriving) return;
+      if (this._shipArriving) return;
+      this._dockShipArrived = false;
+      this._shipDocked = false;
 
       // Start 2D humanoid sprite walk animation from island to counter
       if (this._dockStall && this._dockStall.dockNPC) {
@@ -566,13 +568,13 @@ export class GameState {
           this._dockStall.shipInteractables = [this._dockMooredGroup];
         }
 
-        const shipName = shipProfile?.name || 'Vessel';
+        const shipName = this._mooredShipProfile?.name || shipProfile?.name || 'Vessel';
         emit('showDialogue', {
           dialogue: {
             portrait: '<img src="/assets/npc/custom_npc.png" alt="Captain Barlow" />',
             name: 'Captain Barlow',
             lines: [
-              `Ahoy there shipwright! We ran into treacherous hazards offshore!`,
+              `Ahoy there shipwright! We ran into treacherous hazards offshore on Day ${this.day}!`,
               `Look out your shop window—my crew is navigating the ${shipName} to the pier now!`,
               `Head out and board her at the dock to repair her hull before we set sail again!`
             ]
@@ -584,6 +586,15 @@ export class GameState {
     this._onLevelSelected = async (data) => {
       const day = data?.day || 1;
       this.day = day;
+
+      try {
+        const loaded = await LevelConfig.load(this.day);
+        if (loaded?.levelCfg) {
+          this._levelCfg = loaded.levelCfg;
+        }
+      } catch (err) {
+        console.warn('[GameState] Failed loading level config on levelSelected:', err);
+      }
 
       if (this._weather) {
         await this._weather.loadLevel(this.day, {
