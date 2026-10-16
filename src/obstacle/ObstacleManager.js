@@ -188,7 +188,7 @@ export function buildObstacle(type, pos, url, scale, rockModels, pickupModels, s
     mesh.add(cloned);
   } else if (type === 'island' && islandModels && islandModels.length > 0) {
     if (url) {
-      selectedModel = islandModels.find(m => m.url === url) || islandModels[Math.floor(Math.random() * islandModels.length)];
+      selectedModel = islandModels.find(m => m.url === url || (m.url && url && (m.url.endsWith(url.replace(/^(\.\/|\/src\/|\/)/, '')) || url.endsWith(m.url.replace(/^(\.\/|\/src\/|\/)/, ''))))) || islandModels[Math.floor(Math.random() * islandModels.length)];
     } else {
       selectedModel = islandModels[Math.floor(Math.random() * islandModels.length)];
     }

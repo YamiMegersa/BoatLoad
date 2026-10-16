@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { getAssetUrl } from '../utils/paths.js';
 
 const PaperShader = {
   uniforms: {
@@ -282,7 +283,7 @@ export class PaperFilter {
     
     // Load crumple texture
     const texLoader = new THREE.TextureLoader();
-    const crumpleTex = texLoader.load('/crumple.jpg');
+    const crumpleTex = texLoader.load(getAssetUrl('crumple.jpg'));
     crumpleTex.wrapS = THREE.RepeatWrapping;
     crumpleTex.wrapT = THREE.RepeatWrapping;
     this._material.uniforms.tCrumple.value = crumpleTex;

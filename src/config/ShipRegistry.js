@@ -1,3 +1,5 @@
+import { getAssetUrl } from '../utils/paths.js';
+
 /**
  * ShipRegistry — Central definition of all playable vessels, stats, dimensions,
  * physical handling attributes, camera offsets, and visual scales.
@@ -9,7 +11,7 @@ export const SHIP_REGISTRY = {
     name: 'Swift Skiff',
     category: 'Skiff / Dinghy',
     description: 'Small, lightweight skiff. Smaller and less durable than a sloop, but whips through tight reefs with ultra-nimble handling.',
-    modelUrl: '/src/assets/ships/Ship_Small_Voxelized.glb',
+    modelUrl: getAssetUrl('assets/ships/Ship_Small_Voxelized.glb'),
     grid: { x: 20, y: 20, z: 40 },
     scale: 0.09, // Smaller than a sloop (~3.6m length)
     health: 70,
@@ -29,7 +31,7 @@ export const SHIP_REGISTRY = {
     name: 'Standard Sloop',
     category: 'Sloop',
     description: 'Classic single-mast vessel. Balanced speed, dependable hull, and agile rudder response for general coastal navigation.',
-    modelUrl: '/src/assets/ships/sloop.glb',
+    modelUrl: getAssetUrl('assets/ships/sloop.glb'),
     grid: { x: 24, y: 24, z: 48 },
     scale: 0.12, // Baseline vessel (5.76m length)
     health: 100,
@@ -49,7 +51,7 @@ export const SHIP_REGISTRY = {
     name: 'Galleon War Frigate',
     category: 'Frigate / Galleon',
     description: 'Heavy triple-masted war frigate. High cruising speed and heavily reinforced hull. Exactly 3 times larger than the standard sloop.',
-    modelUrl: '/src/assets/ships/Ship_Large_Voxelized.glb',
+    modelUrl: getAssetUrl('assets/ships/Ship_Large_Voxelized.glb'),
     grid: { x: 30, y: 28, z: 64 },
     scale: 0.27, // Exactly 3 times larger than sloop (17.28m length)
     health: 300,
@@ -69,7 +71,7 @@ export const SHIP_REGISTRY = {
     name: 'Imperial Flagship Dreadnought',
     category: 'Dreadnought Flagship',
     description: 'Colossal floating fortress. Unmatched top speed under full sail and mammoth health pool. Exactly 6 times larger than the standard sloop.',
-    modelUrl: '/src/assets/ships/BigShip_Voxelized.glb',
+    modelUrl: getAssetUrl('assets/ships/BigShip_Voxelized.glb'),
     grid: { x: 34, y: 32, z: 76 },
     scale: 0.455, // Exactly 6 times larger than sloop (34.58m length)
     health: 600,
@@ -89,7 +91,7 @@ export const SHIP_REGISTRY = {
     name: 'Utility Truck',
     category: 'Gag Vehicle',
     description: 'A standard civilian pickup truck. Made of heavy solid steel with zero buoyancy. Immediately nose-dives and sinks!',
-    modelUrl: '/src/assets/ships/Truck.glb',
+    modelUrl: getAssetUrl('assets/ships/Truck.glb'),
     grid: { x: 22, y: 22, z: 44 },
     scale: 0.12,
     health: 15,

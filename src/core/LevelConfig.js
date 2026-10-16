@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 import { getShipProfile, DEFAULT_SHIP_ID } from '../config/ShipRegistry.js';
+import { getAssetUrl } from '../utils/paths.js';
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
@@ -18,57 +19,57 @@ export class LevelConfig {
   static _cache = new Map();
 
   static _rockUrls = [
-    '/src/assets/obstacles/rocks/voxel_basic stone 3.glb',
-    '/src/assets/obstacles/rocks/voxel_Cliff.glb',
-    '/src/assets/obstacles/rocks/voxel_Desert Pillar.glb',
-    '/src/assets/obstacles/rocks/voxel_Little Desert Town.glb',
-    '/src/assets/obstacles/rocks/voxel_Rock by Danni Bittman - 4TpBWdzKDf2.glb',
-    '/src/assets/obstacles/rocks/voxel_Rock by Quaternius - RtLRqYjfMs.glb',
-    '/src/assets/obstacles/rocks/voxel_Rock Large by Quaternius - d2VWOdthtR.glb',
-    '/src/assets/obstacles/rocks/voxel_Rock Large-d2VWOdthtR.glb',
-    '/src/assets/obstacles/rocks/voxel_Rock Large.glb',
-    '/src/assets/obstacles/rocks/voxel_Rock-34W5ymEePk.glb',
-    '/src/assets/obstacles/rocks/voxel_Rock-4MUaQTcDdc.glb',
-    '/src/assets/obstacles/rocks/voxel_Rock-4TpBWdzKDf2.glb',
-    '/src/assets/obstacles/rocks/voxel_Rock-b7gRkv0cEa.glb',
-    '/src/assets/obstacles/rocks/voxel_Rock-JmFMh7ztL9.glb',
-    '/src/assets/obstacles/rocks/voxel_Rock-R2UjZAX3By.glb',
-    '/src/assets/obstacles/rocks/voxel_Rock-RtLRqYjfMs.glb',
-    '/src/assets/obstacles/rocks/voxel_Rock.glb',
-    '/src/assets/obstacles/rocks/voxel_Rocks by Quaternius - OQvi8PIZ40.glb',
-    '/src/assets/obstacles/rocks/voxel_Rocks.glb'
+    getAssetUrl('assets/obstacles/rocks/voxel_basic stone 3.glb'),
+    getAssetUrl('assets/obstacles/rocks/voxel_Cliff.glb'),
+    getAssetUrl('assets/obstacles/rocks/voxel_Desert Pillar.glb'),
+    getAssetUrl('assets/obstacles/rocks/voxel_Little Desert Town.glb'),
+    getAssetUrl('assets/obstacles/rocks/voxel_Rock by Danni Bittman - 4TpBWdzKDf2.glb'),
+    getAssetUrl('assets/obstacles/rocks/voxel_Rock by Quaternius - RtLRqYjfMs.glb'),
+    getAssetUrl('assets/obstacles/rocks/voxel_Rock Large by Quaternius - d2VWOdthtR.glb'),
+    getAssetUrl('assets/obstacles/rocks/voxel_Rock Large-d2VWOdthtR.glb'),
+    getAssetUrl('assets/obstacles/rocks/voxel_Rock Large.glb'),
+    getAssetUrl('assets/obstacles/rocks/voxel_Rock-34W5ymEePk.glb'),
+    getAssetUrl('assets/obstacles/rocks/voxel_Rock-4MUaQTcDdc.glb'),
+    getAssetUrl('assets/obstacles/rocks/voxel_Rock-4TpBWdzKDf2.glb'),
+    getAssetUrl('assets/obstacles/rocks/voxel_Rock-b7gRkv0cEa.glb'),
+    getAssetUrl('assets/obstacles/rocks/voxel_Rock-JmFMh7ztL9.glb'),
+    getAssetUrl('assets/obstacles/rocks/voxel_Rock-R2UjZAX3By.glb'),
+    getAssetUrl('assets/obstacles/rocks/voxel_Rock-RtLRqYjfMs.glb'),
+    getAssetUrl('assets/obstacles/rocks/voxel_Rock.glb'),
+    getAssetUrl('assets/obstacles/rocks/voxel_Rocks by Quaternius - OQvi8PIZ40.glb'),
+    getAssetUrl('assets/obstacles/rocks/voxel_Rocks.glb')
   ];
 
   static _fishUrls = [
-    '/src/assets/fish/Dolphin.glb',
-    '/src/assets/fish/Fish-BEcU9rjiAq.glb',
-    '/src/assets/fish/Fish-XWl86YFtpF.glb',
-    '/src/assets/fish/Fish.glb',
-    '/src/assets/fish/Manta ray.glb',
-    '/src/assets/fish/Shark.glb',
-    '/src/assets/fish/Whale.glb'
+    getAssetUrl('assets/fish/Dolphin.glb'),
+    getAssetUrl('assets/fish/Fish-BEcU9rjiAq.glb'),
+    getAssetUrl('assets/fish/Fish-XWl86YFtpF.glb'),
+    getAssetUrl('assets/fish/Fish.glb'),
+    getAssetUrl('assets/fish/Manta ray.glb'),
+    getAssetUrl('assets/fish/shark.glb'),
+    getAssetUrl('assets/fish/Whale.glb')
   ];
 
   static _pickupUrls = [
-    '/src/assets/pickups/Wood Planks by Quaternius - hwQ1Fx5P8U.glb'
+    getAssetUrl('assets/pickups/Wood Planks by Quaternius - hwQ1Fx5P8U.glb')
   ];
 
   static _seaweedUrls = [
-    '/src/assets/obstacles/seaweed/Kelp by Christopher F - 3VhttTFyADO.glb'
+    getAssetUrl('assets/obstacles/seaweed/Kelp by Christopher F - 3VhttTFyADO.glb')
   ];
 
   static _waveUrls = [
-    '/src/assets/obstacles/wave/Wave by Poly by Google - 6mpwUZqCgzy.glb'
+    getAssetUrl('assets/obstacles/wave/Wave by Poly by Google - 6mpwUZqCgzy.glb')
   ];
 
   static _islandUrls = [
-    '/src/islands/Low-poly landscape by sirkitree - bjsNFfddgOv.glb',
-    '/src/islands/Mountain by Poly by Google - 7Jhw3p6TusU.glb',
-    '/src/islands/Mountaintop by Matthew Burdette - 8mWDJgGcXSH.glb'
+    getAssetUrl('islands/Low-poly landscape by sirkitree - bjsNFfddgOv.glb'),
+    getAssetUrl('islands/Mountain by Poly by Google - 7Jhw3p6TusU.glb'),
+    getAssetUrl('islands/Mountaintop by Matthew Burdette - 8mWDJgGcXSH.glb')
   ];
 
-  static _sirenUrl = '/src/assets/enemies/Siren.glb';
-  static _krakenUrl = '/src/assets/enemies/Octopus_mesh_Voxelized.glb';
+  static _sirenUrl = getAssetUrl('assets/enemies/Siren.glb');
+  static _krakenUrl = getAssetUrl('assets/enemies/Octopus_mesh_Voxelized.glb');
 
   static get rockUrls() { return [...this._rockUrls]; }
   static get fishUrls() { return [...this._fishUrls]; }
@@ -89,7 +90,7 @@ export class LevelConfig {
   static async load(day) {
     const levelKey = `day${day}`;
     if (!LevelConfig._cache.has(levelKey)) {
-      const levelCfg = await LevelConfig._fetchJson(`/src/assets/levels/day${day}.json`);
+      const levelCfg = await LevelConfig._fetchJson(getAssetUrl(`assets/levels/day${day}.json`));
       LevelConfig._cache.set(levelKey, levelCfg);
     }
     const levelCfg = LevelConfig._cache.get(levelKey);
@@ -274,7 +275,7 @@ export class LevelConfig {
 
     if (child.material) {
       if (!child.material.map) {
-        const tex = new THREE.TextureLoader().load('/src/assets/enemies/octopus_texture_extracted.png');
+        const tex = new THREE.TextureLoader().load(getAssetUrl('assets/enemies/octopus_texture_extracted.png'));
         tex.colorSpace = THREE.SRGBColorSpace;
         child.material.map = tex;
       }

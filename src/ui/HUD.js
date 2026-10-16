@@ -1,5 +1,4 @@
 import { emit, on, off } from '../core/EventBus.js';
-import wheelImage from '../assets/wheels/wheel_threshold.png';
 import { GameEnv } from '../core/GameEnv.js';
 
 /**

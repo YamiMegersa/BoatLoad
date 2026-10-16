@@ -1,4 +1,5 @@
 import { on } from '../core/EventBus.js';
+import { getAssetUrl } from './paths.js';
 
 /**
  * AudioManager — thin Web Audio API wrapper.
@@ -66,7 +67,7 @@ export class AudioManager {
   async _getBuffer(soundId) {
     if (this._buffers.has(soundId)) return this._buffers.get(soundId);
 
-    const url = `/src/assets/audio/${soundId}.mp3`;
+    const url = getAssetUrl(`assets/audio/${soundId}.mp3`);
     const res = await fetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 

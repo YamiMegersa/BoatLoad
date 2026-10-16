@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VoxelGrid, CellState } from './VoxelGrid.js';
 import { getShipProfile } from '../config/ShipRegistry.js';
+import { getAssetUrl } from '../utils/paths.js';
 
 /**
  * ShipBuilder — instantiates a VoxelGrid from a ship definition JSON,
@@ -23,7 +24,7 @@ export class ShipBuilder {
     const grid = new VoxelGrid(W, H, D);
 
     const loader = new GLTFLoader();
-    const modelPath = shipDef.modelUrl || `/src/assets/ships/${shipDef.id}.glb`;
+    const modelPath = getAssetUrl(shipDef.modelUrl || `assets/ships/${shipDef.id}.glb`);
     let gltf;
     try {
       gltf = await loader.loadAsync(modelPath);

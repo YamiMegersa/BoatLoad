@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { getAssetUrl } from '../utils/paths.js';
 
 export class WeatherSystem {
   constructor() {
@@ -80,10 +81,10 @@ export class WeatherSystem {
   async loadLevel(dayNum, sceneEntities) {
     try {
       if (!this.weatherConfigs) {
-        const res = await fetch('/src/assets/levels/weather.json');
+        const res = await fetch(getAssetUrl('assets/levels/weather.json'));
         this.weatherConfigs = await res.json();
       }
-      const levelRes = await fetch(`/src/assets/levels/day${dayNum}.json`);
+      const levelRes = await fetch(getAssetUrl(`assets/levels/day${dayNum}.json`));
       const levelData = await levelRes.json();
       
       const weatherState = this.weatherConfigs[levelData.weather];

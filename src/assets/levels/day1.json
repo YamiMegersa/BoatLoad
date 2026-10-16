@@ -20,7 +20,7 @@
     { "type": "wave_small", "lanePattern": "random",      "count": 5  },
     {
       "type": "island",
-      "assetUrl": "/src/islands/Low-poly landscape by sirkitree - bjsNFfddgOv.glb",
+      "assetUrl": "./islands/Low-poly landscape by sirkitree - bjsNFfddgOv.glb",
       "scale": 5.599999999999997,
       "position": {
         "x": -58.15,
@@ -30,7 +30,7 @@
     },
     {
       "type": "island",
-      "assetUrl": "/src/islands/Mountain by Poly by Google - 7Jhw3p6TusU.glb",
+      "assetUrl": "./islands/Mountain by Poly by Google - 7Jhw3p6TusU.glb",
       "scale": 3.7000000000000024,
       "position": {
         "x": 27.19,

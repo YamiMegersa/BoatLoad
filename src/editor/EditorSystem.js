@@ -5,6 +5,7 @@ import { buildObstacle } from '../obstacle/ObstacleManager.js';
 import { EnvironmentManager } from '../environment/EnvironmentManager.js';
 import { VoxelTerrain } from './VoxelTerrain.js';
 import { getShipProfile, DEFAULT_SHIP_ID } from '../config/ShipRegistry.js';
+import { getAssetUrl } from '../utils/paths.js';
 
 export class EditorSystem {
   constructor() {
@@ -1438,7 +1439,7 @@ export class EditorSystem {
 
     // Load ship model with translucent wireframe / ghost holographic material
     const loader = new GLTFLoader();
-    const modelUrl = profile.modelUrl || `/src/assets/ships/${profile.id}.glb`;
+    const modelUrl = getAssetUrl(profile.modelUrl || `assets/ships/${profile.id}.glb`);
     loader.load(modelUrl, (gltf) => {
       if (!this._shipGhostGroup) return; // disposed in the meantime
       const model = gltf.scene;

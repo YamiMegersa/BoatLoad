@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { FishAnimator } from './environment/FishAnimator.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { getAssetUrl } from './utils/paths.js';
 
 const canvas = document.querySelector('#canvas');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -26,13 +27,13 @@ scene.add(sun);
 scene.add(new THREE.GridHelper(20, 20));
 
 const fishUrls = [
-  '/src/assets/fish/Dolphin.glb',
-  '/src/assets/fish/Fish-BEcU9rjiAq.glb',
-  '/src/assets/fish/Fish-XWl86YFtpF.glb',
-  '/src/assets/fish/Fish.glb',
-  '/src/assets/fish/Manta ray.glb',
-  '/src/assets/fish/Shark.glb',
-  '/src/assets/fish/Whale.glb'
+  getAssetUrl('assets/fish/Dolphin.glb'),
+  getAssetUrl('assets/fish/Fish-BEcU9rjiAq.glb'),
+  getAssetUrl('assets/fish/Fish-XWl86YFtpF.glb'),
+  getAssetUrl('assets/fish/Fish.glb'),
+  getAssetUrl('assets/fish/Manta ray.glb'),
+  getAssetUrl('assets/fish/shark.glb'),
+  getAssetUrl('assets/fish/Whale.glb')
 ];
 
 let animators = [];
