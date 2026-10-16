@@ -539,7 +539,9 @@ export class GameState {
 
     // Trigger cutscene & dialogue when a level is chosen in the logbook
     this._startLevelCutscene = () => {
-      if (this._dockShipArrived || this._shipArriving) return;
+      if (this._shipArriving) return;
+      this._dockShipArrived = false;
+      this._shipDocked = false;
 
       // Start 2D humanoid sprite walk animation from island to counter if not already at counter
       if (this._dockStall && this._dockStall.dockNPC && !this._dockStall.dockNPC.hasArrived) {
@@ -573,7 +575,7 @@ export class GameState {
             portrait: `<img src="${getAssetUrl('assets/npc/custom_npc.png')}" alt="Captain Barlow" />`,
             name: 'Captain Barlow',
             lines: [
-              `Ahoy there shipwright! We ran into treacherous hazards offshore!`,
+              `Ahoy there shipwright! We ran into treacherous hazards offshore on Day ${this.day}!`,
               `Look out your shop window—my crew is navigating the ${shipName} to the pier now!`,
               `Head out and board her at the dock to repair her hull before we set sail again!`
             ]
