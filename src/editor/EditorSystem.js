@@ -139,6 +139,10 @@ export class EditorSystem {
         else if (this._scene) this._scene.remove(obs.mesh);
       }
       this._placedObstacles = [];
+      if (this._voxelTerrain) {
+        this._voxelTerrain.dispose();
+        this._voxelTerrain = new VoxelTerrain(this._editorGroup || this._scene);
+      }
       this._emitState();
     });
 
@@ -176,10 +180,10 @@ export class EditorSystem {
       // Re-create & deserialize voxels cleanly
       if (this._voxelTerrain) {
         this._voxelTerrain.dispose();
-        this._voxelTerrain = new VoxelTerrain(this._editorGroup || this._scene);
-        if (cfg.voxels) {
-          this._voxelTerrain.deserialize(cfg.voxels);
-        }
+      }
+      this._voxelTerrain = new VoxelTerrain(this._editorGroup || this._scene);
+      if (cfg.voxels) {
+        this._voxelTerrain.deserialize(cfg.voxels);
       }
 
       // World size
@@ -1486,13 +1490,16 @@ export class EditorSystem {
   exportLevel() {
     const exportData = this.getPlayableConfig();
     
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData, null, 2));
+    const jsonStr = JSON.stringify(exportData, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = dataStr;
+    a.href = url;
     a.download = `level_export_${Date.now()}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
     
     console.log("Level Exported", exportData);
   }
