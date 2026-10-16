@@ -62,6 +62,7 @@ export class DockPlayerController {
     this.hoveredBunny = null;
     this.hoveredShip = null;
     this.hoveredLedger = null;
+    this.hoveredShipyard = null;
 
     // UI elements
     this._createUI();
@@ -216,6 +217,8 @@ export class DockPlayerController {
           this.toggleShop();
         } else if (this.hoveredShip || this.hoveredLedger) {
           this._interactWithShip();
+        } else if (this.hoveredShipyard) {
+          this._interactWithShipyard();
         }
         break;
       case 'KeyQ':
@@ -288,6 +291,11 @@ export class DockPlayerController {
       return;
     }
 
+    if (this.hoveredShipyard) {
+      this._interactWithShipyard();
+      return;
+    }
+
     // Otherwise lock pointer for smooth navigation
     if (!this.isLocked) {
       this.domElement.requestPointerLock();
@@ -335,6 +343,11 @@ export class DockPlayerController {
   _interactWithShip() {
     emit('playSound', { sound: 'qte_success' });
     emit('requestPhaseChange', { phase: 'SHIPYARD' });
+  }
+
+  _interactWithShipyard() {
+    emit('playSound', { sound: 'qte_success' });
+    emit('gotoShipyard');
   }
 
   enterShop() {
@@ -511,20 +524,21 @@ export class DockPlayerController {
       return 2.15 * this.scale; // default dock level
     }
 
-    const rayOrigin = new THREE.Vector3(x, 10.0 * this.scale, z);
+    const rayOrigin = new THREE.Vector3(x, 16.0 * this.scale, z);
     this.downRaycaster.set(rayOrigin, new THREE.Vector3(0, -1, 0));
+    this.downRaycaster.far = 20.0;
 
     // Intersect terrain and dock objects
     const hits = this.downRaycaster.intersectObject(this.dockStall.group, true);
     for (let i = 0; i < hits.length; i++) {
       const hit = hits[i];
-      // Exclude roofs, sign, gulls, or high props
-      if (hit.point.y > 4.5 * this.scale) continue;
+      // Exclude roofs, high cranes, gulls, or high props
+      if (hit.point.y > 6.2 * this.scale) continue;
       // Exclude water/below water level
       if (hit.point.y < 0.1 * this.scale) continue;
 
-      // Make sure the hit object isn't the door or ceiling or bunny
-      if (hit.object && hit.object.userData && (hit.object.userData.isShopDoor || hit.object.userData.isBunny)) continue;
+      // Make sure the hit object isn't the door, bunny, or marked noWalk
+      if (hit.object && hit.object.userData && (hit.object.userData.isShopDoor || hit.object.userData.isBunny || hit.object.userData.noWalk)) continue;
 
       // Exclude any part of the shop stall (counter, floor, desk, apron, roof)
       let parent = hit.object;
@@ -562,6 +576,9 @@ export class DockPlayerController {
     }
     if (this.dockStall.ledgerInteractables) {
       interactables.push(...this.dockStall.ledgerInteractables);
+    }
+    if (this.dockStall.shipyardInteractables) {
+      interactables.push(...this.dockStall.shipyardInteractables);
     }
 
     if (interactables.length === 0) {
@@ -622,6 +639,11 @@ export class DockPlayerController {
               this._setHoverState(hit.object, 'door');
               return;
             }
+          } else if (hit.object.userData.isShipyardBench) {
+            if (hit.distance <= 5.5) {
+              this._setHoverState(hit.object, 'shipyard');
+              return;
+            }
           }
         }
       }
@@ -635,6 +657,7 @@ export class DockPlayerController {
     this.hoveredBunny = type === 'bunny' ? obj : null;
     this.hoveredShip = type === 'ship' ? obj : null;
     this.hoveredLedger = type === 'ledger' ? obj : null;
+    this.hoveredShipyard = type === 'shipyard' ? obj : null;
 
     if (type) {
       this.domElement.style.cursor = 'pointer';
@@ -651,6 +674,8 @@ export class DockPlayerController {
       } else if (type === 'ship') {
         const shipName = this.dockStall?.activeShipProfile?.name || 'Vessel';
         this.prompt.innerHTML = `🔨 <span style="background:#4a3520; padding:2px 6px; border-radius:3px; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shipyard &amp; Alter ${shipName}`;
+      } else if (type === 'shipyard') {
+        this.prompt.innerHTML = `🔨 <span style="background:#4a3520; padding:2px 6px; border-radius:3px; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shipyard`;
       } else if (this.mode === 'player') {
         this.prompt.innerHTML = `🚪 <span style="background:#4a3520; padding:2px 6px; border-radius:3px; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shop`;
       } else {
