@@ -246,7 +246,23 @@ export class GameState {
     emit('phaseChanged', { phase: newPhase });
 
     if (!skipLoading) {
-      emit('hideLoading');
+      await new Promise(resolve => {
+        emit('hideLoading', { onDismissed: resolve });
+      });
+    }
+
+    // Now the loading screen is fully dismissed and the player is stably loaded and visible
+    if (newPhase === GamePhase.OBSTACLE) {
+      // Allow a brief pause (2 animation frames + 100ms) for the player to see their
+      // ship stably resting at the berth before the anchor countdown begins.
+      await new Promise(resolve => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            setTimeout(resolve, 100);
+          });
+        });
+      });
+      this._startAnchorCountdownSequence();
     }
   }
 
@@ -262,6 +278,24 @@ export class GameState {
     if (this.currentPhase !== GamePhase.OBSTACLE || !this._sailSnapshot) return;
     const shipStats = { ...(this._obstacleOpts?.shipStats ?? {}) };
     await this.transition(GamePhase.OBSTACLE, { ...this._obstacleOpts, shipStats }, true);
+  }
+
+  _startAnchorCountdownSequence() {
+    if (this.currentPhase !== GamePhase.OBSTACLE || !this._playerShip) return;
+
+    this._isCountdownActive = true;
+    this._playerShip.halt();
+
+    emit('startAnchorCountdown', {
+      duration: 6.0,
+      hasDock: this._hasDock,
+      onComplete: () => {
+        this._isCountdownActive = false;
+        if (this._playerShip) {
+          this._playerShip.resumeSpeed();
+        }
+      }
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -1257,6 +1291,10 @@ export class GameState {
       this._dockMooredGroup = null;
     }
 
+    if (this._weather?.rainMesh) {
+      this._weather.rainMesh.visible = false;
+    }
+
     const activeShipId = shipDef?.id || levelCfg?.ship || this._levelCfg?.ship || DEFAULT_SHIP_ID;
     const activeShipDef = shipDef || LevelConfig.getShipDef(activeShipId);
     const profile = ShipRegistry.get(activeShipId);
@@ -1421,6 +1459,18 @@ export class GameState {
     
     this._windManager = new WindManager(levelCfg);
 
+    // Pre-settle ship stably on ocean surface and orient camera
+    if (this._playerShip && this._ocean) {
+      this._playerShip.update(0.016, this._ocean, this._windManager);
+      this._playerShip.halt();
+      const p = this._playerShip.mesh.position;
+      const baseCam = p.clone().add(shipDir.clone().multiplyScalar(-camDist));
+      baseCam.y = p.y + camHeight;
+      this._camera.position.copy(baseCam);
+      this._camLookTarget = p.clone();
+      this._camera.lookAt(this._camLookTarget);
+    }
+
     // Kraken Boss (only if level defines one)
     if (levelCfg.kraken) {
       this._krakenBoss = new KrakenBoss();
@@ -1479,20 +1529,10 @@ export class GameState {
     this.score = 0;
     emit('uiMount', { screen: 'obstacle' });
 
-    // Anchor Hoisting Countdown before casting off
+    // Anchor Hoisting Countdown state before casting off
+    this._hasDock = hasDock;
     this._isCountdownActive = true;
-    this._playerShip.halt();
-
-    emit('startAnchorCountdown', {
-      duration: 3.0,
-      hasDock,
-      onComplete: () => {
-        this._isCountdownActive = false;
-        if (this._playerShip) {
-          this._playerShip.resumeSpeed();
-        }
-      }
-    });
+    this._playerShip?.halt();
   }
 
   _updateObstacle(delta) {

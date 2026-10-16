@@ -36,9 +36,9 @@ export class RainManager {
           
           vec3 pos = basePos + uDisplacement;
           
-          pos.x = mod(pos.x + uBoxSize.x * 0.5, uBoxSize.x) - uBoxSize.x * 0.5;
-          pos.y = mod(pos.y, uBoxSize.y);
-          pos.z = mod(pos.z + uBoxSize.z * 0.5, uBoxSize.z) - uBoxSize.z * 0.5;
+          pos.x = mod(mod(pos.x, uBoxSize.x) + uBoxSize.x, uBoxSize.x) - uBoxSize.x * 0.5;
+          pos.y = mod(mod(pos.y, uBoxSize.y) + uBoxSize.y, uBoxSize.y);
+          pos.z = mod(mod(pos.z, uBoxSize.z) + uBoxSize.z, uBoxSize.z) - uBoxSize.z * 0.5;
           
           vec3 localPos = position;
           
@@ -48,8 +48,6 @@ export class RainManager {
           
           localPos.x -= localPos.y * skewX;
           localPos.z -= localPos.y * skewZ;
-          
-          // Also invert the overall wind velocity for the displacement if it was backwards, but displacement is fine.
           
           vec4 worldPosition = modelMatrix * vec4(localPos + pos, 1.0);
           gl_Position = projectionMatrix * viewMatrix * worldPosition;
@@ -88,23 +86,24 @@ export class RainManager {
     if (this.mesh) {
       if (this._targetIntensity !== undefined) {
         const cur = this.mesh.material.uniforms.uOpacity.value;
-        this.mesh.material.uniforms.uOpacity.value += (this._targetIntensity - cur) * delta * 2.0;
+        this.mesh.material.uniforms.uOpacity.value += (this._targetIntensity - cur) * Math.min(1.0, delta * 3.0);
       }
 
       this.mesh.material.uniforms.uTime.value = this._time;
       
       // Rain slants with the wind
-      const fallDir = new THREE.Vector3(windDir.x * 1.0, -1.0, windDir.z * 1.0).normalize();
+      const wDir = windDir || new THREE.Vector3(0, 0, -1);
+      const fallDir = new THREE.Vector3(wDir.x * 1.0, -1.0, wDir.z * 1.0).normalize();
       this.mesh.material.uniforms.uWindDirection.value.copy(fallDir);
       
       if (!this._displacement) this._displacement = new THREE.Vector3();
-      this._displacement.addScaledVector(fallDir, 40.0 * delta); // 40.0 is the fall speed
+      this._displacement.addScaledVector(fallDir, 55.0 * delta); // 55.0 fall speed
       
       // Keep displacement bounded to prevent float precision issues over time
       const box = this.mesh.material.uniforms.uBoxSize.value;
-      this._displacement.x = this._displacement.x % box.x;
-      this._displacement.y = this._displacement.y % box.y;
-      this._displacement.z = this._displacement.z % box.z;
+      this._displacement.x = ((this._displacement.x % box.x) + box.x) % box.x;
+      this._displacement.y = ((this._displacement.y % box.y) + box.y) % box.y;
+      this._displacement.z = ((this._displacement.z % box.z) + box.z) % box.z;
       
       if (!this.mesh.material.uniforms.uDisplacement) {
         this.mesh.material.uniforms.uDisplacement = { value: new THREE.Vector3() };

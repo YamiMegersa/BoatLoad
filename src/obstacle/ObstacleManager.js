@@ -292,18 +292,6 @@ export function buildObstacle(type, pos, url, scale, rockModels, pickupModels, s
   localBox.getCenter(baseOBB.center);
   localBox.getSize(baseOBB.halfSize).multiplyScalar(0.5);
 
-  // HITBOX VISUALIZATION
-  if (type === 'barrel') {
-    const sphereGeo = new THREE.WireframeGeometry(new THREE.SphereGeometry(0.5, 8, 8));
-    const sphereMesh = new THREE.LineSegments(sphereGeo, new THREE.LineBasicMaterial({ color: 0xff0000 }));
-    mesh.add(sphereMesh);
-  } else if (type !== 'island') { // Don't draw giant AABB for islands since they use BVH
-    const wireMat = new THREE.LineBasicMaterial({ color: 0xff0000 });
-    const wireGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(baseOBB.halfSize.x * 2, baseOBB.halfSize.y * 2, baseOBB.halfSize.z * 2));
-    const wireMesh = new THREE.LineSegments(wireGeo, wireMat);
-    wireMesh.position.copy(baseOBB.center);
-    mesh.add(wireMesh);
-  }
 
   // Now place it at actual position
   mesh.position.set(pos.x, pos.y !== undefined ? pos.y : 0.5, pos.z);

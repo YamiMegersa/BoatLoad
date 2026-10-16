@@ -15,7 +15,7 @@ export class AnchorCountdownUI {
     this._pausedTime = 0;
     this._pauseStart = 0;
     this._isPaused = false;
-    this._duration = 3.0; // seconds
+    this._duration = 6.0; // seconds (half-speed reel)
     this._onComplete = null;
     this._lastCount = -1;
     this._lastTickTime = 0;
@@ -46,7 +46,7 @@ export class AnchorCountdownUI {
     window.addEventListener('keydown', this._onKeyDown);
   }
 
-  start({ duration = 3.0, onComplete } = {}) {
+  start({ duration = 6.0, onComplete } = {}) {
     this.cancel();
 
     this._duration = duration;
@@ -165,20 +165,21 @@ export class AnchorCountdownUI {
     const elapsed = (now - this._startTime - this._pausedTime) / 1000;
     const progress = Math.min(1.0, elapsed / this._duration);
 
-    // Discrete counts: 3 (0-1s), 2 (1-2s), 1 (2-3s), GO (>= 3s)
+    // Discrete counts scaled to duration: 3, 2, 1, GO
+    const step = this._duration / 3.0;
     let currentCount = 3;
     let label = 'WEIGHING ANCHOR...';
     let color = '#ffd700';
 
-    if (elapsed < 1.0) {
+    if (elapsed < step) {
       currentCount = 3;
       label = 'WEIGHING ANCHOR...';
       color = '#ffd700';
-    } else if (elapsed < 2.0) {
+    } else if (elapsed < step * 2) {
       currentCount = 2;
       label = 'HEAVE HO!';
       color = '#ffb74d';
-    } else if (elapsed < 3.0) {
+    } else if (elapsed < this._duration) {
       currentCount = 1;
       label = 'ANCHOR AWEIGH!';
       color = '#81c784';
@@ -205,14 +206,14 @@ export class AnchorCountdownUI {
       }
     }
 
-    // Play periodic ratchet tick every 0.22s while reeling
-    if (elapsed < 3.0 && now - this._lastTickTime > 220) {
+    // Play periodic ratchet tick while reeling at half speed (every 0.44s)
+    if (elapsed < this._duration && now - this._lastTickTime > 440) {
       this._lastTickTime = now;
       emit('playSound', { sound: 'anchor_reel' });
     }
 
     // Spawn water droplets / bubbles when anchor is rising
-    if (elapsed > 0.5 && elapsed < 2.4 && Math.random() < 0.45) {
+    if (elapsed > 0.5 && elapsed < this._duration * 0.85 && Math.random() < 0.28) {
       this._particles.push({
         x: 120 + (Math.random() - 0.5) * 44,
         y: 168 + (Math.random() - 0.5) * 8,
@@ -260,8 +261,8 @@ export class AnchorCountdownUI {
     // Brass winch axle
     ctx.fillStyle = '#c8a44b';
     ctx.fillRect(108, 14, 24, 18);
-    // Rotating winch wheel spokes (animated)
-    const spokeAngle = elapsed * 10;
+    // Rotating winch wheel spokes (animated at half speed)
+    const spokeAngle = elapsed * 5;
     ctx.save();
     ctx.translate(120, 23);
     ctx.rotate(spokeAngle);
@@ -280,7 +281,7 @@ export class AnchorCountdownUI {
     const chainBottomY = anchorY - 14;
     const linkH = 10;
     const linkW = 6;
-    const chainOffset = (elapsed * 32) % linkH;
+    const chainOffset = (elapsed * 16) % linkH;
 
     for (let y = chainTopY - (linkH - chainOffset); y <= chainBottomY; y += linkH) {
       if (y < chainTopY) continue;
@@ -303,7 +304,7 @@ export class AnchorCountdownUI {
     ctx.translate(120, anchorY);
 
     // Subtle bobbing and sway while hanging
-    const sway = Math.sin(elapsed * 4.5) * 0.05 * (1.0 - progress * 0.7);
+    const sway = Math.sin(elapsed * 2.5) * 0.05 * (1.0 - progress * 0.7);
     ctx.rotate(sway);
 
     // Shackle ring atop shank

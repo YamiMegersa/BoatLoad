@@ -155,6 +155,7 @@ export class LoadingScreenUI {
       clearTimeout(this._hideTimeout);
       this._hideTimeout = null;
     }
+    this._pendingDismissCallbacks = [];
 
     const title = opts.title || 'Navigating Seas';
     const message = opts.message || 'Plotting course...';
@@ -202,9 +203,28 @@ export class LoadingScreenUI {
    * Ensures a minimum display duration to prevent visual strobing.
    * @param {object} [opts]
    * @param {boolean} [opts.immediate=false] Skip delay and minimum duration
+   * @param {Function} [opts.onDismissed] Callback fired when loading screen is fully hidden
    */
   hide(opts = {}) {
-    if (!this._visible) return;
+    const onDismissed = typeof opts === 'function' ? opts : opts?.onDismissed;
+    if (typeof onDismissed === 'function') {
+      if (!this._pendingDismissCallbacks) this._pendingDismissCallbacks = [];
+      this._pendingDismissCallbacks.push(onDismissed);
+    }
+
+    const triggerDismissed = () => {
+      const cbs = this._pendingDismissCallbacks ? [...this._pendingDismissCallbacks] : [];
+      this._pendingDismissCallbacks = [];
+      for (const cb of cbs) {
+        try { cb(); } catch (err) { console.error('Error in onDismissed callback:', err); }
+      }
+      emit('loadingScreenDismissed');
+    };
+
+    if (!this._visible) {
+      triggerDismissed();
+      return;
+    }
 
     const immediate = !!opts?.immediate;
     this._setProgress(1.0);
@@ -225,7 +245,8 @@ export class LoadingScreenUI {
         }
         this._visible = false;
         this._hideTimeout = null;
-      }, 350); // Matches CSS transition duration
+        triggerDismissed();
+      }, immediate ? 0 : 350); // Matches CSS transition duration
     }, remainingMin + finishDelay);
   }
 
@@ -250,6 +271,7 @@ export class LoadingScreenUI {
       clearTimeout(this._hideTimeout);
       this._hideTimeout = null;
     }
+    this._pendingDismissCallbacks = [];
     off('showLoading', this._onShow);
     off('updateLoading', this._onUpdate);
     off('hideLoading', this._onHide);

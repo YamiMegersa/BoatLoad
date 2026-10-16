@@ -334,8 +334,8 @@ export class PlayerShip {
         },
         onFail: ({ metadata }) => {
           this._bailingWater = false;
-          this._bailCooldown = 1.25;
-          if (!metadata.debug) emit('waterBailFailed');
+          this._bailCooldown = 10.0;
+          if (!metadata.debug) emit('waterBailFailed', { cooldown: 10 });
         }
       });
       this._bailingWater = accepted;

@@ -95,18 +95,19 @@ export class EnvironmentManager {
     }
     
     this._timeOfDay = levelCfg && levelCfg.timeOfDay !== undefined ? levelCfg.timeOfDay : 8.0;
-    this._isStormy = levelCfg && levelCfg.isStormy !== undefined ? levelCfg.isStormy : false;
+    const isStormWeather = Boolean(levelCfg?.weather === 'stormy' || levelCfg?.weather === 'gale');
+    this._isStormy = levelCfg && levelCfg.isStormy !== undefined ? Boolean(levelCfg.isStormy) : isStormWeather;
     if (levelCfg && levelCfg.godRays !== undefined) {
       this._godRaysEnabled = !!levelCfg.godRays;
     }
     
-    this._updateTimeAndLighting(0);
-    this.toggleStorm(this._isStormy);
-
     this._windParticles = new WindParticles(scene);
     this._rainManager = new RainManager(scene);
     this._fogVolume = new FogVolume(scene);
     this._stormClouds = new StormClouds(scene);
+
+    this._updateTimeAndLighting(0);
+    this.toggleStorm(this._isStormy);
 
     if (this._fishModels && this._fishModels.length > 0) {
       // Find shark model if available and guarantee at least 4 sharks spawn
