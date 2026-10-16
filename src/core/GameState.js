@@ -536,8 +536,21 @@ export class GameState {
     this._dockOrbitControls.target.set(0, 2, 0);
     this._dockOrbitControls.enabled = false;
 
-    // Listen for player entering stall to trigger cutscene & dialogue
-    this._onDockPlayerEnteredShop = () => {
+    // Trigger cutscene & dialogue when Level 1 is chosen in the logbook
+    this._startLevelCutscene = () => {
+      if (this._dockShipArrived || this._shipArriving) return;
+
+      // Start 2D humanoid sprite walk animation from island to counter
+      if (this._dockStall && this._dockStall.dockNPC) {
+        this._dockStall.dockNPC.startWalkToCounter(() => {
+          this._triggerShipArrivalAndDialogue();
+        });
+      } else {
+        this._triggerShipArrivalAndDialogue();
+      }
+    };
+
+    this._triggerShipArrivalAndDialogue = () => {
       if (!this._shipDocked && !this._shipArriving) {
         this._shipArriving = true;
         this._shipArrivalTimer = 0;
@@ -556,7 +569,7 @@ export class GameState {
         const shipName = shipProfile?.name || 'Vessel';
         emit('showDialogue', {
           dialogue: {
-            portrait: '🧑‍✈️',
+            portrait: '<img src="/assets/npc/custom_npc.png" alt="Captain Barlow" />',
             name: 'Captain Barlow',
             lines: [
               `Ahoy there shipwright! We ran into treacherous hazards offshore!`,
@@ -567,12 +580,39 @@ export class GameState {
         });
       }
     };
+
+    this._onLevelSelected = async (data) => {
+      const day = data?.day || 1;
+      this.day = day;
+
+      if (this._weather) {
+        await this._weather.loadLevel(this.day, {
+          ambient: this._ambient,
+          sun: this._sun,
+          ocean: this._ocean,
+          sky: this._sky,
+          lanternLight: this._dockStall?.lanternLight,
+          scene: this._scene
+        });
+      }
+
+      this._startLevelCutscene();
+    };
+    on('levelSelected', this._onLevelSelected);
+
+    this._onDockPlayerEnteredShop = () => {
+      // Player entered stall — glowing logbook is available on counter to select voyage
+    };
     on('dockPlayerEnteredShop', this._onDockPlayerEnteredShop);
 
     emit('uiMount', { screen: 'dock', dockStall: this._dockStall, gameState: this, dockPlayerController: this._dockPlayerController });
   }
 
   _exitDock() {
+    if (this._onLevelSelected) {
+      off('levelSelected', this._onLevelSelected);
+      this._onLevelSelected = null;
+    }
     if (this._onDockPlayerEnteredShop) {
       off('dockPlayerEnteredShop', this._onDockPlayerEnteredShop);
       this._onDockPlayerEnteredShop = null;
