@@ -439,20 +439,21 @@ export class GameState {
       const s = shipProfile.scale || 0.12;
       this._dockMooredGroup.scale.setScalar(s);
 
-      // Wharf edge runs along Z at X = 9.0 * DOCK_SCALE
-      const pierEdgeX = 9.0 * DOCK_SCALE;
-      const pierCenterZ = 1.8 * DOCK_SCALE;
+      // Moored at the West Shipyard Outfitting Dock (opposite end of the island)
+      // Pier extends west to X = -65.9, centered along Z = 14.5
+      const pierTerminusX = -50.9;
+      const pierCenterZ = 10.5;
       const halfBeam = (this._grid?.width || 24) * s * 0.5;
       const draft = (shipProfile.waterlineY || 4) * s;
       
-      this._dockMooredTargetPos = new THREE.Vector3(pierEdgeX + halfBeam + (0.4 * DOCK_SCALE), -draft, pierCenterZ);
+      this._dockMooredTargetPos = new THREE.Vector3(pierTerminusX - halfBeam - 0.4, -draft, pierCenterZ);
       // Cubic Bezier curve control points:
-      // P0: Off-screen to the far left, well seaward of the island
-      // P1: Gliding seaward past the island landmass and pine trees
-      // P2: Crossing the bay channel directly in front of the stall window
-      this._dockMooredP0 = new THREE.Vector3(-52.0, -draft, -27.0);
-      this._dockMooredP1 = new THREE.Vector3(-20.0, -draft, -20.0);
-      this._dockMooredP2 = new THREE.Vector3(2.0, -draft, -20.0);
+      // P0: Off-screen to the far right (+X, seaward)
+      // P1: Gliding seaward from the east channel towards the shopfront at the same distance (Z = -20)
+      // P2: Sweeping westward past the island into open deep water to round into the dock
+      this._dockMooredP0 = new THREE.Vector3(55.0, -draft, -27.0);
+      this._dockMooredP1 = new THREE.Vector3(15.0, -draft, -20.0);
+      this._dockMooredP2 = new THREE.Vector3(-82.0, -draft, -20.0);
 
       this._dockMooredGroup.userData.isMooredShip = true;
       this._chunkRenderer.container.userData.isMooredShip = true;
