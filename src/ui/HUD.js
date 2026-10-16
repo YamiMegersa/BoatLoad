@@ -1,6 +1,9 @@
 import { emit, on, off } from '../core/EventBus.js';
 import { GameEnv } from '../core/GameEnv.js';
 import { DEBUG } from '../utils/debug.js';
+import { getAssetUrl } from '../utils/paths.js';
+
+const wheelImage = getAssetUrl('assets/wheels/wheel_threshold.png');
 
 /**
  * HUD — obstacle phase HUD overlay.

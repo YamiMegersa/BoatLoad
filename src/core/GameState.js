@@ -854,13 +854,11 @@ export class GameState {
       });
     };
 
-    // Rebuild BVH when topology changes (repair fills a MISSING cell) and
-    // refresh the repair docket so items check off as zones get fixed.
-    this._onCellRepaired = ({ cells = [] } = {}) => {
+    // Rebuild BVH when topology changes (repair fills a MISSING cell)
+    this._onCellRepaired = () => {
       if (this._grid?.consumeTopologyDirty()) {
         this._raycaster.rebuild(this._grid);
       }
-      this._refreshDocket?.(cells);
       this._emitShipyardSummary?.();
     };
     on('cellRepaired', this._onCellRepaired);
@@ -874,12 +872,7 @@ export class GameState {
     };
     on('gridDirty', this._onShipyardGridDirty);
 
-    // Derive the repair docket from actual grid damage (works for both the
-    // level's authored damage and a restored wreck) and gate Set Sail on it.
-    this._docket = DamageSystem.buildDocket?.(grid, zones, levelCfg?.docket ?? []) || [];
-    this._allRepairsEmitted = false;
-    emit('uiMount', { screen: 'shipyard', docket: this._docket });
-    this._refreshDocket?.();
+    emit('uiMount', { screen: 'shipyard' });
     this._emitShipyardSummary();
   }
 
