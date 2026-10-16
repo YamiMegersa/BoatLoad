@@ -1,6 +1,7 @@
 import { on, off, emit } from '../core/EventBus.js';
 import * as THREE from 'three';
 import { exportToGLB } from '../utils/exportGLTF.js';
+import { GameEnv } from '../core/GameEnv.js';
 
 export class DockUI {
   constructor() {
@@ -23,7 +24,7 @@ export class DockUI {
 
     this.root = document.createElement('div');
     this.root.className = 'dock-ui';
-    this.root.style.cssText = 'position:absolute; top:10px; left:50%; transform:translateX(-50%); display:flex; flex-direction: column; gap:10px; z-index:90; pointer-events: none !important;';
+    this.root.style.cssText = `position:absolute; top:10px; left:50%; transform:translateX(-50%); display:${GameEnv.isDev() ? 'flex' : 'none'}; flex-direction: column; gap:10px; z-index:90; pointer-events: none !important;`;
 
     const dayButtons = document.createElement('div');
     dayButtons.style.cssText = 'display:flex; gap:10px; pointer-events: auto !important; justify-content: center;';
@@ -152,6 +153,11 @@ export class DockUI {
     };
     on('dockPlayerModeChanged', this._onModeChange);
 
+    this._onEnvChange = ({ isDev }) => {
+      if (this.root) this.root.style.display = isDev ? 'flex' : 'none';
+    };
+    on('envModeChanged', this._onEnvChange);
+
     const uiRoot = document.getElementById('ui-root');
     if (uiRoot) {
         uiRoot.appendChild(this.root);
@@ -164,6 +170,10 @@ export class DockUI {
     if (this._onModeChange) {
       off('dockPlayerModeChanged', this._onModeChange);
       this._onModeChange = null;
+    }
+    if (this._onEnvChange) {
+      off('envModeChanged', this._onEnvChange);
+      this._onEnvChange = null;
     }
     if (this.root && this.root.parentNode) {
       this.root.parentNode.removeChild(this.root);

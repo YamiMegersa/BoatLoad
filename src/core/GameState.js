@@ -107,6 +107,20 @@ export class GameState {
     this._weather         = new WeatherSystem();
     this._dockStall       = new DockStall();
     
+    // Ship arrival cutscene state
+    this._shipDocked = true;
+    this._shipArriving = false;
+    this._shipArrivalTimer = 0;
+    this._shipArrivalDuration = 5.5;
+    this._dockShipArrived = false;
+    this._lastDockLevel = null;
+    this._lastDockDay = null;
+    this._onDockPlayerEnteredShop = null;
+
+    // End Location (Harbor Goal) state
+    this._endLocation = null;
+    this._endLocationVisual = null;
+
     // Global wind direction (e.g., blowing towards North-East)
     this.windDir = new THREE.Vector3(1, 0, -1).normalize();
 
@@ -192,12 +206,69 @@ export class GameState {
           const draft = (this._mooredShipProfile?.waterlineY || 4) * s;
           const bob = Math.sin(this._time * 1.6) * 0.05;
           const roll = Math.sin(this._time * 1.1) * 0.03;
-          this._dockMooredGroup.position.y = -draft + bob;
-          this._dockMooredGroup.rotation.z = roll;
-          if (isTruck) {
-            this._dockMooredGroup.rotation.x = -0.45 + Math.sin(this._time * 2.5) * 0.04;
-          } else {
-            this._dockMooredGroup.rotation.x = Math.sin(this._time * 1.3) * 0.02;
+
+          if (this._shipArriving) {
+            this._shipArrivalTimer += delta;
+            const t = Math.min(1.0, this._shipArrivalTimer / this._shipArrivalDuration);
+            // Smoothstep curve for seamless acceleration and gentle docking
+            const ease = t * t * (3 - 2 * t);
+            const u = 1 - ease;
+            const tt = ease;
+
+            // Cubic Bezier interpolation: P = u^3*P0 + 3*u^2*tt*P1 + 3*u*tt^2*P2 + tt^3*P3
+            const bx = u * u * u * this._dockMooredP0.x +
+                       3 * u * u * tt * this._dockMooredP1.x +
+                       3 * u * tt * tt * this._dockMooredP2.x +
+                       tt * tt * tt * this._dockMooredTargetPos.x;
+
+            const bz = u * u * u * this._dockMooredP0.z +
+                       3 * u * u * tt * this._dockMooredP1.z +
+                       3 * u * tt * tt * this._dockMooredP2.z +
+                       tt * tt * tt * this._dockMooredTargetPos.z;
+
+            // Analytical tangent derivative dP/d(ease) for realistic boat heading
+            const tx = 3 * u * u * (this._dockMooredP1.x - this._dockMooredP0.x) +
+                       6 * u * tt * (this._dockMooredP2.x - this._dockMooredP1.x) +
+                       3 * tt * tt * (this._dockMooredTargetPos.x - this._dockMooredP2.x);
+
+            const tz = 3 * u * u * (this._dockMooredP1.z - this._dockMooredP0.z) +
+                       6 * u * tt * (this._dockMooredP2.z - this._dockMooredP1.z) +
+                       3 * tt * tt * (this._dockMooredTargetPos.z - this._dockMooredP2.z);
+
+            const tangentYaw = Math.atan2(tx, tz);
+            // Smoothly align parallel to the pier (yaw = 0) in the final docking stretch
+            const blendT = THREE.MathUtils.clamp((ease - 0.7) / 0.3, 0, 1);
+            const rotY = THREE.MathUtils.lerp(tangentYaw, 0, blendT);
+
+            // Subtle inward banking roll during turn, plus wave motion
+            const turnRoll = -0.05 * Math.sin(t * Math.PI);
+
+            this._dockMooredGroup.position.set(bx, -draft + bob, bz);
+            this._dockMooredGroup.rotation.set(
+              Math.sin(this._time * 2.0) * 0.02,
+              rotY,
+              roll * 1.2 + turnRoll
+            );
+
+            if (t >= 1.0) {
+              this._shipArriving = false;
+              this._shipDocked = true;
+              this._dockMooredGroup.position.copy(this._dockMooredTargetPos);
+              this._dockMooredGroup.position.y = -draft;
+              this._dockMooredGroup.rotation.set(0, 0, 0);
+              emit('playSound', { sound: 'qte_success' });
+              if (this._dockStall) {
+                this._dockStall.shipInteractables = [this._dockMooredGroup];
+              }
+            }
+          } else if (this._shipDocked) {
+            this._dockMooredGroup.position.y = -draft + bob;
+            this._dockMooredGroup.rotation.z = roll;
+            if (isTruck) {
+              this._dockMooredGroup.rotation.x = -0.45 + Math.sin(this._time * 2.5) * 0.04;
+            } else {
+              this._dockMooredGroup.rotation.x = Math.sin(this._time * 1.3) * 0.02;
+            }
           }
         }
         break;
@@ -294,11 +365,19 @@ export class GameState {
 
   async _enterDock(opts) {
     if (opts?.levelCfg) this._levelCfg = opts.levelCfg;
+    if (opts?.day !== undefined) this.day = opts.day;
 
     const activeShipId = opts?.shipDef?.id || opts?.levelCfg?.ship || this._levelCfg?.ship || this.shipId || DEFAULT_SHIP_ID;
     const activeShipDef = opts?.shipDef || LevelConfig.getShipDef(activeShipId);
     const shipProfile = ShipRegistry.get(activeShipId);
     this._mooredShipProfile = shipProfile;
+
+    // Re-trigger ship arrival if level or day changed
+    if (this._lastDockLevel !== activeShipId || this._lastDockDay !== this.day) {
+      this._dockShipArrived = false;
+      this._lastDockLevel = activeShipId;
+      this._lastDockDay = this.day;
+    }
 
     // Build or update ship model if needed so it displays moored in the dock
     if (!this._grid || this._currentShipId !== activeShipId) {
@@ -336,21 +415,44 @@ export class GameState {
       this._dockMooredGroup.scale.setScalar(s);
 
       // Wharf edge runs along Z at X = 9.0 * DOCK_SCALE
-      // Moor the vessel alongside the pier, facing open water (-Z)
       const pierEdgeX = 9.0 * DOCK_SCALE;
       const pierCenterZ = 1.8 * DOCK_SCALE;
       const halfBeam = (this._grid?.width || 24) * s * 0.5;
       const draft = (shipProfile.waterlineY || 4) * s;
-      this._dockMooredGroup.position.set(pierEdgeX + halfBeam + (0.4 * DOCK_SCALE), -draft, pierCenterZ);
-      this._dockMooredGroup.rotation.set(0, Math.PI, 0);
+      
+      this._dockMooredTargetPos = new THREE.Vector3(pierEdgeX + halfBeam + (0.4 * DOCK_SCALE), -draft, pierCenterZ);
+      // Cubic Bezier curve control points:
+      // P0: Off-screen to the far left, well seaward of the island
+      // P1: Gliding seaward past the island landmass and pine trees
+      // P2: Crossing the bay channel directly in front of the stall window
+      this._dockMooredP0 = new THREE.Vector3(-52.0, -draft, -27.0);
+      this._dockMooredP1 = new THREE.Vector3(-20.0, -draft, -20.0);
+      this._dockMooredP2 = new THREE.Vector3(2.0, -draft, -20.0);
 
       this._dockMooredGroup.userData.isMooredShip = true;
       this._chunkRenderer.container.userData.isMooredShip = true;
       this._chunkRenderer.container.traverse(c => {
         c.userData.isMooredShip = true;
       });
-      if (this._dockStall) {
-        this._dockStall.shipInteractables = [this._dockMooredGroup];
+
+      if (this._dockShipArrived) {
+        this._dockMooredGroup.position.copy(this._dockMooredTargetPos);
+        this._dockMooredGroup.rotation.set(0, 0, 0);
+        this._dockMooredGroup.visible = true;
+        this._shipDocked = true;
+        this._shipArriving = false;
+        if (this._dockStall) {
+          this._dockStall.shipInteractables = [this._dockMooredGroup];
+        }
+      } else {
+        this._dockMooredGroup.position.copy(this._dockMooredP0);
+        this._dockMooredGroup.rotation.set(0, Math.atan2(this._dockMooredP1.x - this._dockMooredP0.x, this._dockMooredP1.z - this._dockMooredP0.z), 0);
+        this._dockMooredGroup.visible = false;
+        this._shipDocked = false;
+        this._shipArriving = false;
+        if (this._dockStall) {
+          this._dockStall.shipInteractables = [];
+        }
       }
     }
 
@@ -393,10 +495,49 @@ export class GameState {
     this._dockOrbitControls.target.set(0, 2, 0);
     this._dockOrbitControls.enabled = false;
 
+    // Listen for player entering stall to trigger cutscene & dialogue
+    this._onDockPlayerEnteredShop = () => {
+      if (!this._shipDocked && !this._shipArriving) {
+        this._shipArriving = true;
+        this._shipArrivalTimer = 0;
+        this._shipArrivalDuration = 20;
+        this._dockShipArrived = true;
+
+        if (this._dockMooredGroup) {
+          this._dockMooredGroup.visible = true;
+          this._dockMooredGroup.position.copy(this._dockMooredP0);
+        }
+
+        if (this._dockStall && this._dockMooredGroup) {
+          this._dockStall.shipInteractables = [this._dockMooredGroup];
+        }
+
+        const shipName = shipProfile?.name || 'Vessel';
+        emit('showDialogue', {
+          dialogue: {
+            portrait: '🧑‍✈️',
+            name: 'Captain Barlow',
+            lines: [
+              `Ahoy there shipwright! We ran into treacherous hazards offshore!`,
+              `Look out your shop window—my crew is navigating the ${shipName} to the pier now!`,
+              `Head out and board her at the dock to repair her hull before we set sail again!`
+            ]
+          }
+        });
+      }
+    };
+    on('dockPlayerEnteredShop', this._onDockPlayerEnteredShop);
+
     emit('uiMount', { screen: 'dock', dockStall: this._dockStall, gameState: this, dockPlayerController: this._dockPlayerController });
   }
 
   _exitDock() {
+    if (this._onDockPlayerEnteredShop) {
+      off('dockPlayerEnteredShop', this._onDockPlayerEnteredShop);
+      this._onDockPlayerEnteredShop = null;
+    }
+    emit('hideDialogue');
+
     this._scene.remove(this._dockStall.group);
     this._ocean.breakwaterEnabled = false;
 
@@ -595,7 +736,7 @@ export class GameState {
       }
     });
 
-    emit('uiMount', { screen: 'shipyard' });
+    emit('uiMount', { screen: 'shipyard', docket: this._levelCfg?.docket || [] });
   }
 
   _updateShipyard(delta) {
@@ -797,6 +938,11 @@ export class GameState {
         krakenModel
       );
     }
+
+    // End Location (Harbor Goal) Waypoint
+    this._endLocation = levelCfg?.endLocation || this._levelCfg?.endLocation || { position: { x: 0, y: 0, z: -220 }, radius: 16 };
+    this._buildEndLocationVisual(this._endLocation);
+
     this._onSteer = (d) => {
       if (this._playerShip) {
         this._playerShip.steerInput = d.value;
@@ -917,12 +1063,136 @@ export class GameState {
         this.windDir
       );
     }
+
+    // Update End Location (Harbor Goal) & Win condition
+    if (this._endLocationVisual) {
+      this._endLocationVisual.rotation.y += delta * 0.4;
+      const pulse = 1.0 + Math.sin(this._time * 3.5) * 0.04;
+      this._endLocationVisual.scale.set(pulse, 1.0, pulse);
+    }
+
+    if (this._endLocation && this._playerShip && this._playerShip.mesh) {
+      const shipPos = this._playerShip.mesh.position;
+      const dx = shipPos.x - this._endLocation.position.x;
+      const dz = shipPos.z - this._endLocation.position.z;
+      const dist = Math.hypot(dx, dz);
+      
+      emit('goalDistanceUpdate', {
+        distance: Math.round(dist),
+        targetRadius: this._endLocation.radius || 16
+      });
+
+      if (dist <= (this._endLocation.radius || 16)) {
+        emit('playSound', { sound: 'qte_success' });
+        this.transition(GamePhase.RESULTS, { passed: true });
+        return;
+      }
+    }
+  }
+
+  _buildEndLocationVisual(endLoc) {
+    if (this._endLocationVisual) {
+      this._scene.remove(this._endLocationVisual);
+      this._endLocationVisual = null;
+    }
+
+    const group = new THREE.Group();
+    group.position.set(endLoc.position.x, endLoc.position.y ?? 0, endLoc.position.z);
+    const radius = endLoc.radius || 16;
+    const height = 32;
+
+    // 1. Tall glowing translucent emerald cylinder
+    const cylGeo = new THREE.CylinderGeometry(radius * 0.95, radius * 0.95, height, 32, 1, true);
+    const cylMat = new THREE.MeshBasicMaterial({
+      color: 0x00ff88,
+      transparent: true,
+      opacity: 0.35,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    });
+    const cylinder = new THREE.Mesh(cylGeo, cylMat);
+    cylinder.position.y = height / 2;
+    group.add(cylinder);
+
+    // 2. Inner wireframe cylinder for tech/holographic GTA:SA feel
+    const wireGeo = new THREE.CylinderGeometry(radius * 0.95, radius * 0.95, height, 16, 4, true);
+    const wireMat = new THREE.MeshBasicMaterial({
+      color: 0x66ffbb,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.6,
+      depthWrite: false
+    });
+    const wire = new THREE.Mesh(wireGeo, wireMat);
+    wire.position.y = height / 2;
+    group.add(wire);
+
+    // 3. Base corona ring floating right on the water surface
+    const ringGeo = new THREE.RingGeometry(radius * 0.85, radius * 1.05, 36);
+    ringGeo.rotateX(-Math.PI / 2);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0x00ff88,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false
+    });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.position.y = 0.25;
+    group.add(ring);
+
+    // 4. Billboard Sprite Marker
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'rgba(10, 25, 20, 0.85)';
+    if (ctx.roundRect) ctx.roundRect(4, 4, 248, 56, 12);
+    else ctx.rect(4, 4, 248, 56);
+    ctx.fill();
+    ctx.strokeStyle = '#00ff88';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.fillStyle = '#00ff88';
+    ctx.font = 'bold 22px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🏁 SAFE HARBOR', 128, 32);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
+    const sprite = new THREE.Sprite(spriteMat);
+    sprite.position.set(0, height + 4, 0);
+    sprite.scale.set(18, 4.5, 1);
+    group.add(sprite);
+
+    group.userData.noGodRays = true;
+    group.userData.isRaceMarker = true;
+    group.traverse(c => {
+      c.userData.noGodRays = true;
+      c.userData.isRaceMarker = true;
+    });
+
+    this._scene.add(group);
+    this._endLocationVisual = group;
   }
 
   _exitObstacle() {
     off('steer', this._onSteer);
     off('qteDebugTrigger', this._onDebugQTE);
     off('playerSunk');
+
+    if (this._endLocationVisual) {
+      this._scene.remove(this._endLocationVisual);
+      this._endLocationVisual.traverse(c => {
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) {
+          if (Array.isArray(c.material)) c.material.forEach(m => m.dispose());
+          else c.material.dispose();
+        }
+      });
+      this._endLocationVisual = null;
+    }
 
     this._sirenManager?.dispose();
     this._sirenManager = null;

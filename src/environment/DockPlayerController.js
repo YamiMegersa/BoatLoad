@@ -61,6 +61,7 @@ export class DockPlayerController {
     this.hoveredDoor = null;
     this.hoveredBunny = null;
     this.hoveredShip = null;
+    this.hoveredLedger = null;
 
     // UI elements
     this._createUI();
@@ -213,7 +214,7 @@ export class DockPlayerController {
           this._interactWithBunny();
         } else if (this.hoveredDoor) {
           this.toggleShop();
-        } else if (this.hoveredShip) {
+        } else if (this.hoveredShip || this.hoveredLedger) {
           this._interactWithShip();
         }
         break;
@@ -282,7 +283,7 @@ export class DockPlayerController {
       return;
     }
 
-    if (this.hoveredShip) {
+    if (this.hoveredShip || this.hoveredLedger) {
       this._interactWithShip();
       return;
     }
@@ -333,11 +334,7 @@ export class DockPlayerController {
 
   _interactWithShip() {
     emit('playSound', { sound: 'qte_success' });
-    if (this.dockStall && this.dockStall.shipNeedsRepair) {
-      emit('requestPhaseChange', { phase: 'SHIPYARD' });
-    } else {
-      emit('startSailing');
-    }
+    emit('requestPhaseChange', { phase: 'SHIPYARD' });
   }
 
   enterShop() {
@@ -370,6 +367,7 @@ export class DockPlayerController {
 
     emit('playSound', { sound: 'qte_success' });
     emit('dockPlayerModeChanged', { mode: 'shop' });
+    emit('dockPlayerEnteredShop');
   }
 
   exitShop() {
@@ -562,6 +560,9 @@ export class DockPlayerController {
     if (this.dockStall.shipInteractables) {
       interactables.push(...this.dockStall.shipInteractables);
     }
+    if (this.dockStall.ledgerInteractables) {
+      interactables.push(...this.dockStall.ledgerInteractables);
+    }
 
     if (interactables.length === 0) {
       this._setHoverState(null);
@@ -586,9 +587,14 @@ export class DockPlayerController {
       if (hit.object) {
         let cur = hit.object;
         let isShip = false;
+        let isLedger = false;
         while (cur) {
           if (cur.userData && (cur.userData.isMooredShip || cur.userData.isShip)) {
             isShip = true;
+            break;
+          }
+          if (cur.userData && cur.userData.isLedger) {
+            isLedger = true;
             break;
           }
           cur = cur.parent;
@@ -597,6 +603,11 @@ export class DockPlayerController {
         if (isShip) {
           if (hit.distance <= 14.0 * this.scale) {
             this._setHoverState(hit.object, 'ship');
+            return;
+          }
+        } else if (isLedger) {
+          if (hit.distance <= 8.5 * this.scale) {
+            this._setHoverState(hit.object, 'ledger');
             return;
           }
         } else if (hit.object.userData) {
@@ -623,6 +634,7 @@ export class DockPlayerController {
     this.hoveredDoor = type === 'door' ? obj : null;
     this.hoveredBunny = type === 'bunny' ? obj : null;
     this.hoveredShip = type === 'ship' ? obj : null;
+    this.hoveredLedger = type === 'ledger' ? obj : null;
 
     if (type) {
       this.domElement.style.cursor = 'pointer';
@@ -633,14 +645,12 @@ export class DockPlayerController {
       this.prompt.style.display = 'flex';
       if (type === 'bunny') {
         this.prompt.innerHTML = `🐰 <span style="background:#4a3520; padding:2px 6px; border-radius:3px; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Pet Bunny`;
-      } else if (type === 'ship') {
-        const needsRepair = this.dockStall && this.dockStall.shipNeedsRepair;
+      } else if (type === 'ledger') {
         const shipName = this.dockStall?.activeShipProfile?.name || 'Vessel';
-        if (needsRepair) {
-          this.prompt.innerHTML = `🔨 <span style="background:#4a3520; padding:2px 6px; border-radius:3px; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Repair ${shipName}`;
-        } else {
-          this.prompt.innerHTML = `⛵ <span style="background:#4a3520; padding:2px 6px; border-radius:3px; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Board ${shipName} &amp; Set Sail`;
-        }
+        this.prompt.innerHTML = `📋 <span style="background:#4a3520; padding:2px 6px; border-radius:3px; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click Ledger to Enter Shipyard &amp; Alter ${shipName}`;
+      } else if (type === 'ship') {
+        const shipName = this.dockStall?.activeShipProfile?.name || 'Vessel';
+        this.prompt.innerHTML = `🔨 <span style="background:#4a3520; padding:2px 6px; border-radius:3px; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shipyard &amp; Alter ${shipName}`;
       } else if (this.mode === 'player') {
         this.prompt.innerHTML = `🚪 <span style="background:#4a3520; padding:2px 6px; border-radius:3px; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shop`;
       } else {

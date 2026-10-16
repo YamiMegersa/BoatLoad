@@ -213,6 +213,7 @@ export class DockStall {
     this.bunny = null;
     this.bunnyInteractables = [];
     this.shipInteractables = [];
+    this.ledgerInteractables = [];
     this.shipNeedsRepair = false;
     this.activeShipProfile = null;
     this._isBuilt = false;
@@ -1015,18 +1016,24 @@ export class DockStall {
     const ledgerGroup = new THREE.Group();
     ledgerGroup.position.set(-deskW / 2 + 0.55, counterY + 0.12, frontZ - 0.45);
     ledgerGroup.rotation.y = 0.15;
+    ledgerGroup.userData = { isLedger: true };
     deskGroup.add(ledgerGroup);
 
     const cover = createVoxelBox(0.62, 0.04, 0.44, mats.woodDark);
+    cover.userData = { isLedger: true };
     ledgerGroup.add(cover);
     const pagesLeft = createVoxelBox(0.28, 0.06, 0.4, mats.paper);
     pagesLeft.position.set(-0.14, 0.04, 0);
     pagesLeft.rotation.z = -0.06;
+    pagesLeft.userData = { isLedger: true };
     ledgerGroup.add(pagesLeft);
     const pagesRight = createVoxelBox(0.28, 0.06, 0.4, mats.paper);
     pagesRight.position.set(0.14, 0.04, 0);
     pagesRight.rotation.z = 0.06;
+    pagesRight.userData = { isLedger: true };
     ledgerGroup.add(pagesRight);
+
+    this.ledgerInteractables = [ledgerGroup, cover, pagesLeft, pagesRight];
 
     const inkwell = createVoxelBox(0.12, 0.12, 0.12, mats.iron);
     inkwell.position.set(0.42, 0.06, 0.05);

@@ -1,4 +1,5 @@
 import { emit, on } from '../core/EventBus.js';
+import { GameEnv } from '../core/GameEnv.js';
 
 export const BLUEPRINTS = {
   wood_block: { id: 'wood_block', label: 'Wood Block', icon: '🪵', size: [1, 1, 1], color: 0x8b5a2b },
@@ -14,7 +15,7 @@ export class BuildMenu {
       <h3>Build Menu</h3>
       <div class="tool-grid" id="blueprint-list"></div>
       
-      <div style="margin-top: 20px; border-top: 1px solid #444; padding-top: 10px;">
+      <div id="build-menu-shader-tweaks" style="margin-top: 20px; border-top: 1px solid #444; padding-top: 10px; display: ${GameEnv.isDev() ? 'block' : 'none'};">
         <h4>Paper Shader Tweaks</h4>
         <div style="margin-bottom: 10px; color: white; font-size: 14px;">
           <label style="display:flex; align-items:center;">
@@ -62,6 +63,15 @@ export class BuildMenu {
           <input type="range" id="shipyard-paper-wobble-slider" min="0" max="0.01" step="0.0001" value="0.0005" style="width:100%; margin-top: 5px;">
         </div>
       </div>
+
+      <div class="shipyard-action-row" style="margin-top: 18px; display: flex; flex-direction: column; gap: 8px;">
+        <button id="btn-shipyard-sail" style="background: linear-gradient(135deg, #10b981, #059669); color: white; border: none; padding: 12px 16px; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4); transition: transform 0.15s, filter 0.15s;">
+          <span>⛵</span> <span>Set Sail When Ready!</span>
+        </button>
+        <button id="btn-shipyard-dock" style="background: rgba(255, 255, 255, 0.08); color: #cbd5e1; border: 1px solid rgba(255, 255, 255, 0.2); padding: 8px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;">
+          <span>⚓</span> <span>Return to Dock</span>
+        </button>
+      </div>
     `;
 
     this._activeBlueprint = 'wood_block';
@@ -73,6 +83,10 @@ export class BuildMenu {
 
     on('uiMount', d => { if (d.screen === 'shipyard') this.mount(document.getElementById('ui-root')); });
     on('uiUnmount', d => { if (d.screen === 'shipyard') this.unmount(); });
+    on('envModeChanged', ({ isDev }) => {
+      const tweaks = this._el.querySelector('#build-menu-shader-tweaks');
+      if (tweaks) tweaks.style.display = isDev ? 'block' : 'none';
+    });
 
     this._bindEvents();
   }
@@ -142,6 +156,14 @@ export class BuildMenu {
         emit('editorSetPaperWobble', { intensity: val });
       };
     }
+
+    this._el.querySelector('#btn-shipyard-sail')?.addEventListener('click', () => {
+      emit('startSailing');
+    });
+
+    this._el.querySelector('#btn-shipyard-dock')?.addEventListener('click', () => {
+      emit('requestPhaseChange', { phase: 'DOCK' });
+    });
   }
 
   mount(parent) {

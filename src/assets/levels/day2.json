@@ -21,6 +21,10 @@
     { "type": "seaweed",    "lanePattern": "random",      "count": 4  },
     { "type": "wave_small", "lanePattern": "random",      "count": 5  }
   ],
+  "endLocation": {
+    "position": { "x": 0, "y": 0, "z": -220 },
+    "radius": 16
+  },
   "rewardAbilities": ["practiced_hand", "seasoned_hull", "sharp_eye"],
   "tutorialPrompts": true
 }

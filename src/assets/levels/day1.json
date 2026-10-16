@@ -150,6 +150,10 @@
       }
     ]
   },
+  "endLocation": {
+    "position": { "x": 0, "y": 0, "z": -240 },
+    "radius": 16
+  },
   "rewardAbilities": [
     "practiced_hand",
     "seasoned_hull",

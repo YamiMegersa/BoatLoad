@@ -496,6 +496,10 @@ export class EditorUI {
                 <span class="shelf-btn-icon">🏳️</span>
                 <span class="shelf-btn-text">Add Waypoint</span>
               </button>
+              <button class="shelf-btn tool-mode-btn" data-tool="place_end_location" id="tool-btn-end-location" title="Place End Harbor / Destination Goal zone">
+                <span class="shelf-btn-icon">🏁</span>
+                <span class="shelf-btn-text">Harbor Goal</span>
+              </button>
             </div>
           </div>
 
@@ -1761,6 +1765,10 @@ export class EditorUI {
       if (itemBadge) itemBadge.style.display = 'none';
     } else if (this._activeTool === 'place_waypoint') {
       if (toolText) toolText.innerText = 'Mode: Place Race Waypoint';
+      if (toolBadge) toolBadge.className = 'status-badge status-success';
+      if (itemBadge) itemBadge.style.display = 'none';
+    } else if (this._activeTool === 'place_end_location') {
+      if (toolText) toolText.innerText = 'Mode: Place Harbor Goal (Destination)';
       if (toolBadge) toolBadge.className = 'status-badge status-success';
       if (itemBadge) itemBadge.style.display = 'none';
     } else if (this._activeTool === 'place') {

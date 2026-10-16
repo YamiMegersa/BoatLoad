@@ -17,6 +17,7 @@ import { GodRays } from './environment/GodRays.js';
 import { PaperFilter } from './environment/PaperFilter.js';
 import { exportToGLB } from './utils/exportGLTF.js';
 import { DirectorMode } from './director/DirectorMode.js';
+import { GameEnv } from './core/GameEnv.js';
 import './ui/ui.css';
 
 // ---------------------------------------------------------------------------
@@ -146,6 +147,7 @@ fpsCounter.style.cssText = `
   background: rgba(0,0,0,0.8); color: #0f0; padding: 5px 10px;
   font-family: monospace; border-radius: 4px; font-size: 14px;
   pointer-events: none;
+  display: ${GameEnv.isDev() ? 'block' : 'none'};
 `;
 fpsCounter.innerText = 'FPS: 0';
 document.getElementById('ui-root')?.appendChild(fpsCounter);
@@ -211,7 +213,7 @@ function tick() {
 }
 
 // ---------------------------------------------------------------------------
-// Demo UI Overlay
+// Dev / Testing UI Overlay
 // ---------------------------------------------------------------------------
 
 const demoUI = document.createElement('div');
@@ -220,9 +222,10 @@ demoUI.style.cssText = `
   background: rgba(0,0,0,0.8); color: white; padding: 15px;
   font-family: monospace; border-radius: 8px; width: 320px;
   pointer-events: auto;
+  display: ${GameEnv.isDev() ? 'block' : 'none'};
 `;
 demoUI.innerHTML = `
-  <h3 style="margin-bottom: 10px; font-family: sans-serif;">BoatLoad Demo</h3>
+  <h3 style="margin-bottom: 10px; font-family: sans-serif;">Dev Test Suite</h3>
   <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px;">
     <button id="btn-main-menu" style="flex:1; padding: 8px; cursor: pointer; background: #9A5B2E; color: white; border: 1px solid #4a2a10;">Menu</button>
     <button id="btn-dock" style="flex:1; padding: 8px; cursor: pointer;">Dock</button>
@@ -242,6 +245,11 @@ function logEvent(msg) {
   logDiv.innerHTML += `> ${msg}<br>`;
   logDiv.scrollTop = logDiv.scrollHeight;
 }
+
+on('envModeChanged', ({ isDev }) => {
+  demoUI.style.display = isDev ? 'block' : 'none';
+  fpsCounter.style.display = isDev ? 'block' : 'none';
+});
 
 // ---------------------------------------------------------------------------
 // Boot
@@ -367,15 +375,27 @@ async function boot() {
     on('editorSetPaperWobble', d => paperFilter.setWobbleIntensity(d.intensity));
 
     // Request phase changes from UI
-    on('requestPhaseChange', ({ phase }) => {
+    on('requestPhaseChange', async (opts) => {
+      const phase = opts?.phase;
       if (phase === GamePhase.MAIN_MENU) {
         logEvent('Main Menu requested...');
         gameState.transition(GamePhase.MAIN_MENU);
       } else if (phase === GamePhase.DOCK) {
         logEvent('Setting Sail -> Arriving at Dock...');
-        const activeShipId = gameState._levelCfg?.ship || levelCfg?.ship || DEFAULT_SHIP_ID;
-        const activeShipDef = LevelConfig.getShipDef(activeShipId);
-        gameState.transition(GamePhase.DOCK, { shipDef: activeShipDef, levelCfg: gameState._levelCfg || levelCfg, fishModels });
+        let targetLevelCfg = opts?.levelCfg || gameState._levelCfg;
+        if (opts?.day) {
+          gameState.day = opts.day;
+          try {
+            const loaded = await LevelConfig.load(opts.day);
+            targetLevelCfg = loaded.levelCfg;
+          } catch (e) {
+            console.error('Failed to load level day:', e);
+          }
+        }
+        if (!targetLevelCfg) targetLevelCfg = levelCfg;
+        const activeShipId = opts?.shipDef?.id || targetLevelCfg?.ship || DEFAULT_SHIP_ID;
+        const activeShipDef = opts?.shipDef || LevelConfig.getShipDef(activeShipId);
+        gameState.transition(GamePhase.DOCK, { shipDef: activeShipDef, levelCfg: targetLevelCfg, fishModels });
       } else if (phase === GamePhase.SHIPYARD) {
         logEvent('Entering Shipyard...');
         const activeShipId = gameState._levelCfg?.ship || levelCfg?.ship || DEFAULT_SHIP_ID;

@@ -12,6 +12,10 @@ export class DialogueBox {
     this._lines = [];
     this._idx   = 0;
 
+    this._onShowDialogue = d => { if (d?.dialogue) this.mount(d.dialogue); };
+    this._onHideDialogue = () => this.unmount();
+    on('showDialogue', this._onShowDialogue);
+    on('hideDialogue', this._onHideDialogue);
     on('uiMount',   d => { if (d.screen === 'dock' && d.dialogue) this.mount(d.dialogue); });
     on('uiUnmount', d => { if (d.screen === 'dock') this.unmount(); });
   }
@@ -63,6 +67,8 @@ export class DialogueBox {
 
   teardown() {
     this.unmount();
+    off('showDialogue', this._onShowDialogue);
+    off('hideDialogue', this._onHideDialogue);
     off('uiMount');
     off('uiUnmount');
   }

@@ -63,6 +63,10 @@ export class EditorSystem {
     this._krakenConfig = null;
     this._activeTentacleIdx = 0;
     this._krakenVisualGroup = null;
+
+    // End Location (Harbor Goal) State
+    this._endLocation = null;
+    this._endLocationVisualGroup = null;
     
     on('editorSelectType', d => {
       this._activeType = d.type;
@@ -198,6 +202,17 @@ export class EditorSystem {
         this._selectedShipId = cfg.ship;
         this._updateShipGhost();
       }
+
+      // End location harbor goal
+      if (cfg.endLocation) {
+        this._endLocation = {
+          position: { ...cfg.endLocation.position },
+          radius: cfg.endLocation.radius || 16
+        };
+      } else {
+        this._endLocation = { position: { x: 0, y: 0, z: -220 }, radius: 16 };
+      }
+      this._updateEndLocationVisual();
 
       emit('editorConfigLoaded', { config: cfg });
       this._emitState();
@@ -389,6 +404,20 @@ export class EditorSystem {
     // Initialize Ship Spawn Ghost Preview
     this._selectedShipId = this._levelCfg?.ship || DEFAULT_SHIP_ID;
     this._updateShipGhost();
+
+    // Initialize End Location Goal Preview
+    if (this._levelCfg && this._levelCfg.endLocation) {
+      this._endLocation = {
+        position: { ...this._levelCfg.endLocation.position },
+        radius: this._levelCfg.endLocation.radius || 16
+      };
+    } else {
+      this._endLocation = {
+        position: { x: 0, y: 0, z: -220 },
+        radius: 16
+      };
+    }
+    this._updateEndLocationVisual();
 
     this._renderer.domElement.addEventListener('pointerdown', this._boundPointerDown);
     this._renderer.domElement.addEventListener('pointermove', this._boundPointerMove);
@@ -591,6 +620,30 @@ export class EditorSystem {
 
       this._previewMesh = { mesh: group };
       this._scene.add(group);
+    } else if (this._activeTool === 'place_end_location') {
+      const group = new THREE.Group();
+      group.userData.noGodRays = true;
+      group.userData.isRaceMarker = true;
+      const r = Math.max(10, Math.floor(this._currentScale * 15));
+      const cylGeo = new THREE.CylinderGeometry(r * 0.9, r * 0.9, 24, 24, 1, true);
+      const cylMat = new THREE.MeshBasicMaterial({ color: 0x00ffaa, wireframe: true, transparent: true, opacity: 0.65 });
+      const cylMesh = new THREE.Mesh(cylGeo, cylMat);
+      cylMesh.position.y = 12;
+      cylMesh.userData.noGodRays = true;
+      cylMesh.userData.isRaceMarker = true;
+      group.add(cylMesh);
+
+      const ringGeo = new THREE.RingGeometry(r * 0.85, r * 1.05, 32);
+      ringGeo.rotateX(-Math.PI / 2);
+      const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ffaa, side: THREE.DoubleSide });
+      const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+      ringMesh.position.y = 0.2;
+      ringMesh.userData.noGodRays = true;
+      ringMesh.userData.isRaceMarker = true;
+      group.add(ringMesh);
+
+      this._previewMesh = { mesh: group };
+      this._scene.add(group);
     }
   }
 
@@ -670,7 +723,7 @@ export class EditorSystem {
     if (this._previewMesh) {
       if (this._activeTool === 'place_kraken') {
         this._previewMesh.mesh.position.set(this._intersection.x, -5, this._intersection.z);
-      } else if (this._activeTool === 'place_race_start' || this._activeTool === 'place_waypoint') {
+      } else if (this._activeTool === 'place_race_start' || this._activeTool === 'place_waypoint' || this._activeTool === 'place_end_location') {
         this._previewMesh.mesh.position.set(this._intersection.x, 0.5, this._intersection.z);
       } else {
         this._previewMesh.mesh.position.set(this._intersection.x, this._intersection.y + this._currentY, this._intersection.z);
@@ -831,6 +884,21 @@ export class EditorSystem {
       });
       this._updateBossVisuals();
       this._emitBossConfig();
+    } else if (this._activeTool === 'place_end_location') {
+      const radius = Math.max(10, Math.floor(this._currentScale * 15));
+      this._endLocation = {
+        position: {
+          x: Math.round(this._intersection.x * 10) / 10,
+          y: 0,
+          z: Math.round(this._intersection.z * 10) / 10
+        },
+        radius
+      };
+      if (this._levelCfg) {
+        this._levelCfg.endLocation = this._endLocation;
+      }
+      this._updateEndLocationVisual();
+      this._emitState();
     } else if (this._activeTool === 'delete') {
       // Use raycasting to find the exactly clicked mesh
       const meshes = this._placedObstacles.map(o => o.mesh);
@@ -912,7 +980,8 @@ export class EditorSystem {
           }
         })),
       sirens: sirens.length > 0 ? sirens : (this._levelCfg?.sirens || []),
-      kraken: this._krakenConfig ? this._krakenConfig : null
+      kraken: this._krakenConfig ? this._krakenConfig : null,
+      endLocation: this._endLocation || this._levelCfg?.endLocation || { position: { x: 0, y: 0, z: -220 }, radius: 16 }
     };
   }
 
@@ -1187,6 +1256,89 @@ export class EditorSystem {
     });
   }
 
+  _updateEndLocationVisual() {
+    if (this._endLocationVisualGroup) {
+      this._scene?.remove(this._endLocationVisualGroup);
+      this._endLocationVisualGroup.traverse(child => {
+        if (child.isMesh || child.isLine || child.isSprite) {
+          child.geometry?.dispose();
+          if (child.material) {
+            if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+            else child.material.dispose();
+          }
+        }
+      });
+      this._endLocationVisualGroup = null;
+    }
+
+    if (!this._endLocation) return;
+
+    this._endLocationVisualGroup = new THREE.Group();
+    this._endLocationVisualGroup.position.set(
+      this._endLocation.position.x,
+      this._endLocation.position.y || 0,
+      this._endLocation.position.z
+    );
+
+    const radius = this._endLocation.radius || 16;
+    const height = 30;
+
+    // Outer translucent cylinder
+    const cylGeo = new THREE.CylinderGeometry(radius * 0.95, radius * 0.95, height, 32, 1, true);
+    const cylMat = new THREE.MeshBasicMaterial({
+      color: 0x00ff88,
+      wireframe: false,
+      transparent: true,
+      opacity: 0.35,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    });
+    const cylMesh = new THREE.Mesh(cylGeo, cylMat);
+    cylMesh.position.y = height / 2;
+    this._endLocationVisualGroup.add(cylMesh);
+
+    // Inner wireframe cylinder
+    const wireGeo = new THREE.CylinderGeometry(radius * 0.95, radius * 0.95, height, 16, 4, true);
+    const wireMat = new THREE.MeshBasicMaterial({
+      color: 0x66ffbb,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.6,
+      depthWrite: false
+    });
+    const wireMesh = new THREE.Mesh(wireGeo, wireMat);
+    wireMesh.position.y = height / 2;
+    this._endLocationVisualGroup.add(wireMesh);
+
+    // Sea-level base ring
+    const ringGeo = new THREE.RingGeometry(radius * 0.85, radius * 1.05, 36);
+    ringGeo.rotateX(-Math.PI / 2);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0x00ff88,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.85
+    });
+    const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+    ringMesh.position.y = 0.25;
+    this._endLocationVisualGroup.add(ringMesh);
+
+    // Label sprite
+    const label = this._createLabelSprite('🏁 HARBOR GOAL', '#00ff88');
+    label.position.set(0, height + 4, 0);
+    label.scale.set(18, 4.5, 1);
+    this._endLocationVisualGroup.add(label);
+
+    this._endLocationVisualGroup.userData.noGodRays = true;
+    this._endLocationVisualGroup.userData.isRaceMarker = true;
+    this._endLocationVisualGroup.traverse(c => {
+      c.userData.noGodRays = true;
+      c.userData.isRaceMarker = true;
+    });
+
+    this._scene?.add(this._endLocationVisualGroup);
+  }
+
   exportLevel() {
     const exportData = this.getPlayableConfig();
     
@@ -1304,6 +1456,11 @@ export class EditorSystem {
       this._krakenVisualGroup = null;
     }
 
+    if (this._endLocationVisualGroup) {
+      this._scene?.remove(this._endLocationVisualGroup);
+      this._endLocationVisualGroup = null;
+    }
+
     if (this._previewMesh) {
       this._scene?.remove(this._previewMesh.mesh);
       this._previewMesh = null;
@@ -1329,6 +1486,10 @@ export class EditorSystem {
     
     if (this._envManager) {
       this._envManager.update(delta, { getWindAt: () => new THREE.Vector3(0, 0, -1) }, this._camera.position);
+    }
+
+    if (this._endLocationVisualGroup) {
+      this._endLocationVisualGroup.rotation.y += delta * 0.4;
     }
 
     // Hybrid Stroke-Leveling: Pulse height when holding stationary in place

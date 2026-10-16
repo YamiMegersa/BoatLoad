@@ -1,5 +1,6 @@
 import { emit, on, off } from '../core/EventBus.js';
 import wheelImage from '../assets/wheels/wheel_threshold.png';
+import { GameEnv } from '../core/GameEnv.js';
 
 /**
  * HUD — obstacle phase HUD overlay.
@@ -55,6 +56,20 @@ export class HUD {
     on('krakenDefeated',        () => this._showBossBanner('⚔️ KRAKEN DEFEATED!', '#ffaa00', 5000));
     on('krakenCinematicStart',  () => this._setBossTimerVisible(false));
     on('krakenCinematicEnd',    () => this._setBossTimerVisible(true));
+    on('goalDistanceUpdate',    d => this._updateGoalDistance(d));
+  }
+
+  _updateGoalDistance(d) {
+    if (!this._el) return;
+    const badge = this._el.querySelector('#hud-goal-distance');
+    const val = this._el.querySelector('#hud-goal-val');
+    if (!badge || !val) return;
+    if (d && d.distance !== undefined && d.distance > 0) {
+      badge.style.display = 'block';
+      val.innerText = `${Math.round(d.distance)}`;
+    } else {
+      badge.style.display = 'none';
+    }
   }
 
   mount({ day } = {}) {
@@ -84,22 +99,29 @@ export class HUD {
 
       <div id="hud-day">Day ${day ?? 1}</div>
 
-      <div id="hud-godmode" style="margin-top: 10px; pointer-events: auto;">
-        <label style="color: white; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 5px;">
-          <input type="checkbox" id="chk-godmode"> God Mode (No Damage)
-        </label>
+      <!-- Safe Harbor Goal Distance -->
+      <div id="hud-goal-distance" style="position:fixed; top:20px; left:50%; transform:translateX(-50%); color:#ffd700; font-family:'Trebuchet MS',sans-serif; font-weight:bold; font-size:15px; text-shadow:0 0 8px rgba(0,0,0,0.8); background:rgba(20,15,10,0.7); padding:6px 16px; border-radius:20px; border:1px solid rgba(255,215,0,0.5); display:none; pointer-events:none; z-index:90;">
+        ⚓ Safe Harbor: <span id="hud-goal-val" style="color:#ffffff;">--</span>m
       </div>
-      <div id="hud-densefog" style="margin-top: 10px; pointer-events: auto;">
-        <label style="color: white; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 5px;">
-          <input type="checkbox" id="chk-densefog"> Dense Fog (F)
-        </label>
-      </div>
-      <div id="hud-qte-debug" style="margin-top: 10px; pointer-events: auto;">
-        <span>QTE Debug:</span>
-        <button type="button" data-qte-type="SHOOT">Shoot</button>
-        <button type="button" data-qte-type="HARPOON">Harpoon</button>
-        <button type="button" data-qte-type="BAIL">Bail</button>
-        <button type="button" data-qte-type="SIREN">Siren</button>
+
+      <div id="hud-dev-controls" style="display: ${GameEnv.isDev() ? 'block' : 'none'};">
+        <div id="hud-godmode" style="margin-top: 10px; pointer-events: auto;">
+          <label style="color: white; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 5px;">
+            <input type="checkbox" id="chk-godmode"> God Mode (No Damage)
+          </label>
+        </div>
+        <div id="hud-densefog" style="margin-top: 10px; pointer-events: auto;">
+          <label style="color: white; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 5px;">
+            <input type="checkbox" id="chk-densefog"> Dense Fog (F)
+          </label>
+        </div>
+        <div id="hud-qte-debug" style="margin-top: 10px; pointer-events: auto;">
+          <span>QTE Debug:</span>
+          <button type="button" data-qte-type="SHOOT">Shoot</button>
+          <button type="button" data-qte-type="HARPOON">Harpoon</button>
+          <button type="button" data-qte-type="BAIL">Bail</button>
+          <button type="button" data-qte-type="SIREN">Siren</button>
+        </div>
       </div>
 
       <!-- Interactive QTE Reticle Prompt -->
@@ -305,10 +327,20 @@ export class HUD {
       });
     });
 
+    this._onEnvChange = ({ isDev }) => {
+      const devControls = this._el?.querySelector('#hud-dev-controls');
+      if (devControls) devControls.style.display = isDev ? 'block' : 'none';
+    };
+    on('envModeChanged', this._onEnvChange);
+
     document.getElementById('ui-root')?.appendChild(this._el);
   }
 
   unmount() {
+    if (this._onEnvChange) {
+      off('envModeChanged', this._onEnvChange);
+      this._onEnvChange = null;
+    }
     if (this._onDenseFogChanged) {
       off('denseFogChanged', this._onDenseFogChanged);
       this._onDenseFogChanged = null;
