@@ -4,7 +4,6 @@ import { LevelConfig } from './core/LevelConfig.js';
 import { ShipRegistry, DEFAULT_SHIP_ID } from './config/ShipRegistry.js';
 import { on, emit } from './core/EventBus.js';
 import { BuildMenu } from './ui/BuildMenu.js';
-import { DocketSheet } from './ui/DocketSheet.js';
 import { HUD } from './ui/HUD.js';
 import { DialogueBox } from './ui/DialogueBox.js';
 import { PauseMenu } from './ui/PauseMenu.js';
@@ -91,7 +90,6 @@ window.godRays = godRays;
 window.exportToGLB = exportToGLB;
 
 const buildMenu = new BuildMenu();
-const docket = new DocketSheet();
 const dockUI = new DockUI();
 const mainMenuUI = new MainMenuUI();
 const resultsUI = new ResultsUI();
@@ -305,8 +303,6 @@ async function boot() {
 
     // Listen for UI events
     on('phaseChanged',       d => logEvent(`[Phase] ${d.phase}`));
-    on('docketItemCompleted', d => logEvent(`[Docket] ✓ ${d.label}`));
-    on('allRepairsDone',      () => logEvent('[Docket] ALL DONE — ready to sail'));
     on('obstacleHit',        d => logEvent(`[Obstacle] hit by ${d.type} -${d.damage} HP`));
     on('playerDamaged',      () => logEvent(`[Collision] Hull breached!`));
     on('playerSunk',         () => logEvent('[SUNK] Game Over'));

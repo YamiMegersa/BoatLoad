@@ -103,6 +103,13 @@ export class EditorSystem {
       }
     });
 
+    on('editorSetBudget', d => {
+      if (d && d.budget !== undefined) {
+        this._budget = Math.max(0, parseInt(d.budget, 10));
+        this._emitState();
+      }
+    });
+
     on('editorSetBiome', d => {
       if (d && d.biome && this._voxelTerrain) {
         this._voxelTerrain.setBiome(d.biome);
@@ -135,6 +142,7 @@ export class EditorSystem {
       if (!d || !d.config) return;
       const cfg = d.config;
       this._levelCfg = cfg;
+      this._budget = cfg.budget !== undefined ? cfg.budget : 300;
 
       // Clear existing placed obstacles
       for (const obs of this._placedObstacles) {
@@ -379,6 +387,7 @@ export class EditorSystem {
       y: this._currentY,
       rotation: this._currentRotation,
       selectedShipId: this._selectedShipId,
+      budget: this._budget,
       biome: this._voxelTerrain ? this._voxelTerrain.biome : 'tropical'
     });
   }
@@ -388,6 +397,7 @@ export class EditorSystem {
     this._camera = camera;
     this._renderer = renderer;
     this._levelCfg = levelCfg;
+    this._budget = levelCfg?.budget !== undefined ? levelCfg.budget : 300;
     this._rockModels = rockModels;
     this._pickupModels = pickupModels;
     this._seaweedModels = seaweedModels;
@@ -1009,6 +1019,7 @@ export class EditorSystem {
     return {
       ...this._levelCfg,
       ship: this._selectedShipId || this._levelCfg?.ship || DEFAULT_SHIP_ID,
+      budget: this._budget !== undefined ? this._budget : (this._levelCfg?.budget !== undefined ? this._levelCfg.budget : 300),
       worldSize: this._levelCfg?.worldSize || 200,
       globalWindDir: this._levelCfg?.globalWindDir || 0,
       fogDensity: this._levelCfg?.fogDensity !== undefined ? this._levelCfg.fogDensity : 0.006,

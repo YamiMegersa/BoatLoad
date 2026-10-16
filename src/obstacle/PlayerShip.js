@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { emit, on, off } from '../core/EventBus.js';
 import { OBB } from 'three/examples/jsm/math/OBB.js';
+import { MATERIAL_REGISTRY } from '../config/MaterialRegistry.js';
 
 // ---------------------------------------------------------------------------
 // Obstacle type definitions
@@ -168,6 +169,7 @@ export class PlayerShip {
 
     // Initialise leaks from any unpatched holes left from the shipyard
     this._countLeaks();
+    this._applyMaterialModifiers();
   }
 
   _countLeaks() {
@@ -179,6 +181,44 @@ export class PlayerShip {
         this.numLeaks++;
       }
     });
+  }
+
+  _applyMaterialModifiers() {
+    if (!this.grid) return;
+    let bonusHP = 0;
+    let weightSum = 0;
+    let repairedCount = 0;
+
+    this.grid.forEach((x, y, z, state) => {
+      // CellState.REPAIRED = 5
+      if (state === 5) {
+        repairedCount++;
+        const hex = this.grid.getColor(x, y, z);
+        if (hex === MATERIAL_REGISTRY.copper_plate.color) {
+          bonusHP += 25;
+          weightSum += 1.0;
+        } else if (hex === MATERIAL_REGISTRY.dark_ironwood.color) {
+          bonusHP += 12;
+          weightSum += 0.5;
+        } else if (hex === MATERIAL_REGISTRY.light_pine.color) {
+          bonusHP += 2;
+          weightSum -= 0.35;
+        } else if (hex === MATERIAL_REGISTRY.tar_canvas.color) {
+          bonusHP += 1;
+          weightSum -= 0.5;
+        } else {
+          bonusHP += 5;
+        }
+      }
+    });
+
+    if (repairedCount > 0) {
+      this.maxHullHP += bonusHP;
+      this.hullHP = Math.min(this.maxHullHP, this.hullHP + bonusHP);
+      const weightFactor = Math.max(0.7, 1.0 + (weightSum * 0.01));
+      this.speedMultiplier = Math.max(0.6, Math.min(1.4, this.speedMultiplier / weightFactor));
+      this.turnAccel = Math.max(1.0, Math.min(3.5, this.turnAccel / weightFactor));
+    }
   }
 
   // -------------------------------------------------------------------------

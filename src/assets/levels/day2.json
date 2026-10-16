@@ -5,6 +5,7 @@
   ],
   "ship": "sloop",
   "weather": "overcast",
+  "budget": 250,
   "qte": { "windowScale": 0.95 },
   "damage": [
     { "zone": "hull", "cells": [[2,0,2],[3,0,2],[2,1,2]], "state": "MISSING" },

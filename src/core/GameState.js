@@ -5,6 +5,8 @@ import { ChunkRenderer }  from '../shipyard/ChunkRenderer.js';
 import { ShipRaycaster }  from '../shipyard/ShipRaycaster.js';
 import { BuildSystem }    from '../shipyard/BuildSystem.js';
 import { DamageSystem }   from '../shipyard/DamageSystem.js';
+import { BudgetManager }  from '../shipyard/BudgetManager.js';
+import { CellState }      from '../shipyard/VoxelGrid.js';
 import { PlayerShip }     from '../obstacle/PlayerShip.js';
 import { ObstacleManager } from '../obstacle/ObstacleManager.js';
 import { EnvironmentManager } from '../environment/EnvironmentManager.js';
@@ -754,9 +756,17 @@ export class GameState {
     this._raycaster = new ShipRaycaster();
     this._raycaster.build(this._grid, this._scene, this._chunkRenderer.container);
 
+    // Budget manager for level repairs
+    const levelBudget = this._levelCfg?.budget !== undefined ? this._levelCfg.budget : 300;
+    if (!this._budgetManager) {
+      this._budgetManager = new BudgetManager(levelBudget);
+    } else {
+      this._budgetManager.reset(levelBudget);
+    }
+
     // Build system - attach ghost meshes to container
     this._buildSystem = new BuildSystem();
-    this._buildSystem.init(this._grid, this._scene, this._chunkRenderer.container);
+    this._buildSystem.init(this._grid, this._scene, this._chunkRenderer.container, this._budgetManager);
 
     // Orbit controls
     this._orbitControls = new OrbitControls(this._camera, this._renderer.domElement);
@@ -812,11 +822,29 @@ export class GameState {
     this._renderer.domElement.addEventListener('pointerdown', this._boundPointerDown);
     this._renderer.domElement.addEventListener('pointermove', this._boundPointerMove);
 
+    this._emitShipyardSummary = () => {
+      if (!this._grid) return;
+      const summary = DamageSystem.getSummary(this._grid);
+      let leaks = 0;
+      const waterlineY = 4;
+      this._grid.forEach((x, y, z, state) => {
+        if (y <= waterlineY && state === CellState.MISSING) leaks++;
+      });
+      const profile = ShipRegistry.get(activeShipId);
+      emit('shipyardSummaryUpdated', {
+        ...summary,
+        leaks,
+        shipName: profile?.name || activeShipDef?.name || 'Vessel',
+        shipIcon: profile?.icon || '⛵'
+      });
+    };
+
     // Rebuild BVH when topology changes (repair fills a MISSING cell)
     on('cellRepaired', () => {
       if (this._grid?.consumeTopologyDirty()) {
         this._raycaster.rebuild(this._grid);
       }
+      this._emitShipyardSummary?.();
     });
 
     // Sync renderer on dirty events
@@ -824,9 +852,11 @@ export class GameState {
       if (this._grid && this._chunkRenderer) {
         this._chunkRenderer.sync(this._grid);
       }
+      this._emitShipyardSummary?.();
     });
 
-    emit('uiMount', { screen: 'shipyard', docket: this._levelCfg?.docket || [] });
+    emit('uiMount', { screen: 'shipyard' });
+    this._emitShipyardSummary();
   }
 
   _updateShipyard(delta) {
@@ -905,6 +935,7 @@ export class GameState {
   // Pointer handler — Shipyard phase only
   _onPointerDown(event) {
     if (this.currentPhase !== GamePhase.SHIPYARD) return;
+    if (event.button !== 0) return; // Only left-click places/erases blocks; right-click is reserved for camera orbiting
 
     const rect = this._renderer.domElement.getBoundingClientRect();
     this._mouseNDC.set(

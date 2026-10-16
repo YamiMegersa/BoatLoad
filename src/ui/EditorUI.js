@@ -35,6 +35,7 @@ export class EditorUI {
     
     const levelCfg = d?.levelCfg || {};
     this._selectedShipId = levelCfg.ship || DEFAULT_SHIP_ID;
+    this._budget = levelCfg.budget !== undefined ? levelCfg.budget : 300;
     const worldSize = levelCfg.worldSize || 200;
     const globalWindDir = levelCfg.globalWindDir || 0;
     const fogDensity = levelCfg.fogDensity !== undefined ? levelCfg.fogDensity : 0.006;
@@ -577,6 +578,22 @@ export class EditorUI {
               <span class="toggle-slider"></span>
               <span class="toggle-label" style="font-size: 11px;">👻 3D Ghost Preview</span>
             </label>
+          </div>
+
+          <div class="ribbon-divider"></div>
+
+          <!-- Repair Budget Configuration -->
+          <div class="ribbon-group" style="min-width: 220px;">
+            <span class="ribbon-group-label">Shipyard Budget: <strong id="ship-budget-val">$${this._budget}</strong></span>
+            <div class="slider-with-presets">
+              <input type="range" id="ship-budget-slider" min="50" max="1500" step="25" value="${this._budget}" class="editor-slider">
+              <div class="quick-chips-row">
+                <button class="mini-chip budget-chip" data-budget="150">$150</button>
+                <button class="mini-chip budget-chip" data-budget="300">$300</button>
+                <button class="mini-chip budget-chip" data-budget="500">$500</button>
+                <button class="mini-chip budget-chip" data-budget="1000">$1000</button>
+              </div>
+            </div>
           </div>
 
           <div class="ribbon-divider"></div>
@@ -1596,6 +1613,26 @@ export class EditorUI {
       };
     }
 
+    const budgetSlider = this._el.querySelector('#ship-budget-slider');
+    const budgetVal = this._el.querySelector('#ship-budget-val');
+    if (budgetSlider) {
+      budgetSlider.oninput = (e) => {
+        const val = parseInt(e.target.value, 10);
+        if (budgetVal) budgetVal.innerText = `$${val}`;
+        this._budget = val;
+        emit('editorSetBudget', { budget: val });
+      };
+    }
+    this._el.querySelectorAll('.budget-chip').forEach(btn => {
+      btn.onclick = () => {
+        const val = parseInt(btn.dataset.budget, 10);
+        if (budgetSlider) budgetSlider.value = val;
+        if (budgetVal) budgetVal.innerText = `$${val}`;
+        this._budget = val;
+        emit('editorSetBudget', { budget: val });
+      };
+    });
+
     const testSailBtn = this._el.querySelector('#btn-ship-test-sail');
     if (testSailBtn) {
       testSailBtn.onclick = () => {
@@ -1670,6 +1707,14 @@ export class EditorUI {
       this._selectShip(d.selectedShipId, false);
     }
 
+    if (d.budget !== undefined && d.budget !== this._budget) {
+      this._budget = d.budget;
+      const budgetSlider = this._el?.querySelector('#ship-budget-slider');
+      const budgetVal = this._el?.querySelector('#ship-budget-val');
+      if (budgetSlider) budgetSlider.value = this._budget;
+      if (budgetVal) budgetVal.innerText = `$${this._budget}`;
+    }
+
     if (d.biome) {
       const biomeChips = this._el?.querySelectorAll('.biome-chip');
       biomeChips?.forEach(c => c.classList.toggle('active', c.dataset.biome === d.biome));
@@ -1681,6 +1726,14 @@ export class EditorUI {
   _handleConfigLoaded(d) {
     if (!d || !d.config) return;
     const cfg = d.config;
+
+    if (cfg.budget !== undefined) {
+      this._budget = cfg.budget;
+      const budgetSlider = this._el?.querySelector('#ship-budget-slider');
+      const budgetVal = this._el?.querySelector('#ship-budget-val');
+      if (budgetSlider) budgetSlider.value = this._budget;
+      if (budgetVal) budgetVal.innerText = `$${this._budget}`;
+    }
 
     if (cfg.voxels && cfg.voxels.biome) {
       const biomeChips = this._el?.querySelectorAll('.biome-chip');
