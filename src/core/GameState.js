@@ -8,6 +8,7 @@ import { BuildSystem }    from '../shipyard/BuildSystem.js';
 import { DamageSystem }   from '../shipyard/DamageSystem.js';
 import { PlayerShip }     from '../obstacle/PlayerShip.js';
 import { ObstacleManager } from '../obstacle/ObstacleManager.js';
+import { QTEInputRouter } from '../obstacle/QTEInputRouter.js';
 import { EnvironmentManager } from '../environment/EnvironmentManager.js';
 import { SharkSkinRepair }    from '../environment/SharkSkinRepair.js';
 import { FishAnimator }       from '../environment/FishAnimator.js';
@@ -105,6 +106,7 @@ export class GameState {
     this._obstacleManager = null;
     this._environmentManager = null;
     this._qteSystem       = null;
+    this._inputRouter     = null;
     this._onPlayerSunk    = null;
     this._minimap         = new Minimap();
     this.score            = 0;
@@ -926,6 +928,12 @@ export class GameState {
     const qteTuning = { ...(levelCfg?.qte ?? {}) };
     if (levelCfg?.tutorialPrompts) qteTuning.windowScale = (qteTuning.windowScale ?? 1) * 1.25;
     this._qteSystem = new QTESystem(qteTuning, levelCfg?.rewardAbilities);
+    this._inputRouter = new QTEInputRouter({
+      target: window,
+      qteSystem: this._qteSystem,
+      canFire: () => this._hasCannon && this._ammo > 0 && this._canFire,
+      isDirectorActive: () => Boolean(window.directorMode?.isActive),
+    });
 
     const effectiveShipStats = {
       ...(shipStats || {}),
@@ -1140,7 +1148,7 @@ export class GameState {
     this._playerShip?.dispose(this._scene);
     this._obstacleManager?.dispose();
     this._environmentManager?.dispose();
-    this._sirenManager?.dispose();
+    this._inputRouter?.dispose();
     this._qteSystem?.dispose();
     this._chunkRenderer?.dispose(this._scene);
 
@@ -1149,6 +1157,7 @@ export class GameState {
     this._environmentManager = null;
     this._sirenManager       = null;
     this._qteSystem       = null;
+    this._inputRouter     = null;
     this._chunkRenderer   = null;
     this._grid            = null;
     this._windManager     = null;
@@ -1168,7 +1177,7 @@ export class GameState {
    * waste ammo.
    */
   _fireCannon() {
-    if (!this._hasCannon || this._ammo <= 0) return;
+    if (!this._hasCannon || this._ammo <= 0 || this._qteSystem?.hasActive()) return;
     const target = this._obstacleManager?.findShootTarget(this._cannonRange, this._playerShip);
     if (!target) return;
 

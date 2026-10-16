@@ -36,7 +36,6 @@ export class HUD {
     this._ammoState   = { ammo: 0, cannon: false };
     this._canFire     = false;
     this._fireBtnEl   = null;
-    this._onKeyDown   = null;
 
     // Kraken boss HUD state
     this._bossHPBar = null;
@@ -148,7 +147,7 @@ export class HUD {
       <!-- Interactive QTE Prompt -->
       <div id="hud-qte" style="display:none">
         <div id="hud-qte-action">HARPOON!</div>
-        <div id="hud-qte-key">Press [ H ] or TAP</div>
+        <div id="hud-qte-key">PRESS SPACE IN THE GREEN ZONE (or tap)</div>
         <svg id="hud-qte-ring" viewBox="0 0 36 36">
           <circle class="track" cx="18" cy="18" r="16"/>
           <circle class="fill"  cx="18" cy="18" r="16" stroke-dasharray="100 100"/>
@@ -160,11 +159,7 @@ export class HUD {
         <div id="hud-qte-progress"></div>
         <div id="hud-qte-draw-wrap" style="display:none">
           <canvas id="hud-qte-draw" width="220" height="220" aria-label="Draw a circle to bail water"></canvas>
-          <span class="hud-qte-draw-help">Trace the ring and lift to submit<br>Press Shift for a steady half-strength bail</span>
-        </div>
-        <div id="hud-qte-alternate" style="display:none">
-          <button type="button" data-qte-input="left">◀ LEFT</button>
-          <button type="button" data-qte-input="right">RIGHT ▶</button>
+          <span class="hud-qte-draw-help">Trace the ring and lift to submit<br>Press SPACE for a steady 50% bail</span>
         </div>
       </div>
 
@@ -288,21 +283,13 @@ export class HUD {
       });
     }
 
-    // Cannon: FIRE button for touch; Space only fires while the prompt is up,
-    // so the key still reaches the active QTE otherwise.
+    // Cannon: the touch button starts a shot; keyboard Space is routed centrally.
     this._fireBtnEl = this._el.querySelector('#hud-fire-btn');
     this._fireBtnEl?.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       e.stopPropagation();
       emit('cannonFire');
     });
-    this._onKeyDown = (e) => {
-      if (e.code === 'Space' && this._canFire) {
-        e.preventDefault();
-        emit('cannonFire');
-      }
-    };
-    window.addEventListener('keydown', this._onKeyDown);
 
     // ammoChanged fires in _enterObstacle before uiMount — replay stored state
     this._applyAmmo();
@@ -415,13 +402,6 @@ export class HUD {
       on('denseFogChanged', this._onDenseFogChanged);
     }
 
-    this._el.querySelectorAll('[data-qte-input]').forEach(button => {
-      button.addEventListener('pointerdown', (event) => {
-        event.preventDefault();
-        emit('qteInput', { kind: button.dataset.qteInput });
-      });
-    });
-
     this._el.querySelectorAll('[data-qte-source]').forEach(button => {
       button.addEventListener('pointerdown', (event) => {
         event.preventDefault();
@@ -436,10 +416,6 @@ export class HUD {
     if (this._onDenseFogChanged) {
       off('denseFogChanged', this._onDenseFogChanged);
       this._onDenseFogChanged = null;
-    }
-    if (this._onKeyDown) {
-      window.removeEventListener('keydown', this._onKeyDown);
-      this._onKeyDown = null;
     }
     this._fireBtnEl = null;
     this._canFire = false;
@@ -499,7 +475,7 @@ export class HUD {
     if (valEl) valEl.textContent = `${Math.floor(pct)}%`;
   }
 
-  _showQTE({ input, keys, label, prompt, sweetSpot, theme }) {
+  _showQTE({ input, label, sweetSpot, theme }) {
     if (!this._qteEl) return;
     this._activeQTEInput = input;
     clearTimeout(this._qteHideTimer);
@@ -508,20 +484,22 @@ export class HUD {
 
     const actionEl = this._qteEl.querySelector('#hud-qte-action');
     const keyEl    = this._qteEl.querySelector('#hud-qte-key');
-    const keyLabel = Object.values(keys ?? {}).map(key => key.replace(/^Key/, '').replace(/^Digit/, '')).join(' / ');
     const sweetSpotEl = this._qteEl.querySelector('.qte-sweet-spot');
     const progressEl = this._qteEl.querySelector('#hud-qte-progress');
     const mobileLabel = this._el?.querySelector('.harpoon-text');
-    const alternateEl = this._qteEl.querySelector('#hud-qte-alternate');
     const drawWrap = this._qteEl.querySelector('#hud-qte-draw-wrap');
 
     if (actionEl) actionEl.textContent = `${theme?.icon ?? ''} ${label}`;
-    if (keyEl) keyEl.textContent = input === 'draw'
-      ? `${prompt} — or press SHIFT`
-      : input === 'alternate' ? `${prompt} [ ${keyLabel} ]` : `${prompt} [ ${keyLabel} ] or TAP`;
+    if (keyEl) {
+      const instructions = {
+        timing: 'PRESS SPACE IN THE GREEN ZONE (or tap)',
+        mash: 'PRESS SPACE REPEATEDLY (or tap)',
+        draw: 'TRACE THE RING AND LIFT TO SUBMIT — or press SPACE for a steady 50% bail',
+      };
+      keyEl.textContent = instructions[input] ?? '';
+    }
     if (mobileLabel) mobileLabel.textContent = input === 'mash' ? 'TAP!' : 'ACTION';
-    if (this._mobileBtnEl) this._mobileBtnEl.style.display = input === 'alternate' || input === 'draw' ? 'none' : 'block';
-    if (alternateEl) alternateEl.style.display = input === 'alternate' ? 'flex' : 'none';
+    if (this._mobileBtnEl) this._mobileBtnEl.style.display = input === 'draw' ? 'none' : 'block';
     if (drawWrap) drawWrap.style.display = input === 'draw' ? 'flex' : 'none';
     if (this._qteMeter) this._qteMeter.style.display = input === 'draw' ? 'none' : '';
     if (input === 'draw') this._clearBailCanvas();
@@ -547,7 +525,7 @@ export class HUD {
     ring?.setAttribute('stroke-dasharray', `${remainingPct} 100`);
 
     const progressEl = this._qteEl.querySelector('#hud-qte-progress');
-    if (input === 'mash' || input === 'alternate') {
+    if (input === 'mash') {
       if (this._qteIndicator) {
         this._qteIndicator.style.left = '0%'; // clear any offset left by a timing QTE
         this._qteIndicator.style.width = `${(progress / mashTarget) * 100}%`;
@@ -584,8 +562,6 @@ export class HUD {
     if (this._mobileBtnEl) this._mobileBtnEl.style.display = 'none';
     this._activeQTEInput = null;
     this._bailDrawing = false;
-    const alternateEl = el.querySelector('#hud-qte-alternate');
-    if (alternateEl) alternateEl.style.display = 'none';
   }
 
   _bailPoint(event) {
