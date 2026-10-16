@@ -1450,24 +1450,494 @@ body {
   }
 }
 
-/* Pause Menu */
-.pause-btn {
-  background: #3a5a3a;
-  color: white;
-  border: 2px solid #4a7a4a;
-  padding: 12px 20px;
-  font-size: 1.1rem;
-  font-weight: bold;
-  border-radius: 6px;
-  cursor: pointer;
+/* =========================================================================
+   Pause Menu & Settings Screen (Glassmorphism & Nautical Brass)
+   ========================================================================= */
+
+.pause-screen-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 200;
+  background: radial-gradient(circle at center, rgba(14, 26, 44, 0.88), rgba(6, 12, 20, 0.96));
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: #f1ebd8;
+  animation: pauseFadeIn 0.25s ease-out;
+}
+
+@keyframes pauseFadeIn {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.pause-modal-card {
+  background: rgba(18, 30, 48, 0.94);
+  border: 2px solid #d4af37;
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7), 0 0 20px rgba(212, 175, 55, 0.25);
+  padding: 28px 36px;
+  width: 580px;
+  max-width: 92vw;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Main Pause Subview */
+.pause-subview {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.pause-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.pause-crest-icon {
+  font-size: 2.4rem;
+  color: #f3e3b4;
+  margin-bottom: 4px;
+  text-shadow: 0 0 12px rgba(243, 227, 180, 0.4);
+}
+
+.pause-title {
+  font-family: 'Cinzel', 'Times New Roman', Georgia, serif;
+  color: #f3e3b4;
+  font-size: 2.6rem;
+  margin: 0;
+  letter-spacing: 2px;
   text-transform: uppercase;
-  transition: all 0.2s;
+}
+
+.pause-subtitle {
+  font-size: 0.95rem;
+  color: #a8b8c8;
+  margin-top: 4px;
+  letter-spacing: 1px;
+}
+
+.pause-actions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 340px;
+  margin: 0 auto;
+}
+
+.pause-btn {
+  background: rgba(30, 50, 75, 0.85);
+  color: #f3e3b4;
+  border: 1.5px solid #6b85a3;
+  padding: 13px 20px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .pause-btn:hover {
-  background: #4a7a4a;
-  border-color: #6a9a6a;
-  transform: scale(1.05);
+  background: rgba(45, 75, 110, 0.95);
+  border-color: #d4af37;
+  color: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4), 0 0 10px rgba(212, 175, 55, 0.3);
+}
+
+.pause-btn.primary {
+  background: linear-gradient(180deg, #d4af37 0%, #a67c1e 100%);
+  color: #1a0f00;
+  border-color: #ffe082;
+  font-weight: bold;
+}
+
+.pause-btn.primary:hover {
+  background: linear-gradient(180deg, #ffe082 0%, #c49428 100%);
+  box-shadow: 0 4px 16px rgba(212, 175, 55, 0.5);
+}
+
+.pause-btn.settings-btn {
+  background: rgba(24, 44, 70, 0.9);
+  border-color: #d4af37;
+}
+
+.pause-btn.director-btn {
+  background: rgba(13, 23, 38, 0.9);
+  border-color: #8c6e2d;
+  color: #ffe082;
+}
+
+.pause-btn.danger {
+  background: rgba(120, 25, 25, 0.8);
+  border-color: #ff5555;
+  color: #ffcccc;
+}
+
+.pause-btn.danger:hover {
+  background: rgba(160, 35, 35, 0.95);
+  border-color: #ff7777;
+  color: #ffffff;
+}
+
+/* Settings View */
+.settings-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid rgba(212, 175, 55, 0.3);
+  padding-bottom: 12px;
+}
+
+.settings-back-btn {
+  background: rgba(255, 255, 255, 0.1);
+  color: #f3e3b4;
+  border: 1px solid #8c6e2d;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.settings-back-btn:hover {
+  background: rgba(212, 175, 55, 0.25);
+  border-color: #ffe082;
+  color: #ffffff;
+}
+
+.settings-title-wrap {
+  flex: 1;
+}
+
+.settings-title {
+  font-family: 'Cinzel', serif;
+  color: #f3e3b4;
+  font-size: 1.6rem;
+  margin: 0;
+}
+
+.settings-subtitle {
+  font-size: 0.82rem;
+  color: #9cb0c2;
+}
+
+/* Tabs */
+.settings-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 8px;
+}
+
+.settings-tab-btn {
+  background: transparent;
+  color: #9cb0c2;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 16px;
+  font-size: 0.98rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.settings-tab-btn:hover {
+  color: #ffffff;
+}
+
+.settings-tab-btn.active {
+  color: #ffe082;
+  border-bottom-color: #d4af37;
+  text-shadow: 0 0 8px rgba(212, 175, 55, 0.4);
+}
+
+/* Setting Items */
+.settings-tab-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  max-height: 52vh;
+  padding-right: 8px;
+}
+
+.settings-tab-pane::-webkit-scrollbar {
+  width: 6px;
+}
+
+.settings-tab-pane::-webkit-scrollbar-thumb {
+  background: #5a7698;
+  border-radius: 4px;
+}
+
+.setting-item {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.2s;
+}
+
+.setting-item:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(212, 175, 55, 0.35);
+}
+
+.setting-item.highlight {
+  border-color: rgba(212, 175, 55, 0.6);
+  background: rgba(212, 175, 55, 0.08);
+}
+
+.setting-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.setting-label {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #f3e3b4;
+}
+
+.setting-desc {
+  font-size: 0.78rem;
+  color: #8fa5ba;
+  line-height: 1.3;
+}
+
+.setting-ctrl-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.setting-slider {
+  flex: 1;
+  accent-color: #d4af37;
+  height: 6px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+}
+
+.setting-val-badge {
+  font-family: monospace;
+  font-size: 0.92rem;
+  font-weight: bold;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  padding: 3px 8px;
+  min-width: 54px;
+  text-align: center;
+  color: #ffffff;
+}
+
+.setting-val-badge.highlight {
+  color: #ffd700;
+  border-color: #d4af37;
+  background: rgba(212, 175, 55, 0.15);
+}
+
+/* Presets Row */
+.setting-presets-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.presets-label {
+  font-size: 0.75rem;
+  color: #9cb0c2;
+  margin-right: 4px;
+}
+
+.preset-chip {
+  background: rgba(35, 60, 90, 0.6);
+  color: #cfe1f2;
+  border: 1px solid #4a6a8a;
+  border-radius: 12px;
+  padding: 3px 10px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.preset-chip:hover {
+  background: #d4af37;
+  color: #1a0f00;
+  border-color: #ffe082;
+  font-weight: bold;
+}
+
+/* Switch Toggle */
+.switch-wrap {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+}
+
+.switch-wrap input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.switch-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background-color: #2b3d52;
+  border: 1px solid #4a6585;
+  transition: 0.25s;
+  border-radius: 24px;
+}
+
+.switch-slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.25s;
+  border-radius: 50%;
+}
+
+.switch-wrap input:checked + .switch-slider {
+  background-color: #d4af37;
+  border-color: #ffe082;
+}
+
+.switch-wrap input:checked + .switch-slider:before {
+  transform: translateX(20px);
+  background-color: #1a0f00;
+}
+
+/* Pill Group */
+.setting-pill-group {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.pill-btn {
+  flex: 1;
+  background: rgba(25, 45, 70, 0.6);
+  color: #bacddf;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.pill-btn:hover {
+  background: rgba(45, 75, 110, 0.8);
+  color: #ffffff;
+}
+
+.pill-btn.active {
+  background: linear-gradient(180deg, #d4af37 0%, #a67c1e 100%);
+  color: #1a0f00;
+  border-color: #ffe082;
+  font-weight: bold;
+  box-shadow: 0 0 8px rgba(212, 175, 55, 0.4);
+}
+
+/* Settings Footer */
+.settings-footer-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 14px;
+}
+
+.settings-action-btn {
+  padding: 10px 18px;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.settings-action-btn.primary {
+  background: #d4af37;
+  color: #1a0f00;
+  border: 1px solid #ffe082;
+}
+
+.settings-action-btn.primary:hover {
+  background: #ffe082;
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.5);
+}
+
+.settings-action-btn.secondary {
+  background: rgba(255, 255, 255, 0.08);
+  color: #b0c2d4;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.settings-action-btn.secondary:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+/* HUD Pause Trigger Button */
+.hud-pause-btn {
+  background: rgba(18, 30, 48, 0.85);
+  border: 1.5px solid #d4af37;
+  color: #f3e3b4;
+  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  transition: all 0.2s;
+  pointer-events: auto;
+}
+
+.hud-pause-btn:hover {
+  background: rgba(35, 60, 95, 0.95);
+  border-color: #ffe082;
+  transform: scale(1.08);
+  box-shadow: 0 0 12px rgba(212, 175, 55, 0.5);
 }
 
 

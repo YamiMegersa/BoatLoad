@@ -87,6 +87,7 @@ export class EnvironmentManager {
     
     // Enable true depth-based fog to obscure objects like islands and the ship
     scene.fog = new THREE.FogExp2(0x1a2430, initialDensity);
+    emit('weatherChanged', { density: initialDensity, isDense: (initialDensity >= 0.05) });
     
     if (initialDensity >= 0.05) {
       this._isDenseFog = true;

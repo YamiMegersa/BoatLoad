@@ -21,6 +21,7 @@ import { DEBUG } from './utils/debug.js';
 import { exportToGLB } from './utils/exportGLTF.js';
 import { DirectorMode } from './director/DirectorMode.js';
 import { GameEnv } from './core/GameEnv.js';
+import { settingsManager } from './core/SettingsManager.js';
 import './ui/ui.css';
 
 // ---------------------------------------------------------------------------
@@ -203,6 +204,28 @@ fpsCounter.style.cssText = `
 fpsCounter.innerText = 'FPS: 0';
 document.getElementById('ui-root')?.appendChild(fpsCounter);
 
+// Connect SettingsManager to all game subsystems
+settingsManager.bindContext({
+  scene,
+  camera,
+  renderer,
+  audio,
+  gameState,
+  godRays,
+  paperFilter,
+  fpsCounter,
+  directorMode
+});
+
+on('phaseChanged', () => {
+  settingsManager.applyCamera();
+  settingsManager.applyFog();
+});
+
+on('weatherChanged', () => {
+  settingsManager.applyFog();
+});
+
 // ---------------------------------------------------------------------------
 // Game loop
 // ---------------------------------------------------------------------------
@@ -250,22 +273,48 @@ function tick() {
   const activeCam = directorMode.isActive ? directorMode.camera : (gameState.activeCamera || camera);
   godRays._camera = activeCam;
 
+  // Re-apply camera FOV and far clipping plane based on Settings
+  settingsManager.applyCamera(activeCam);
+
   const isMainMenu = gameState.currentPhase === GamePhase.MAIN_MENU;
-  const usePaperShader = isMainMenu || paperShaderEnabled;
+  const paperSetting = settingsManager.get('paperShader');
+  let usePaperShader = false;
+  if (paperSetting === 'off') {
+    usePaperShader = false;
+  } else if (paperSetting === 'painterly') {
+    usePaperShader = true;
+    paperFilter.setStyle(1);
+  } else if (paperSetting === 'hatching') {
+    usePaperShader = true;
+    paperFilter.setStyle(0);
+  } else {
+    // 'auto' mode
+    usePaperShader = isMainMenu || paperShaderEnabled;
+    if (usePaperShader) {
+      paperFilter.setStyle(isMainMenu ? 1 : userPaperStyle);
+    }
+  }
+
+  const godRaysEnabled = Boolean(settingsManager.get('godRays'));
 
   // Clear render metrics once per frame before any render passes execute
   renderer.info.reset();
 
   if (usePaperShader) {
-    if (isMainMenu) {
-      paperFilter.setStyle(1); // Kuwahara (Painterly) permanently on for Main Menu
+    if (godRaysEnabled) {
+      godRays.render(sun, moon, mainRT);
     } else {
-      paperFilter.setStyle(userPaperStyle);
+      renderer.setRenderTarget(mainRT);
+      renderer.render(scene, activeCam);
     }
-    godRays.render(sun, moon, mainRT);
     paperFilter.render(mainRT);
   } else {
-    godRays.render(sun, moon, null);
+    if (godRaysEnabled) {
+      godRays.render(sun, moon, null);
+    } else {
+      renderer.setRenderTarget(null);
+      renderer.render(scene, activeCam);
+    }
   }
 
   // Capture the true cumulative calls and triangles rendered across the entire frame
@@ -614,10 +663,13 @@ async function boot() {
     }
 
     function togglePause() {
-      if (gameState.currentPhase === GamePhase.DOCK || gameState.currentPhase === GamePhase.OBSTACLE ||
-          gameState.currentPhase === GamePhase.MAIN_MENU || directorMode.isActive) return;
+      if (gameState.currentPhase === GamePhase.MAIN_MENU || directorMode.isActive) return;
       setPaused(!isPaused);
     }
+
+    on('requestPause', () => {
+      togglePause();
+    });
 
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Escape' && !directorMode.isActive) togglePause();

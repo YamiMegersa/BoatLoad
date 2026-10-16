@@ -177,6 +177,11 @@ export class HUD {
         </div>
       </div>
 
+      <!-- Dedicated Settings & Pause Trigger Button -->
+      <button id="hud-btn-pause" class="hud-pause-btn" style="position: fixed; top: 14px; left: 180px; z-index: 130;" title="Game Settings & Pause (Esc)" aria-label="Game Settings and Pause">
+        ⚙️
+      </button>
+
       <!-- Safe Harbor Goal Distance -->
       <div id="hud-goal-distance" style="position:fixed; top:20px; left:50%; transform:translateX(-50%); color:#ffd700; font-family:'Trebuchet MS',sans-serif; font-weight:bold; font-size:15px; text-shadow:0 0 8px rgba(0,0,0,0.8); background:rgba(20,15,10,0.7); padding:6px 16px; border-radius:20px; border:1px solid rgba(255,215,0,0.5); display:none; pointer-events:none; z-index:90;">
         ⚓ Safe Harbor: <span id="hud-goal-val" style="color:#ffffff;">--</span>m
@@ -362,6 +367,13 @@ export class HUD {
       e.preventDefault();
       e.stopPropagation();
       emit('cannonFire');
+    });
+
+    // Pause / Settings trigger button
+    this._el.querySelector('#hud-btn-pause')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      emit('requestPause');
     });
 
     // ammoChanged fires in _enterObstacle before uiMount — replay stored state

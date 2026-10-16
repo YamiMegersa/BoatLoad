@@ -269,6 +269,9 @@ export class MainMenuUI {
           <button class="menu-util-btn" id="btn-menu-audio">
             🌊 Ocean Audio: OFF
           </button>
+          <button class="menu-util-btn" id="btn-menu-settings">
+            ⚙️ Settings
+          </button>
           <span class="menu-version">v1.0 • ${GameEnv.isDev() ? 'DEV SUITE' : 'DEMO EDITION'}</span>
           <button class="menu-util-btn" id="btn-menu-fullscreen">
             ⛶ Fullscreen
@@ -512,6 +515,11 @@ export class MainMenuUI {
         audioBtn.style.color = active ? '#ffd700' : '#d1b88e';
       });
     }
+
+    // Settings modal toggle
+    bindBtn('#btn-menu-settings', () => {
+      emit('uiMount', { screen: 'pause', view: 'settings' });
+    });
 
     // Fullscreen toggle
     const fsBtn = this._el.querySelector('#btn-menu-fullscreen');
