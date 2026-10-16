@@ -215,7 +215,9 @@ export class DockPlayerController {
           this._interactWithBunny();
         } else if (this.hoveredDoor) {
           this.toggleShop();
-        } else if (this.hoveredShip || this.hoveredLedger) {
+        } else if (this.hoveredLedger) {
+          this._interactWithLedger();
+        } else if (this.hoveredShip) {
           this._interactWithShip();
         } else if (this.hoveredShipyard) {
           this._interactWithShipyard();
@@ -286,7 +288,12 @@ export class DockPlayerController {
       return;
     }
 
-    if (this.hoveredShip || this.hoveredLedger) {
+    if (this.hoveredLedger) {
+      this._interactWithLedger();
+      return;
+    }
+
+    if (this.hoveredShip) {
       this._interactWithShip();
       return;
     }
@@ -343,6 +350,14 @@ export class DockPlayerController {
   _interactWithShip() {
     emit('playSound', { sound: 'qte_success' });
     emit('requestPhaseChange', { phase: 'SHIPYARD' });
+  }
+
+  _interactWithLedger() {
+    emit('playSound', { sound: 'qte_success' });
+    if (this.isLocked) {
+      document.exitPointerLock();
+    }
+    emit('openLevelSelector');
   }
 
   _interactWithShipyard() {
@@ -669,8 +684,7 @@ export class DockPlayerController {
       if (type === 'bunny') {
         this.prompt.innerHTML = `🐰 <span style="background:#4a3520; padding:2px 6px; border-radius:3px; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Pet Bunny`;
       } else if (type === 'ledger') {
-        const shipName = this.dockStall?.activeShipProfile?.name || 'Vessel';
-        this.prompt.innerHTML = `📋 <span style="background:#4a3520; padding:2px 6px; border-radius:3px; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click Ledger to Enter Shipyard &amp; Alter ${shipName}`;
+        this.prompt.innerHTML = `📖 <span style="background:#4a3520; padding:2px 6px; border-radius:3px; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click Logbook to Select Voyage`;
       } else if (type === 'ship') {
         const shipName = this.dockStall?.activeShipProfile?.name || 'Vessel';
         this.prompt.innerHTML = `🔨 <span style="background:#4a3520; padding:2px 6px; border-radius:3px; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shipyard &amp; Alter ${shipName}`;
