@@ -365,6 +365,7 @@ export class GameState {
         break;
 
       case GamePhase.EDITOR:
+        if (this._dockStall && this._hasDock) this._dockStall.update(delta, this._time);
         this._updateEditor(delta);
         break;
 
@@ -1838,21 +1839,59 @@ export class GameState {
   _enterEditor({ levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel }) {
     this._levelCfg = levelCfg;
 
-    // Ensure the dock/shipyard island environment and breakwater are not active in the editor
-    if (this._dockStall?.group && this._dockStall.group.parent === this._scene) {
-      this._scene.remove(this._dockStall.group);
+    const hasDock = levelCfg?.hasDock !== false && this._levelCfg?.hasDock !== false;
+    this._hasDock = hasDock;
+
+    if (hasDock) {
+      const stallGroup = this._dockStall.build();
+      if (stallGroup.parent !== this._scene) {
+        this._scene.add(stallGroup);
+      }
+      if (this._ocean) {
+        this._ocean.breakwaterEnabled = true;
+      }
+    } else {
+      if (this._dockStall?.group && this._dockStall.group.parent === this._scene) {
+        this._scene.remove(this._dockStall.group);
+      }
+      if (this._ocean) {
+        this._ocean.breakwaterEnabled = false;
+      }
     }
-    if (this._ocean) {
-      this._ocean.breakwaterEnabled = false;
-    }
+
+    this._onEditorToggleDock = ({ hasDock }) => {
+      this._hasDock = Boolean(hasDock);
+      if (this._hasDock) {
+        const stallGroup = this._dockStall.build();
+        if (stallGroup.parent !== this._scene) {
+          this._scene.add(stallGroup);
+        }
+        if (this._ocean) {
+          this._ocean.breakwaterEnabled = true;
+        }
+      } else {
+        if (this._dockStall?.group && this._dockStall.group.parent === this._scene) {
+          this._scene.remove(this._dockStall.group);
+        }
+        if (this._ocean) {
+          this._ocean.breakwaterEnabled = false;
+        }
+      }
+    };
+    on('editorToggleDock', this._onEditorToggleDock);
 
     if (this._chunkRenderer && this._chunkRenderer.container) {
       this._chunkRenderer.container.visible = false;
       this._chunkRenderer.container.position.set(0, -999, 0);
     }
 
-    this._camera.position.set(0, 30, 0);
-    this._camera.lookAt(0, 0, -5);
+    if (hasDock) {
+      this._camera.position.set(-35, 30, 35);
+      this._camera.lookAt(-35, 0, 5);
+    } else {
+      this._camera.position.set(0, 30, 20);
+      this._camera.lookAt(0, 0, -5);
+    }
     
     if (this._ocean) {
       this._ocean.setWorldSize(levelCfg?.worldSize || 200);
@@ -1864,7 +1903,11 @@ export class GameState {
       MIDDLE: THREE.MOUSE.PAN,
       RIGHT: THREE.MOUSE.ROTATE
     };
-    this._orbitControls.target.set(0, 0, -5);
+    if (hasDock) {
+      this._orbitControls.target.set(-35, 0, 5);
+    } else {
+      this._orbitControls.target.set(0, 0, -5);
+    }
     this._orbitControls.update();
 
     this._editorSystem = new EditorSystem();
@@ -1878,6 +1921,9 @@ export class GameState {
       if (d?.preset === 'top') {
         this._camera.position.set(0, 100, 0.01);
         this._orbitControls.target.set(0, 0, 0);
+      } else if (d?.preset === 'harbor') {
+        this._camera.position.set(-52, 14, 28);
+        this._orbitControls.target.set(-52, 1, 10);
       } else if (d?.preset === 'horizon') {
         this._camera.position.set(0, 8, 30);
         this._orbitControls.target.set(0, 4, -40);
@@ -1885,8 +1931,13 @@ export class GameState {
         this._camera.position.set(50, 60, 50);
         this._orbitControls.target.set(0, 0, 0);
       } else { // default
-        this._camera.position.set(0, 30, 20);
-        this._orbitControls.target.set(0, 0, -5);
+        if (this._hasDock) {
+          this._camera.position.set(-35, 30, 35);
+          this._orbitControls.target.set(-35, 0, 5);
+        } else {
+          this._camera.position.set(0, 30, 20);
+          this._orbitControls.target.set(0, 0, -5);
+        }
       }
       this._orbitControls.update();
     };
@@ -1935,6 +1986,17 @@ export class GameState {
     if (this._onEditorCameraPreset) {
       off('editorCameraPreset', this._onEditorCameraPreset);
       this._onEditorCameraPreset = null;
+    }
+    if (this._onEditorToggleDock) {
+      off('editorToggleDock', this._onEditorToggleDock);
+      this._onEditorToggleDock = null;
+    }
+
+    if (this._dockStall?.group && this._dockStall.group.parent === this._scene) {
+      this._scene.remove(this._dockStall.group);
+    }
+    if (this._ocean) {
+      this._ocean.breakwaterEnabled = false;
     }
 
     this._editorSystem?.dispose();

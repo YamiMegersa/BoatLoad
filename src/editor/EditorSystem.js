@@ -248,7 +248,11 @@ export class EditorSystem {
           rotation: cfg.shipSpawn.rotation || 0
         };
       } else {
-        this._shipSpawn = { position: { x: 0, y: 0, z: 0 }, rotation: 0 };
+        this._shipSpawn = null;
+      }
+      if (cfg.hasDock !== undefined) {
+        this._hasDock = Boolean(cfg.hasDock);
+        emit('editorToggleDock', { hasDock: this._hasDock });
       }
       this._updateShipGhost();
 
@@ -316,6 +320,7 @@ export class EditorSystem {
     on('editorToggleDock', d => {
       this._hasDock = Boolean(d.hasDock);
       if (this._levelCfg) this._levelCfg.hasDock = this._hasDock;
+      this._updateShipGhost();
       emit('editorHasDockChanged', { hasDock: this._hasDock });
     });
 
@@ -462,10 +467,7 @@ export class EditorSystem {
         rotation: this._levelCfg.shipSpawn.rotation || 0
       };
     } else {
-      this._shipSpawn = {
-        position: { x: 0, y: 0, z: 0 },
-        rotation: 0
-      };
+      this._shipSpawn = null;
     }
     this._updateShipGhost();
 
@@ -1135,7 +1137,7 @@ export class EditorSystem {
       sirens: sirens.length > 0 ? sirens : (this._levelCfg?.sirens || []),
       kraken: this._krakenConfig ? this._krakenConfig : null,
       endLocation: this._endLocation || this._levelCfg?.endLocation || { position: { x: 0, y: 0, z: -220 }, radius: 16 },
-      shipSpawn: this._shipSpawn || this._levelCfg?.shipSpawn || { position: { x: 0, y: 0, z: 0 }, rotation: 0 },
+      shipSpawn: this._shipSpawn || (this._hasDock ? null : (this._levelCfg?.shipSpawn || { position: { x: 0, y: 0, z: 0 }, rotation: 0 })),
       hasDock: this._hasDock !== undefined ? this._hasDock : (this._levelCfg?.hasDock !== false)
     };
   }
@@ -1553,11 +1555,25 @@ export class EditorSystem {
     this._shipGhostGroup.userData.isShipSpawn = true;
     this._shipGhostGroup.visible = this._shipGhostVisible;
 
-    const spawnPos = this._shipSpawn?.position || (this._shipSpawn?.x !== undefined ? this._shipSpawn : null);
-    const spawnX = spawnPos?.x ?? 0;
-    const spawnY = spawnPos?.y ?? 0;
-    const spawnZ = spawnPos?.z ?? 0;
-    const spawnRot = this._shipSpawn?.rotation ?? 0;
+    let spawnX = 0;
+    let spawnY = 0;
+    let spawnZ = 0;
+    let spawnRot = 0;
+
+    if (this._hasDock && !this._shipSpawn) {
+      const s = profile.scale || 0.12;
+      const halfBeam = ((profile.grid?.x || 24) * 0.5) * s;
+      spawnX = -50.9 - halfBeam - 0.4;
+      spawnY = 0;
+      spawnZ = 10.5;
+      spawnRot = 0;
+    } else {
+      const spawnPos = this._shipSpawn?.position || (this._shipSpawn?.x !== undefined ? this._shipSpawn : null);
+      spawnX = spawnPos?.x ?? 0;
+      spawnY = spawnPos?.y ?? 0;
+      spawnZ = spawnPos?.z ?? 0;
+      spawnRot = this._shipSpawn?.rotation ?? 0;
+    }
 
     this._shipGhostGroup.position.set(spawnX, spawnY, spawnZ);
     this._shipGhostGroup.rotation.y = spawnRot;

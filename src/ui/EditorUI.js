@@ -57,6 +57,16 @@ export class EditorUI {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
       if (e.code === 'KeyG') {
         this._setGodRays(!this._godRaysEnabled);
+      } else if (e.code === 'Digit1' || e.code === 'Numpad1') {
+        emit('editorCameraPreset', { preset: 'default' });
+      } else if (e.code === 'Digit7' || e.code === 'Numpad7') {
+        emit('editorCameraPreset', { preset: 'top' });
+      } else if (e.code === 'Digit3' || e.code === 'Numpad3') {
+        emit('editorCameraPreset', { preset: 'isometric' });
+      } else if (e.code === 'Digit0' || e.code === 'Numpad0') {
+        emit('editorCameraPreset', { preset: 'horizon' });
+      } else if (e.code === 'Digit4' || e.code === 'Numpad4') {
+        emit('editorCameraPreset', { preset: 'harbor' });
       }
     };
     window.addEventListener('keydown', this._onKeyDown);
@@ -245,6 +255,11 @@ export class EditorUI {
                 <span class="dropdown-item-icon">⛵</span>
                 <span class="dropdown-item-text">Sea Level View</span>
                 <span class="dropdown-item-hotkey">0</span>
+              </button>
+              <button class="dropdown-item" data-cam="harbor">
+                <span class="dropdown-item-icon">⚓</span>
+                <span class="dropdown-item-text">Harbor Berth & Pier</span>
+                <span class="dropdown-item-hotkey">4</span>
               </button>
               <div class="dropdown-divider"></div>
               <button class="dropdown-item" id="btn-menu-toggle-godrays">
