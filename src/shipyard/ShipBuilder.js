@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VoxelGrid, CellState } from './VoxelGrid.js';
 import { emit } from '../core/EventBus.js';
+import { getShipProfile } from '../config/ShipRegistry.js';
 
 /**
  * Pristine voxelised ships, keyed by ship id: shipId -> VoxelGrid.snapshot()
@@ -36,64 +37,66 @@ export class ShipBuilder {
       // class that used to leave a blocky zone-fill "ship" behind.
       grid.restore(cached);
     } else {
+      const loader = new GLTFLoader();
+      const modelPath = shipDef.modelUrl || `/src/assets/ships/${shipDef.id}.glb`;
       let gltf;
       try {
-        gltf = await ShipBuilder._loadGLB(shipDef.id);
+        gltf = await ShipBuilder._loadGLB(shipDef.id, loader, modelPath);
       } catch (e) {
-        // Last-resort only: loud, visible blocky fallback. Never silent.
         console.error(`[ShipBuilder] ${shipDef.id}.glb unavailable after retry — using blocky zone fallback`, e);
         emit('buildError', {
           shipId: shipDef.id,
           message: `Could not load ${shipDef.id}.glb — showing a blocky placeholder.`,
         });
-        // Fallback: fill all cells that fall inside any zone as INTACT.
-        for (const [, zoneDefs] of Object.entries(shipDef.zones)) {
-          for (const region of zoneDefs) {
-            ShipBuilder._fillRegion(grid, region, CellState.INTACT);
+        if (shipDef.zones) {
+          for (const [, zoneDefs] of Object.entries(shipDef.zones)) {
+            for (const region of zoneDefs) {
+              ShipBuilder._fillRegion(grid, region, CellState.INTACT);
+            }
           }
+          this._applyDamage(grid, levelCfg);
+          grid.dirtySet.clear();
+          grid.topologyDirty = false;
+          return { grid, zones: shipDef.zones, def: shipDef, gltfScene: null };
         }
-        this._applyDamage(grid, levelCfg);
-        grid.dirtySet.clear();
-        grid.topologyDirty = false;
-        return { grid, zones: shipDef.zones, def: shipDef };
       }
 
-      ShipBuilder._voxelise(gltf, grid, W, H, D);
-      // Cache the pristine ship BEFORE any authored damage is applied.
-      _pristineCache.set(shipDef.id, grid.snapshot());
-    }
+      // Apply profile-based rotation before voxelizing
+      const profile = shipDef.profile || getShipProfile(shipDef.id);
+      if (profile && profile.modelRotationY !== undefined) {
+        gltf.scene.rotation.y = profile.modelRotationY;
+        gltf.scene.updateMatrixWorld(true);
+      } else {
+        const testBox = new THREE.Box3().setFromObject(gltf.scene);
+        const testSize = new THREE.Vector3();
+        testBox.getSize(testSize);
+        if (testSize.x > testSize.z) {
+          gltf.scene.rotation.y = Math.PI / 2;
+          gltf.scene.updateMatrixWorld(true);
+        }
+      }
 
-    // Apply the level's authored damage on top of the pristine ship
-    this._applyDamage(grid, levelCfg);
-
-    // Reset tracking flags for the initial render pass
-    grid.dirtySet.clear();
-    grid.topologyDirty = false;
-
-    return { grid, zones: shipDef.zones, def: shipDef };
-  }
-
-  /**
-   * Voxelize a loaded GLB into the grid: scale it to the grid bounds, then
-   * mark a cell INTACT for every triangle centroid landing inside it, sampling
-   * the material/texture colour for the cell.
-   */
-  static _voxelise(gltf, grid, W, H, D) {
-    // Get initial bounding box to determine scale factors
-    const initialBox = new THREE.Box3().setFromObject(gltf.scene);
+      // Get rotated bounding box to determine scale factors
+      const rotatedBox = new THREE.Box3().setFromObject(gltf.scene);
     const size = new THREE.Vector3();
-    initialBox.getSize(size);
-    
-    // Scale the GLTF scene to precisely fit the VoxelGrid bounds
-    const scaleX = (W * 1.0) / size.x; // CELL_SIZE = 1.0
-    const scaleY = (H * 1.0) / size.y;
-    const scaleZ = (D * 1.0) / size.z;
-    gltf.scene.scale.set(scaleX, scaleY, scaleZ);
+    rotatedBox.getSize(size);
+
+    // Uniformly scale along length (Z) so ship matches the grid depth D
+    // Use target length D - 2 so there is a 1-cell margin at bow and stern
+    const fitScale = (D - 2) / (size.z || 1);
+    gltf.scene.scale.set(fitScale, fitScale, fitScale);
+    gltf.scene.position.set(0, 0, 0);
     gltf.scene.updateMatrixWorld(true);
 
-    // Align the scaled GLB's bounding box to (0, 0, 0) to ensure it fits perfectly into the VoxelGrid space
-    const box = new THREE.Box3().setFromObject(gltf.scene);
-    gltf.scene.position.sub(box.min);
+    // Center horizontally in VoxelGrid and place base at bottom (Y=1)
+    const finalBox = new THREE.Box3().setFromObject(gltf.scene);
+    const center = new THREE.Vector3();
+    finalBox.getCenter(center);
+    gltf.scene.position.set(
+      (W * 0.5) - center.x,
+      1.0 - finalBox.min.y,
+      (D * 0.5) - center.z
+    );
     gltf.scene.updateMatrixWorld(true);
 
     const voxelSet = new Set();
@@ -183,6 +186,18 @@ export class ShipBuilder {
       }
     });
 
+      // Cache the pristine ship BEFORE any authored damage is applied.
+      _pristineCache.set(shipDef.id, grid.snapshot());
+    }
+
+    // Apply the level's authored damage on top of the pristine ship
+    this._applyDamage(grid, levelCfg);
+
+    // Reset tracking flags for the initial render pass
+    grid.dirtySet.clear();
+    grid.topologyDirty = false;
+
+    return { grid, zones: shipDef.zones, def: shipDef, gltfScene: cached ? null : gltf?.scene };
   }
 
   /**
@@ -190,9 +205,8 @@ export class ShipBuilder {
    * (e.g. immediately after a heavy sinking run) should not degrade the whole
    * ship; a second failure propagates to build().
    */
-  static async _loadGLB(id) {
-    const loader = new GLTFLoader();
-    const url = `/src/assets/ships/${id}.glb`;
+  static async _loadGLB(id, loader, modelPath) {
+    const url = modelPath || `/src/assets/ships/${id}.glb`;
     try {
       return await loader.loadAsync(url);
     } catch (e) {
@@ -215,14 +229,41 @@ export class ShipBuilder {
       FLOODED:  CellState.FLOODED,
     };
 
+    const fallbackCells = ShipBuilder._findExposedShipCells(grid);
+    let fallbackIdx = 0;
+
     for (const entry of levelCfg.damage) {
       const targetState = stateMap[entry.state] ?? CellState.DAMAGED;
       for (const [cx, cy, cz] of entry.cells) {
-        if (grid.inBounds(cx, cy, cz)) {
+        if (grid.inBounds(cx, cy, cz) && grid.getState(cx, cy, cz) !== CellState.EMPTY) {
           grid.setState(cx, cy, cz, targetState);
+        } else if (fallbackIdx < fallbackCells.length) {
+          // If the hardcoded cell coordinate was in empty space outside this vessel,
+          // place the damage on an actual exposed hull cell so there are NEVER stray blocks outside the ship!
+          const actualCell = fallbackCells[fallbackIdx++];
+          grid.setState(actualCell.x, actualCell.y, actualCell.z, targetState);
         }
       }
     }
+  }
+
+  static _findExposedShipCells(grid) {
+    const candidates = [];
+    const midZ = Math.floor(grid.depth * 0.5);
+    const maxY = Math.max(3, Math.floor(grid.height * 0.45));
+
+    for (let z = 2; z < grid.depth - 2; z++) {
+      for (let y = 1; y <= maxY; y++) {
+        for (let x = 1; x < grid.width - 1; x++) {
+          if (grid.getState(x, y, z) === CellState.INTACT && grid.isExposed(x, y, z)) {
+            candidates.push({ x, y, z, distFromMid: Math.abs(z - midZ) });
+          }
+        }
+      }
+    }
+
+    candidates.sort((a, b) => a.distFromMid - b.distFromMid);
+    return candidates;
   }
 
   /**

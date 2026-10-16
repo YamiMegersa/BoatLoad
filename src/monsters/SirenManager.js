@@ -183,6 +183,13 @@ export class SirenManager {
         const nx = pushDx / pushDist;
         const nz = pushDz / pushDist;
 
+        const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(playerShip.mesh.quaternion).normalize();
+        let tx = -nz, tz = nx;
+        if (forward.x * tx + forward.z * tz < 0) {
+          tx = nz;
+          tz = -nx;
+        }
+
         if (!playerShip.isImmune()) {
           const rockDamage = 20; // Identical damage to rock collision
           playerShip.takeDamage(rockDamage, 'rock');
@@ -191,20 +198,37 @@ export class SirenManager {
           // Physical rock collision reaction: pitch/roll bounceBack
           playerShip.bounceBack(pushDx, pushDz, 'rock');
 
-          // Static push away from rock center to avoid sticking
-          playerShip.mesh.position.x = sx + nx * (collisionRadius + 0.8);
-          playerShip.mesh.position.z = sz + nz * (collisionRadius + 0.8);
-
-          // Pinball knockback velocity
-          playerShip.applyKnockback(new THREE.Vector3(nx * 40, 0, nz * 40));
-
           // Audio and obstacle hit events
           emit('obstacleHit', { type: 'rock', damage: rockDamage });
           emit('playSound', { sound: 'collision' });
-        } else {
-          // While immune, keep ship from penetrating solid rock core
-          playerShip.mesh.position.x = sx + nx * (collisionRadius + 0.5);
-          playerShip.mesh.position.z = sz + nz * (collisionRadius + 0.5);
+        }
+
+        // Static push away from rock center to avoid sticking
+        playerShip.mesh.position.x = sx + nx * (collisionRadius + 0.6);
+        playerShip.mesh.position.z = sz + nz * (collisionRadius + 0.6);
+
+        // Slide along tangent
+        const forwardSpeed = playerShip._isHalted ? 0 : 15.0 * (playerShip.speedMultiplier || 1.0);
+        const inDot = forward.x * nx + forward.z * nz;
+        if (inDot < 0) {
+          const inStep = inDot * forwardSpeed * delta;
+          playerShip.mesh.position.x -= inStep * nx;
+          playerShip.mesh.position.z -= inStep * nz;
+
+          playerShip.mesh.position.x += tx * Math.abs(inStep) * 0.95;
+          playerShip.mesh.position.z += tz * Math.abs(inStep) * 0.95;
+        }
+
+        // Sliding knockback velocity
+        playerShip.knockbackVelocity.set(tx * (forwardSpeed * 0.4) + nx * 5.0, 0, tz * (forwardSpeed * 0.4) + nz * 5.0);
+
+        // Steer rudder along tangent
+        const cross = forward.x * tz - forward.z * tx;
+        playerShip.yawVelocity += Math.sign(cross) * 2.0 * delta;
+
+        playerShip.mesh.updateMatrixWorld(true);
+        if (playerShip.obb && playerShip.baseOBB) {
+          playerShip.obb.copy(playerShip.baseOBB).applyMatrix4(playerShip.mesh.matrixWorld);
         }
       }
 

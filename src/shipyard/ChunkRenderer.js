@@ -27,7 +27,7 @@ const floodedMaterial = new THREE.MeshPhongMaterial({
  * Maximum number of simultaneously active individual (DAMAGED/FLOODED) meshes.
  * When the cap is reached, the oldest mesh is recycled.
  */
-const MAX_INDIVIDUAL_MESHES = 256;
+const MAX_INDIVIDUAL_MESHES = 1024;
 const BOX_GEO = new THREE.BoxGeometry(CELL_SIZE, CELL_SIZE, CELL_SIZE);
 const EDGES_GEO = new THREE.EdgesGeometry(BOX_GEO);
 
@@ -39,20 +39,20 @@ const EDGES_GEO = new THREE.EdgesGeometry(BOX_GEO);
  * ChunkRenderer — owns all Three.js visual objects for a ship's VoxelGrid.
  *
  * Rendering strategy:
- *  - INTACT cells   → InstancedMesh (colored via grid.getColor).
- *  - MISSING cells  → Instance hidden (scale 0).
- *  - DAMAGED cells  → Instance hidden + individual THREE.Mesh spawned.
- *  - FLOODED cells  → Instance hidden + individual THREE.Mesh spawned.
+ *  - When gltfScene is provided: Keeps the original textured GLB voxel ship model directly.
+ *    Only overlays MISSING, DAMAGED, FLOODED, and REPAIRED indicator voxels.
+ *  - When gltfScene is absent: Fallback InstancedMesh for INTACT cells.
  */
 export class ChunkRenderer {
   constructor() {
     this.container = new THREE.Group();
     
+    this._gltfScene = null;
     this._instancedMesh = null;
     this._instanceIdxMap = new Map(); // grid flatIdx -> instance ID
     this._nextInstanceId = 0;
 
-    /** Maps flat grid index → individual THREE.Mesh for DAMAGED/FLOODED cells. */
+    /** Maps flat grid index → individual THREE.Mesh for DAMAGED/FLOODED/REPAIRED/MISSING cells. */
     this._individualMeshes = new Map();
     /** FIFO queue to enforce MAX_INDIVIDUAL_MESHES. */
     this._individualQueue = [];
@@ -61,27 +61,35 @@ export class ChunkRenderer {
   }
 
   /**
-   * Initialise from a freshly-built VoxelGrid.
-   * Must be called once before any sync().
+   * Initialise from a freshly-built VoxelGrid and optional gltfScene.
+   * If gltfScene is provided, it is kept as the authentic visual model of the ship.
    *
    * @param {import('./VoxelGrid.js').VoxelGrid} grid
    * @param {THREE.Scene} scene
+   * @param {THREE.Object3D} [gltfScene]
    */
-  init(grid, scene) {
+  init(grid, scene, gltfScene = null) {
     this._scene = scene;
     this._scene.add(this.container);
+    this._grid = grid;
+    this._gltfScene = gltfScene;
 
-    const maxIntact = grid.width * grid.height * grid.depth;
-    this._instancedMesh = new THREE.InstancedMesh(BOX_GEO, intactMaterial, maxIntact);
-    this._instancedMesh.count = 0;
-    
-    // We must manually inform Three.js that we intend to update colors dynamically
-    this._instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    if (this._instancedMesh.instanceColor) {
-      this._instancedMesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
+    if (this._gltfScene) {
+      this.container.add(this._gltfScene);
+      this._instancedMesh = null;
+    } else {
+      const maxIntact = grid.width * grid.height * grid.depth;
+      this._instancedMesh = new THREE.InstancedMesh(BOX_GEO, intactMaterial, maxIntact);
+      this._instancedMesh.count = 0;
+      
+      // We must manually inform Three.js that we intend to update colors dynamically
+      this._instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      if (this._instancedMesh.instanceColor) {
+        this._instancedMesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
+      }
+      
+      this.container.add(this._instancedMesh);
     }
-    
-    this.container.add(this._instancedMesh);
 
     // Perform a full pass to spawn initial meshes
     this._fullRebuild(grid);
@@ -129,6 +137,10 @@ export class ChunkRenderer {
   dispose(scene) {
     if (this.container) {
       scene.remove(this.container);
+      if (this._gltfScene) {
+        this.container.remove(this._gltfScene);
+        this._gltfScene = null;
+      }
     }
     
     if (this._instancedMesh) {
@@ -137,7 +149,11 @@ export class ChunkRenderer {
     }
 
     for (const mesh of this._individualMeshes.values()) {
-      this._disposeIndividualMesh(mesh);
+      this.container.remove(mesh);
+      mesh.geometry.dispose();
+      if (mesh.material && mesh.material !== missingMaterial && mesh.material !== damagedMaterial && mesh.material !== floodedMaterial) {
+        mesh.material.dispose();
+      }
     }
     this._individualMeshes.clear();
     this._individualQueue.length = 0;
@@ -214,9 +230,18 @@ export class ChunkRenderer {
     // 2. Manage Individual Overlays
     switch (state) {
       case CellState.INTACT:
-      case CellState.REPAIRED:
       case CellState.EMPTY:
         this._removeIndividual(flatIdx);
+        break;
+
+      case CellState.REPAIRED:
+        if (this._gltfScene) {
+          const hex = grid.getColor(x, y, z);
+          const mat = new THREE.MeshLambertMaterial({ color: hex });
+          this._spawnIndividual(grid, x, y, z, flatIdx, mat);
+        } else {
+          this._removeIndividual(flatIdx);
+        }
         break;
 
       case CellState.MISSING:

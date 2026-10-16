@@ -597,6 +597,10 @@ export class EnvironmentManager {
     if (this._rainManager) { this._rainManager.dispose(); this._rainManager = null; }
     if (this._fogVolume) { this._fogVolume.dispose(); this._fogVolume = null; }
     if (this._stormClouds) { this._stormClouds.dispose(); this._stormClouds = null; }
+    if (this._moonLight) {
+      if (this._moonLight.parent) this._moonLight.parent.remove(this._moonLight);
+      this._moonLight = null;
+    }
     if (this._scene) { this._scene.fog = null; }
   }
 }

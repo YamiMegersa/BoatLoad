@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { emit, on, off } from '../core/EventBus.js';
 import { VoxelArms } from './VoxelArms.js';
 import { EmoteWheelUI } from '../ui/EmoteWheelUI.js';
+import { DOCK_SCALE } from './DockStall.js';
 
 export class DockPlayerController {
   /**
@@ -18,22 +19,23 @@ export class DockPlayerController {
 
     // Modes: 'player' (FPS moveable on dock/island), 'shop' (static shopkeeper station)
     this.mode = 'player';
+    this.scale = DOCK_SCALE;
 
     // Camera setup
     this.camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 500);
-    this.eyeHeight = 2.85; // Proportional to dock and shop scale
+    this.eyeHeight = 2.85 * this.scale; // Proportional to scaled dock and shop
 
     // Camera Rig (Yaw -> Pitch -> Camera)
     this.pitchObject = new THREE.Object3D();
     this.pitchObject.add(this.camera);
 
     this.yawObject = new THREE.Object3D();
-    this.yawObject.position.set(-3.5, 2.15 + this.eyeHeight, 0.5); // Initial spawn on dock
+    this.yawObject.position.set(-3.5 * this.scale, 2.15 * this.scale + this.eyeHeight, 0.5 * this.scale); // Initial spawn on dock
     this.yawObject.rotation.y = Math.PI / 2; // Face towards island ramp (world -X)
     this.yawObject.add(this.pitchObject);
     this.scene.add(this.yawObject);
 
-    this.playerRadius = 0.45;
+    this.playerRadius = 0.45 * this.scale;
 
     // Movement state
     this.keys = {
@@ -43,8 +45,8 @@ export class DockPlayerController {
       right: false,
       sprint: false
     };
-    this.walkSpeed = 6.0;
-    this.sprintSpeed = 10.5;
+    this.walkSpeed = 6.0 * this.scale;
+    this.sprintSpeed = 10.5 * this.scale;
     this.velocity = new THREE.Vector3();
 
     // Raycasters for terrain following & interaction
@@ -58,6 +60,8 @@ export class DockPlayerController {
     this.mouseCoords = new THREE.Vector2(-999, -999);
     this.hoveredDoor = null;
     this.hoveredBunny = null;
+    this.hoveredShip = null;
+    this.hoveredShipyard = null;
 
     // UI elements
     this._createUI();
@@ -210,6 +214,10 @@ export class DockPlayerController {
           this._interactWithBunny();
         } else if (this.hoveredDoor) {
           this.toggleShop();
+        } else if (this.hoveredShip) {
+          this._interactWithShip();
+        } else if (this.hoveredShipyard) {
+          this._interactWithShipyard();
         }
         break;
       case 'KeyQ':
@@ -277,6 +285,16 @@ export class DockPlayerController {
       return;
     }
 
+    if (this.hoveredShip) {
+      this._interactWithShip();
+      return;
+    }
+
+    if (this.hoveredShipyard) {
+      this._interactWithShipyard();
+      return;
+    }
+
     // Otherwise lock pointer for smooth navigation
     if (!this.isLocked) {
       this.domElement.requestPointerLock();
@@ -319,6 +337,20 @@ export class DockPlayerController {
       this.camera.getWorldPosition(playerPos);
       this.dockStall.bunny.interact(playerPos);
     }
+  }
+
+  _interactWithShip() {
+    emit('playSound', { sound: 'qte_success' });
+    if (this.dockStall && this.dockStall.shipNeedsRepair) {
+      emit('requestPhaseChange', { phase: 'SHIPYARD' });
+    } else {
+      emit('startSailing');
+    }
+  }
+
+  _interactWithShipyard() {
+    emit('playSound', { sound: 'qte_success' });
+    emit('gotoShipyard');
   }
 
   enterShop() {
@@ -390,11 +422,12 @@ export class DockPlayerController {
 
   _resolveObstacleCollisions(pos) {
     const r = this.playerRadius;
+    const s = this.scale;
     const obstacles = [
       // Main shop building and front counter
-      { minX: -1.05, maxX: 5.25, minZ: 1.10, maxZ: 6.65 },
+      { minX: -1.05 * s, maxX: 5.25 * s, minZ: 1.10 * s, maxZ: 6.65 * s },
       // Crates stacked beside shop on the dock
-      { minX: -2.1, maxX: -1.2, minZ: 2.1, maxZ: 3.1 }
+      { minX: -2.1 * s, maxX: -1.2 * s, minZ: 2.1 * s, maxZ: 3.1 * s }
     ];
 
     for (let i = 0; i < obstacles.length; i++) {
@@ -490,23 +523,24 @@ export class DockPlayerController {
 
   _getGroundHeightAt(x, z) {
     if (!this.dockStall || !this.dockStall.group) {
-      return 2.15; // default dock level
+      return 2.15 * this.scale; // default dock level
     }
 
-    const rayOrigin = new THREE.Vector3(x, 10.0, z);
+    const rayOrigin = new THREE.Vector3(x, 16.0 * this.scale, z);
     this.downRaycaster.set(rayOrigin, new THREE.Vector3(0, -1, 0));
+    this.downRaycaster.far = 20.0;
 
     // Intersect terrain and dock objects
     const hits = this.downRaycaster.intersectObject(this.dockStall.group, true);
     for (let i = 0; i < hits.length; i++) {
       const hit = hits[i];
-      // Exclude roofs, sign, gulls, or high props
-      if (hit.point.y > 4.5) continue;
+      // Exclude roofs, high cranes, gulls, or high props
+      if (hit.point.y > 6.2 * this.scale) continue;
       // Exclude water/below water level
-      if (hit.point.y < 0.2) continue;
+      if (hit.point.y < 0.1 * this.scale) continue;
 
-      // Make sure the hit object isn't the door or ceiling or bunny
-      if (hit.object && hit.object.userData && (hit.object.userData.isShopDoor || hit.object.userData.isBunny)) continue;
+      // Make sure the hit object isn't the door, bunny, or marked noWalk
+      if (hit.object && hit.object.userData && (hit.object.userData.isShopDoor || hit.object.userData.isBunny || hit.object.userData.noWalk)) continue;
 
       // Exclude any part of the shop stall (counter, floor, desk, apron, roof)
       let parent = hit.object;
@@ -539,6 +573,12 @@ export class DockPlayerController {
     if (this.dockStall.bunnyInteractables) {
       interactables.push(...this.dockStall.bunnyInteractables);
     }
+    if (this.dockStall.shipInteractables) {
+      interactables.push(...this.dockStall.shipInteractables);
+    }
+    if (this.dockStall.shipyardInteractables) {
+      interactables.push(...this.dockStall.shipyardInteractables);
+    }
 
     if (interactables.length === 0) {
       this._setHoverState(null);
@@ -560,16 +600,38 @@ export class DockPlayerController {
     const hits = this.interactRaycaster.intersectObjects(interactables, true);
     for (let i = 0; i < hits.length; i++) {
       const hit = hits[i];
-      if (hit.object && hit.object.userData) {
-        if (hit.object.userData.isBunny) {
-          if (hit.distance <= 6.5) {
-            this._setHoverState(hit.object, 'bunny');
+      if (hit.object) {
+        let cur = hit.object;
+        let isShip = false;
+        while (cur) {
+          if (cur.userData && (cur.userData.isMooredShip || cur.userData.isShip)) {
+            isShip = true;
+            break;
+          }
+          cur = cur.parent;
+        }
+
+        if (isShip) {
+          if (hit.distance <= 14.0 * this.scale) {
+            this._setHoverState(hit.object, 'ship');
             return;
           }
-        } else if (hit.object.userData.isShopDoor) {
-          const maxDist = this.mode === 'shop' ? 5.5 : 4.0;
-          if (hit.distance <= maxDist) {
-            this._setHoverState(hit.object, 'door');
+        } else if (hit.object.userData) {
+          if (hit.object.userData.isBunny) {
+            if (hit.distance <= 6.5 * this.scale) {
+              this._setHoverState(hit.object, 'bunny');
+              return;
+            }
+          } else if (hit.object.userData.isShopDoor) {
+            const maxDist = (this.mode === 'shop' ? 5.5 : 4.0) * this.scale;
+            if (hit.distance <= maxDist) {
+              this._setHoverState(hit.object, 'door');
+              return;
+            }
+          }
+        } else if (hit.object.userData.isShipyardBench) {
+          if (hit.distance <= 5.5) {
+            this._setHoverState(hit.object, 'shipyard');
             return;
           }
         }
@@ -582,6 +644,8 @@ export class DockPlayerController {
   _setHoverState(obj, type = null) {
     this.hoveredDoor = type === 'door' ? obj : null;
     this.hoveredBunny = type === 'bunny' ? obj : null;
+    this.hoveredShip = type === 'ship' ? obj : null;
+    this.hoveredShipyard = type === 'shipyard' ? obj : null;
 
     if (type) {
       this.domElement.style.cursor = 'pointer';
@@ -592,6 +656,16 @@ export class DockPlayerController {
       this.prompt.style.display = 'flex';
       if (type === 'bunny') {
         this.prompt.innerHTML = `🐰 <span style="background:#4a3520; padding:2px 6px; border-radius:3px; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Pet Bunny`;
+      } else if (type === 'ship') {
+        const needsRepair = this.dockStall && this.dockStall.shipNeedsRepair;
+        const shipName = this.dockStall?.activeShipProfile?.name || 'Vessel';
+        if (needsRepair) {
+          this.prompt.innerHTML = `🔨 <span style="background:#4a3520; padding:2px 6px; border-radius:3px; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Repair ${shipName}`;
+        } else {
+          this.prompt.innerHTML = `⛵ <span style="background:#4a3520; padding:2px 6px; border-radius:3px; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Board ${shipName} &amp; Set Sail`;
+        }
+      } else if (type === 'shipyard') {
+        this.prompt.innerHTML = `🔨 <span style="background:#4a3520; padding:2px 6px; border-radius:3px; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shipyard`;
       } else if (this.mode === 'player') {
         this.prompt.innerHTML = `🚪 <span style="background:#4a3520; padding:2px 6px; border-radius:3px; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shop`;
       } else {

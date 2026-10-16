@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
+import { getShipProfile, DEFAULT_SHIP_ID } from '../config/ShipRegistry.js';
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
@@ -93,12 +94,8 @@ export class LevelConfig {
     }
     const levelCfg = LevelConfig._cache.get(levelKey);
 
-    const shipKey = levelCfg.ship;
-    if (!LevelConfig._cache.has(shipKey)) {
-      const shipDef = await LevelConfig._fetchJson(`/src/assets/ships/${shipKey}.json`);
-      LevelConfig._cache.set(shipKey, shipDef);
-    }
-    const shipDef = LevelConfig._cache.get(shipKey);
+    const shipKey = levelCfg.ship || DEFAULT_SHIP_ID;
+    const shipDef = LevelConfig.getShipDef(shipKey);
 
     // Preload all rocks if not cached
     if (!LevelConfig._cache.has('rockModels')) {
@@ -303,6 +300,30 @@ export class LevelConfig {
     
     loadedGltfs.forEach((m, i) => m.url = LevelConfig._rockUrls[i]);
     return loadedGltfs; // Array of GLTF objects
+  }
+
+  /**
+   * Return a ship definition object constructed from ShipRegistry.
+   * @param {string} shipKey
+   * @returns {object}
+   */
+  static getShipDef(shipKey) {
+    const profile = getShipProfile(shipKey);
+    const { x: W, y: H, z: D } = profile.grid;
+    return {
+      id: profile.id,
+      name: profile.name,
+      modelUrl: profile.modelUrl,
+      grid: profile.grid,
+      scale: profile.scale,
+      profile,
+      zones: {
+        hull: [{ xRange: [0, W - 1], yRange: [0, Math.floor(H * 0.45)], zRange: [0, D - 1] }],
+        deck: [{ xRange: [0, W - 1], yRange: [Math.floor(H * 0.45) + 1, Math.floor(H * 0.55)], zRange: [0, D - 1] }],
+        mast: [{ xRange: [Math.max(0, Math.floor(W * 0.35)), Math.min(W - 1, Math.floor(W * 0.65))], yRange: [Math.floor(H * 0.55) + 1, H - 1], zRange: [Math.max(0, Math.floor(D * 0.35)), Math.min(D - 1, Math.floor(D * 0.65))] }],
+        sail: [{ xRange: [1, W - 2], yRange: [Math.floor(H * 0.58), H - 2], zRange: [Math.max(0, Math.floor(D * 0.4)), Math.min(D - 1, Math.floor(D * 0.6))] }]
+      }
+    };
   }
 
   /**

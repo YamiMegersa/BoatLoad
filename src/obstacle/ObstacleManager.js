@@ -427,32 +427,111 @@ export class ObstacleManager {
     if (voxelTerrain && playerShip) {
       const px = playerShip.mesh.position.x;
       const pz = playerShip.mesh.position.z;
+      const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(playerShip.mesh.quaternion).normalize();
+      const right = new THREE.Vector3(1, 0, 0).applyQuaternion(playerShip.mesh.quaternion).normalize();
+
+      const halfL = (playerShip.baseOBB && playerShip.baseOBB.halfSize.z) || (3.0 * (playerShip.shipScale || 1.0));
+      const halfW = (playerShip.baseOBB && playerShip.baseOBB.halfSize.x) || (1.2 * (playerShip.shipScale || 1.0));
+
       let hit = false;
-      let hitX = px, hitZ = pz;
-      
-      for(let dx=-2; dx<=2; dx++) {
-        for(let dz=-2; dz<=2; dz++) {
-          if (voxelTerrain.hasCollision(px + dx, pz + dz)) {
+      let accNx = 0;
+      let accNz = 0;
+      let hitCount = 0;
+
+      // Sample along keel and hull rails
+      const stepL = Math.max(1.0, halfL / 4.0);
+      for (let s = -halfL; s <= halfL; s += stepL) {
+        const cx = px + forward.x * s;
+        const cz = pz + forward.z * s;
+
+        const testPoints = [
+          [cx, cz],
+          [cx + right.x * halfW, cz + right.z * halfW],
+          [cx - right.x * halfW, cz - right.z * halfW]
+        ];
+
+        for (const [tx, tz] of testPoints) {
+          if (voxelTerrain.hasCollision(tx, tz)) {
             hit = true;
-            hitX = px + dx;
-            hitZ = pz + dz;
-            break;
+            hitCount++;
+            const dx = px - tx;
+            const dz = pz - tz;
+            const d = Math.hypot(dx, dz) || 0.1;
+            accNx += dx / d;
+            accNz += dz / d;
           }
         }
-        if (hit) break;
       }
 
-      if (hit && !playerShip.isImmune()) {
-         playerShip.takeDamage(50, 'island');
-         playerShip.setImmune(2.0);
-         const dx = px - hitX || (Math.random() - 0.5);
-         const dz = pz - hitZ || (Math.random() - 0.5);
-         const dist = Math.hypot(dx, dz) || 0.001;
-         playerShip.mesh.position.x += (dx / dist) * 3.0;
-         playerShip.mesh.position.z += (dz / dist) * 3.0;
-         playerShip.applyKnockback(new THREE.Vector3((dx / dist) * 40, 0, (dz / dist) * 40));
-         emit('obstacleHit', { type: 'island', damage: 50 });
-         emit('playSound', { sound: 'collision' });
+      if (hit) {
+        let nx = accNx;
+        let nz = accNz;
+        const nLen = Math.hypot(nx, nz);
+        if (nLen > 0.001) {
+          nx /= nLen;
+          nz /= nLen;
+        } else {
+          nx = -forward.x;
+          nz = -forward.z;
+        }
+
+        // Determine slide tangent along terrain boundary
+        let tx = -nz, tz = nx;
+        if (forward.x * tx + forward.z * tz < 0) {
+          tx = nz;
+          tz = -nx;
+        }
+
+        const isImmune = playerShip.isImmune();
+
+        // 1. Damage and impact sound only if not currently immune
+        if (!isImmune) {
+          playerShip.takeDamage(50, 'island');
+          playerShip.setImmune(2.0);
+          playerShip.bounceBack(nx * 10, nz * 10, 'rock');
+          emit('obstacleHit', { type: 'island', damage: 50 });
+          emit('playSound', { sound: 'collision' });
+        }
+
+        // 2. Physical push out to prevent clipping into terrain
+        const pushDist = Math.max(0.6, Math.min(2.5, 0.35 * hitCount));
+        playerShip.mesh.position.x += nx * pushDist;
+        playerShip.mesh.position.z += nz * pushDist;
+
+        // 3. Sliding physics: cancel inward component and glide along tangent
+        const forwardSpeed = playerShip._isHalted ? 0 : 15.0 * (playerShip.speedMultiplier || 1.0);
+        const inDot = forward.x * nx + forward.z * nz;
+
+        if (inDot < 0) {
+          const inStep = inDot * forwardSpeed * delta;
+          playerShip.mesh.position.x -= inStep * nx;
+          playerShip.mesh.position.z -= inStep * nz;
+
+          playerShip.mesh.position.x += tx * Math.abs(inStep) * 0.95;
+          playerShip.mesh.position.z += tz * Math.abs(inStep) * 0.95;
+        }
+
+        // Cancel knockback velocity pushing into terrain
+        const knockDot = playerShip.knockbackVelocity.x * nx + playerShip.knockbackVelocity.z * nz;
+        if (knockDot < 0) {
+          playerShip.knockbackVelocity.x -= knockDot * nx;
+          playerShip.knockbackVelocity.z -= knockDot * nz;
+        }
+
+        // Apply continuous tangential slide impulse and gentle outward cushion
+        playerShip.knockbackVelocity.x += tx * (forwardSpeed * 0.4) + nx * 6.0;
+        playerShip.knockbackVelocity.z += tz * (forwardSpeed * 0.4) + nz * 6.0;
+        playerShip.knockbackVelocity.clampLength(0, 35);
+
+        // Gentle rudder deflection to guide ship along terrain
+        const cross = forward.x * tz - forward.z * tx;
+        playerShip.yawVelocity += Math.sign(cross) * 2.5 * delta;
+
+        // Keep ship collision volume synchronized
+        playerShip.mesh.updateMatrixWorld(true);
+        if (playerShip.obb && playerShip.baseOBB) {
+          playerShip.obb.copy(playerShip.baseOBB).applyMatrix4(playerShip.mesh.matrixWorld);
+        }
       }
     }
 
@@ -517,9 +596,6 @@ export class ObstacleManager {
    * @param {number} delta
    */
   _checkCollision(obs, ship, delta) {
-    // Ignore hazards while immune (pickups can still be collected)
-    if (ship.isImmune() && obs.type !== 'pickup') return;
-
     // Ignore wind zones for collision
     if (obs.type === 'wind_zone') return;
 
@@ -545,9 +621,9 @@ export class ObstacleManager {
         ship.mesh.position.x += -dirZ * pullSpeed * 0.6 * delta;
         ship.mesh.position.z += dirX * pullSpeed * 0.6 * delta;
 
-        // Take continuous water damage at the center
+        // Take continuous water damage at the center only when not immune
         if (dist < 2.5 * obs.scale) {
-          if (typeof ship.takeWaterDamage === 'function') {
+          if (!ship.isImmune() && typeof ship.takeWaterDamage === 'function') {
             ship.takeWaterDamage(obs.damage * delta);
           }
         }
@@ -581,12 +657,39 @@ export class ObstacleManager {
     if (obs.type === 'barrel') {
       if (obs.qteResolved) { obs.active = false; return; }
       if (ship.obb.intersectsSphere(obs.sphere)) {
-        this._resolveHit(obs, ship);
+        obs.active = false;
+        obs.mesh.visible = false;
+        if (!ship.isImmune()) {
+          ship.takeDamage(obs.damage, 'barrel');
+          ship.setImmune(2.0);
+          ship.bounceBack(0, 1, 'barrel');
+          emit('obstacleHit', { type: 'barrel', damage: obs.damage });
+          emit('playSound', { sound: 'collision' });
+        }
+        emit('spawnParticles', { type: 'massiveSplash', position: obs.mesh.position.clone() });
       }
       return;
     }
 
-    // Default OBB collision (rock, wave_small)
+    // Moving Wave Hazard
+    if (obs.type === 'wave_small') {
+      if (ship.obb.intersectsOBB(obs.obb)) {
+        obs.active = false;
+        obs.mesh.visible = false;
+        if (!ship.isImmune()) {
+          ship.takeDamage(obs.damage, 'wave_small');
+          ship.setImmune(2.0);
+          ship.bounceBack(0, 1, 'wave_small');
+          emit('obstacleHit', { type: 'wave_small', damage: obs.damage });
+          emit('playSound', { sound: 'collision' });
+        } else {
+          ship.bounceBack(0, 1, 'wave_small');
+        }
+      }
+      return;
+    }
+
+    // Solid Obstacles (island, rock, siren)
     if (ship.obb.intersectsOBB(obs.obb)) {
       if (obs.type === 'island') {
         // Narrowphase Mesh BVH
@@ -601,10 +704,10 @@ export class ObstacleManager {
           }
         });
         if (meshHit) {
-          this._resolveHit(obs, ship);
+          this._resolveSolidCollision(obs, ship, delta);
         }
       } else {
-        this._resolveHit(obs, ship);
+        this._resolveSolidCollision(obs, ship, delta);
       }
     }
   }
@@ -653,38 +756,101 @@ export class ObstacleManager {
   }
 
   /**
-   * Handle a confirmed collision hit.
+   * Handle physical collision and sliding against solid static obstacles (rocks, islands, sirens).
+   * Prevents clipping and damage-looping by resolving physical position & sliding whether immune or not,
+   * while only applying damage and collision audio when not immune.
    * @param {ObstacleDesc} obs
    * @param {import('./PlayerShip.js').PlayerShip} ship
+   * @param {number} delta
    */
+  _resolveSolidCollision(obs, ship, delta) {
+    const isImmune = ship.isImmune();
+    const shipPos = ship.mesh.position;
+    const obsPos = obs.mesh.position;
+
+    let nx = 0, nz = 0;
+    if (obs.obb) {
+      if (!this._tempObsTarget) this._tempObsTarget = new THREE.Vector3();
+      obs.obb.clampPoint(shipPos, this._tempObsTarget);
+      nx = shipPos.x - this._tempObsTarget.x;
+      nz = shipPos.z - this._tempObsTarget.z;
+    }
+
+    const dist = Math.hypot(nx, nz);
+    if (dist > 0.001) {
+      nx /= dist;
+      nz /= dist;
+    } else {
+      const dx = shipPos.x - obsPos.x;
+      const dz = shipPos.z - obsPos.z;
+      const d = Math.hypot(dx, dz) || 0.001;
+      nx = dx / d;
+      nz = dz / d;
+    }
+
+    // Ship forward heading
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(ship.mesh.quaternion).normalize();
+
+    // Determine slide tangent along obstacle boundary
+    let tx = -nz, tz = nx;
+    if (forward.x * tx + forward.z * tz < 0) {
+      tx = nz;
+      tz = -nx;
+    }
+
+    // 1. DAMAGE & IMMUNITY (Only when NOT already immune)
+    if (!isImmune) {
+      ship.takeDamage(obs.damage, obs.type);
+      ship.setImmune(2.0); // 2 seconds of damage immunity
+      ship.bounceBack(nx * 10, nz * 10, obs.type === 'siren' ? 'rock' : obs.type);
+      emit('obstacleHit', { type: obs.type, damage: obs.damage });
+      emit('playSound', { sound: 'collision' });
+    }
+
+    // 2. PHYSICAL SEPARATION (Push ship out so it never clips into terrain)
+    const pushMag = obs.type === 'island' ? 1.6 : 1.0;
+    ship.mesh.position.x += nx * pushMag;
+    ship.mesh.position.z += nz * pushMag;
+
+    // 3. SLIDING PHYSICS (Deflect velocity along surface tangent)
+    const forwardSpeed = ship._isHalted ? 0 : 15.0 * (ship.speedMultiplier || 1.0);
+    const inDot = forward.x * nx + forward.z * nz;
+
+    if (inDot < 0) {
+      const inStep = inDot * forwardSpeed * delta;
+      ship.mesh.position.x -= inStep * nx;
+      ship.mesh.position.z -= inStep * nz;
+
+      ship.mesh.position.x += tx * Math.abs(inStep) * 0.95;
+      ship.mesh.position.z += tz * Math.abs(inStep) * 0.95;
+    }
+
+    // Cancel knockback velocity pushing into obstacle
+    const knockDot = ship.knockbackVelocity.x * nx + ship.knockbackVelocity.z * nz;
+    if (knockDot < 0) {
+      ship.knockbackVelocity.x -= knockDot * nx;
+      ship.knockbackVelocity.z -= knockDot * nz;
+    }
+
+    // Add continuous slide impulse and gentle outward cushion
+    ship.knockbackVelocity.x += tx * (forwardSpeed * 0.4) + nx * 5.0;
+    ship.knockbackVelocity.z += tz * (forwardSpeed * 0.4) + nz * 5.0;
+    ship.knockbackVelocity.clampLength(0, 35);
+
+    // Gently nudge rudder to steer along tangent
+    const cross = forward.x * tz - forward.z * tx;
+    ship.yawVelocity += Math.sign(cross) * 2.0 * delta;
+
+    // Keep ship OBB in sync
+    ship.mesh.updateMatrixWorld(true);
+    if (ship.obb && ship.baseOBB) {
+      ship.obb.copy(ship.baseOBB).applyMatrix4(ship.mesh.matrixWorld);
+    }
+  }
+
+  /** Backwards compatible alias */
   _resolveHit(obs, ship) {
-    if (obs.type !== 'rock' && obs.type !== 'island' && obs.type !== 'siren') {
-      obs.active = false;
-      obs.mesh.visible = false;
-    }
-
-    ship.takeDamage(obs.damage, obs.type);
-    ship.setImmune(2.0); // 2 seconds of immunity after getting hit
-
-    const dx = ship.mesh.position.x - obs.mesh.position.x;
-    const dz = ship.mesh.position.z - obs.mesh.position.z;
-    ship.bounceBack(dx, dz, obs.type === 'siren' ? 'rock' : obs.type);
-
-    if (obs.type === 'rock' || obs.type === 'island' || obs.type === 'siren') {
-      // Act as a static obstacle: push the ship away so it doesn't pass through
-      const dist = Math.hypot(dx, dz);
-      if (dist > 0.001) {
-        // Immediate static resolve to avoid sticking
-        ship.mesh.position.x += (dx / dist) * 2.5;
-        ship.mesh.position.z += (dz / dist) * 2.5;
-        
-        // Pinball knockback velocity
-        ship.applyKnockback(new THREE.Vector3((dx / dist) * 40, 0, (dz / dist) * 40));
-      }
-    }
-
-    emit('obstacleHit', { type: obs.type, damage: obs.damage });
-    emit('playSound', { sound: 'collision' });
+    this._resolveSolidCollision(obs, ship, 0.016);
   }
 
   // -------------------------------------------------------------------------

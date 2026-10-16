@@ -1,4 +1,4 @@
-import { on, off } from '../core/EventBus.js';
+import { on, off, emit } from '../core/EventBus.js';
 import * as THREE from 'three';
 import { exportToGLB } from '../utils/exportGLTF.js';
 
@@ -127,6 +127,23 @@ export class DockUI {
       }
     };
     actionsRow.appendChild(exportDockBtn);
+
+    const repairShipBtn = document.createElement('button');
+    const shipName = this.dockStall?.activeShipProfile?.name || 'Vessel';
+    repairShipBtn.innerText = `🔨 Repair ${shipName}`;
+    repairShipBtn.style.cssText = 'padding:10px; cursor:pointer; background:rgba(154, 91, 46, 0.9); color:white; border:1px solid #d4af37; border-radius:5px; font-family:sans-serif; font-weight:bold; transition: all 0.2s;';
+    repairShipBtn.onclick = () => {
+      emit('requestPhaseChange', { phase: 'SHIPYARD' });
+    };
+    actionsRow.appendChild(repairShipBtn);
+
+    const sailBtn = document.createElement('button');
+    sailBtn.innerText = `⛵ Set Sail`;
+    sailBtn.style.cssText = 'padding:10px; cursor:pointer; background:rgba(46, 125, 50, 0.9); color:white; border:1px solid #66bb6a; border-radius:5px; font-family:sans-serif; font-weight:bold; transition: all 0.2s;';
+    sailBtn.onclick = () => {
+      emit('startSailing');
+    };
+    actionsRow.appendChild(sailBtn);
 
     this.root.appendChild(actionsRow);
 

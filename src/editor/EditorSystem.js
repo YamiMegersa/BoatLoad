@@ -1,14 +1,17 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { emit, on, off } from '../core/EventBus.js';
 import { buildObstacle } from '../obstacle/ObstacleManager.js';
 import { EnvironmentManager } from '../environment/EnvironmentManager.js';
 import { VoxelTerrain } from './VoxelTerrain.js';
+import { getShipProfile, DEFAULT_SHIP_ID } from '../config/ShipRegistry.js';
 
 export class EditorSystem {
   constructor() {
     this._scene = null;
     this._camera = null;
     this._renderer = null;
+    this._editorGroup = null; // Isolated root group for all editor-specific entities
     this._rockModels = [];
     this._pickupModels = [];
     this._seaweedModels = [];
@@ -16,6 +19,10 @@ export class EditorSystem {
     this._islandModels = [];
     this._sirenModel = null;
     this._krakenModel = null;
+    // Ship selection & ghost preview state
+    this._selectedShipId = DEFAULT_SHIP_ID;
+    this._shipGhostGroup = null;
+    this._shipGhostVisible = true;
     // State
     this._activeType = null; // 'rock', 'barrel', etc. or null
     this._activeUrl = null;
@@ -43,6 +50,10 @@ export class EditorSystem {
     // Bindings
     this._isPointerDown = false;
     this._lastTerraformPoint = null;
+    this._strokeTargetY = null;
+    this._strokeHoldTimer = 0;
+    this._strokeAnchor = new THREE.Vector2();
+    this._brushShape = 'circle';
     this._boundPointerDown = this._onPointerDown.bind(this);
     this._boundPointerMove = this._onPointerMove.bind(this);
     this._boundPointerUp = this._onPointerUp.bind(this);
@@ -73,6 +84,28 @@ export class EditorSystem {
       this._emitState();
     });
 
+    on('editorSetBrushShape', d => {
+      if (d && d.shape) {
+        this._brushShape = d.shape;
+        const isTerrainTool = this._activeTool === 'terrain_raise' || this._activeTool === 'terrain_lower';
+        if (isTerrainTool && this._voxelTerrain) {
+          const type = this._activeTool === 'terrain_raise' ? 'raise' : 'lower';
+          const radius = Math.max(1, Math.floor(this._currentScale * 2));
+          const previewTargetY = (this._isPointerDown && this._strokeTargetY !== null)
+            ? this._strokeTargetY
+            : (type === 'raise' ? this._intersection.y : Math.max(0, this._intersection.y - 1));
+          this._voxelTerrain.updatePreview(this._intersection.x, this._intersection.z, radius, type, previewTargetY, this._brushShape);
+        }
+      }
+    });
+
+    on('editorSetBiome', d => {
+      if (d && d.biome && this._voxelTerrain) {
+        this._voxelTerrain.setBiome(d.biome);
+        this._emitState();
+      }
+    });
+
     on('editorSetTransform', d => {
       if (d.scale !== undefined) this._currentScale = Math.max(0.1, Math.min(20.0, d.scale));
       if (d.y !== undefined) this._currentY = d.y;
@@ -86,7 +119,9 @@ export class EditorSystem {
 
     on('editorClearAll', () => {
       for (const obs of this._placedObstacles) {
-        this._scene.remove(obs.mesh);
+        if (obs.mesh?.parent) obs.mesh.parent.remove(obs.mesh);
+        else if (this._editorGroup) this._editorGroup.remove(obs.mesh);
+        else if (this._scene) this._scene.remove(obs.mesh);
       }
       this._placedObstacles = [];
       this._emitState();
@@ -99,7 +134,9 @@ export class EditorSystem {
 
       // Clear existing placed obstacles
       for (const obs of this._placedObstacles) {
-        this._scene.remove(obs.mesh);
+        if (obs.mesh?.parent) obs.mesh.parent.remove(obs.mesh);
+        else if (this._editorGroup) this._editorGroup.remove(obs.mesh);
+        else if (this._scene) this._scene.remove(obs.mesh);
       }
       this._placedObstacles = [];
 
@@ -120,9 +157,13 @@ export class EditorSystem {
         }
       }
 
-      // Deserialize voxels
-      if (this._voxelTerrain && cfg.voxels) {
-        this._voxelTerrain.deserialize(cfg.voxels);
+      // Re-create & deserialize voxels cleanly
+      if (this._voxelTerrain) {
+        this._voxelTerrain.dispose();
+        this._voxelTerrain = new VoxelTerrain(this._editorGroup || this._scene);
+        if (cfg.voxels) {
+          this._voxelTerrain.deserialize(cfg.voxels);
+        }
       }
 
       // World size
@@ -159,6 +200,12 @@ export class EditorSystem {
       if (cfg.isStormy !== undefined && this._envManager) {
         this._envManager.toggleStorm(cfg.isStormy);
         this._envManager._updateTimeAndLighting(0);
+      }
+
+      // Ship assignment
+      if (cfg.ship) {
+        this._selectedShipId = cfg.ship;
+        this._updateShipGhost();
       }
 
       emit('editorConfigLoaded', { config: cfg });
@@ -290,6 +337,21 @@ export class EditorSystem {
       this._updateBossVisuals();
       this._emitBossConfig();
     });
+
+    on('editorSelectShip', d => {
+      if (!d || !d.shipId) return;
+      this._selectedShipId = d.shipId;
+      if (this._levelCfg) this._levelCfg.ship = d.shipId;
+      this._updateShipGhost();
+      this._emitState();
+    });
+
+    on('editorToggleShipGhost', d => {
+      this._shipGhostVisible = !!d.enabled;
+      if (this._shipGhostGroup) {
+        this._shipGhostGroup.visible = this._shipGhostVisible;
+      }
+    });
   }
 
   _emitState() {
@@ -300,7 +362,9 @@ export class EditorSystem {
       activeUrl: this._activeUrl,
       scale: this._currentScale,
       y: this._currentY,
-      rotation: this._currentRotation
+      rotation: this._currentRotation,
+      selectedShipId: this._selectedShipId,
+      biome: this._voxelTerrain ? this._voxelTerrain.biome : 'tropical'
     });
   }
 
@@ -317,7 +381,12 @@ export class EditorSystem {
     this._sirenModel = sirenModel;
     this._krakenModel = krakenModel;
 
-    this._voxelTerrain = new VoxelTerrain(this._scene);
+    // Dedicated isolated root group for all editor-specific entities
+    this._editorGroup = new THREE.Group();
+    this._editorGroup.name = 'EditorEnvironmentGroup';
+    this._scene.add(this._editorGroup);
+
+    this._voxelTerrain = new VoxelTerrain(this._editorGroup);
     if (this._levelCfg && this._levelCfg.voxels) {
       this._voxelTerrain.deserialize(this._levelCfg.voxels);
     }
@@ -329,7 +398,11 @@ export class EditorSystem {
     const windDirAngle = this._levelCfg?.globalWindDir || 0;
     const initialWindDir = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), THREE.MathUtils.degToRad(windDirAngle)).normalize();
     this._windArrowHelper = new THREE.ArrowHelper(initialWindDir, new THREE.Vector3(0, 10, 0), 30, 0x00ffff, 8, 4);
-    this._scene.add(this._windArrowHelper);
+    this._editorGroup.add(this._windArrowHelper);
+
+    // Initialize Ship Spawn Ghost Preview
+    this._selectedShipId = this._levelCfg?.ship || DEFAULT_SHIP_ID;
+    this._updateShipGhost();
 
     this._renderer.domElement.addEventListener('pointerdown', this._boundPointerDown);
     this._renderer.domElement.addEventListener('pointermove', this._boundPointerMove);
@@ -373,7 +446,9 @@ export class EditorSystem {
 
   _updateBoundaryVisual() {
     if (this._boundaryVisual) {
-      this._scene.remove(this._boundaryVisual);
+      if (this._boundaryVisual.parent) this._boundaryVisual.parent.remove(this._boundaryVisual);
+      else if (this._editorGroup) this._editorGroup.remove(this._boundaryVisual);
+      else if (this._scene) this._scene.remove(this._boundaryVisual);
       this._boundaryVisual.geometry.dispose();
       this._boundaryVisual.material.dispose();
       this._boundaryVisual = null;
@@ -386,7 +461,8 @@ export class EditorSystem {
     this._boundaryVisual = new THREE.Mesh(geo, mat);
     this._boundaryVisual.rotation.x = -Math.PI / 2;
     this._boundaryVisual.position.y = 0.1;
-    this._scene.add(this._boundaryVisual);
+    if (this._editorGroup) this._editorGroup.add(this._boundaryVisual);
+    else if (this._scene) this._scene.add(this._boundaryVisual);
   }
 
   dispose() {
@@ -397,33 +473,48 @@ export class EditorSystem {
     window.removeEventListener('keydown', this._boundKeyDown);
     
     if (this._previewMesh) {
-      this._scene.remove(this._previewMesh.mesh);
+      if (this._previewMesh.mesh?.parent) this._previewMesh.mesh.parent.remove(this._previewMesh.mesh);
+      else if (this._editorGroup) this._editorGroup.remove(this._previewMesh.mesh);
+      else if (this._scene) this._scene.remove(this._previewMesh.mesh);
       this._previewMesh = null;
+    }
+
+    if (this._voxelTerrain) {
+      this._voxelTerrain.dispose();
+      this._voxelTerrain = null;
     }
     
     for (const obs of this._placedObstacles) {
-      this._scene.remove(obs.mesh);
+      if (obs.mesh?.parent) obs.mesh.parent.remove(obs.mesh);
+      else if (this._editorGroup) this._editorGroup.remove(obs.mesh);
+      else if (this._scene) this._scene.remove(obs.mesh);
     }
     this._placedObstacles = [];
     
     if (this._boundaryVisual) {
-      this._scene.remove(this._boundaryVisual);
-      this._boundaryVisual.geometry.dispose();
-      this._boundaryVisual.material.dispose();
+      if (this._boundaryVisual.parent) this._boundaryVisual.parent.remove(this._boundaryVisual);
+      else if (this._editorGroup) this._editorGroup.remove(this._boundaryVisual);
+      else if (this._scene) this._scene.remove(this._boundaryVisual);
+      this._boundaryVisual.geometry?.dispose();
+      this._boundaryVisual.material?.dispose();
       this._boundaryVisual = null;
     }
     
     if (this._windArrowHelper) {
-      this._scene.remove(this._windArrowHelper);
-      this._windArrowHelper.line.geometry.dispose();
-      this._windArrowHelper.line.material.dispose();
-      this._windArrowHelper.cone.geometry.dispose();
-      this._windArrowHelper.cone.material.dispose();
+      if (this._windArrowHelper.parent) this._windArrowHelper.parent.remove(this._windArrowHelper);
+      else if (this._editorGroup) this._editorGroup.remove(this._windArrowHelper);
+      else if (this._scene) this._scene.remove(this._windArrowHelper);
+      this._windArrowHelper.line?.geometry?.dispose();
+      this._windArrowHelper.line?.material?.dispose();
+      this._windArrowHelper.cone?.geometry?.dispose();
+      this._windArrowHelper.cone?.material?.dispose();
       this._windArrowHelper = null;
     }
 
     if (this._krakenVisualGroup) {
-      this._scene.remove(this._krakenVisualGroup);
+      if (this._krakenVisualGroup.parent) this._krakenVisualGroup.parent.remove(this._krakenVisualGroup);
+      else if (this._editorGroup) this._editorGroup.remove(this._krakenVisualGroup);
+      else if (this._scene) this._scene.remove(this._krakenVisualGroup);
       this._krakenVisualGroup.traverse(child => {
         if (child.isMesh || child.isLine || child.isSprite) {
           child.geometry?.dispose();
@@ -434,6 +525,14 @@ export class EditorSystem {
         }
       });
       this._krakenVisualGroup = null;
+    }
+
+    if (this._editorGroup) {
+      if (this._scene) this._scene.remove(this._editorGroup);
+      while (this._editorGroup.children.length > 0) {
+        this._editorGroup.remove(this._editorGroup.children[0]);
+      }
+      this._editorGroup = null;
     }
 
     off('editorSelectType');
@@ -469,7 +568,9 @@ export class EditorSystem {
 
   _updatePreview() {
     if (this._previewMesh) {
-      this._scene.remove(this._previewMesh.mesh);
+      if (this._previewMesh.mesh?.parent) this._previewMesh.mesh.parent.remove(this._previewMesh.mesh);
+      else if (this._editorGroup) this._editorGroup.remove(this._previewMesh.mesh);
+      else if (this._scene) this._scene.remove(this._previewMesh.mesh);
       this._previewMesh = null;
     }
 
@@ -493,13 +594,15 @@ export class EditorSystem {
       });
       
       this._previewMesh.mesh.rotation.y = this._currentRotation;
-      this._scene.add(this._previewMesh.mesh);
+      if (this._editorGroup) this._editorGroup.add(this._previewMesh.mesh);
+      else if (this._scene) this._scene.add(this._previewMesh.mesh);
     } else if (this._activeTool === 'place_kraken') {
       const geo = new THREE.SphereGeometry(8, 16, 12);
       const mat = new THREE.MeshBasicMaterial({ color: 0xaa2266, wireframe: true });
       const mesh = new THREE.Mesh(geo, mat);
       this._previewMesh = { mesh };
-      this._scene.add(mesh);
+      if (this._editorGroup) this._editorGroup.add(mesh);
+      else if (this._scene) this._scene.add(mesh);
     } else if (this._activeTool === 'place_race_start') {
       const geo = new THREE.RingGeometry(14, 15, 32);
       geo.rotateX(-Math.PI / 2);
@@ -508,7 +611,8 @@ export class EditorSystem {
       mesh.userData.noGodRays = true;
       mesh.userData.isRaceMarker = true;
       this._previewMesh = { mesh };
-      this._scene.add(mesh);
+      if (this._editorGroup) this._editorGroup.add(mesh);
+      else if (this._scene) this._scene.add(mesh);
     } else if (this._activeTool === 'place_waypoint') {
       const group = new THREE.Group();
       group.userData.noGodRays = true;
@@ -531,7 +635,8 @@ export class EditorSystem {
       group.add(ringMesh);
 
       this._previewMesh = { mesh: group };
-      this._scene.add(group);
+      if (this._editorGroup) this._editorGroup.add(group);
+      else if (this._scene) this._scene.add(group);
     }
   }
 
@@ -588,16 +693,24 @@ export class EditorSystem {
     this._raycaster.setFromCamera(this._mouse, this._camera);
     this._raycaster.ray.intersectPlane(this._plane, this._intersection);
 
-    const checkObjects = [];
-    if (this._voxelTerrain) checkObjects.push(this._voxelTerrain.meshGroup);
-    if (this._placedObstacles.length > 0) {
-      checkObjects.push(...this._placedObstacles.map(o => o.mesh));
-    }
-    if (checkObjects.length > 0) {
-      const intersects = this._raycaster.intersectObjects(checkObjects, true);
-      if (intersects.length > 0) {
-        this._intersection.copy(intersects[0].point);
+    const isTerrainTool = this._activeTool === 'terrain_raise' || this._activeTool === 'terrain_lower';
+
+    if (!isTerrainTool) {
+      const checkObjects = [];
+      if (this._voxelTerrain) checkObjects.push(this._voxelTerrain.meshGroup);
+      if (this._placedObstacles.length > 0) {
+        checkObjects.push(...this._placedObstacles.map(o => o.mesh));
       }
+      if (checkObjects.length > 0) {
+        const intersects = this._raycaster.intersectObjects(checkObjects, true);
+        if (intersects.length > 0) {
+          this._intersection.copy(intersects[0].point);
+        }
+      }
+    } else {
+      // Anchored to the horizontal sea plane to eliminate camera-ray drift
+      const topY = this._voxelTerrain ? this._voxelTerrain.getTopY(this._intersection.x, this._intersection.z) : -1;
+      this._intersection.y = Math.max(0, topY + 1);
     }
 
     if (this._previewMesh) {
@@ -610,15 +723,25 @@ export class EditorSystem {
       }
     }
 
-    const isTerrainTool = this._activeTool === 'terrain_raise' || this._activeTool === 'terrain_lower';
     if (isTerrainTool) {
       if (this._voxelTerrain) {
         const type = this._activeTool === 'terrain_raise' ? 'raise' : 'lower';
         const radius = Math.max(1, Math.floor(this._currentScale * 2));
-        this._voxelTerrain.updatePreview(this._intersection.x, this._intersection.z, radius, type, this._intersection.y);
+        const previewTargetY = (this._isPointerDown && this._strokeTargetY !== null)
+          ? this._strokeTargetY
+          : (type === 'raise' ? this._intersection.y : Math.max(0, this._intersection.y - 1));
+        this._voxelTerrain.updatePreview(this._intersection.x, this._intersection.z, radius, type, previewTargetY, this._brushShape);
       }
       
       if (this._isPointerDown) {
+        if (this._strokeAnchor) {
+          const curDist = this._strokeAnchor.distanceTo(new THREE.Vector2(this._intersection.x, this._intersection.z));
+          if (curDist > 1.0) {
+            // Actively dragging across map: reset stationary pulse timer
+            this._strokeHoldTimer = 0;
+            this._strokeAnchor.set(this._intersection.x, this._intersection.z);
+          }
+        }
         this._applyTerraform(this._intersection);
       }
     } else {
@@ -630,6 +753,8 @@ export class EditorSystem {
     if (event.button === 0) {
       this._isPointerDown = false;
       this._lastTerraformPoint = null;
+      this._strokeTargetY = null;
+      this._strokeHoldTimer = 0;
     }
   }
 
@@ -637,25 +762,27 @@ export class EditorSystem {
     if (this._voxelTerrain) {
       const type = this._activeTool === 'terrain_raise' ? 'raise' : 'lower';
       const radius = Math.max(1, Math.floor(this._currentScale * 2));
-
+      const targetY = this._strokeTargetY !== null 
+        ? this._strokeTargetY 
+        : (type === 'raise' ? Math.floor(hitPoint.y) : Math.floor(hitPoint.y) - 1);
       
       const currentPt = new THREE.Vector2(hitPoint.x, hitPoint.z);
 
       if (this._lastTerraformPoint) {
         const dist = this._lastTerraformPoint.distanceTo(currentPt);
-        const stepDist = Math.max(1, radius / 2);
+        const stepDist = Math.max(0.8, radius / 2);
         
         if (dist > stepDist) {
-            const steps = Math.ceil(dist / stepDist);
-            for (let i = 1; i <= steps; i++) {
-                const lerped = this._lastTerraformPoint.clone().lerp(currentPt, i / steps);
-                this._voxelTerrain.applyBrush(lerped.x, lerped.y, radius, type, hitPoint.y);
-            }
+          const steps = Math.ceil(dist / stepDist);
+          for (let i = 1; i <= steps; i++) {
+            const lerped = this._lastTerraformPoint.clone().lerp(currentPt, i / steps);
+            this._voxelTerrain.applyBrush(lerped.x, lerped.y, radius, type, targetY, this._brushShape);
+          }
         } else {
-            this._voxelTerrain.applyBrush(currentPt.x, currentPt.y, radius, type, hitPoint.y);
+          this._voxelTerrain.applyBrush(currentPt.x, currentPt.y, radius, type, targetY, this._brushShape);
         }
       } else {
-        this._voxelTerrain.applyBrush(currentPt.x, currentPt.y, radius, type, hitPoint.y);
+        this._voxelTerrain.applyBrush(currentPt.x, currentPt.y, radius, type, targetY, this._brushShape);
       }
       
       this._lastTerraformPoint = currentPt;
@@ -669,7 +796,22 @@ export class EditorSystem {
     
     this._isPointerDown = true;
     this._lastTerraformPoint = null;
+    this._strokeHoldTimer = 0;
     this._onPointerMove(event);
+
+    const isTerrainTool = this._activeTool === 'terrain_raise' || this._activeTool === 'terrain_lower';
+    if (isTerrainTool && this._voxelTerrain) {
+      const topY = this._voxelTerrain.getTopY(this._intersection.x, this._intersection.z);
+      if (this._activeTool === 'terrain_raise') {
+        this._strokeTargetY = Math.max(1, topY + 1);
+      } else {
+        this._strokeTargetY = Math.max(-1, topY - 1);
+      }
+      if (!this._strokeAnchor) this._strokeAnchor = new THREE.Vector2();
+      this._strokeAnchor.set(this._intersection.x, this._intersection.z);
+      this._applyTerraform(this._intersection);
+      return;
+    }
 
     if (this._activeTool === 'place' && this._activeType) {
       this._spawnObstacle(this._activeType, this._activeUrl, this._intersection.x, this._intersection.y + this._currentY, this._intersection.z, this._currentScale, this._currentRotation);
@@ -754,7 +896,9 @@ export class EditorSystem {
 
         if (closestIdx !== -1) {
           const closest = this._placedObstacles[closestIdx];
-          this._scene.remove(closest.mesh);
+          if (closest.mesh?.parent) closest.mesh.parent.remove(closest.mesh);
+          else if (this._editorGroup) this._editorGroup.remove(closest.mesh);
+          else if (this._scene) this._scene.remove(closest.mesh);
           this._placedObstacles.splice(closestIdx, 1);
           this._emitState();
         }
@@ -773,7 +917,8 @@ export class EditorSystem {
     );
     obs.mesh.rotation.y = rotation;
     obs.rotation = rotation;
-    this._scene.add(obs.mesh);
+    if (this._editorGroup) this._editorGroup.add(obs.mesh);
+    else if (this._scene) this._scene.add(obs.mesh);
     this._placedObstacles.push(obs);
     this._emitState();
   }
@@ -794,6 +939,7 @@ export class EditorSystem {
 
     return {
       ...this._levelCfg,
+      ship: this._selectedShipId || this._levelCfg?.ship || DEFAULT_SHIP_ID,
       worldSize: this._levelCfg?.worldSize || 200,
       globalWindDir: this._levelCfg?.globalWindDir || 0,
       fogDensity: this._levelCfg?.fogDensity !== undefined ? this._levelCfg.fogDensity : 0.006,
@@ -825,7 +971,9 @@ export class EditorSystem {
 
   _updateBossVisuals() {
     if (this._krakenVisualGroup) {
-      this._scene.remove(this._krakenVisualGroup);
+      if (this._krakenVisualGroup.parent) this._krakenVisualGroup.parent.remove(this._krakenVisualGroup);
+      else if (this._editorGroup) this._editorGroup.remove(this._krakenVisualGroup);
+      else if (this._scene) this._scene.remove(this._krakenVisualGroup);
       this._krakenVisualGroup.traverse(child => {
         if (child.isMesh || child.isLine || child.isSprite) {
           child.geometry?.dispose();
@@ -1030,7 +1178,8 @@ export class EditorSystem {
 
     this._krakenVisualGroup.userData.noGodRays = true;
     this._krakenVisualGroup.userData.isRaceMarker = true;
-    this._scene.add(this._krakenVisualGroup);
+    if (this._editorGroup) this._editorGroup.add(this._krakenVisualGroup);
+    else if (this._scene) this._scene.add(this._krakenVisualGroup);
   }
 
   _createLabelSprite(text, color = '#ffffff') {
@@ -1104,6 +1253,121 @@ export class EditorSystem {
     console.log("Level Exported", exportData);
   }
 
+  _updateShipGhost() {
+    if (!this._scene) return;
+    if (this._shipGhostGroup) {
+      this._scene.remove(this._shipGhostGroup);
+      this._shipGhostGroup.traverse(child => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) {
+          if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+          else child.material.dispose();
+        }
+      });
+      this._shipGhostGroup = null;
+    }
+
+    const profile = getShipProfile(this._selectedShipId);
+    this._shipGhostGroup = new THREE.Group();
+    this._shipGhostGroup.name = 'editorShipGhost';
+    this._shipGhostGroup.visible = this._shipGhostVisible;
+
+    // Load ship model with translucent wireframe / ghost holographic material
+    const loader = new GLTFLoader();
+    const modelUrl = profile.modelUrl || `/src/assets/ships/${profile.id}.glb`;
+    loader.load(modelUrl, (gltf) => {
+      if (!this._shipGhostGroup) return; // disposed in the meantime
+      const model = gltf.scene;
+
+      // Apply profile rotation to align model along Z axis
+      if (profile.modelRotationY !== undefined) {
+        model.rotation.y = profile.modelRotationY;
+      }
+      model.updateMatrixWorld(true);
+
+      // Scale model based on ship profile
+      const box = new THREE.Box3().setFromObject(model);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+
+      // Centered and resting on water
+      model.position.set(-center.x, -box.min.y, -center.z);
+
+      // Target world length matches the voxel ship (grid.z * profile.scale)
+      const targetWorldLength = (profile.grid?.z || 48) * (profile.scale || 0.10);
+      const modelLength = Math.max(size.z, 0.001);
+      const modelScale = targetWorldLength / modelLength;
+
+      const wrapper = new THREE.Group();
+      wrapper.add(model);
+      wrapper.scale.setScalar(modelScale);
+
+      // Apply holographic cyan / red tint
+      model.traverse((child) => {
+        if (child.isMesh) {
+          child.material = new THREE.MeshStandardMaterial({
+            color: profile.isGagTruck ? 0xff4422 : 0x00e5ff,
+            emissive: profile.isGagTruck ? 0xaa2200 : 0x006688,
+            emissiveIntensity: 0.5,
+            transparent: true,
+            opacity: 0.6,
+            depthWrite: false
+          });
+        }
+      });
+
+      // Facing -Z (default sailing direction)
+      wrapper.rotation.y = Math.PI;
+      this._shipGhostGroup.add(wrapper);
+
+      // Add a floating marker ring on water at (0, 0, 0)
+      const ringRadius = Math.max(profile.collisionRadius || 2.5, targetWorldLength * 0.45);
+      const ringGeo = new THREE.RingGeometry(ringRadius * 0.9, ringRadius * 1.05, 32);
+      ringGeo.rotateX(-Math.PI / 2);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: profile.isGagTruck ? 0xff3300 : 0x00e5ff,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.75
+      });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.position.y = 0.15;
+      this._shipGhostGroup.add(ring);
+    });
+
+    this._scene.add(this._shipGhostGroup);
+  }
+
+  dispose() {
+    if (this._shipGhostGroup) {
+      this._scene?.remove(this._shipGhostGroup);
+      this._shipGhostGroup = null;
+    }
+
+    if (this._windArrowHelper) {
+      this._scene?.remove(this._windArrowHelper);
+      this._windArrowHelper = null;
+    }
+
+    if (this._krakenVisualGroup) {
+      this._scene?.remove(this._krakenVisualGroup);
+      this._krakenVisualGroup = null;
+    }
+
+    if (this._previewMesh) {
+      this._scene?.remove(this._previewMesh.mesh);
+      this._previewMesh = null;
+    }
+
+    this._renderer?.domElement.removeEventListener('pointerdown', this._boundPointerDown);
+    this._renderer?.domElement.removeEventListener('pointermove', this._boundPointerMove);
+    window.removeEventListener('pointerup', this._boundPointerUp);
+    this._renderer?.domElement.removeEventListener('wheel', this._boundWheel);
+    window.removeEventListener('keydown', this._boundKeyDown);
+  }
+
   update(delta) {
     if (this._previewMesh && this._previewMesh.particles) {
       this._previewMesh.particles.update(delta);
@@ -1117,6 +1381,29 @@ export class EditorSystem {
     
     if (this._envManager) {
       this._envManager.update(delta, { getWindAt: () => new THREE.Vector3(0, 0, -1) }, this._camera.position);
+    }
+
+    // Hybrid Stroke-Leveling: Pulse height when holding stationary in place
+    const isTerrainTool = this._activeTool === 'terrain_raise' || this._activeTool === 'terrain_lower';
+    if (this._isPointerDown && isTerrainTool && this._voxelTerrain && this._strokeTargetY !== null) {
+      this._strokeHoldTimer += delta;
+      // Pulse cadence: every 0.28 seconds of holding stationary in one spot
+      if (this._strokeHoldTimer >= 0.28) {
+        this._strokeHoldTimer = 0;
+        const type = this._activeTool === 'terrain_raise' ? 'raise' : 'lower';
+        if (type === 'raise') {
+          if (this._strokeTargetY < 63) {
+            this._strokeTargetY++;
+          }
+        } else {
+          if (this._strokeTargetY > -1) {
+            this._strokeTargetY--;
+          }
+        }
+        this._applyTerraform(this._intersection);
+        const radius = Math.max(1, Math.floor(this._currentScale * 2));
+        this._voxelTerrain.updatePreview(this._intersection.x, this._intersection.z, radius, type, this._strokeTargetY, this._brushShape);
+      }
     }
   }
 }
