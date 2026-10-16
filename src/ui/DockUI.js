@@ -156,7 +156,11 @@ export class DockUI {
     this._onEnvChange = ({ isDev }) => {
       if (this.root) this.root.style.display = isDev ? 'flex' : 'none';
     };
-    on('envModeChanged', this._onEnvChange);
+    this._onLevelSelected = () => {
+      const name = this.dockStall?.activeShipProfile?.name || 'Standard Sloop';
+      repairShipBtn.innerText = `🔨 Repair ${name}`;
+    };
+    on('levelSelected', this._onLevelSelected);
 
     const uiRoot = document.getElementById('ui-root');
     if (uiRoot) {
@@ -167,6 +171,10 @@ export class DockUI {
   }
 
   unmount() {
+    if (this._onLevelSelected) {
+      off('levelSelected', this._onLevelSelected);
+      this._onLevelSelected = null;
+    }
     if (this._onModeChange) {
       off('dockPlayerModeChanged', this._onModeChange);
       this._onModeChange = null;

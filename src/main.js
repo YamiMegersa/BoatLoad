@@ -434,6 +434,13 @@ async function boot() {
       await gameState.transition(GamePhase.SHIPYARD, shipyardPayload());
     });
 
+    on('levelSelected', async ({ day }) => {
+      if (day) {
+        gameState.day = day;
+        await syncLevel();
+      }
+    });
+
     // Start sailing from shipyard or dock
     on('startSailing', async () => {
       await syncLevel();

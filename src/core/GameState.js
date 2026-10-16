@@ -29,6 +29,7 @@ import { WeatherSystem }      from '../environment/WeatherSystem.js';
 import { DEBUG }              from '../utils/debug.js';
 import { LevelConfig }        from './LevelConfig.js';
 import { ShipRegistry, DEFAULT_SHIP_ID } from '../config/ShipRegistry.js';
+import { getAssetUrl } from '../utils/paths.js';
 import { emit, on, off, clear } from './EventBus.js';
 
 // ---------------------------------------------------------------------------
@@ -536,12 +537,12 @@ export class GameState {
     this._dockOrbitControls.target.set(0, 2, 0);
     this._dockOrbitControls.enabled = false;
 
-    // Trigger cutscene & dialogue when Level 1 is chosen in the logbook
+    // Trigger cutscene & dialogue when a level is chosen in the logbook
     this._startLevelCutscene = () => {
       if (this._dockShipArrived || this._shipArriving) return;
 
-      // Start 2D humanoid sprite walk animation from island to counter
-      if (this._dockStall && this._dockStall.dockNPC) {
+      // Start 2D humanoid sprite walk animation from island to counter if not already at counter
+      if (this._dockStall && this._dockStall.dockNPC && !this._dockStall.dockNPC.hasArrived) {
         this._dockStall.dockNPC.startWalkToCounter(() => {
           this._triggerShipArrivalAndDialogue();
         });
@@ -566,10 +567,10 @@ export class GameState {
           this._dockStall.shipInteractables = [this._dockMooredGroup];
         }
 
-        const shipName = shipProfile?.name || 'Vessel';
+        const shipName = this._mooredShipProfile?.name || shipProfile?.name || 'Vessel';
         emit('showDialogue', {
           dialogue: {
-            portrait: '<img src="/assets/npc/custom_npc.png" alt="Captain Barlow" />',
+            portrait: `<img src="${getAssetUrl('assets/npc/custom_npc.png')}" alt="Captain Barlow" />`,
             name: 'Captain Barlow',
             lines: [
               `Ahoy there shipwright! We ran into treacherous hazards offshore!`,
@@ -585,6 +586,88 @@ export class GameState {
       const day = data?.day || 1;
       this.day = day;
 
+      // 1. Fetch level config & ship definition for selected day
+      const level = await LevelConfig.load(day);
+      this._levelCfg = level.levelCfg;
+      this._shipDef = level.shipDef;
+
+      // 2. Identify active ship & profile (Day 3 specifies 'sloop')
+      const activeShipId = this._levelCfg?.ship || this._shipDef?.id || 'sloop';
+      const activeShipDef = LevelConfig.getShipDef(activeShipId);
+      const shipProfile = ShipRegistry.get(activeShipId);
+      this._mooredShipProfile = shipProfile;
+      this._currentShipId = activeShipId;
+      this._lastDockLevel = activeShipId;
+      this._lastDockDay = this.day;
+
+      // 3. Reset ship arrival state so cutscene replays
+      this._dockShipArrived = false;
+      this._shipDocked = false;
+      this._shipArriving = false;
+
+      // 4. Rebuild the ship voxel grid and models for the selected day
+      const { grid, zones, def, gltfScene } = await ShipBuilder.build(activeShipDef, this._levelCfg);
+      this._grid = grid;
+      this._zones = zones;
+
+      if (this._chunkRenderer) {
+        this._chunkRenderer.dispose(this._scene);
+        this._chunkRenderer = null;
+      }
+      this._chunkRenderer = new ChunkRenderer();
+      this._chunkRenderer.init(grid, this._scene, gltfScene);
+
+      if (!this._dockMooredGroup) {
+        this._dockMooredGroup = new THREE.Group();
+        this._dockMooredGroup.name = 'dockMooredGroup';
+        this._scene.add(this._dockMooredGroup);
+      } else {
+        while (this._dockMooredGroup.children.length > 0) {
+          this._dockMooredGroup.remove(this._dockMooredGroup.children[0]);
+        }
+      }
+
+      this._dockMooredGroup.add(this._chunkRenderer.container);
+      this._chunkRenderer.container.visible = true;
+
+      const cx = (this._grid?.width || 24) * 0.5;
+      const cz = (this._grid?.depth || 48) * 0.5;
+      this._chunkRenderer.container.position.set(-cx, 0, -cz);
+      this._chunkRenderer.container.rotation.set(0, 0, 0);
+      this._chunkRenderer.container.scale.set(1, 1, 1);
+
+      const s = shipProfile.scale || 0.12;
+      this._dockMooredGroup.scale.setScalar(s);
+
+      const pierTerminusX = -50.9;
+      const pierCenterZ = 10.5;
+      const halfBeam = (this._grid?.width || 24) * s * 0.5;
+      const draft = (shipProfile.waterlineY || 4) * s;
+
+      this._dockMooredTargetPos = new THREE.Vector3(pierTerminusX - halfBeam - 0.4, -draft, pierCenterZ);
+      this._dockMooredP0 = new THREE.Vector3(55.0, -draft, -27.0);
+      this._dockMooredP1 = new THREE.Vector3(15.0, -draft, -20.0);
+      this._dockMooredP2 = new THREE.Vector3(-82.0, -draft, -20.0);
+
+      this._dockMooredGroup.userData.isMooredShip = true;
+      this._chunkRenderer.container.userData.isMooredShip = true;
+      this._chunkRenderer.container.traverse(c => {
+        c.userData.isMooredShip = true;
+      });
+
+      this._dockMooredGroup.position.copy(this._dockMooredP0);
+      this._dockMooredGroup.rotation.set(0, Math.atan2(this._dockMooredP1.x - this._dockMooredP0.x, this._dockMooredP1.z - this._dockMooredP0.z), 0);
+      this._dockMooredGroup.visible = false;
+
+      // 5. Update stall interactables & repair state
+      const integrity = this._grid ? DamageSystem.getSummary(this._grid).integrityPct : 100;
+      if (this._dockStall) {
+        this._dockStall.shipNeedsRepair = integrity < 100;
+        this._dockStall.activeShipProfile = shipProfile;
+        this._dockStall.shipInteractables = [];
+      }
+
+      // 6. Update weather & lighting for selected day
       if (this._weather) {
         await this._weather.loadLevel(this.day, {
           ambient: this._ambient,
@@ -596,6 +679,7 @@ export class GameState {
         });
       }
 
+      // 7. Start arrival cutscene
       this._startLevelCutscene();
     };
     on('levelSelected', this._onLevelSelected);
