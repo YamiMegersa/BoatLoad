@@ -21,12 +21,13 @@ export class DockNPC {
     this.texture.colorSpace = THREE.SRGBColorSpace;
 
     // Cutout proportions (734 x 998)
-    this.height = 3.15;
+    this.height = 3.3;
     this.width = this.height * (734 / 998);
 
-    // Plane geometry with bottom pivot at feet (y = 0)
+    // Plane geometry with bottom pivot at feet, raised slightly so torso & hands clear counter
+    this.baseElevation = 0.35;
     const geo = new THREE.PlaneGeometry(this.width, this.height);
-    geo.translate(0, this.height / 2, 0);
+    geo.translate(0, this.height / 2 + this.baseElevation, 0);
 
     const mat = new THREE.MeshBasicMaterial({
       map: this.texture,
@@ -56,11 +57,11 @@ export class DockNPC {
     // Key waypoints in DockStall local coordinates:
     // WP0: Island trail approach / meadow edge
     // WP1: Wharf dock pier entrance
-    // WP2: Front counter customer station
+    // WP2: Front counter customer station (kept comfortably back from counter to eliminate clipping)
     this.waypoints = [
-      new THREE.Vector3(-14.0, 2.14, 0.6),
-      new THREE.Vector3(-6.0, 2.14, 1.0),
-      new THREE.Vector3(2.1, 2.14, 1.15)
+      new THREE.Vector3(-14.0, 2.14, 0.4),
+      new THREE.Vector3(-6.0, 2.14, 0.5),
+      new THREE.Vector3(2.1, 2.14, 0.45)
     ];
 
     this.isWalking = false;
