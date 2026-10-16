@@ -206,7 +206,7 @@ export class LevelSelectorUI {
     emit('playSound', { sound: 'qte_success' });
   }
 
-  open() {
+  open(initialDay) {
     if (this._isOpen) return;
     this._isOpen = true;
     if (initialDay && LEVEL_DOSSIERS[initialDay]) {

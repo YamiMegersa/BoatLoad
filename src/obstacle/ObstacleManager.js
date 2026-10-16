@@ -412,6 +412,7 @@ export class ObstacleManager {
     this._waveTime = 0;
     this._tempCrossWind = new THREE.Vector3();
     this._random = createSeededRandom(levelCfg.obstacleSeed ?? levelCfg.day ?? 1);
+    this._hasDock = levelCfg?.hasDock !== false;
     
     this._spawnAllRandomly(levelCfg.obstacles || []);
   }
@@ -906,8 +907,11 @@ export class ObstacleManager {
           attempts++;
         } while (
           attempts < 40 &&
-          this._obstacles.some(existing =>
-            Math.hypot(existing.mesh.position.x - px, existing.mesh.position.z - pz) < 8
+          (
+            (this._hasDock && px >= -70 && px <= 20 && pz >= -30 && pz <= 30) ||
+            this._obstacles.some(existing =>
+              Math.hypot(existing.mesh.position.x - px, existing.mesh.position.z - pz) < 8
+            )
           )
         );
 

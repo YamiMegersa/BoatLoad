@@ -1,5 +1,6 @@
 {
   "day": 2,
+  "hasDock": true,
   "sirens": [
     { "position": { "x": -18, "z": -55 }, "intensity": 0.75, "attractRadius": 24 }
   ],

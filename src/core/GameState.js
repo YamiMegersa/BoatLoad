@@ -124,6 +124,8 @@ export class GameState {
     this._sky.init(this._scene);
     this._weather         = new WeatherSystem();
     this._dockStall       = new DockStall();
+    this._hasDock         = true;
+    this._isCountdownActive = false;
     
     // Ship arrival cutscene state
     this._shipDocked = true;
@@ -358,6 +360,7 @@ export class GameState {
         break;
 
       case GamePhase.OBSTACLE:
+        if (this._dockStall && this._hasDock) this._dockStall.update(delta, this._time);
         this._updateObstacle(delta);
         break;
 
@@ -761,7 +764,7 @@ export class GameState {
     }
     emit('hideDialogue');
 
-    if (this.nextPhase !== GamePhase.SHIPYARD) {
+    if (this.nextPhase !== GamePhase.SHIPYARD && this.nextPhase !== GamePhase.OBSTACLE) {
       this._scene.remove(this._dockStall.group);
       this._ocean.breakwaterEnabled = false;
     }
@@ -1097,7 +1100,7 @@ export class GameState {
   }
 
   _exitShipyard() {
-    if (this.nextPhase !== GamePhase.DOCK) {
+    if (this.nextPhase !== GamePhase.DOCK && this.nextPhase !== GamePhase.OBSTACLE) {
       this._scene.remove(this._dockStall.group);
       this._ocean.breakwaterEnabled = false;
     }
@@ -1282,6 +1285,26 @@ export class GameState {
       this._chunkRenderer.container.visible = true;
     }
 
+    const hasDock = levelCfg?.hasDock !== false && this._levelCfg?.hasDock !== false;
+    this._hasDock = hasDock;
+
+    if (hasDock) {
+      const stallGroup = this._dockStall.build();
+      if (stallGroup.parent !== this._scene) {
+        this._scene.add(stallGroup);
+      }
+      if (this._ocean) {
+        this._ocean.breakwaterEnabled = true;
+      }
+    } else {
+      if (this._dockStall?.group && this._dockStall.group.parent === this._scene) {
+        this._scene.remove(this._dockStall.group);
+      }
+      if (this._ocean) {
+        this._ocean.breakwaterEnabled = false;
+      }
+    }
+
     const camDist = profile.cameraDist ?? 16;
     const camHeight = profile.cameraHeight ?? 5;
 
@@ -1290,7 +1313,15 @@ export class GameState {
     let spawnY = 0;
     let spawnZ = 0;
     let spawnRot = 0;
-    if (spawnConfig) {
+
+    if (hasDock) {
+      const s = profile.scale || 0.12;
+      const halfBeam = ((this._grid?.width || 24) * 0.5) * s;
+      spawnX = this._dockMooredTargetPos ? this._dockMooredTargetPos.x : (-50.9 - halfBeam - 0.4);
+      spawnY = 0;
+      spawnZ = this._dockMooredTargetPos ? this._dockMooredTargetPos.z : 10.5;
+      spawnRot = 0;
+    } else if (spawnConfig) {
       if (spawnConfig.position) {
         spawnX = spawnConfig.position.x ?? 0;
         spawnY = spawnConfig.position.y ?? 0;
@@ -1405,6 +1436,7 @@ export class GameState {
     this._buildEndLocationVisual(this._endLocation);
 
     this._onSteer = (d) => {
+      if (this._isCountdownActive) return;
       if (this._playerShip) {
         this._playerShip.steerInput = d.value;
       }
@@ -1445,9 +1477,27 @@ export class GameState {
     this._wasCinematicActive = false;
     this.score = 0;
     emit('uiMount', { screen: 'obstacle' });
+
+    // Anchor Hoisting Countdown before casting off
+    this._isCountdownActive = true;
+    this._playerShip.halt();
+
+    emit('startAnchorCountdown', {
+      duration: 3.0,
+      hasDock,
+      onComplete: () => {
+        this._isCountdownActive = false;
+        if (this._playerShip) {
+          this._playerShip.resumeSpeed();
+        }
+      }
+    });
   }
 
   _updateObstacle(delta) {
+    if (this._isCountdownActive && this._playerShip) {
+      this._playerShip.halt();
+    }
     this._qteSystem?.update(delta);
     // Pass WindManager instead of static windDir
     this._playerShip?.update(delta, this._ocean, this._windManager);
@@ -1680,6 +1730,16 @@ export class GameState {
   }
 
   _exitObstacle() {
+    emit('cancelAnchorCountdown');
+    this._isCountdownActive = false;
+
+    if (this._dockStall?.group && this._dockStall.group.parent === this._scene) {
+      this._scene.remove(this._dockStall.group);
+    }
+    if (this._ocean) {
+      this._ocean.breakwaterEnabled = false;
+    }
+
     off('steer', this._onSteer);
     if (DEBUG) off('qteDebugTrigger', this._onDebugQTE);
     off('cannonFire', this._onCannonFire);

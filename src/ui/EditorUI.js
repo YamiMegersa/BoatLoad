@@ -42,6 +42,8 @@ export class EditorUI {
     const timeOfDay = levelCfg.timeOfDay !== undefined ? levelCfg.timeOfDay : 8.0;
     const isStormy = !!levelCfg.isStormy;
     this._godRaysEnabled = levelCfg.godRays !== undefined ? !!levelCfg.godRays : (window.godRays ? window.godRays.enabled : true);
+    const hasDock = levelCfg.hasDock !== false;
+    this._hasDock = hasDock;
 
     this._el = document.createElement('div');
     this._el.id = 'editor-ui-container';
@@ -709,6 +711,19 @@ export class EditorUI {
               <span class="shelf-btn-text">Move Harbor Goal</span>
             </button>
           </div>
+
+          <div class="ribbon-divider"></div>
+
+          <!-- Harbor Dock Toggle -->
+          <div class="ribbon-group" style="min-width: 175px;">
+            <span class="ribbon-group-label">Harbor Berth & Dock</span>
+            <label class="editor-toggle-switch">
+              <input type="checkbox" id="chk-editor-has-dock" ${hasDock ? 'checked' : ''}>
+              <span class="toggle-slider"></span>
+              <span class="toggle-label" id="lbl-editor-has-dock">${hasDock ? '⚓ Dock Included' : '❌ Dock Removed'}</span>
+            </label>
+            <div style="font-size: 10px; color: #8a99a8; margin-top: 4px;">Sailing departs from dock</div>
+          </div>
         </div>
 
         <!-- ==================== TAB 4: PAPER SHADER & POST-FX ==================== -->
@@ -1337,6 +1352,26 @@ export class EditorUI {
         this._setGodRays(e.target.checked);
       };
     }
+
+    // Harbor Dock Checkbox
+    const dockChk = this._el.querySelector('#chk-editor-has-dock');
+    const dockLbl = this._el.querySelector('#lbl-editor-has-dock');
+    if (dockChk) {
+      dockChk.onchange = (e) => {
+        const enabled = e.target.checked;
+        this._hasDock = enabled;
+        if (dockLbl) dockLbl.textContent = enabled ? '⚓ Dock Included' : '❌ Dock Removed';
+        emit('editorToggleDock', { hasDock: enabled });
+        this._showToast(enabled ? 'Harbor dock included' : 'Harbor dock removed');
+      };
+    }
+
+    this._onEditorHasDockChanged = ({ hasDock }) => {
+      this._hasDock = hasDock;
+      if (dockChk) dockChk.checked = hasDock;
+      if (dockLbl) dockLbl.textContent = hasDock ? '⚓ Dock Included' : '❌ Dock Removed';
+    };
+    on('editorHasDockChanged', this._onEditorHasDockChanged);
   }
 
   // -------------------------------------------------------------------------
@@ -1880,6 +1915,10 @@ export class EditorUI {
     if (this._onShipSpawnPlaced) {
       off('editorShipSpawnPlaced', this._onShipSpawnPlaced);
       this._onShipSpawnPlaced = null;
+    }
+    if (this._onEditorHasDockChanged) {
+      off('editorHasDockChanged', this._onEditorHasDockChanged);
+      this._onEditorHasDockChanged = null;
     }
     off('editorStateUpdated', this._onStateUpdated);
     off('editorConfigLoaded', this._onConfigLoaded);

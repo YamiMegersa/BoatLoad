@@ -38,6 +38,15 @@ const SYNTH = Object.freeze({
   },
   bail:        (a, t) => a._noise({ type: 'bandpass', from: 1500, to: 500, dur: 0.2, gain: 0.18 }),
   siren_resist:(a, t) => a._tone({ type: 'sine', from: 680, to: 920, dur: 0.14, gain: 0.1 }),
+  anchor_reel: (a, t) => {
+    a._tone({ type: 'triangle', from: 880, to: 1200, dur: 0.04, gain: 0.12, at: t });
+    a._noise({ type: 'bandpass', from: 3500, to: 1200, dur: 0.05, gain: 0.12, at: t });
+  },
+  anchor_lock: (a, t) => {
+    a._tone({ type: 'square', from: 440, to: 220, dur: 0.12, gain: 0.18, at: t });
+    a._tone({ type: 'triangle', from: 1046, dur: 0.25, gain: 0.22, at: t + 0.02 });
+    a._noise({ type: 'bandpass', from: 2400, to: 400, dur: 0.18, gain: 0.18, at: t });
+  },
 });
 
 /**

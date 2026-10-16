@@ -11,6 +11,7 @@ import { DockUI } from './ui/DockUI.js';
 import { MainMenuUI } from './ui/MainMenuUI.js';
 import { LevelSelectorUI } from './ui/LevelSelectorUI.js';
 import { LoadingScreenUI } from './ui/LoadingScreenUI.js';
+import { AnchorCountdownUI } from './ui/AnchorCountdownUI.js';
 import { ParticleSystem } from './environment/ParticleSystem.js';
 import { DamageSystem } from './shipyard/DamageSystem.js';
 import { GodRays } from './environment/GodRays.js';
@@ -122,6 +123,7 @@ const dialogue = new DialogueBox();
 const pauseMenu = new PauseMenu();
 const levelSelectorUI = new LevelSelectorUI();
 const loadingScreenUI = new LoadingScreenUI();
+const anchorCountdownUI = new AnchorCountdownUI();
 const particles = new ParticleSystem(scene);
 
 const directorMode = new DirectorMode({

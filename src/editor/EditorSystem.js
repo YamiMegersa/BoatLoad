@@ -72,6 +72,7 @@ export class EditorSystem {
 
     // Ship Spawn State
     this._shipSpawn = null;
+    this._hasDock = true;
     
     on('editorSelectType', d => {
       this._activeType = d.type;
@@ -312,6 +313,12 @@ export class EditorSystem {
       }
     });
 
+    on('editorToggleDock', d => {
+      this._hasDock = Boolean(d.hasDock);
+      if (this._levelCfg) this._levelCfg.hasDock = this._hasDock;
+      emit('editorHasDockChanged', { hasDock: this._hasDock });
+    });
+
     on('editorExport', () => this.exportLevel());
 
     // Boss Encounter Events
@@ -417,6 +424,7 @@ export class EditorSystem {
     this._camera = camera;
     this._renderer = renderer;
     this._levelCfg = levelCfg;
+    this._hasDock = this._levelCfg?.hasDock !== false;
     this._budget = levelCfg?.budget !== undefined ? levelCfg.budget : 300;
     this._rockModels = rockModels;
     this._pickupModels = pickupModels;
@@ -617,6 +625,7 @@ export class EditorSystem {
     off('editorSetTimeOfDay');
     off('editorSetStormy');
     off('editorToggleGodRays');
+    off('editorToggleDock');
     off('editorExport');
     off('editorSelectTentacle');
     off('editorAddTentacle');
@@ -1126,7 +1135,8 @@ export class EditorSystem {
       sirens: sirens.length > 0 ? sirens : (this._levelCfg?.sirens || []),
       kraken: this._krakenConfig ? this._krakenConfig : null,
       endLocation: this._endLocation || this._levelCfg?.endLocation || { position: { x: 0, y: 0, z: -220 }, radius: 16 },
-      shipSpawn: this._shipSpawn || this._levelCfg?.shipSpawn || { position: { x: 0, y: 0, z: 0 }, rotation: 0 }
+      shipSpawn: this._shipSpawn || this._levelCfg?.shipSpawn || { position: { x: 0, y: 0, z: 0 }, rotation: 0 },
+      hasDock: this._hasDock !== undefined ? this._hasDock : (this._levelCfg?.hasDock !== false)
     };
   }
 

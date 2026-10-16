@@ -3976,3 +3976,138 @@ body {
   font-size: 13.5px;
 }
 
+/* ==========================================================================
+   Anchor Hoisting Countdown Overlay
+   ========================================================================== */
+.anchor-countdown-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1200;
+  background: radial-gradient(circle at center, rgba(10, 24, 38, 0.45) 0%, rgba(4, 10, 16, 0.8) 100%);
+  backdrop-filter: blur(2.5px);
+  cursor: pointer;
+  user-select: none;
+  transition: opacity 0.45s ease, transform 0.45s ease;
+  animation: countdownFadeIn 0.35s ease-out;
+}
+
+@keyframes countdownFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.anchor-countdown-overlay.fade-out {
+  opacity: 0;
+  transform: scale(1.05);
+  pointer-events: none;
+}
+
+.anchor-countdown-box {
+  background: linear-gradient(180deg, rgba(30, 22, 14, 0.95) 0%, rgba(16, 11, 7, 0.98) 100%);
+  border: 2px solid #d4af37;
+  border-radius: 12px;
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.88), 0 0 24px rgba(212, 175, 55, 0.25), inset 0 0 20px rgba(0, 0, 0, 0.6);
+  padding: 16px 26px 14px 26px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 270px;
+  animation: anchorBoxEntrance 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes anchorBoxEntrance {
+  0% { transform: scale(0.7) translateY(30px); opacity: 0; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+.anchor-winch-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Cinzel', serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: #f3d790;
+  letter-spacing: 2px;
+  text-shadow: 0 0 8px rgba(243, 215, 144, 0.4);
+  margin-bottom: 4px;
+}
+
+.anchor-winch-bracket {
+  color: #c59b27;
+  font-size: 11px;
+}
+
+.anchor-canvas-wrap {
+  width: 240px;
+  height: 260px;
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  border-radius: 8px;
+  background: rgba(6, 16, 26, 0.8);
+  overflow: hidden;
+  margin: 8px 0 12px 0;
+  box-shadow: inset 0 0 16px rgba(0, 0, 0, 0.7);
+}
+
+.anchor-canvas {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.anchor-countdown-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.anchor-countdown-num {
+  font-family: 'Cinzel', serif;
+  font-size: 44px;
+  font-weight: 900;
+  line-height: 1;
+  color: #ffd700;
+  text-shadow: 0 0 16px rgba(255, 215, 0, 0.8), 2px 2px 0 #111;
+  transform-origin: center;
+}
+
+.anchor-countdown-num.pop-anim {
+  animation: anchorNumberPop 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.35);
+}
+
+@keyframes anchorNumberPop {
+  0% { transform: scale(1.6); }
+  60% { transform: scale(0.92); }
+  100% { transform: scale(1); }
+}
+
+.anchor-countdown-status {
+  font-family: 'Cinzel', serif;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #f5eedb;
+  letter-spacing: 1.5px;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+}
+
+.anchor-countdown-skip {
+  font-family: 'IM Fell English', serif;
+  font-size: 12px;
+  color: #94a3b8;
+  letter-spacing: 0.6px;
+  margin-top: 8px;
+  opacity: 0.8;
+  font-style: italic;
+  transition: opacity 0.2s;
+}
+
+.anchor-countdown-box:hover .anchor-countdown-skip {
+  opacity: 1;
+  color: #cbd5e1;
+}
+
+
