@@ -596,6 +596,11 @@ export class EnvironmentManager {
     return this._godRaysEnabled;
   }
 
+  setTimeOfDay(tod) {
+    this._timeOfDay = ((tod % 24) + 24) % 24;
+    this._updateTimeAndLighting(0);
+  }
+
   dispose() {
     this._ocean = null;
     for (const shark of this._sharks) {

@@ -20,6 +20,7 @@ import { EditorUI }       from '../ui/EditorUI.js';
 import { EditorSystem }   from '../editor/EditorSystem.js';
 import { VoxelTerrain }   from '../editor/VoxelTerrain.js';
 import { WindManager }        from '../environment/WindManager.js';
+import { WindParticles }      from '../environment/WindParticles.js';
 import { SirenManager }       from '../monsters/SirenManager.js';
 import { KrakenBoss }         from '../monsters/KrakenBoss.js';
 import { Sky }                from '../environment/Sky.js';
@@ -117,6 +118,7 @@ export class GameState {
     this._editorUI        = new EditorUI();
     this._editorSystem    = null;
     this._windManager     = null;
+    this._dockWindParticles = null;
     this._sirenManager    = null;
     this._krakenBoss      = null;
     this._time            = 0;
@@ -314,6 +316,7 @@ export class GameState {
       case GamePhase.DOCK:
         if (this._dockStall) this._dockStall.update(delta, this._time);
         if (this._dockPlayerController) this._dockPlayerController.update(delta);
+        if (this._dockWindParticles && this._windManager) this._dockWindParticles.update(delta, this._windManager);
         if (this._dockOrbitControls && this._dockOrbitControls.enabled) this._dockOrbitControls.update();
         if (this._dockMooredGroup && this._dockMooredGroup.visible) {
           const isTruck = this._mooredShipProfile?.isGagTruck;
@@ -600,7 +603,7 @@ export class GameState {
     this._ocean.breakwaterEnabled = true;
 
     // Load and apply weather
-    await this._weather.loadLevel(this.day, {
+    const weatherResult = await this._weather.loadLevel(this.day, {
       ambient: this._ambient,
       sun: this._sun,
       ocean: this._ocean,
@@ -608,6 +611,14 @@ export class GameState {
       lanternLight: this._dockStall.lanternLight,
       scene: this._scene
     });
+
+    // Wind particles and wind manager on island for this day
+    const dayCfg = weatherResult?.levelData || payload?.levelCfg || this._levelCfg || {};
+    this._windManager = new WindManager(dayCfg);
+    if (this._dockWindParticles) {
+      this._dockWindParticles.dispose();
+    }
+    this._dockWindParticles = new WindParticles(this._scene, 140, 55, new THREE.Vector3(-20, 0, 0));
 
     // Moveable Player Camera
     this._dockPlayerController = new DockPlayerController(this._scene, this._camera, this._renderer.domElement, this._dockStall);
@@ -771,7 +782,11 @@ export class GameState {
         });
       }
 
-      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      // Update island wind for selected day
+      this._windManager = new WindManager(this._levelCfg || {});
+      if (!this._dockWindParticles) {
+        this._dockWindParticles = new WindParticles(this._scene, 140, 55, new THREE.Vector3(-20, 0, 0));
+      }
       emit('updateLoading', { progress: 1.0 });
       emit('hideLoading');
 
@@ -830,6 +845,10 @@ export class GameState {
     if (this._dockOrbitControls) {
       this._dockOrbitControls.dispose();
       this._dockOrbitControls = null;
+    }
+    if (this._dockWindParticles) {
+      this._dockWindParticles.dispose();
+      this._dockWindParticles = null;
     }
     this.activeCamera = null;
     emit('uiUnmount', { screen: 'dock' });

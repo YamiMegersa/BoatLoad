@@ -1,10 +1,11 @@
 import * as THREE from 'three';
 
 export class WindParticles {
-  constructor(scene, count = 200, playRadius = 200) {
+  constructor(scene, count = 200, playRadius = 200, center = new THREE.Vector3(0, 0, 0)) {
     this._scene = scene;
     this.count = count;
     this.playRadius = playRadius;
+    this.center = center.clone();
     this.speed = 40; // Fast speed so they sweep away horizontally
     
     // 2D plane to represent snow/wind particles
@@ -27,9 +28,9 @@ export class WindParticles {
     this.maxLifespans = new Float32Array(count);
     
     for (let i = 0; i < count; i++) {
-      this.positions[i * 3]     = (Math.random() - 0.5) * playRadius * 2;
-      this.positions[i * 3 + 1] = Math.random() * 20; // height 0 to 20
-      this.positions[i * 3 + 2] = (Math.random() - 0.5) * playRadius * 2;
+      this.positions[i * 3]     = this.center.x + (Math.random() - 0.5) * playRadius * 2;
+      this.positions[i * 3 + 1] = this.center.y + Math.random() * 20; // height 0 to 20
+      this.positions[i * 3 + 2] = this.center.z + (Math.random() - 0.5) * playRadius * 2;
       
       this.maxLifespans[i] = 0.5 + Math.random() * 1.5; // Shorter lifespan since they move fast
       this.lifespans[i] = Math.random() * this.maxLifespans[i];
@@ -55,6 +56,9 @@ export class WindParticles {
     
     if (!this._tempWind) this._tempWind = new THREE.Vector3();
     const pr = this.playRadius;
+    const cx = this.center.x;
+    const cy = this.center.y;
+    const cz = this.center.z;
     
     for (let i = 0; i < this.count; i++) {
       const x = this.positions[i * 3];
@@ -67,9 +71,9 @@ export class WindParticles {
         this.maxLifespans[i] = 0.5 + Math.random() * 1.5;
         this.lifespans[i] = this.maxLifespans[i];
         
-        this.positions[i * 3]     = (Math.random() - 0.5) * pr * 2;
-        this.positions[i * 3 + 1] = Math.random() * 20;
-        this.positions[i * 3 + 2] = (Math.random() - 0.5) * pr * 2;
+        this.positions[i * 3]     = cx + (Math.random() - 0.5) * pr * 2;
+        this.positions[i * 3 + 1] = cy + Math.random() * 20;
+        this.positions[i * 3 + 2] = cz + (Math.random() - 0.5) * pr * 2;
       } else {
         // Sweep away rapidly along the wind vector
         this.positions[i * 3]     += localWind.x * this.speed * delta;
@@ -78,14 +82,14 @@ export class WindParticles {
       }
       
       // Wrap around
-      if (this.positions[i * 3] > pr) this.positions[i * 3] -= pr * 2;
-      else if (this.positions[i * 3] < -pr) this.positions[i * 3] += pr * 2;
+      if (this.positions[i * 3] > cx + pr) this.positions[i * 3] -= pr * 2;
+      else if (this.positions[i * 3] < cx - pr) this.positions[i * 3] += pr * 2;
       
-      if (this.positions[i * 3 + 2] > pr) this.positions[i * 3 + 2] -= pr * 2;
-      else if (this.positions[i * 3 + 2] < -pr) this.positions[i * 3 + 2] += pr * 2;
+      if (this.positions[i * 3 + 2] > cz + pr) this.positions[i * 3 + 2] -= pr * 2;
+      else if (this.positions[i * 3 + 2] < cz - pr) this.positions[i * 3 + 2] += pr * 2;
       
-      if (this.positions[i * 3 + 1] > 20) this.positions[i * 3 + 1] -= 20;
-      else if (this.positions[i * 3 + 1] < 0) this.positions[i * 3 + 1] += 20;
+      if (this.positions[i * 3 + 1] > cy + 20) this.positions[i * 3 + 1] -= 20;
+      else if (this.positions[i * 3 + 1] < cy) this.positions[i * 3 + 1] += 20;
       
       this.dummy.position.set(
         this.positions[i * 3],

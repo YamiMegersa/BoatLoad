@@ -106,13 +106,16 @@ export class PauseMenu {
             <!-- Render Resolution Scale -->
             <div class="setting-item">
               <div class="setting-info">
-                <label class="setting-label">Render Resolution Scale</label>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <label class="setting-label">Render Resolution Scale</label>
+                  <span class="setting-val-badge highlight" id="val-render-scale">100%</span>
+                </div>
                 <span class="setting-desc">Adjusts 3D pixel fill-rate density. Lower scale provides huge performance boosts on laptops.</span>
               </div>
               <div class="setting-pill-group" id="group-render-scale">
                 <button class="pill-btn" data-val="0.5">50%</button>
                 <button class="pill-btn" data-val="0.75">75%</button>
-                <button class="pill-btn active" data-val="1.0">100%</button>
+                <button class="pill-btn" data-val="1.0">100%</button>
                 <button class="pill-btn" data-val="1.25">125%</button>
               </div>
             </div>
@@ -351,7 +354,16 @@ export class PauseMenu {
     });
 
     // Render Scale Pill Group
-    this._setupPillGroup('#group-render-scale', 'renderScale', Number);
+    const updateResolutionBadge = (scale) => {
+      const scaleBadge = this._el?.querySelector('#val-render-scale');
+      if (scaleBadge) {
+        const s = Number(scale) || 1.0;
+        const w = Math.round(window.innerWidth * s);
+        const h = Math.round(window.innerHeight * s);
+        scaleBadge.innerText = `${w} × ${h} (${Math.round(s * 100)}%)`;
+      }
+    };
+    this._setupPillGroup('#group-render-scale', 'renderScale', Number, updateResolutionBadge);
 
     // Shadow Quality Pill Group
     this._setupPillGroup('#group-shadows', 'shadowQuality', String);
@@ -420,7 +432,7 @@ export class PauseMenu {
     });
   }
 
-  _setupPillGroup(groupId, settingKey, transformFn = String) {
+  _setupPillGroup(groupId, settingKey, transformFn = String, onChange = null) {
     const group = this._el?.querySelector(groupId);
     if (!group) return;
 
@@ -430,6 +442,7 @@ export class PauseMenu {
         group.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
         e.currentTarget.classList.add('active');
         settingsManager.set(settingKey, val);
+        if (onChange) onChange(val);
       });
     });
   }
@@ -487,9 +500,16 @@ export class PauseMenu {
     if (cutFogBadge) cutFogBadge.innerText = cutFog ? 'Enabled' : 'Disabled';
 
     // Render Scale
-    const scale = String(settingsManager.get('renderScale'));
+    const scaleVal = Number(settingsManager.get('renderScale')) || 1.0;
+    const scaleBadge = this._el.querySelector('#val-render-scale');
+    if (scaleBadge) {
+      const w = Math.round(window.innerWidth * scaleVal);
+      const h = Math.round(window.innerHeight * scaleVal);
+      scaleBadge.innerText = `${w} × ${h} (${Math.round(scaleVal * 100)}%)`;
+    }
     this._el.querySelectorAll('#group-render-scale .pill-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.val === scale);
+      const btnVal = Number(btn.dataset.val);
+      btn.classList.toggle('active', Math.abs(btnVal - scaleVal) < 0.01);
     });
 
     // Shadow Quality

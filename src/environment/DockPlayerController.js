@@ -440,7 +440,17 @@ export class DockPlayerController {
       // Main shop building and front counter
       { minX: -1.05 * s, maxX: 5.25 * s, minZ: 1.10 * s, maxZ: 6.65 * s },
       // Crates stacked beside shop on the dock
-      { minX: -2.1 * s, maxX: -1.2 * s, minZ: 2.1 * s, maxZ: 3.1 * s }
+      { minX: -2.1 * s, maxX: -1.2 * s, minZ: 2.1 * s, maxZ: 3.1 * s },
+      // Shipyard workshop building and slipway timber frame
+      { minX: -64.0 * s, maxX: -51.0 * s, minZ: 5.0 * s, maxZ: 17.0 * s },
+      // Shipyard heavy timber crane
+      { minX: -70.0 * s, maxX: -64.0 * s, minZ: 10.0 * s, maxZ: 16.0 * s },
+      // Lookout campfire and seating overlook
+      { minX: -39.0 * s, maxX: -34.0 * s, minZ: 10.5 * s, maxZ: 15.0 * s },
+      // South bluff cliff rocks
+      { minX: -40.0 * s, maxX: -30.0 * s, minZ: 16.0 * s, maxZ: 21.0 * s },
+      // North bluff cliff rocks
+      { minX: -41.0 * s, maxX: -31.0 * s, minZ: -22.0 * s, maxZ: -16.0 * s }
     ];
 
     for (let i = 0; i < obstacles.length; i++) {

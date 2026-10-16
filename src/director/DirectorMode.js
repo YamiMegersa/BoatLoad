@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { on, emit } from '../core/EventBus.js';
+import { settingsManager } from '../core/SettingsManager.js';
+import { getAssetUrl } from '../utils/paths.js';
 import './director.css';
 
 /**
@@ -24,6 +26,14 @@ export class DirectorMode {
     this._gameState = gameState;
     this._godRays = godRays;
     this._paperFilter = paperFilter;
+
+    // Eagerly prefetch weather configs so Director Mode can apply atmospheric presets instantly
+    if (this._gameState?._weather && !this._gameState._weather.weatherConfigs) {
+      fetch(getAssetUrl('assets/levels/weather.json'))
+        .then(res => res.json())
+        .then(data => { if (this._gameState?._weather) this._gameState._weather.weatherConfigs = data; })
+        .catch(() => {});
+    }
 
     // Director Camera
     this.camera = new THREE.PerspectiveCamera(
@@ -665,17 +675,66 @@ export class DirectorMode {
   // ---------------------------------------------------------------------------
 
   setTimeOfDay(tod) {
-    if (this._gameState._environmentManager) {
+    if (this._gameState?._environmentManager) {
       this._gameState._environmentManager.setTimeOfDay(tod);
-      this._showToast(`Time of Day: ${tod.toFixed(1)}h`);
+    } else {
+      this._applyDirectTimeOfDay(tod);
+    }
+    this._showToast(`Time of Day: ${tod.toFixed(1)}h`);
+  }
+
+  _applyDirectTimeOfDay(tod) {
+    const sun = this._gameState?._sun || this._scene?.getObjectByName('sunLight');
+    const moon = this._gameState?._moon || this._scene?.getObjectByName('moonLight');
+    const ambient = this._gameState?._ambient || this._scene?.children?.find(c => c.isAmbientLight || c.isHemisphereLight);
+    const skyMesh = this._gameState?._sky?.mesh || this._scene?.getObjectByName('skyMesh');
+    const oceanMesh = this._gameState?._ocean?.mesh;
+
+    const sunRadius = 60;
+    const sunTheta = ((tod - 6) / 12) * Math.PI;
+    const sunX = Math.cos(sunTheta) * sunRadius;
+    const sunY = Math.sin(sunTheta) * sunRadius;
+    const sunZ = Math.sin(sunTheta) * 20;
+
+    const moonTheta = sunTheta + Math.PI;
+    const moonX = Math.cos(moonTheta) * sunRadius;
+    const moonY = Math.sin(moonTheta) * sunRadius;
+    const moonZ = Math.sin(moonTheta) * 20;
+
+    const nightFactor = THREE.MathUtils.clamp((sunRadius * 0.1 - sunY) / (sunRadius * 0.7), 0.0, 1.0);
+    const sunAlt = THREE.MathUtils.clamp((sunY + 5) / (sunRadius + 5), 0.0, 1.0);
+
+    if (sun) {
+      sun.position.set(sunX, sunY, sunZ);
+      sun.intensity = Math.max(0.05, sunAlt * 1.5);
+      sun.castShadow = (sunY > 0);
+    }
+    if (moon) {
+      moon.position.set(moonX, moonY, moonZ);
+      moon.intensity = (1.0 - sunAlt) * 0.4;
+      moon.castShadow = (moonY > 0 && sunY <= 0);
+    }
+    if (ambient) {
+      ambient.intensity = THREE.MathUtils.lerp(0.3, 0.9, sunAlt);
+    }
+    if (skyMesh?.material?.uniforms) {
+      const u = skyMesh.material.uniforms;
+      if (u.uSunDir) u.uSunDir.value.set(sunX, sunY, sunZ).normalize();
+      if (u.uMoonDir) u.uMoonDir.value.set(moonX, moonY, moonZ).normalize();
+      if (u.uNightFactor) u.uNightFactor.value = nightFactor;
+    }
+    if (oceanMesh?.material?.uniforms?.uSunDir) {
+      oceanMesh.material.uniforms.uSunDir.value.set(sunX, sunY, sunZ).normalize();
     }
   }
 
   setWeather(wType) {
-    if (this._gameState._environmentManager) {
+    if (this._gameState?._environmentManager) {
       if (wType === 'storm') {
         this._gameState._environmentManager.toggleStorm(true);
+        this._gameState._environmentManager.toggleDenseFog(false);
       } else if (wType === 'fog') {
+        this._gameState._environmentManager.toggleStorm(false);
         this._gameState._environmentManager.toggleDenseFog(true);
       } else {
         this._gameState._environmentManager.toggleStorm(false);
@@ -688,23 +747,67 @@ export class DirectorMode {
           this.setTimeOfDay(12.0);
         }
       }
-      this._showToast(`Atmosphere: ${wType.toUpperCase()}`);
+    } else {
+      if (wType === 'night') {
+        this.setTimeOfDay(0.0);
+      } else if (wType === 'sunset') {
+        this.setTimeOfDay(17.5);
+      } else if (wType === 'clear') {
+        this.setTimeOfDay(12.0);
+      }
+      if (wType === 'fog') {
+        if (this._scene) this._scene.fog = new THREE.FogExp2(0x9bb0b5, 0.04);
+      } else {
+        if (this._scene && this._scene.fog) {
+          this._scene.fog.density = 0.005;
+        }
+      }
     }
+
+    const weatherKeyMap = {
+      clear: 'sunny',
+      sunset: 'sunset',
+      storm: 'stormy',
+      night: 'night',
+      fog: 'foggy'
+    };
+    const key = weatherKeyMap[wType] || wType;
+    if (this._gameState?._weather?.weatherConfigs?.[key]) {
+      this._gameState._weather.applyWeather(
+        this._gameState._weather.weatherConfigs[key],
+        {
+          ambient: this._gameState._ambient,
+          sun: this._gameState._sun,
+          ocean: this._gameState._ocean,
+          sky: this._gameState._sky,
+          lanternLight: this._gameState._dockStall?.lanternLight,
+          scene: this._scene
+        },
+        key
+      );
+    }
+    this._showToast(`Atmosphere: ${wType.toUpperCase()}`);
   }
 
   setWaveScale(scale) {
-    if (this._gameState._ocean && this._gameState._ocean.mesh) {
-      const u = this._gameState._ocean.mesh.material.uniforms;
-      if (u.uWaveScale) u.uWaveScale.value = scale;
+    if (this._gameState?._ocean) {
+      this._gameState._ocean.setWaveScale?.(scale);
+      if (this._gameState._ocean.mesh?.material?.uniforms?.uWaveScale) {
+        this._gameState._ocean.mesh.material.uniforms.uWaveScale.value = scale;
+      }
       this._showToast(`Wave Amplitude: ${scale.toFixed(1)}m`);
     }
   }
 
   setPaperShaderStyle(style) {
+    const styleMap = { 0: 'off', 1: 'painterly', 2: 'hatching' };
+    const val = styleMap[style] || 'off';
+    settingsManager.set('paperShader', val);
     if (this._paperFilter) {
-      this._paperFilter.setStyle(style);
-      this._showToast(`Art Style: ${style === 0 ? 'Clean 3D' : style === 1 ? 'Kuwahara Painterly' : 'Crosshatch'}`);
+      if (style === 1) this._paperFilter.setStyle(1);
+      if (style === 2) this._paperFilter.setStyle(0);
     }
+    this._showToast(`Art Style: ${style === 0 ? 'Clean 3D' : style === 1 ? 'Kuwahara Painterly' : 'Crosshatch'}`);
   }
 
   // ---------------------------------------------------------------------------

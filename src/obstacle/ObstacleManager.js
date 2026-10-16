@@ -678,26 +678,34 @@ export class ObstacleManager {
       return;
     }
 
-    // Solid Obstacles (island, rock, siren)
+    // Solid Obstacles (island, rock, siren, dock island)
     if (ship.obb.intersectsOBB(obs.obb)) {
-      if (obs.type === 'island') {
-        // Narrowphase Mesh BVH
-        const shipBox = new THREE.Box3().setFromObject(ship.mesh);
-        let meshHit = false;
-        const invMat = new THREE.Matrix4();
+      if (obs.type === 'island' && !obs.isDockObstacle) {
+        // Check if mesh has BVH tree built
+        let hasBVH = false;
         obs.mesh.traverse(child => {
-          if (meshHit || !child.isMesh || !child.geometry.boundsTree) return;
-          invMat.copy(child.matrixWorld).invert();
-          if (child.geometry.boundsTree.intersectsBox(shipBox, invMat)) {
-            meshHit = true;
-          }
+          if (child.isMesh && child.geometry?.boundsTree) hasBVH = true;
         });
-        if (meshHit) {
-          this._resolveSolidCollision(obs, ship, delta);
+
+        if (hasBVH) {
+          // Narrowphase Mesh BVH
+          const shipBox = new THREE.Box3().setFromObject(ship.mesh);
+          let meshHit = false;
+          const invMat = new THREE.Matrix4();
+          obs.mesh.traverse(child => {
+            if (meshHit || !child.isMesh || !child.geometry?.boundsTree) return;
+            invMat.copy(child.matrixWorld).invert();
+            if (child.geometry.boundsTree.intersectsBox(shipBox, invMat)) {
+              meshHit = true;
+            }
+          });
+          if (meshHit) {
+            this._resolveSolidCollision(obs, ship, delta);
+          }
+          return;
         }
-      } else {
-        this._resolveSolidCollision(obs, ship, delta);
       }
+      this._resolveSolidCollision(obs, ship, delta);
     }
   }
 
@@ -919,6 +927,57 @@ export class ObstacleManager {
         this._scene.add(obs.mesh);
         this._obstacles.push(obs);
       }
+    }
+
+    // Register solid colliders for the Dock Island and Piers
+    if (this._hasDock) {
+      const createDockCollider = (center, halfSize, name) => {
+        const dummyMesh = new THREE.Object3D();
+        dummyMesh.name = name;
+        dummyMesh.position.copy(center);
+        dummyMesh.updateMatrixWorld(true);
+
+        const baseOBB = new OBB();
+        baseOBB.center.copy(center);
+        baseOBB.halfSize.copy(halfSize);
+
+        const obb = new OBB();
+        obb.copy(baseOBB).applyMatrix4(dummyMesh.matrixWorld);
+
+        return {
+          type: 'island',
+          mesh: dummyMesh,
+          baseOBB,
+          obb,
+          damage: 15,
+          active: true,
+          scrollSpeed: 0,
+          qteResolved: false,
+          qteTriggered: false,
+          isDockObstacle: true
+        };
+      };
+
+      // 1. Main Island Landmass & Bluffs: covers the large rocky island
+      this._obstacles.push(createDockCollider(
+        new THREE.Vector3(-25.5, 1.5, 0.0),
+        new THREE.Vector3(18.5, 6.0, 13.0),
+        'dockIslandMain'
+      ));
+
+      // 2. East Dock Pier & Shop platform
+      this._obstacles.push(createDockCollider(
+        new THREE.Vector3(0.0, 1.0, 1.0),
+        new THREE.Vector3(6.5, 4.0, 4.0),
+        'dockPierEast'
+      ));
+
+      // 3. West Shipyard Pier (adjacent to ship spawn berth)
+      this._obstacles.push(createDockCollider(
+        new THREE.Vector3(-46.5, 1.0, 10.5),
+        new THREE.Vector3(4.5, 4.0, 2.0),
+        'dockPierWest'
+      ));
     }
   }
 }
