@@ -30,18 +30,18 @@ export const QTE_DEFINITIONS = Object.freeze({
     theme: { color: '#ff9800', icon: '💥', sound: 'barrel_shot' },
   },
   [QTEType.HARPOON]: {
-    input: 'timing', keys: { tap: 'KeyH' }, windowMs: 2000, priority: 30,
+    input: 'timing', keys: { tap: 'Space' }, windowMs: 2000, priority: 30,
     label: 'HARPOON!', prompt: 'Tap in the green zone', sweetSpot: [0.40, 0.60],
     theme: { color: '#4fc3f7', icon: '🎯', sound: 'harpoon' },
   },
   [QTEType.BAIL]: {
-    input: 'draw', keys: { assist: 'ShiftLeft' }, windowMs: 8000, priority: 100,
+    input: 'draw', keys: { assist: 'Space' }, windowMs: 8000, priority: 100,
     label: 'BAIL WATER!', prompt: 'Draw one complete circle',
     theme: { color: '#2196f3', icon: '🪣', sound: 'bail' },
   },
   [QTEType.SIREN]: {
-    input: 'alternate', keys: { left: 'KeyA', right: 'KeyD' }, windowMs: 3000, priority: 70,
-    label: 'RESIST THE SONG!', prompt: 'Alternate LEFT and RIGHT', chainTarget: 8,
+    input: 'mash', keys: { tap: 'Space' }, windowMs: 3000, priority: 70,
+    label: 'RESIST THE SONG!', prompt: 'Press SPACE repeatedly', mashTarget: 8,
     theme: { color: '#ff66cc', icon: '♫', sound: 'siren_resist' },
   },
 });
@@ -64,19 +64,6 @@ const INPUT_HANDLERS = {
       qte.progress = Math.min(qte.definition.mashTarget, qte.progress + 1);
       system._emitUpdate();
       if (qte.progress >= qte.definition.mashTarget) system._succeed();
-    },
-  },
-  alternate: {
-    onInput(system, qte, input) {
-      if (input.kind !== 'left' && input.kind !== 'right') return;
-      emit('playSound', { sound: 'qte_tick', alt: input.kind === 'right' });
-      if (input.kind === qte.lastSide) qte.progress = Math.max(0, qte.progress - 1);
-      else {
-        qte.lastSide = input.kind;
-        qte.progress++;
-      }
-      system._emitUpdate();
-      if (qte.progress >= qte.definition.chainTarget) system._succeed();
     },
   },
   draw: {
@@ -171,10 +158,8 @@ export class QTESystem {
     this._tuning = this._createTuning(tuning, abilities);
     this._onInput = input => this._handleInput(input);
     this._onPaused = ({ paused }) => this.setPaused(paused);
-    this._boundKey = event => this._handleKeyDown(event);
     on('qteInput', this._onInput);
     on('gamePaused', this._onPaused);
-    window.addEventListener('keydown', this._boundKey);
   }
 
   trigger(options) {
@@ -192,7 +177,7 @@ export class QTESystem {
     const windowMs = Math.round((options.windowMs ?? definition.windowMs) * this._tuning.windowScale);
     const qte = {
       id: this._nextId++, type, sourceName, dedupeKey, source, definition, windowMs, remainingMs: windowMs,
-      queueRemainingMs: options.queueExpiryMs ?? Math.max(windowMs * 2, 4000), progress: 0, lastSide: null,
+      queueRemainingMs: options.queueExpiryMs ?? Math.max(windowMs * 2, 4000), progress: 0,
       onSuccess: options.onSuccess ?? (() => {}), onFail: options.onFail ?? (() => {}),
       metadata: { ...options.metadata, source: sourceName },
     };
@@ -226,6 +211,16 @@ export class QTESystem {
     this._handleInput({ kind: 'tap' });
   }
 
+  hasActive() {
+    return Boolean(this._active);
+  }
+
+  getInputKindForKey(code) {
+    if (!this._active) return null;
+    return Object.entries(this._active.definition.keys)
+      .find(([, key]) => key === code)?.[0] ?? null;
+  }
+
   getStats() {
     return { streak: this._streak, byType: structuredClone(this._stats.byType), bySource: structuredClone(this._stats.bySource) };
   }
@@ -235,20 +230,11 @@ export class QTESystem {
     this._queue.length = 0;
     off('qteInput', this._onInput);
     off('gamePaused', this._onPaused);
-    window.removeEventListener('keydown', this._boundKey);
   }
 
   _handleInput(input) {
     if (this._paused || !this._active) return;
     INPUT_HANDLERS[this._active.definition.input]?.onInput(this, this._active, input);
-  }
-
-  _handleKeyDown(event) {
-    if (this._paused || !this._active) return;
-    const kind = Object.entries(this._active.definition.keys).find(([, key]) => key === event.code)?.[0];
-    if (!kind) return;
-    event.preventDefault();
-    this._handleInput({ kind });
   }
 
   _createTuning(tuning, abilities) {
@@ -348,7 +334,7 @@ export class QTESystem {
     return {
       type: qte.type, source: qte.sourceName, dedupeKey: qte.dedupeKey, input: qte.definition.input, keys: qte.definition.keys,
       label: qte.definition.label, prompt: qte.definition.prompt, theme: qte.definition.theme, windowMs: qte.windowMs,
-      mashTarget: qte.definition.mashTarget ?? qte.definition.chainTarget ?? 1,
+      mashTarget: qte.definition.mashTarget ?? 1,
       accuracy: qte.accuracy,
       drawProgress: qte.definition.input === 'draw' ? qte.progress : 0,
       sweetSpot: qte.definition.input === 'timing' ? this._sweetSpot(qte) : null, metadata: qte.metadata,

@@ -52,8 +52,14 @@ export class DocketSheet {
     const row = this._findRow(itemId);
     if (!row) return;
     row.classList.add('completed');
-    const check = row.querySelector('.check');
-    if (check) check.textContent = '✓';
+    const item = this._items.find(candidate => candidate.id === itemId);
+    if (item) {
+      row.setAttribute('aria-label', `${item.label}, ${item.mandatory ? 'required' : 'optional'}, complete`);
+      const progress = row.querySelector('.docket-progress');
+      if (progress) progress.textContent = `${item.total}/${item.total} repaired`;
+      const progressFill = row.querySelector('.docket-progress-fill');
+      if (progressFill) progressFill.style.width = '100%';
+    }
   }
 
   _updateProgress({ itemId, remaining, total, completed }) {
@@ -61,6 +67,16 @@ export class DocketSheet {
     if (!row) return;
     const progress = row.querySelector('.docket-progress');
     if (progress) progress.textContent = `${total - remaining}/${total} repaired`;
+    const progressFill = row.querySelector('.docket-progress-fill');
+    if (progressFill) {
+      const percent = total > 0 ? Math.max(0, Math.min(100, ((total - remaining) / total) * 100)) : 0;
+      progressFill.style.width = `${percent}%`;
+    }
+    const item = this._items.find(candidate => candidate.id === itemId);
+    if (item) {
+      const status = completed ? 'complete' : `${total - remaining} of ${total} repaired`;
+      row.setAttribute('aria-label', `${item.label}, ${item.mandatory ? 'required' : 'optional'}, ${status}`);
+    }
     if (completed) this._checkOff(itemId);
   }
 
@@ -74,23 +90,34 @@ export class DocketSheet {
     const row = document.createElement('li');
     row.className = `docket-item ${item.mandatory ? '' : 'optional'}${item.completed ? ' completed' : ''}`;
     row.dataset.item = item.id;
+    row.setAttribute('aria-label', `${item.label}, ${item.mandatory ? 'required' : 'optional'}, ${item.completed ? 'complete' : 'incomplete'}`);
 
     const check = document.createElement('span');
     check.className = 'check';
-    check.textContent = item.completed ? '✓' : '☐';
+    check.setAttribute('aria-hidden', 'true');
     const label = document.createElement('span');
     label.className = 'label';
     label.textContent = item.label;
     const progress = document.createElement('span');
     progress.className = 'docket-progress';
     progress.textContent = `${item.total - item.remaining}/${item.total} repaired`;
-    row.append(check, label, progress);
-    if (!item.mandatory) {
-      const tag = document.createElement('span');
-      tag.className = 'tag';
-      tag.textContent = 'optional';
-      row.appendChild(tag);
-    }
+    const progressBar = document.createElement('span');
+    progressBar.className = 'docket-progress-bar';
+    progressBar.setAttribute('aria-hidden', 'true');
+    const progressFill = document.createElement('span');
+    progressFill.className = 'docket-progress-fill';
+    const initialProgress = item.completed
+      ? 100
+      : item.total > 0
+        ? Math.max(0, Math.min(100, ((item.total - item.remaining) / item.total) * 100))
+        : 0;
+    progressFill.style.width = `${initialProgress}%`;
+    progressBar.appendChild(progressFill);
+    row.append(check, label, progress, progressBar);
+    const tag = document.createElement('span');
+    tag.className = 'tag';
+    tag.textContent = item.mandatory ? 'required' : 'optional';
+    row.appendChild(tag);
     if (item.tool) {
       const tool = document.createElement('span');
       tool.className = 'docket-tool';
