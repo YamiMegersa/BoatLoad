@@ -676,6 +676,28 @@ export class GameState {
     const activeShipId = shipDef?.id || levelCfg?.ship || this._levelCfg?.ship || DEFAULT_SHIP_ID;
     const activeShipDef = shipDef || LevelConfig.getShipDef(activeShipId);
     let def = activeShipDef;
+    const shipProfile = ShipRegistry.get(activeShipId) || {};
+    const s = activeShipDef.scale || shipProfile.scale || 0.12;
+    const halfBeam = ((def?.grid?.x ?? 24) * 0.5) * s;
+    const draft = (activeShipDef.waterlineY || shipProfile.waterlineY || 4) * s;
+
+    // Use docked mooring position if available, or compute West dock berth
+    const pierX = -50.9;
+    const pierZ = 10.5;
+    const mooredPos = this._dockMooredTargetPos 
+      ? this._dockMooredTargetPos.clone() 
+      : new THREE.Vector3(pierX - halfBeam - 0.4, -draft, pierZ);
+
+    const gx = def?.grid?.x ?? this._grid?.width ?? 24;
+    const gy = def?.grid?.y ?? this._grid?.height ?? 24;
+    const gz = def?.grid?.z ?? this._grid?.depth ?? 48;
+
+    // Center boat at mooredPos in world coordinates
+    const containerPos = new THREE.Vector3(
+      mooredPos.x - gx * 0.5 * s,
+      mooredPos.y,
+      mooredPos.z - gz * 0.5 * s
+    );
 
     // Setup island environment and breakwater
     const stallGroup = this._dockStall.build();
@@ -699,9 +721,9 @@ export class GameState {
     if (this._grid && this._chunkRenderer && !forceNew && this._currentShipId === activeShipId) {
       // Reposition existing boat to the West yard dock mooring position
       if (this._chunkRenderer.container) {
-        this._chunkRenderer.container.position.copy(SHIP_MOORED_POS);
+        this._chunkRenderer.container.position.copy(containerPos);
         this._chunkRenderer.container.rotation.copy(SHIP_MOORED_ROT);
-        this._chunkRenderer.container.scale.set(1, 1, 1);
+        this._chunkRenderer.container.scale.set(s, s, s);
         this._chunkRenderer.container.visible = true;
         if (this._chunkRenderer.container.parent !== this._scene) {
           this._scene.add(this._chunkRenderer.container);
@@ -723,9 +745,9 @@ export class GameState {
       // Chunk renderer
       this._chunkRenderer = new ChunkRenderer();
       this._chunkRenderer.init(grid, this._scene, gltfScene);
-      this._chunkRenderer.container.position.copy(SHIP_MOORED_POS);
+      this._chunkRenderer.container.position.copy(containerPos);
       this._chunkRenderer.container.rotation.copy(SHIP_MOORED_ROT);
-      this._chunkRenderer.container.scale.set(1, 1, 1);
+      this._chunkRenderer.container.scale.set(s, s, s);
     }
 
     // BVH raycaster - pass container for world space transforms
@@ -739,23 +761,22 @@ export class GameState {
     // Orbit controls
     this._orbitControls = new OrbitControls(this._camera, this._renderer.domElement);
     this._orbitControls.enableDamping = true;
+    this._orbitControls.minDistance = 1.5;
+    this._orbitControls.maxDistance = 50.0;
 
-    // Calculate boat center in world coordinates (with rotation = 0, local axes match world axes)
-    const gx = def?.grid?.x ?? this._grid.width;
-    const gy = def?.grid?.y ?? this._grid.height;
-    const gz = def?.grid?.z ?? this._grid.depth;
+    // Calculate boat center in world coordinates
     const shipWorldCenter = new THREE.Vector3(
-      SHIP_MOORED_POS.x + gx * 0.5,
-      SHIP_MOORED_POS.y + gy * 0.5,
-      SHIP_MOORED_POS.z + gz * 0.5
+      mooredPos.x,
+      mooredPos.y + gy * 0.5 * s,
+      mooredPos.z
     );
 
     // Target the center of the ship and position camera nicely for viewing and repairing
     this._orbitControls.target.copy(shipWorldCenter);
     this._camera.position.set(
-      shipWorldCenter.x + 32.0,
-      shipWorldCenter.y + 18.0,
-      shipWorldCenter.z + 30.0
+      shipWorldCenter.x + 4.2,
+      shipWorldCenter.y + 2.4,
+      shipWorldCenter.z + 4.2
     );
     this._orbitControls.update();
 
@@ -767,9 +788,9 @@ export class GameState {
     if (fishModels && fishModels.length > 0) {
       const fishModel = fishModels[Math.floor(Math.random() * fishModels.length)];
       this._debugShark = fishModel.scene;
-      const normScale = fishModel.normSharkScale ?? 1;
+      const normScale = (fishModel.normSharkScale ?? 1) * s;
       this._debugShark.scale.setScalar(normScale);
-      this._debugShark.position.set(shipWorldCenter.x - 8, shipWorldCenter.y - 3, shipWorldCenter.z + 6);
+      this._debugShark.position.set(shipWorldCenter.x - 2.5, shipWorldCenter.y - 0.4, shipWorldCenter.z + 1.2);
       this._scene.add(this._debugShark);
       
       // Repair the missing skin so the Tail bone can deform the mesh
@@ -780,7 +801,7 @@ export class GameState {
         if (c.isMesh || c.isSkinnedMesh) c.frustumCulled = false;
       });
 
-      this._debugSharkBaseY = shipWorldCenter.y - 3;
+      this._debugSharkBaseY = shipWorldCenter.y - 0.4;
       this._debugSharkAnim  = new FishAnimator(
         this._debugShark,
         1.0
@@ -816,7 +837,7 @@ export class GameState {
 
     if (this._orbitControls) {
       // WASD panning
-      const speed = 20 * delta;
+      const speed = 6 * delta;
       
       // Get camera's local forward/right vectors (ignoring Y to pan along the flat plane)
       const forward = new THREE.Vector3();
