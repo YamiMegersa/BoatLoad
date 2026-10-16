@@ -501,6 +501,10 @@ export class EditorUI {
                 <span class="shelf-btn-icon">🏁</span>
                 <span class="shelf-btn-text">Harbor Goal</span>
               </button>
+              <button class="shelf-btn tool-mode-btn" data-tool="place_ship_spawn" id="tool-btn-ship-spawn" title="Place where the ship will start (Ship Spawn)">
+                <span class="shelf-btn-icon">⛵</span>
+                <span class="shelf-btn-text">Ship Spawn</span>
+              </button>
             </div>
           </div>
 
@@ -1555,6 +1559,14 @@ export class EditorUI {
       }
     };
     on('editorBossConfigUpdated', this._onBossConfigUpdated);
+
+    this._onShipSpawnPlaced = (d) => {
+      if (d && d.shipSpawn) {
+        const pos = d.shipSpawn.position || d.shipSpawn;
+        this._showToast(`Ship Spawn set to (${pos.x.toFixed(1)}, ${pos.z.toFixed(1)})`);
+      }
+    };
+    on('editorShipSpawnPlaced', this._onShipSpawnPlaced);
   }
 
   // -------------------------------------------------------------------------
@@ -1824,6 +1836,10 @@ export class EditorUI {
       if (toolText) toolText.innerText = 'Mode: Place Harbor Goal (Destination)';
       if (toolBadge) toolBadge.className = 'status-badge status-success';
       if (itemBadge) itemBadge.style.display = 'none';
+    } else if (this._activeTool === 'place_ship_spawn') {
+      if (toolText) toolText.innerText = 'Mode: Place Ship Spawn';
+      if (toolBadge) toolBadge.className = 'status-badge status-primary';
+      if (itemBadge) itemBadge.style.display = 'none';
     } else if (this._activeTool === 'place') {
       if (toolText) toolText.innerText = 'Placing Object';
       if (toolBadge) toolBadge.className = 'status-badge status-success';
@@ -1857,6 +1873,10 @@ export class EditorUI {
     if (this._onBossConfigUpdated) {
       off('editorBossConfigUpdated', this._onBossConfigUpdated);
       this._onBossConfigUpdated = null;
+    }
+    if (this._onShipSpawnPlaced) {
+      off('editorShipSpawnPlaced', this._onShipSpawnPlaced);
+      this._onShipSpawnPlaced = null;
     }
     off('editorStateUpdated', this._onStateUpdated);
     off('editorConfigLoaded', this._onConfigLoaded);

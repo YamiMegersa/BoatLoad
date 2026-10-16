@@ -69,6 +69,9 @@ export class EditorSystem {
     // End Location (Harbor Goal) State
     this._endLocation = null;
     this._endLocationVisualGroup = null;
+
+    // Ship Spawn State
+    this._shipSpawn = null;
     
     on('editorSelectType', d => {
       this._activeType = d.type;
@@ -231,6 +234,18 @@ export class EditorSystem {
         this._endLocation = { position: { x: 0, y: 0, z: -220 }, radius: 16 };
       }
       this._updateEndLocationVisual();
+
+      // Ship spawn location
+      if (cfg.shipSpawn) {
+        const sp = cfg.shipSpawn.position || cfg.shipSpawn;
+        this._shipSpawn = {
+          position: { x: sp.x ?? 0, y: sp.y ?? 0, z: sp.z ?? 0 },
+          rotation: cfg.shipSpawn.rotation || 0
+        };
+      } else {
+        this._shipSpawn = { position: { x: 0, y: 0, z: 0 }, rotation: 0 };
+      }
+      this._updateShipGhost();
 
       emit('editorConfigLoaded', { config: cfg });
       this._emitState();
@@ -428,6 +443,18 @@ export class EditorSystem {
 
     // Initialize Ship Spawn Ghost Preview
     this._selectedShipId = this._levelCfg?.ship || DEFAULT_SHIP_ID;
+    if (this._levelCfg && this._levelCfg.shipSpawn) {
+      const sp = this._levelCfg.shipSpawn.position || this._levelCfg.shipSpawn;
+      this._shipSpawn = {
+        position: { x: sp.x ?? 0, y: sp.y ?? 0, z: sp.z ?? 0 },
+        rotation: this._levelCfg.shipSpawn.rotation || 0
+      };
+    } else {
+      this._shipSpawn = {
+        position: { x: 0, y: 0, z: 0 },
+        rotation: 0
+      };
+    }
     this._updateShipGhost();
 
     // Initialize End Location Goal Preview
@@ -702,6 +729,41 @@ export class EditorSystem {
       this._previewMesh = { mesh: group };
       if (this._editorGroup) this._editorGroup.add(group);
       else if (this._scene) this._scene.add(group);
+    } else if (this._activeTool === 'place_ship_spawn') {
+      const group = new THREE.Group();
+      group.userData.noGodRays = true;
+      group.userData.isRaceMarker = true;
+
+      const profile = getShipProfile(this._selectedShipId);
+      const targetWorldLength = (profile.grid?.z || 48) * (profile.scale || 0.10);
+      const r = Math.max(profile.collisionRadius || 2.5, targetWorldLength * 0.45);
+
+      const ringGeo = new THREE.RingGeometry(r * 0.88, r * 1.05, 32);
+      ringGeo.rotateX(-Math.PI / 2);
+      const ringMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, side: THREE.DoubleSide, transparent: true, opacity: 0.8 });
+      const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+      ringMesh.position.y = 0.2;
+      group.add(ringMesh);
+
+      const discGeo = new THREE.CircleGeometry(r * 0.85, 32);
+      discGeo.rotateX(-Math.PI / 2);
+      const discMat = new THREE.MeshBasicMaterial({ color: 0x0099bb, transparent: true, opacity: 0.25, side: THREE.DoubleSide });
+      const discMesh = new THREE.Mesh(discGeo, discMat);
+      discMesh.position.y = 0.18;
+      group.add(discMesh);
+
+      const arrowHelper = new THREE.ArrowHelper(new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 0.25, 0), r * 1.5, 0x00e5ff, 2.5, 1.2);
+      group.add(arrowHelper);
+
+      const label = this._createLabelSprite('⛵ SHIP SPAWN', '#00e5ff');
+      label.position.set(0, 7.5, 0);
+      label.scale.set(16, 4, 1);
+      group.add(label);
+
+      group.rotation.y = this._currentRotation;
+      this._previewMesh = { mesh: group };
+      if (this._editorGroup) this._editorGroup.add(group);
+      else if (this._scene) this._scene.add(group);
     }
   }
 
@@ -738,7 +800,7 @@ export class EditorSystem {
         }
         this._emitState();
       } else if (event.code === 'BracketLeft' || event.code === 'BracketRight') {
-        if (isPlaceTool) {
+        if (isPlaceTool || this._activeTool === 'place_ship_spawn') {
           const deltaRot = event.code === 'BracketLeft' ? Math.PI / 8 : -Math.PI / 8;
           this._currentRotation += deltaRot;
           if (this._previewMesh) {
@@ -781,7 +843,7 @@ export class EditorSystem {
     if (this._previewMesh) {
       if (this._activeTool === 'place_kraken') {
         this._previewMesh.mesh.position.set(this._intersection.x, -5, this._intersection.z);
-      } else if (this._activeTool === 'place_race_start' || this._activeTool === 'place_waypoint' || this._activeTool === 'place_end_location') {
+      } else if (this._activeTool === 'place_race_start' || this._activeTool === 'place_waypoint' || this._activeTool === 'place_end_location' || this._activeTool === 'place_ship_spawn') {
         this._previewMesh.mesh.position.set(this._intersection.x, 0.5, this._intersection.z);
       } else {
         this._previewMesh.mesh.position.set(this._intersection.x, this._intersection.y + this._currentY, this._intersection.z);
@@ -957,6 +1019,22 @@ export class EditorSystem {
       }
       this._updateEndLocationVisual();
       this._emitState();
+    } else if (this._activeTool === 'place_ship_spawn') {
+      this._shipSpawn = {
+        position: {
+          x: Math.round(this._intersection.x * 10) / 10,
+          y: 0,
+          z: Math.round(this._intersection.z * 10) / 10
+        },
+        rotation: Math.round(this._currentRotation * 100) / 100
+      };
+      if (this._levelCfg) {
+        this._levelCfg.shipSpawn = this._shipSpawn;
+      }
+      this._shipGhostVisible = true;
+      this._updateShipGhost();
+      this._emitState();
+      emit('editorShipSpawnPlaced', { shipSpawn: this._shipSpawn });
     } else if (this._activeTool === 'delete') {
       // Use raycasting to find the exactly clicked mesh
       const meshes = this._placedObstacles.map(o => o.mesh);
@@ -1043,7 +1121,8 @@ export class EditorSystem {
         })),
       sirens: sirens.length > 0 ? sirens : (this._levelCfg?.sirens || []),
       kraken: this._krakenConfig ? this._krakenConfig : null,
-      endLocation: this._endLocation || this._levelCfg?.endLocation || { position: { x: 0, y: 0, z: -220 }, radius: 16 }
+      endLocation: this._endLocation || this._levelCfg?.endLocation || { position: { x: 0, y: 0, z: -220 }, radius: 16 },
+      shipSpawn: this._shipSpawn || this._levelCfg?.shipSpawn || { position: { x: 0, y: 0, z: 0 }, rotation: 0 }
     };
   }
 
@@ -1420,28 +1499,95 @@ export class EditorSystem {
 
   _updateShipGhost() {
     if (!this._scene) return;
-    if (this._shipGhostGroup) {
-      this._scene.remove(this._shipGhostGroup);
-      this._shipGhostGroup.traverse(child => {
+
+    const disposeGroup = (grp) => {
+      if (!grp) return;
+      if (grp.parent) grp.parent.remove(grp);
+      grp.traverse(child => {
         if (child.geometry) child.geometry.dispose();
         if (child.material) {
           if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
           else child.material.dispose();
         }
       });
+    };
+
+    if (this._shipGhostGroup) {
+      disposeGroup(this._shipGhostGroup);
       this._shipGhostGroup = null;
     }
+
+    // Safety sweep: remove any previous or duplicate spawn circle groups from editorGroup and scene
+    const sweep = (parent) => {
+      if (!parent) return;
+      for (let i = parent.children.length - 1; i >= 0; i--) {
+        const c = parent.children[i];
+        if (c.name === 'editorShipGhost' || c.userData?.isShipSpawn) {
+          disposeGroup(c);
+        }
+      }
+    };
+    sweep(this._editorGroup);
+    sweep(this._scene);
 
     const profile = getShipProfile(this._selectedShipId);
     this._shipGhostGroup = new THREE.Group();
     this._shipGhostGroup.name = 'editorShipGhost';
+    this._shipGhostGroup.userData.isShipSpawn = true;
     this._shipGhostGroup.visible = this._shipGhostVisible;
+
+    const spawnPos = this._shipSpawn?.position || (this._shipSpawn?.x !== undefined ? this._shipSpawn : null);
+    const spawnX = spawnPos?.x ?? 0;
+    const spawnY = spawnPos?.y ?? 0;
+    const spawnZ = spawnPos?.z ?? 0;
+    const spawnRot = this._shipSpawn?.rotation ?? 0;
+
+    this._shipGhostGroup.position.set(spawnX, spawnY, spawnZ);
+    this._shipGhostGroup.rotation.y = spawnRot;
+
+    // Target world length matches the voxel ship (grid.z * profile.scale)
+    const targetWorldLength = (profile.grid?.z || 48) * (profile.scale || 0.10);
+
+    // Floating marker ring on water at spawn location
+    const ringRadius = Math.max(profile.collisionRadius || 2.5, targetWorldLength * 0.45);
+    const ringGeo = new THREE.RingGeometry(ringRadius * 0.9, ringRadius * 1.05, 32);
+    ringGeo.rotateX(-Math.PI / 2);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: profile.isGagTruck ? 0xff3300 : 0x00e5ff,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.75
+    });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.position.y = 0.15;
+    this._shipGhostGroup.add(ring);
+
+    // Forward heading arrow helper
+    const arrowHelper = new THREE.ArrowHelper(new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 0.2, 0), ringRadius * 1.5, profile.isGagTruck ? 0xff3300 : 0x00e5ff, 2.5, 1.2);
+    this._shipGhostGroup.add(arrowHelper);
+
+    // Label sprite
+    const label = this._createLabelSprite('⛵ SHIP SPAWN', profile.isGagTruck ? '#ff4422' : '#00e5ff');
+    label.position.set(0, 7.5, 0);
+    label.scale.set(16, 4, 1);
+    this._shipGhostGroup.add(label);
 
     // Load ship model with translucent wireframe / ghost holographic material
     const loader = new GLTFLoader();
     const modelUrl = getAssetUrl(profile.modelUrl || `assets/ships/${profile.id}.glb`);
+    const targetGroup = this._shipGhostGroup;
     loader.load(modelUrl, (gltf) => {
-      if (!this._shipGhostGroup) return; // disposed in the meantime
+      // If a new spawn or ship was chosen before load completed, discard stale model
+      if (!this._shipGhostGroup || this._shipGhostGroup !== targetGroup) {
+        gltf.scene.traverse(c => {
+          if (c.geometry) c.geometry.dispose();
+          if (c.material) {
+            if (Array.isArray(c.material)) c.material.forEach(m => m.dispose());
+            else c.material.dispose();
+          }
+        });
+        return;
+      }
       const model = gltf.scene;
 
       // Apply profile rotation to align model along Z axis
@@ -1460,8 +1606,6 @@ export class EditorSystem {
       // Centered and resting on water
       model.position.set(-center.x, -box.min.y, -center.z);
 
-      // Target world length matches the voxel ship (grid.z * profile.scale)
-      const targetWorldLength = (profile.grid?.z || 48) * (profile.scale || 0.10);
       const modelLength = Math.max(size.z, 0.001);
       const modelScale = targetWorldLength / modelLength;
 
@@ -1486,28 +1630,24 @@ export class EditorSystem {
       // Facing -Z (default sailing direction)
       wrapper.rotation.y = Math.PI;
       this._shipGhostGroup.add(wrapper);
-
-      // Add a floating marker ring on water at (0, 0, 0)
-      const ringRadius = Math.max(profile.collisionRadius || 2.5, targetWorldLength * 0.45);
-      const ringGeo = new THREE.RingGeometry(ringRadius * 0.9, ringRadius * 1.05, 32);
-      ringGeo.rotateX(-Math.PI / 2);
-      const ringMat = new THREE.MeshBasicMaterial({
-        color: profile.isGagTruck ? 0xff3300 : 0x00e5ff,
-        side: THREE.DoubleSide,
-        transparent: true,
-        opacity: 0.75
-      });
-      const ring = new THREE.Mesh(ringGeo, ringMat);
-      ring.position.y = 0.15;
-      this._shipGhostGroup.add(ring);
     });
 
-    this._scene.add(this._shipGhostGroup);
+    if (this._editorGroup) this._editorGroup.add(this._shipGhostGroup);
+    else if (this._scene) this._scene.add(this._shipGhostGroup);
   }
 
   dispose() {
     if (this._shipGhostGroup) {
+      if (this._shipGhostGroup.parent) this._shipGhostGroup.parent.remove(this._shipGhostGroup);
+      this._editorGroup?.remove(this._shipGhostGroup);
       this._scene?.remove(this._shipGhostGroup);
+      this._shipGhostGroup.traverse(child => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) {
+          if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+          else child.material.dispose();
+        }
+      });
       this._shipGhostGroup = null;
     }
 

@@ -157,6 +157,22 @@ export class PlayerShip {
 
     this.obb = new OBB();
 
+    // Initial Spawn Position and Rotation
+    const spawnPos = stats.spawnPosition || (stats.shipSpawn?.position) || (stats.shipSpawn?.x !== undefined ? stats.shipSpawn : null);
+    if (spawnPos) {
+      this.mesh.position.set(spawnPos.x ?? 0, spawnPos.y ?? 0, spawnPos.z ?? 0);
+    }
+    if (stats.spawnRotation !== undefined) {
+      this.yaw = stats.spawnRotation;
+    } else if (stats.shipSpawn?.rotation !== undefined) {
+      this.yaw = stats.shipSpawn.rotation;
+    }
+    this.mesh.rotation.order = 'YXZ';
+    this.mesh.rotation.y = this.yaw;
+    this.mesh.updateMatrixWorld(true);
+    this.obb.copy(this.baseOBB);
+    this.obb.applyMatrix4(this.mesh.matrixWorld);
+
     this.godMode = window.godModeEnabled || false;
     this._onGodMode = (d) => { 
       this.godMode = d.enabled; 
