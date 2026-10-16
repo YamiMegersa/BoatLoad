@@ -321,6 +321,10 @@ export class EditorUI {
                 <span class="shelf-btn-icon">🗑️</span>
                 <span class="shelf-btn-text">Delete</span>
               </button>
+              <button class="shelf-btn tool-mode-btn" data-tool="place_end_location" id="tool-btn-end-location-assets" title="Click anywhere on the map to relocate the End Harbor / Destination Goal waypoint">
+                <span class="shelf-btn-icon">🏁</span>
+                <span class="shelf-btn-text">Goal Waypoint</span>
+              </button>
             </div>
           </div>
 
@@ -695,12 +699,11 @@ export class EditorUI {
           <div class="ribbon-divider"></div>
 
           <div class="ribbon-group">
-            <span class="ribbon-group-label">Atmosphere</span>
-            <label class="editor-toggle-switch">
-              <input type="checkbox" id="godrays-check" ${this._godRaysEnabled !== false ? 'checked' : ''}>
-              <span class="toggle-slider"></span>
-              <span class="toggle-label">✨ God Rays</span>
-            </label>
+            <span class="ribbon-group-label">Finish Destination</span>
+            <button class="shelf-btn tool-mode-btn" data-tool="place_end_location" id="tool-btn-end-location-world" title="Click anywhere on the map to relocate the End Harbor / Destination Goal waypoint">
+              <span class="shelf-btn-icon">🏁</span>
+              <span class="shelf-btn-text">Move Harbor Goal</span>
+            </button>
           </div>
         </div>
 

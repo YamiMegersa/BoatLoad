@@ -13,11 +13,7 @@
     { "id": "sail_repair",  "zone": "sail",  "label": "Mend torn sail",               "tool": "needle", "mandatory": true  },
     { "id": "mast_repair",  "zone": "mast",  "label": "Reinforce cracked mast",       "tool": "rope",   "mandatory": true  }
   ],
-  "obstacles": [
-    { "type": "rock",       "lanePattern": "alternating", "count": 6  },
-    { "type": "seaweed",    "lanePattern": "random",      "count": 4  },
-    { "type": "wave_small", "lanePattern": "random",      "count": 5  }
-  ],
+  "obstacles": [],
   "endLocation": {
     "position": { "x": 0, "y": 0, "z": -220 },
     "radius": 16
