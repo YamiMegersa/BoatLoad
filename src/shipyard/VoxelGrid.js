@@ -22,6 +22,13 @@ export const CellState = Object.freeze({
 // ---------------------------------------------------------------------------
 export const CELL_SIZE = 1.0;
 
+/**
+ * Cells at or below this grid Y sit at/below the waterline: hull holes here
+ * leak water (PlayerShip leak rate) and gate the repair docket's Set Sail.
+ * Shared single source of truth — do not duplicate the literal elsewhere.
+ */
+export const WATERLINE_Y = 4;
+
 // Half-cell offset so cell (0,0,0) is centred at (0.5, 0.5, 0.5) rather than
 // at the origin corner — this makes the grid symmetrical when centred.
 const HALF = CELL_SIZE * 0.5;
@@ -260,5 +267,46 @@ export class VoxelGrid {
    */
   get cellCount() {
     return this.width * this.height * this.depth;
+  }
+
+  // -------------------------------------------------------------------------
+  // Snapshot / restore
+  // -------------------------------------------------------------------------
+
+  /**
+   * Capture the full cell state and colour data.
+   * Used to preserve the ship's Set Sail condition across a level restart.
+   * @returns {{ width: number, height: number, depth: number, data: Uint8Array, colorData: Uint32Array }}
+   */
+  snapshot() {
+    return {
+      width: this.width,
+      height: this.height,
+      depth: this.depth,
+      data: this.data.slice(),
+      colorData: this.colorData.slice(),
+    };
+  }
+
+  /**
+   * Restore a snapshot taken with snapshot(). The grid dimensions must match.
+   * Marks every cell dirty so a renderer can rebuild from the restored data.
+   * @param {{ width: number, height: number, depth: number, data: Uint8Array, colorData: Uint32Array }} snapshot
+   */
+  restore(snapshot) {
+    if (snapshot.width !== this.width || snapshot.height !== this.height || snapshot.depth !== this.depth) {
+      throw new RangeError('VoxelGrid.restore: snapshot dimensions do not match this grid');
+    }
+    this.data.set(snapshot.data);
+    this.colorData.set(snapshot.colorData);
+    this.markAllDirty();
+  }
+
+  /**
+   * Flag every cell as dirty and mark the hull topology as changed.
+   */
+  markAllDirty() {
+    for (let i = 0; i < this.data.length; i++) this.dirtySet.add(i);
+    this.topologyDirty = true;
   }
 }

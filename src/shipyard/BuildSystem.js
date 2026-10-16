@@ -413,7 +413,7 @@ export class BuildSystem {
     let targetZ = cellZ;
 
     const state = this._grid.getState(cellX, cellY, cellZ);
-    const isHole = (state === CellState.MISSING || state === CellState.DAMAGED);
+    const isHole = (state === CellState.MISSING || state === CellState.DAMAGED || state === CellState.FLOODED);
 
     // If eraser or targeting a hole, snap directly onto the cell.
     // If placing a new block on intact/repaired hull, snap adjacent to the clicked face.
@@ -529,7 +529,7 @@ export class BuildSystem {
     let targetZ = cellZ;
 
     const state = this._grid.getState(cellX, cellY, cellZ);
-    const isHole = (state === CellState.MISSING || state === CellState.DAMAGED);
+    const isHole = (state === CellState.MISSING || state === CellState.DAMAGED || state === CellState.FLOODED);
 
     if (!isEraser && normal && !isHole) {
       targetX += normal.x;
@@ -583,9 +583,11 @@ export class BuildSystem {
       cost: totalCost,
       materialId: this._activeMaterial.id
     });
-    this._redoStack.length = 0; // Clear redo history
+    const repairedCells = previousRecords
+      .filter(r => r.previousState === CellState.MISSING || r.previousState === CellState.DAMAGED || r.previousState === CellState.FLOODED)
+      .map(r => ({ x: r.x, y: r.y, z: r.z, before: r.previousState, after: CellState.REPAIRED }));
 
-    emit('cellRepaired');
+    emit('cellRepaired', { cells: repairedCells });
     emit('gridDirty');
     emit('buildPlaced', {
       cost: totalCost,

@@ -104,6 +104,9 @@ export class SirenManager {
     this._rockModels = null;
     this._qteSystem = null;
     this._time = 0;
+    this._nextSirenId = 1;
+    this._hudEffectState = 'none';
+    this._hudPullActive = false;
   }
 
   /**
@@ -140,6 +143,12 @@ export class SirenManager {
     let netSteerPullThisFrame = 0;
 
     for (const siren of this._sirens) {
+      siren.playerShip = playerShip;
+      siren.resistanceRemaining = Math.max(0, siren.resistanceRemaining - delta);
+      siren.disorientationRemaining = Math.max(0, siren.disorientationRemaining - delta);
+      siren.retryRemaining = Math.max(0, siren.retryRemaining - delta);
+      playerShip.setSirenDisorientation?.(siren.instanceId, siren.disorientationRemaining > 0);
+
       const def = siren.def;
       const sx = def.position.x;
       const sz = def.position.z;
@@ -224,7 +233,8 @@ export class SirenManager {
       }
 
       // 2. Steering Pull: draws the player in by pulling the ship's steering/rudder
-      if (dist < def.attractRadius) {
+      const resistant = siren.resistanceRemaining > 0;
+      if (dist < def.attractRadius && !resistant) {
         // Proximity ramp: 0 at outer boundary, 1 at center
         const t = Math.max(0, 1.0 - dist / def.attractRadius);
         const intensity = def.intensity ?? 0.8;
@@ -262,19 +272,27 @@ export class SirenManager {
         }
 
         // Trigger SIREN QTE when close
-        if (siren.cooldown > 0) {
-          siren.cooldown = Math.max(0, siren.cooldown - delta);
-        }
-        if (this._qteSystem && !siren.qteTriggered && (siren.cooldown || 0) <= 0 && dist < def.attractRadius * 0.7) {
+        if (this._qteSystem && !siren.qteTriggered && siren.retryRemaining <= 0 &&
+            siren.resistanceRemaining <= 0 && dist < def.attractRadius * 0.7) {
           const accepted = this._qteSystem.trigger({
             type: 'SIREN',
-            metadata: { source: 'siren' },
+            source: 'siren',
+            metadata: { source: 'siren', instanceId: siren.instanceId },
             onSuccess: () => {
-              siren.cooldown = 7;
+              siren.resistanceRemaining = def.resistanceDuration ?? 5;
+              siren.disorientationRemaining = 0;
+              playerShip.setSirenDisorientation?.(siren.instanceId, false);
               siren.qteTriggered = false;
             },
-            onFail: () => {
-              siren.cooldown = 4;
+            onFail: ({ queued = false } = {}) => {
+              if (queued) {
+                siren.retryRemaining = 0.25;
+                siren.qteTriggered = false;
+                return;
+              }
+              siren.disorientationRemaining = def.disorientationDuration ?? 2;
+              siren.retryRemaining = siren.disorientationRemaining;
+              playerShip.setSirenDisorientation?.(siren.instanceId, true);
               siren.qteTriggered = false;
               playerShip.takeDamage?.(10, 'siren');
             }
@@ -292,11 +310,26 @@ export class SirenManager {
         intensity: maxIntensityThisFrame,
         steerPull: netSteerPullThisFrame,
       });
+      this._hudPullActive = true;
+    } else if (this._hudPullActive) {
+      emit('sirenPulling', { intensity: 0, steerPull: 0 });
+      this._hudPullActive = false;
+    }
+
+    const effectState = this._sirens.some(siren => siren.disorientationRemaining > 0)
+      ? 'disoriented'
+      : this._sirens.some(siren => siren.resistanceRemaining > 0)
+        ? 'resistant'
+        : 'none';
+    if (effectState !== this._hudEffectState) {
+      this._hudEffectState = effectState;
+      emit('sirenEffect', { state: effectState });
     }
   }
 
   dispose() {
     for (const siren of this._sirens) {
+      siren.playerShip?.setSirenDisorientation?.(siren.instanceId, false);
       siren.particles.dispose();
       if (siren.modelGroup) {
         siren.modelGroup.traverse(child => {
@@ -312,6 +345,10 @@ export class SirenManager {
       }
       this._scene?.remove(siren.group);
     }
+    if (this._hudEffectState !== 'none') emit('sirenEffect', { state: 'none' });
+    this._hudEffectState = 'none';
+    if (this._hudPullActive) emit('sirenPulling', { intensity: 0, steerPull: 0 });
+    this._hudPullActive = false;
     this._sirens.length = 0;
     this._scene = null;
     this._sirenModel = null;
@@ -437,6 +474,7 @@ export class SirenManager {
 
     this._scene.add(group);
     this._sirens.push({
+      instanceId: `siren-${this._nextSirenId++}`,
       def,
       group,
       particles,
@@ -444,6 +482,10 @@ export class SirenManager {
       isFallbackIdol,
       rockTopY,
       seed: Math.random() * Math.PI * 2,
+      resistanceRemaining: 0,
+      disorientationRemaining: 0,
+      retryRemaining: 0,
+      qteTriggered: false,
     });
   }
 }

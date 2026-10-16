@@ -1,15 +1,23 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VoxelGrid, CellState } from './VoxelGrid.js';
+import { emit } from '../core/EventBus.js';
 import { getShipProfile } from '../config/ShipRegistry.js';
 import { getAssetUrl } from '../utils/paths.js';
+
+/**
+ * Pristine voxelised ships, keyed by ship id: shipId -> VoxelGrid.snapshot()
+ * taken BEFORE authored damage is applied. Later builds restore from the cache
+ * instead of re-fetching, re-parsing and re-voxelising the GLB.
+ */
+const _pristineCache = new Map();
 
 /**
  * ShipBuilder — instantiates a VoxelGrid from a ship definition JSON,
  * loads the GLB visual representation, and applies damage.
  *
  * Usage:
- *   const { grid, zones, def, gltfScene } = await ShipBuilder.build(shipDef, levelConfig);
+ *   const { grid, zones, def } = await ShipBuilder.build(shipDef, levelConfig);
  */
 export class ShipBuilder {
   /**
@@ -23,43 +31,54 @@ export class ShipBuilder {
     const { x: W, y: H, z: D } = shipDef.grid;
     const grid = new VoxelGrid(W, H, D);
 
-    const loader = new GLTFLoader();
-    const modelPath = getAssetUrl(shipDef.modelUrl || `assets/ships/${shipDef.id}.glb`);
-    let gltf;
-    try {
-      gltf = await loader.loadAsync(modelPath);
-    } catch (e) {
-      console.warn(`ShipBuilder: Failed to load ${modelPath}. Falling back to default zones.`);
-      if (shipDef.zones) {
-        for (const [, zoneDefs] of Object.entries(shipDef.zones)) {
-          for (const region of zoneDefs) {
-            ShipBuilder._fillRegion(grid, region, CellState.INTACT);
+    const cached = _pristineCache.get(shipDef.id);
+    if (cached) {
+      // Fast path: restore the cached pristine voxelisation — no fetch, no
+      // parse, no re-voxelise. This also removes the post-sink GLB failure
+      // class that used to leave a blocky zone-fill "ship" behind.
+      grid.restore(cached);
+    } else {
+      const loader = new GLTFLoader();
+      const modelPath = getAssetUrl(shipDef.modelUrl || `assets/ships/${shipDef.id}.glb`);
+      let gltf;
+      try {
+        gltf = await ShipBuilder._loadGLB(shipDef.id, loader, modelPath);
+      } catch (e) {
+        console.error(`[ShipBuilder] ${shipDef.id}.glb unavailable after retry — using blocky zone fallback`, e);
+        emit('buildError', {
+          shipId: shipDef.id,
+          message: `Could not load ${shipDef.id}.glb — showing a blocky placeholder.`,
+        });
+        if (shipDef.zones) {
+          for (const [, zoneDefs] of Object.entries(shipDef.zones)) {
+            for (const region of zoneDefs) {
+              ShipBuilder._fillRegion(grid, region, CellState.INTACT);
+            }
           }
         }
+        this._applyDamage(grid, levelCfg);
+        grid.dirtySet.clear();
+        grid.topologyDirty = false;
+        return { grid, zones: shipDef.zones, def: shipDef, gltfScene: null };
       }
-      this._applyDamage(grid, levelCfg);
-      grid.dirtySet.clear();
-      grid.topologyDirty = false;
-      return { grid, zones: shipDef.zones || {}, def: shipDef, gltfScene: null };
-    }
 
-    // 1. Voxelize the GLB to find occupied cells and their colors
-    const profile = shipDef.profile || getShipProfile(shipDef.id);
-    if (profile && profile.modelRotationY !== undefined) {
-      gltf.scene.rotation.y = profile.modelRotationY;
-      gltf.scene.updateMatrixWorld(true);
-    } else {
-      const testBox = new THREE.Box3().setFromObject(gltf.scene);
-      const testSize = new THREE.Vector3();
-      testBox.getSize(testSize);
-      if (testSize.x > testSize.z) {
-        gltf.scene.rotation.y = Math.PI / 2;
+      // Apply profile-based rotation before voxelizing
+      const profile = shipDef.profile || getShipProfile(shipDef.id);
+      if (profile && profile.modelRotationY !== undefined) {
+        gltf.scene.rotation.y = profile.modelRotationY;
         gltf.scene.updateMatrixWorld(true);
+      } else {
+        const testBox = new THREE.Box3().setFromObject(gltf.scene);
+        const testSize = new THREE.Vector3();
+        testBox.getSize(testSize);
+        if (testSize.x > testSize.z) {
+          gltf.scene.rotation.y = Math.PI / 2;
+          gltf.scene.updateMatrixWorld(true);
+        }
       }
-    }
 
-    // Get rotated bounding box to determine scale factors
-    const rotatedBox = new THREE.Box3().setFromObject(gltf.scene);
+      // Get rotated bounding box to determine scale factors
+      const rotatedBox = new THREE.Box3().setFromObject(gltf.scene);
     const size = new THREE.Vector3();
     rotatedBox.getSize(size);
 
@@ -168,14 +187,34 @@ export class ShipBuilder {
       }
     });
 
-    // 2. Apply damage from the level config
+      // Cache the pristine ship BEFORE any authored damage is applied.
+      _pristineCache.set(shipDef.id, grid.snapshot());
+    }
+
+    // Apply the level's authored damage on top of the pristine ship
     this._applyDamage(grid, levelCfg);
 
-    // 3. Reset tracking flags for the initial render pass
+    // Reset tracking flags for the initial render pass
     grid.dirtySet.clear();
     grid.topologyDirty = false;
 
-    return { grid, zones: shipDef.zones, def: shipDef, gltfScene: gltf.scene };
+    return { grid, zones: shipDef.zones, def: shipDef, gltfScene: cached ? null : gltf?.scene };
+  }
+
+  /**
+   * Load a ship GLB, retrying once. A transient dev-server or network hiccup
+   * (e.g. immediately after a heavy sinking run) should not degrade the whole
+   * ship; a second failure propagates to build().
+   */
+  static async _loadGLB(id, loader, modelPath) {
+    const url = modelPath || `/src/assets/ships/${id}.glb`;
+    try {
+      return await loader.loadAsync(url);
+    } catch (e) {
+      console.error(`[ShipBuilder] GLB load failed, retrying once: ${url}`, e);
+      await new Promise(resolve => setTimeout(resolve, 250));
+      return loader.loadAsync(url);
+    }
   }
 
   // ---------------------------------------------------------------------------

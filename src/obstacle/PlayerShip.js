@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { emit, on, off } from '../core/EventBus.js';
 import { OBB } from 'three/examples/jsm/math/OBB.js';
 import { MATERIAL_REGISTRY } from '../config/MaterialRegistry.js';
+import { DEBUG } from '../utils/debug.js';
+import { WATERLINE_Y } from '../shipyard/VoxelGrid.js';
 
 // ---------------------------------------------------------------------------
 // Obstacle type definitions
@@ -48,6 +50,8 @@ export class PlayerShip {
     this.grid = grid;
     this.qteSystem = qteSystem;
     this._bailingWater = false;
+    this._bailCooldown = 0;
+    this._sirenDisorientationSources = new Set();
 
     // Leak System
     this.waterLevel = 0;
@@ -227,6 +231,7 @@ export class PlayerShip {
 
   update(delta, ocean, windManager) {
     if (this.sunk) return;
+    this._bailCooldown = Math.max(0, this._bailCooldown - delta);
 
     // Gag Truck: Immediately nose-dives and sinks!
     if (this.isGagTruck) {
@@ -297,18 +302,24 @@ export class PlayerShip {
     }
 
     // Trigger sinking QTE
-    if (this.waterLevel > this.maxWaterLevel * 0.75 && !this._bailingWater && this.qteSystem) {
+    if (this.waterLevel > this.maxWaterLevel * 0.75 && !this._bailingWater && this._bailCooldown <= 0 && this.qteSystem) {
       const accepted = this.qteSystem.trigger({
-        type: 'BAIL',
-        windowMs: 2500,
-        onSuccess: () => {
-          this.waterLevel = Math.max(0, this.waterLevel - 25);
-          emit('playerWaterLevel', { level: this.waterLevel, max: this.maxWaterLevel });
+        source: 'bail',
+        onSuccess: ({ accuracy = 0, metadata }) => {
           this._bailingWater = false;
+          this._bailCooldown = 1.25;
+          if (metadata.debug) return;
+          const waterAtStart = this.waterLevel;
+          const removed = waterAtStart * 0.5 * Math.max(0, Math.min(1, accuracy));
+          this.waterLevel = Math.max(0, this.waterLevel - removed);
+          emit('playerWaterLevel', { level: this.waterLevel, max: this.maxWaterLevel });
+          emit('waterBailed', { accuracy: Math.round(accuracy * 100), removed: Math.round(removed) });
           emit('spawnParticles', { type: 'splash', position: this.mesh.position });
         },
-        onFail: () => {
+        onFail: ({ metadata }) => {
           this._bailingWater = false;
+          this._bailCooldown = 1.25;
+          if (!metadata.debug) emit('waterBailFailed');
         }
       });
       this._bailingWater = accepted;
@@ -330,7 +341,8 @@ export class PlayerShip {
     const damping = (this.turnDamping || 3.0) * (1.0 + waterRatio * 2.0);  // Water resistance against turning (heavier when flooded)
     
     // Base turning acceleration from player input
-    let yawAccel = -this.steerInput * turnAccel;
+    const steeringInput = this._sirenDisorientationSources.size ? -this.steerInput : this.steerInput;
+    let yawAccel = -steeringInput * turnAccel;
     
     // Apply water damping/friction
     yawAccel -= this.yawVelocity * damping;
@@ -679,6 +691,11 @@ export class PlayerShip {
     this.targetThrottle = 1.0;
   }
 
+  setSirenDisorientation(sourceId, active) {
+    if (active) this._sirenDisorientationSources.add(sourceId);
+    else this._sirenDisorientationSources.delete(sourceId);
+  }
+
   // -------------------------------------------------------------------------
   // Dispose
   // -------------------------------------------------------------------------
@@ -688,6 +705,7 @@ export class PlayerShip {
     if (this._onCinematicStart) off('krakenCinematicStart', this._onCinematicStart);
     if (this._onCinematicEnd) off('krakenCinematicEnd', this._onCinematicEnd);
     clearTimeout(this._speedTimer);
+    this._sirenDisorientationSources.clear();
     scene.remove(this.mesh);
     // Note: chunkRenderer disposal is handled by GameState phase teardown later,
     // so we don't deeply dispose its geometry here.

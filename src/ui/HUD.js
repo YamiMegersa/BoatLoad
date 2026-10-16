@@ -1,5 +1,6 @@
 import { emit, on, off } from '../core/EventBus.js';
 import { GameEnv } from '../core/GameEnv.js';
+import { DEBUG } from '../utils/debug.js';
 
 /**
  * HUD — obstacle phase HUD overlay.
@@ -22,10 +23,19 @@ export class HUD {
     this._qteEl       = null;
     this._qteMeter    = null;
     this._qteIndicator = null;
+    this._bailCanvas = null;
+    this._activeQTEInput = null;
+    this._bailDrawing = false;
+    this._bailPointerId = null;
     this._mobileBtnEl = null;
     this._scoreEl     = null;
     this._bonusBoxEl  = null;
     this._score       = 0;
+    this._qteHideTimer = null;
+    this._bannerTimer = null;
+    this._ammoState   = { ammo: 0, cannon: false };
+    this._canFire     = false;
+    this._fireBtnEl   = null;
 
     // Kraken boss HUD state
     this._bossHPBar = null;
@@ -34,6 +44,7 @@ export class HUD {
     this._bossBannerEl = null;
     this._bossBannerTimeout = null;
     this._onScore = d => this._onScoreAdded(d);
+    this._onPause = ({ paused }) => { if (paused) this._cancelBailDrawing(); };
 
     on('uiMount',          d => { if (d.screen === 'obstacle') this.mount(d); });
     on('uiUnmount',        d => { if (d.screen === 'obstacle') this.unmount(); });
@@ -44,6 +55,21 @@ export class HUD {
     on('qteSuccess',       () => this._hideQTE());
     on('qteFail',          () => this._hideQTE());
     on('scoreAdded',       this._onScore);
+    on('sharkHitConfirmed', d => this._showSharkConfirm(d));
+    on('sirenWarning',      d => this._showBanner(d));
+    on('sirenPulling',      d => this._updateSirenPull(d));
+    on('ammoChanged',       d => this._updateAmmo(d));
+    on('cannonPrompt',      d => this._updateCannonPrompt(d));
+    on('cannonResult',      d => this._showBanner({ label: d.result === 'hit' ? 'DIRECT HIT — BARREL CLEARED' : 'SHOT MISSED' }));
+    on('waterBailed',       d => this._showBanner({ label: `BAILED ${d.removed}% WATER — CIRCLE ${d.accuracy}%` }));
+    on('waterBailFailed',   () => this._showBanner({ label: 'INCOMPLETE LOOP — TRY AGAIN' }));
+    on('qteDebugResult',    d => this._showDebugQTEResult(d));
+    this._onSirenEffect = ({ state }) => {
+      if (state === 'resistant') this._showBanner({ label: 'SONG RESISTED — ESCAPE NOW' });
+      else if (state === 'disoriented') this._showBanner({ label: 'DISORIENTED — STEERING REVERSED' });
+    };
+    on('sirenEffect', this._onSirenEffect);
+    on('gamePaused', this._onPause);
 
     // Kraken boss events
     on('krakenFightStarted',    d => this._showBossHUD(d));
@@ -69,6 +95,20 @@ export class HUD {
     } else {
       badge.style.display = 'none';
     }
+  }
+
+  _cancelBailDrawing() {
+    if (!this._bailDrawing) return;
+    const pointerId = this._bailPointerId;
+    this._bailDrawing = false;
+    this._bailPointerId = null;
+    this._lastBailPoint = null;
+    this._bailPointerId = null;
+    if (pointerId !== null && this._bailCanvas?.hasPointerCapture(pointerId)) {
+      this._bailCanvas.releasePointerCapture(pointerId);
+    }
+    emit('qteInput', { kind: 'drawCancel' });
+    this._clearBailCanvas();
   }
 
   mount({ day } = {}) {
@@ -102,8 +142,7 @@ export class HUD {
       <div id="hud-goal-distance" style="position:fixed; top:20px; left:50%; transform:translateX(-50%); color:#ffd700; font-family:'Trebuchet MS',sans-serif; font-weight:bold; font-size:15px; text-shadow:0 0 8px rgba(0,0,0,0.8); background:rgba(20,15,10,0.7); padding:6px 16px; border-radius:20px; border:1px solid rgba(255,215,0,0.5); display:none; pointer-events:none; z-index:90;">
         ⚓ Safe Harbor: <span id="hud-goal-val" style="color:#ffffff;">--</span>m
       </div>
-
-      <div id="hud-dev-controls" style="display: ${GameEnv.isDev() ? 'block' : 'none'};">
+      <div id="hud-dev-controls" style="display: ${(DEBUG || GameEnv.isDev()) ? 'block' : 'none'};">
         <div id="hud-godmode" style="margin-top: 10px; pointer-events: auto;">
           <label style="color: white; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 5px;">
             <input type="checkbox" id="chk-godmode"> God Mode (No Damage)
@@ -116,17 +155,18 @@ export class HUD {
         </div>
         <div id="hud-qte-debug" style="margin-top: 10px; pointer-events: auto;">
           <span>QTE Debug:</span>
-          <button type="button" data-qte-type="SHOOT">Shoot</button>
-          <button type="button" data-qte-type="HARPOON">Harpoon</button>
-          <button type="button" data-qte-type="BAIL">Bail</button>
-          <button type="button" data-qte-type="SIREN">Siren</button>
+          <button type="button" data-qte-source="barrel">Shoot</button>
+          <button type="button" data-qte-source="shark">Harpoon</button>
+          <button type="button" data-qte-source="bail">Bail</button>
+          <button type="button" data-qte-source="siren">Siren</button>
+          <span id="hud-qte-debug-status" aria-live="polite"></span>
         </div>
       </div>
 
-      <!-- Interactive QTE Reticle Prompt -->
+      <!-- Interactive QTE Prompt -->
       <div id="hud-qte" style="display:none">
         <div id="hud-qte-action">HARPOON!</div>
-        <div id="hud-qte-key">Press [ H ] or TAP</div>
+        <div id="hud-qte-key">PRESS SPACE IN THE GREEN ZONE (or tap)</div>
         <svg id="hud-qte-ring" viewBox="0 0 36 36">
           <circle class="track" cx="18" cy="18" r="16"/>
           <circle class="fill"  cx="18" cy="18" r="16" stroke-dasharray="100 100"/>
@@ -136,6 +176,10 @@ export class HUD {
           <div class="qte-indicator"></div>
         </div>
         <div id="hud-qte-progress"></div>
+        <div id="hud-qte-draw-wrap" style="display:none">
+          <canvas id="hud-qte-draw" width="220" height="220" aria-label="Draw a circle to bail water"></canvas>
+          <span class="hud-qte-draw-help">Trace the ring and lift to submit<br>Press SPACE for a steady 50% bail</span>
+        </div>
       </div>
 
       <!-- Dedicated Mobile Harpoon Button for left thumb -->
@@ -146,10 +190,20 @@ export class HUD {
         </button>
       </div>
 
+      <!-- Non-blocking warning banner (e.g. first siren encounter) -->
+      <div id="hud-banner"></div>
+
+      <!-- Siren pull edge cues -->
+      <div class="hud-siren-edge left"></div>
+      <div class="hud-siren-edge right"></div>
+
       <!-- Floating Points Notification Container -->
       <div id="hud-bonus-container"></div>
 
       <div id="hud-ammo">🔫 ∞</div>
+
+      <!-- Cannon FIRE prompt (edge-triggered while a barrel is in range) -->
+      <button id="hud-fire-btn" type="button" style="display: none;">🔥 FIRE (Space)</button>
 
       <!-- Kraken Boss HUD (hidden until fight starts) -->
       <div id="hud-boss" style="display:none; position:fixed; top:15px; left:50%; transform:translateX(-50%); text-align:center; z-index:100; pointer-events:none;">
@@ -189,6 +243,7 @@ export class HUD {
     this._qteEl = this._el.querySelector('#hud-qte');
     this._qteMeter = this._el.querySelector('#hud-qte-meter');
     this._qteIndicator = this._el.querySelector('.qte-indicator');
+    this._bailCanvas = this._el.querySelector('#hud-qte-draw');
     this._wheel = this._el.querySelector('#hud-wheel');
     this._mobileBtnEl = this._el.querySelector('#hud-mobile-harpoon');
     this._scoreEl = this._el.querySelector('#hud-score-val');
@@ -198,8 +253,44 @@ export class HUD {
     this._qteEl.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      emit('qteTap');
+      if (this._activeQTEInput !== 'draw') emit('qteInput', { kind: 'tap' });
     });
+
+    this._bailCanvas?.addEventListener('pointerdown', event => {
+      if (this._activeQTEInput !== 'draw') return;
+      event.preventDefault();
+      event.stopPropagation();
+      const point = this._bailPoint(event);
+      if (!point) return;
+      this._bailDrawing = true;
+      this._bailCanvas.setPointerCapture(event.pointerId);
+      this._bailPointerId = event.pointerId;
+      this._clearBailCanvas();
+      this._lastBailPoint = point;
+      this._drawBailTrace(point, point);
+      emit('qteInput', { kind: 'drawStart', point });
+    });
+    this._bailCanvas?.addEventListener('pointermove', event => {
+      if (!this._bailDrawing) return;
+      event.preventDefault();
+      const point = this._bailPoint(event);
+      if (!point) return;
+      const previous = this._lastBailPoint ?? point;
+      this._drawBailTrace(previous, point);
+      this._lastBailPoint = point;
+      emit('qteInput', { kind: 'drawMove', point });
+    });
+    const finishBailDraw = event => {
+      if (!this._bailDrawing) return;
+      this._bailDrawing = false;
+      this._lastBailPoint = null;
+      if (this._bailCanvas.hasPointerCapture(event.pointerId)) this._bailCanvas.releasePointerCapture(event.pointerId);
+      this._bailPointerId = null;
+      if (event.type === 'pointerup') emit('qteInput', { kind: 'drawEnd' });
+      else emit('qteInput', { kind: 'drawCancel' });
+    };
+    this._bailCanvas?.addEventListener('pointerup', finishBailDraw);
+    this._bailCanvas?.addEventListener('pointercancel', finishBailDraw);
 
     // Tap on dedicated mobile Harpoon button
     const mobileBtn = this._el.querySelector('#btn-mobile-harpoon');
@@ -207,9 +298,20 @@ export class HUD {
       mobileBtn.addEventListener('pointerdown', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        emit('qteTap');
+        emit('qteInput', { kind: 'tap' });
       });
     }
+
+    // Cannon: the touch button starts a shot; keyboard Space is routed centrally.
+    this._fireBtnEl = this._el.querySelector('#hud-fire-btn');
+    this._fireBtnEl?.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      emit('cannonFire');
+    });
+
+    // ammoChanged fires in _enterObstacle before uiMount — replay stored state
+    this._applyAmmo();
     
     // Steering Wheel Interaction
     this._wheelAngle = 0;
@@ -319,10 +421,10 @@ export class HUD {
       on('denseFogChanged', this._onDenseFogChanged);
     }
 
-    this._el.querySelectorAll('[data-qte-type]').forEach(button => {
+    this._el.querySelectorAll('[data-qte-source]').forEach(button => {
       button.addEventListener('pointerdown', (event) => {
         event.preventDefault();
-        emit('qteDebugTrigger', { type: button.dataset.qteType });
+        emit('qteDebugTrigger', { source: button.dataset.qteSource });
       });
     });
 
@@ -344,11 +446,15 @@ export class HUD {
       off('denseFogChanged', this._onDenseFogChanged);
       this._onDenseFogChanged = null;
     }
+    this._fireBtnEl = null;
+    this._canFire = false;
     if (this._onSirenPulling) {
       off('sirenPulling', this._onSirenPulling);
       this._onSirenPulling = null;
     }
     clearInterval(this._qteTimer);
+    clearTimeout(this._qteHideTimer);
+    clearTimeout(this._bannerTimer);
     this._el?.remove();
     this._el          = null;
     this._hpBar       = null;
@@ -356,6 +462,9 @@ export class HUD {
     this._qteEl       = null;
     this._qteMeter    = null;
     this._qteIndicator = null;
+    this._bailCanvas = null;
+    this._activeQTEInput = null;
+    this._bailDrawing = false;
     this._mobileBtnEl = null;
     this._scoreEl     = null;
     this._bonusBoxEl  = null;
@@ -395,22 +504,42 @@ export class HUD {
     if (valEl) valEl.textContent = `${Math.floor(pct)}%`;
   }
 
-  _showQTE({ input, key, label, prompt, sweetSpot }) {
+  _showQTE({ input, label, sweetSpot, theme }) {
     if (!this._qteEl) return;
+    this._activeQTEInput = input;
+    clearTimeout(this._qteHideTimer);
+    this._qteEl.classList.remove('qte-hiding');
     this._qteEl.style.display = 'flex';
 
     const actionEl = this._qteEl.querySelector('#hud-qte-action');
     const keyEl    = this._qteEl.querySelector('#hud-qte-key');
-    const keyLabel = (key || '').replace(/^Key/, '').replace(/^Digit/, '');
     const sweetSpotEl = this._qteEl.querySelector('.qte-sweet-spot');
     const progressEl = this._qteEl.querySelector('#hud-qte-progress');
     const mobileLabel = this._el?.querySelector('.harpoon-text');
+    const drawWrap = this._qteEl.querySelector('#hud-qte-draw-wrap');
 
-    if (actionEl) actionEl.textContent = label;
-    if (keyEl) keyEl.textContent = `${prompt} [ ${keyLabel} ] or TAP`;
+    if (actionEl) actionEl.textContent = `${theme?.icon ?? ''} ${label}`;
+    if (keyEl) {
+      const instructions = {
+        timing: 'PRESS SPACE IN THE GREEN ZONE (or tap)',
+        mash: 'PRESS SPACE REPEATEDLY (or tap)',
+        draw: 'TRACE THE RING AND LIFT TO SUBMIT — or press SPACE for a steady 50% bail',
+      };
+      keyEl.textContent = instructions[input] ?? '';
+    }
     if (mobileLabel) mobileLabel.textContent = input === 'mash' ? 'TAP!' : 'ACTION';
-    if (this._mobileBtnEl) this._mobileBtnEl.style.display = 'block';
+    if (this._mobileBtnEl) this._mobileBtnEl.style.display = input === 'draw' ? 'none' : 'block';
+    if (drawWrap) drawWrap.style.display = input === 'draw' ? 'flex' : 'none';
+    if (this._qteMeter) this._qteMeter.style.display = input === 'draw' ? 'none' : '';
+    if (input === 'draw') this._clearBailCanvas();
+    this._qteEl.style.setProperty('--qte-theme', theme?.color ?? '#ff9800');
     if (this._qteMeter) this._qteMeter.className = input;
+    // Reset the indicator so a fresh QTE never inherits stale inline styles
+    // from a previous timing QTE (left offset) or mash QTE (width).
+    if (this._qteIndicator) {
+      this._qteIndicator.style.left = '0%';
+      this._qteIndicator.style.width = '0%';
+    }
     if (sweetSpotEl && sweetSpot) {
       sweetSpotEl.style.left = `${sweetSpot[0] * 100}%`;
       sweetSpotEl.style.width = `${(sweetSpot[1] - sweetSpot[0]) * 100}%`;
@@ -418,7 +547,7 @@ export class HUD {
     if (progressEl) progressEl.textContent = '';
   }
 
-  _updateQTE({ input, windowMs, remainingMs, progress, mashTarget, sweetSpot }) {
+  _updateQTE({ input, windowMs, remainingMs, progress, mashTarget, sweetSpot, drawProgress }) {
     if (!this._qteEl) return;
     const ring = this._qteEl.querySelector('.fill');
     const remainingPct = Math.max(0, (remainingMs / windowMs) * 100);
@@ -426,8 +555,13 @@ export class HUD {
 
     const progressEl = this._qteEl.querySelector('#hud-qte-progress');
     if (input === 'mash') {
-      if (this._qteIndicator) this._qteIndicator.style.width = `${(progress / mashTarget) * 100}%`;
+      if (this._qteIndicator) {
+        this._qteIndicator.style.left = '0%'; // clear any offset left by a timing QTE
+        this._qteIndicator.style.width = `${(progress / mashTarget) * 100}%`;
+      }
       if (progressEl) progressEl.textContent = `${progress} / ${mashTarget}`;
+    } else if (input === 'draw') {
+      if (progressEl) progressEl.textContent = `Circle coverage: ${Math.round((drawProgress ?? 0) * 100)}%`;
     } else {
       const elapsedPct = 100 - remainingPct;
       if (this._qteIndicator) {
@@ -439,8 +573,121 @@ export class HUD {
   }
 
   _hideQTE() {
-    if (this._qteEl) this._qteEl.style.display = 'none';
+    if (!this._qteEl) return;
+    const el = this._qteEl;
+    if (this._bailPointerId !== null && this._bailCanvas?.hasPointerCapture(this._bailPointerId)) {
+      this._bailCanvas.releasePointerCapture(this._bailPointerId);
+    }
+    this._bailPointerId = null;
+    if (el.style.display !== 'none' && !el.classList.contains('qte-hiding')) {
+      // Rapid fade (120 ms) so the prompt never obscures the hit reaction
+      el.classList.add('qte-hiding');
+      clearTimeout(this._qteHideTimer);
+      this._qteHideTimer = setTimeout(() => {
+        el.style.display = 'none';
+        el.classList.remove('qte-hiding');
+      }, 130);
+    }
     if (this._mobileBtnEl) this._mobileBtnEl.style.display = 'none';
+    this._activeQTEInput = null;
+    this._bailDrawing = false;
+  }
+
+  _bailPoint(event) {
+    const rect = this._bailCanvas.getBoundingClientRect();
+    const x = (event.clientX - rect.left) / rect.width;
+    const y = (event.clientY - rect.top) / rect.height;
+    return x < 0 || x > 1 || y < 0 || y > 1 ? null : { x, y };
+  }
+
+  _clearBailCanvas() {
+    if (!this._bailCanvas) return;
+    const context = this._bailCanvas.getContext('2d');
+    const { width, height } = this._bailCanvas;
+    context.clearRect(0, 0, width, height);
+    context.beginPath();
+    context.arc(width / 2, height / 2, width * 0.4, 0, Math.PI * 2);
+    context.strokeStyle = 'rgba(243, 227, 180, 0.7)';
+    context.lineWidth = 3;
+    context.setLineDash([6, 7]);
+    context.stroke();
+    context.setLineDash([]);
+  }
+
+  _drawBailTrace(from, to) {
+    if (!this._bailCanvas) return;
+    const context = this._bailCanvas.getContext('2d');
+    context.beginPath();
+    context.moveTo(from.x * this._bailCanvas.width, from.y * this._bailCanvas.height);
+    context.lineTo(to.x * this._bailCanvas.width, to.y * this._bailCanvas.height);
+    context.strokeStyle = '#75d9ec';
+    context.lineWidth = 5;
+    context.lineCap = 'round';
+    context.stroke();
+  }
+
+  /** Short "SHARK HARPOONED +points" confirmation at the top of the screen. */
+  _showSharkConfirm({ points = 0 } = {}) {
+    if (!this._bonusBoxEl) return;
+    const el = document.createElement('div');
+    el.className = 'shark-confirm-text';
+    el.textContent = `SHARK HARPOONED +${points}`;
+    this._bonusBoxEl.appendChild(el);
+    setTimeout(() => el.remove(), 1000);
+  }
+
+  /** Non-blocking banner around the top of the screen (auto-hides after ~2 s). */
+  _showBanner({ label = '' } = {}) {
+    const banner = this._el?.querySelector('#hud-banner');
+    if (!banner || !label) return;
+    clearTimeout(this._bannerTimer);
+    banner.textContent = label;
+    banner.style.display = 'block';
+    banner.classList.toggle('hidden', false);
+    this._bannerTimer = setTimeout(() => {
+      banner.classList.add('hidden');
+      this._bannerTimer = setTimeout(() => { banner.style.display = 'none'; }, 260);
+    }, 2000);
+  }
+
+  _showDebugQTEResult({ source, accepted }) {
+    const status = this._el?.querySelector('#hud-qte-debug-status');
+    if (status) status.textContent = accepted ? `${source} test accepted` : `${source} test unavailable (active/queued)`;
+  }
+
+  /** Siren pull: tint the wheel and glow the screen edge the ship is dragged toward. */
+  _updateSirenPull({ intensity = 0, steerPull = 0 } = {}) {
+    if (!this._el) return;
+    const container = this._el.querySelector('#hud-wheel-container');
+    if (container) {
+      container.classList.toggle('siren-pull', intensity > 0.01);
+      container.style.setProperty('--siren-pull', String(Math.min(1, intensity)));
+    }
+    // steerPull < 0 drags the nose screen-left; > 0 drags it screen-right.
+    const side = steerPull < -0.01 ? 'left' : steerPull > 0.01 ? 'right' : null;
+    this._el.querySelectorAll('.hud-siren-edge').forEach(edgeEl => {
+      const active = side !== null && edgeEl.classList.contains(side) && intensity > 0.01;
+      edgeEl.style.opacity = active ? String(Math.min(1, 0.35 + intensity)) : '0';
+    });
+  }
+
+  /** Cannon ammo pill: real count on cannon days, ∞ placeholder on day 1. */
+  _updateAmmo({ ammo = 0, cannon = false } = {}) {
+    const spentLastShell = this._ammoState.cannon && this._ammoState.ammo > 0 && cannon && ammo === 0;
+    this._ammoState = { ammo, cannon };
+    this._applyAmmo();
+    if (spentLastShell) this._showBanner({ label: 'LAST SHELL FIRED — CANNON EMPTY' });
+  }
+
+  _applyAmmo() {
+    const el = this._el?.querySelector('#hud-ammo');
+    if (el) el.textContent = this._ammoState.cannon ? `🔫 ${this._ammoState.ammo}` : '🔫 ∞';
+  }
+
+  /** Toggle the FIRE prompt; Space fires only while it is visible. */
+  _updateCannonPrompt({ canFire = false } = {}) {
+    this._canFire = canFire;
+    if (this._fireBtnEl) this._fireBtnEl.style.display = canFire ? 'block' : 'none';
   }
 
   // -----------------------------------------------------------------------
@@ -520,6 +767,14 @@ export class HUD {
     off('playerWaterLevel');
     off('qteStart'); off('qteUpdate'); off('qteSuccess'); off('qteFail');
     off('scoreAdded', this._onScore);
+    off('ammoChanged');
+    off('cannonPrompt');
+    off('cannonResult');
+    off('waterBailed');
+    off('waterBailFailed');
+    off('qteDebugResult');
+    off('sirenEffect', this._onSirenEffect);
+    off('gamePaused', this._onPause);
     off('krakenFightStarted'); off('krakenHealthChanged');
     off('krakenRaceTimerUpdate'); off('krakenWaypointProgress');
     off('krakenRaceStarted'); off('krakenTentacleCaught');
