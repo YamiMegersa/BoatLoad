@@ -42,7 +42,7 @@ export class LoadingScreenUI {
 
     this._el.innerHTML = `
       <div class="nautical-loading-card">
-        <div class="nautical-compass-icon">🧭</div>
+        <div class="nautical-compass-icon"><span class="pixel-icon icon-compass size-40"></span></div>
         <div class="nautical-loading-title" id="loading-card-title">Navigating Seas</div>
 
         <div class="nautical-water-strip-container">

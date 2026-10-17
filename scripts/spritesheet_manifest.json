@@ -1,0 +1,172 @@
+{
+  "sheets": [
+    {
+      "sheetFile": "sheet_maritime.png",
+      "grid": [4, 4],
+      "targetSize": [24, 24],
+      "outputDir": "public/assets/ui/icons",
+      "cells": [
+        { "row": 0, "col": 0, "filename": "icon_anchor_24.png", "name": "Heavy Anchor (⚓)" },
+        { "row": 0, "col": 1, "filename": "icon_sloop_24.png", "name": "Standard Sloop (⛵)" },
+        { "row": 0, "col": 2, "filename": "icon_frigate_24.png", "name": "War Frigate (🚢)" },
+        { "row": 0, "col": 3, "filename": "icon_dreadnought_24.png", "name": "Imperial Dreadnought (🏰)" },
+        { "row": 1, "col": 0, "filename": "icon_skiff_24.png", "name": "Swift Skiff (🛶)" },
+        { "row": 1, "col": 1, "filename": "icon_gag_truck_24.png", "name": "Utility Gag Truck (🛻)" },
+        { "row": 1, "col": 2, "filename": "icon_helm_wheel_24.png", "name": "Captain's Helm Wheel (☸)" },
+        { "row": 1, "col": 3, "filename": "icon_compass_24.png", "name": "Pocket Brass Compass (🧭)" },
+        { "row": 2, "col": 0, "filename": "icon_ocean_wave_20.png", "name": "Curling Ocean Wave (🌊)" },
+        { "row": 2, "col": 1, "filename": "icon_island_atoll_24.png", "name": "Tropical Island Atoll (🏝)" },
+        { "row": 2, "col": 2, "filename": "icon_harbor_flag_20.png", "name": "Harbor Goal Buoy Flag (🏁)" },
+        { "row": 2, "col": 3, "filename": "icon_nautical_star_16.png", "name": "Nautical Star Sparkle (✦)" },
+        { "row": 3, "col": 0, "filename": "icon_optics_lens_20.png", "name": "Brass Magnifying Loupe (🔍)" },
+        { "row": 3, "col": 1, "filename": "icon_treasure_map_20.png", "name": "Rolled Treasure Map Chart (🗺)" },
+        { "row": 3, "col": 2, "filename": "icon_waypoint_flag_16.png", "name": "White Waypoint Pennant (🏳)" },
+        { "row": 3, "col": 3, "filename": "icon_fullscreen_expand_20.png", "name": "Fullscreen Corner Brackets (⛶)" }
+      ]
+    },
+    {
+      "sheetFile": "sheet_tools.png",
+      "grid": [4, 4],
+      "targetSize": [24, 24],
+      "outputDir": "public/assets/ui/icons",
+      "cells": [
+        { "row": 0, "col": 0, "filename": "icon_hammer_20.png", "name": "Shipwright Claw Hammer (🔨)" },
+        { "row": 0, "col": 1, "filename": "icon_sail_needle_20.png", "name": "Sailmaker Sewing Needle (🪡)" },
+        { "row": 0, "col": 2, "filename": "icon_rope_knot_20.png", "name": "Coiled Hemp Rope Knot (🪢)" },
+        { "row": 0, "col": 3, "filename": "icon_doubloon_20.png", "name": "Gold Spanish Doubloon (🪙)" },
+        { "row": 1, "col": 0, "filename": "icon_oak_log_24.png", "name": "Standard Oak Timber (🪵)" },
+        { "row": 1, "col": 1, "filename": "icon_ironwood_24.png", "name": "Iron-Banded Timber (🛡)" },
+        { "row": 1, "col": 2, "filename": "icon_pine_plank_24.png", "name": "Pine Wood Plank (🌲)" },
+        { "row": 1, "col": 3, "filename": "icon_tar_caulk_24.png", "name": "Tar Caulking Mallet (🧵)" },
+        { "row": 2, "col": 0, "filename": "icon_chisel_eraser_20.png", "name": "Carving Adze Chisel (🧹)" },
+        { "row": 2, "col": 1, "filename": "icon_calipers_20.png", "name": "Naval Divider Calipers (📐)" },
+        { "row": 2, "col": 2, "filename": "icon_mirror_20.png", "name": "Bilateral Symmetry Mirror (🪞)" },
+        { "row": 2, "col": 3, "filename": "icon_rotate_arrow_20.png", "name": "Brush Rotation Arrow (🔄)" },
+        { "row": 3, "col": 0, "filename": "icon_pickaxe_20.png", "name": "Land Sculpting Pickaxe (⛏)" },
+        { "row": 3, "col": 1, "filename": "icon_cargo_crate_20.png", "name": "Wooden Cargo Crate (📦)" },
+        { "row": 3, "col": 2, "filename": "icon_powder_keg_20.png", "name": "Explosive Gunpowder Keg (🛢)" },
+        { "row": 3, "col": 3, "filename": "icon_reef_rock_20.png", "name": "Jagged Reef Rock (🪨)" }
+      ]
+    },
+    {
+      "sheetFile": "sheet_combat.png",
+      "grid": [4, 4],
+      "targetSize": [24, 24],
+      "outputDir": "public/assets/ui/icons",
+      "cells": [
+        { "row": 0, "col": 0, "filename": "icon_kraken_head_24.png", "name": "Abyssal Kraken Head (🐙)" },
+        { "row": 0, "col": 1, "filename": "icon_tentacle_24.png", "name": "Erupting Giant Tentacle (🦑)" },
+        { "row": 0, "col": 2, "filename": "icon_siren_24.png", "name": "Shoal Siren (🧜)" },
+        { "row": 0, "col": 3, "filename": "icon_cutlasses_20.png", "name": "Crossed Cutlasses (⚔)" },
+        { "row": 1, "col": 0, "filename": "icon_harpoon_24.png", "name": "Barbed Boarding Harpoon (🔱)" },
+        { "row": 1, "col": 1, "filename": "icon_swivel_cannon_20.png", "name": "Swivel Deck Cannon (🔫)" },
+        { "row": 1, "col": 2, "filename": "icon_cannon_flash_20.png", "name": "Flaming Cannon Muzzle Flash (🔥)" },
+        { "row": 1, "col": 3, "filename": "icon_explosion_burst_24.png", "name": "Splinter Detonation Burst (💥)" },
+        { "row": 2, "col": 0, "filename": "icon_target_crosshair_24.png", "name": "Nautical Target Crosshair (🎯)" },
+        { "row": 2, "col": 1, "filename": "icon_bailer_bucket_24.png", "name": "Wooden Bailer Bucket (🪣)" },
+        { "row": 2, "col": 2, "filename": "icon_siren_note_20.png", "name": "Hypnotic Siren Note (♫)" },
+        { "row": 2, "col": 3, "filename": "icon_maelstrom_24.png", "name": "Swirling Maelstrom (🌀)" },
+        { "row": 3, "col": 0, "filename": "icon_phantom_ghost_24.png", "name": "Ghost Merchant Phantom (👻)" },
+        { "row": 3, "col": 1, "filename": "icon_seaweed_kelp_20.png", "name": "Floating Sea Kelp (🌿)" },
+        { "row": 3, "col": 2, "filename": "icon_defiant_finger_28.png", "name": "Defiant Pirate Fist (🖕)" },
+        { "row": 3, "col": 3, "filename": "icon_smoke_pipe_28.png", "name": "Briarwood Tobacco Pipe (🚬)" }
+      ]
+    },
+    {
+      "sheetFile": "sheet_weather.png",
+      "grid": [4, 4],
+      "targetSize": [24, 24],
+      "outputDir": "public/assets/ui/icons",
+      "cells": [
+        { "row": 0, "col": 0, "filename": "icon_sun_fair_20.png", "name": "Radiant Fair Sun (☀)" },
+        { "row": 0, "col": 1, "filename": "icon_dawn_sunrise_20.png", "name": "Dawn Sunrise (🌅)" },
+        { "row": 0, "col": 2, "filename": "icon_dusk_sunset_20.png", "name": "Golden Dusk Sunset (🌇)" },
+        { "row": 0, "col": 3, "filename": "icon_night_moon_20.png", "name": "Silver Crescent Moon (🌙)" },
+        { "row": 1, "col": 0, "filename": "icon_rain_squall_20.png", "name": "Rain Cloud Squall (🌧)" },
+        { "row": 1, "col": 1, "filename": "icon_storm_lightning_20.png", "name": "Thunderhead & Lightning (⛈)" },
+        { "row": 1, "col": 2, "filename": "icon_lightning_spark_20.png", "name": "Lightning Arc Spark (⚡)" },
+        { "row": 1, "col": 3, "filename": "icon_hurricane_gale_20.png", "name": "Sea Hurricane Whirlwind (🌪)" },
+        { "row": 2, "col": 0, "filename": "icon_sea_fog_20.png", "name": "Dense Sea Fog Mist (🌫)" },
+        { "row": 2, "col": 1, "filename": "icon_wind_gust_20.png", "name": "Swirling Wind Gust (💨)" },
+        { "row": 2, "col": 2, "filename": "icon_god_rays_16.png", "name": "Volumetric Sunbeams (✨)" },
+        { "row": 2, "col": 3, "filename": "icon_ship_lantern_24.png", "name": "Brass Ship Bow Lantern (🏮)" },
+        { "row": 3, "col": 0, "filename": "icon_helm_pedestal_24.png", "name": "Helmsman Binnacle Pedestal (🏛)" },
+        { "row": 3, "col": 1, "filename": "icon_plunder_sack_20.png", "name": "Treasure Plunder Sack (🛍)" },
+        { "row": 3, "col": 2, "filename": "icon_clap_hands_28.png", "name": "Sailor Clapping Hands (👏)" },
+        { "row": 3, "col": 3, "filename": "icon_easter_bunny_16.png", "name": "White Bunny Rabbit (🐰)" }
+      ]
+    },
+    {
+      "sheetFile": "sheet_system.png",
+      "grid": [4, 4],
+      "targetSize": [20, 20],
+      "outputDir": "public/assets/ui/icons",
+      "cells": [
+        { "row": 0, "col": 0, "filename": "icon_settings_cog_20.png", "name": "Settings Bronze Cog (⚙)" },
+        { "row": 0, "col": 1, "filename": "icon_closed_logbook_20.png", "name": "Closed Codex Book (📖)" },
+        { "row": 0, "col": 2, "filename": "icon_map_maker_scroll_20.png", "name": "Rolled Sea Chart (📜)" },
+        { "row": 0, "col": 3, "filename": "icon_director_clapper_20.png", "name": "Film Slate Clapper (🎬)" },
+        { "row": 1, "col": 0, "filename": "icon_cinema_camera_20.png", "name": "Tripod Motion Camera (🎥)" },
+        { "row": 1, "col": 1, "filename": "icon_film_reel_20.png", "name": "Celluloid Film Reel (🎞)" },
+        { "row": 1, "col": 2, "filename": "icon_display_monitor_20.png", "name": "CRT Display Monitor (🖥)" },
+        { "row": 1, "col": 3, "filename": "icon_audio_horn_20.png", "name": "Acoustic Megaphone Horn (🔊)" },
+        { "row": 2, "col": 0, "filename": "icon_save_floppy_20.png", "name": "Navy Floppy Disk (💾)" },
+        { "row": 2, "col": 1, "filename": "icon_import_intray_20.png", "name": "Wooden Desktop In-Tray (📥)" },
+        { "row": 2, "col": 2, "filename": "icon_cabin_door_exit_20.png", "name": "Arched Cabin Door (🚪)" },
+        { "row": 2, "col": 3, "filename": "icon_hand_select_20.png", "name": "Leather Work Glove (✋)" },
+        { "row": 3, "col": 0, "filename": "icon_delete_basket_20.png", "name": "Wicker Waste Basket (🗑)" },
+        { "row": 3, "col": 1, "filename": "icon_hide_ui_eye_20.png", "name": "Vision Eye (👁)" },
+        { "row": 3, "col": 2, "filename": "icon_quill_author_20.png", "name": "Goose Feather Quill (🖋)" },
+        { "row": 3, "col": 3, "filename": "icon_artist_palette_20.png", "name": "Wooden Artist Palette (🎨)" }
+      ]
+    },
+    {
+      "sheetFile": "sheet_badges_biomes.png",
+      "grid": [4, 4],
+      "targetSize": [20, 20],
+      "outputDir": "public/assets/ui/icons",
+      "cells": [
+        { "row": 0, "col": 0, "filename": "icon_confirm_check_16.png", "name": "Green Checkmark (✅)" },
+        { "row": 0, "col": 1, "filename": "icon_cancel_cross_16.png", "name": "Red Cross Cancel (❌)" },
+        { "row": 0, "col": 2, "filename": "icon_close_cross_16.png", "name": "Wooden Sticks X (✕)" },
+        { "row": 0, "col": 3, "filename": "icon_lock_padlock_16.png", "name": "Brass Padlock (🔒)" },
+        { "row": 1, "col": 0, "filename": "icon_idea_bulb_16.png", "name": "Edison Light Bulb (💡)" },
+        { "row": 1, "col": 1, "filename": "icon_plus_add_16.png", "name": "Brass Plus Sign (➕)" },
+        { "row": 1, "col": 2, "filename": "icon_arrow_right_16.png", "name": "Wooden Right Arrow (➔)" },
+        { "row": 1, "col": 3, "filename": "icon_play_step_16.png", "name": "Play Step Triangle (▶)" },
+        { "row": 2, "col": 0, "filename": "chip_biome_tropical_20.png", "name": "Tropical Palm Chip (🌴)" },
+        { "row": 2, "col": 1, "filename": "chip_biome_volcanic_20.png", "name": "Volcanic Obsidian Chip (🌋)" },
+        { "row": 2, "col": 2, "filename": "chip_biome_autumn_20.png", "name": "Autumn Leaves Chip (🍂)" },
+        { "row": 2, "col": 3, "filename": "chip_biome_desert_20.png", "name": "Desert Butte Chip (🏜)" },
+        { "row": 3, "col": 0, "filename": "chip_biome_nordic_20.png", "name": "Nordic Snowflake Chip (❄)" },
+        { "row": 3, "col": 1, "filename": "icon_brush_circle_16.png", "name": "Circular Brush Ring (⭕)" },
+        { "row": 3, "col": 2, "filename": "icon_brush_square_16.png", "name": "Square Fort Block (⬛)" },
+        { "row": 3, "col": 3, "filename": "portrait_captain_48.png", "name": "Captain Bust Portrait (🧑‍✈️)" }
+      ]
+    },
+    {
+      "sheetFile": "sheet_brushes_materials.png",
+      "grid": [4, 4],
+      "targetSize": [32, 32],
+      "outputDir": "public/assets/ui/hud",
+      "cells": [
+        { "row": 0, "col": 0, "filename": "brush_single_voxel.png", "name": "Single 3D Voxel Cube" },
+        { "row": 0, "col": 1, "filename": "brush_plank_1x3.png", "name": "Plank 1x3 Timber" },
+        { "row": 0, "col": 2, "filename": "brush_beam_1x5.png", "name": "Keel Beam 1x5" },
+        { "row": 0, "col": 3, "filename": "brush_plate_2x2.png", "name": "Slatted Deck Plate 2x2" },
+        { "row": 1, "col": 0, "filename": "brush_bulkhead_3x3.png", "name": "Reinforced Bulkhead 3x3" },
+        { "row": 1, "col": 1, "filename": "sloop_hp_100.png", "name": "Sloop HP 100% Upright" },
+        { "row": 1, "col": 2, "filename": "sloop_hp_75.png", "name": "Sloop HP 75% Slight Tilt" },
+        { "row": 1, "col": 3, "filename": "sloop_hp_40.png", "name": "Sloop HP 40% Heavy List" },
+        { "row": 2, "col": 0, "filename": "sloop_hp_10.png", "name": "Sloop HP 10% Capsized" },
+        { "row": 2, "col": 1, "filename": "water_flood_wave_tile.png", "name": "Water Wave Mask Tile" },
+        { "row": 2, "col": 2, "filename": "water_floating_buoy.png", "name": "Floating Boat Buoy" },
+        { "row": 2, "col": 3, "filename": "leak_water_drop_badge.png", "name": "Waterline Leak Drop" },
+        { "row": 3, "col": 0, "filename": "qte_needle_hand.png", "name": "Chronometer Needle" },
+        { "row": 3, "col": 1, "filename": "badge_gold_coin_hud.png", "name": "Purse Gold Coin" },
+        { "row": 3, "col": 2, "filename": "badge_day_pill_dot.png", "name": "Pill Divider Dot" },
+        { "row": 3, "col": 3, "filename": "compass_rose_arrow.png", "name": "Wind Direction Arrow" }
+      ]
+    }
+  ]
+}

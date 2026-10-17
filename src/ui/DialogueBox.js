@@ -32,11 +32,11 @@ export class DialogueBox {
     this._el = document.createElement('div');
     this._el.id = 'dialogue-box';
     this._el.innerHTML = `
-      <div id="dlg-portrait">${dialogue.portrait ?? '🧑‍✈️'}</div>
+      <div id="dlg-portrait">${dialogue.portrait ?? '<span class="pixel-icon icon-portrait-captain size-48"></span>'}</div>
       <div id="dlg-content">
         <div id="dlg-name">${dialogue.name ?? 'Customer'}</div>
         <div id="dlg-text"></div>
-        <button id="dlg-next">Next ▶</button>
+        <button id="dlg-next">Next <span class="pixel-icon icon-play-step size-14"></span></button>
       </div>
     `;
 

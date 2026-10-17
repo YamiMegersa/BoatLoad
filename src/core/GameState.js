@@ -1241,7 +1241,7 @@ export class GameState {
         ...summary,
         leaks,
         shipName: profile?.name || activeShipDef?.name || 'Vessel',
-        shipIcon: profile?.icon || '⛵'
+        shipIcon: profile?.icon || '<span class="pixel-icon icon-sloop size-20"></span>'
       });
     };
 
@@ -1930,7 +1930,7 @@ export class GameState {
     ctx.font = 'bold 22px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('🏁 SAFE HARBOR', 128, 32);
+    ctx.fillText('SAFE HARBOR', 128, 32);
 
     const texture = new THREE.CanvasTexture(canvas);
     const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });

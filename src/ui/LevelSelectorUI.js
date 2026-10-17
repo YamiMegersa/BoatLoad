@@ -4,113 +4,113 @@ const LEVELS = [
   {
     day: 1,
     name: 'Day 1: Maiden Shakedown',
-    icon: '⛵',
-    meta: 'Sunny • Light Sloop • 🪙 200',
+    icon: '<span class="pixel-icon icon-sloop size-20"></span>',
+    meta: 'Sunny • Light Sloop • <span class="pixel-icon icon-doubloon size-14"></span> 200',
     vessel: 'Barlow Light Sloop',
-    weather: '☀️ Clear & Fair Breeze',
-    budget: '🪙 200 Doubloons',
-    hazard: 'Low (Barrels & Shallow Rocks)',
+    weather: '<span class="pixel-icon icon-sun-fair size-16"></span> Clear &amp; Fair Breeze',
+    budget: '<span class="pixel-icon icon-doubloon size-16"></span> 200 Doubloons',
+    hazard: 'Low (Barrels &amp; Shallow Rocks)',
     dispatch: `"Treacherous shoals offshore have breached our hull and torn our canvas! My crew is limping into port now. We need the master shipwright to patch the timber breaches, mend the sails, and reinforce the mast before our departure!"`,
     docket: [
-      { icon: '🔨', text: '<strong>Patch 3 Hull Breaches</strong> (Hammer & Planks)' },
-      { icon: '🪡', text: '<strong>Mend Torn Sail Cloth</strong> (Sailmaker Needle)' },
-      { icon: '🪢', text: '<strong>Reinforce Cracked Mast</strong> (Hemp Rope)' }
+      { icon: '<span class="pixel-icon icon-hammer size-18"></span>', text: '<strong>Patch 3 Hull Breaches</strong> (Hammer &amp; Planks)' },
+      { icon: '<span class="pixel-icon icon-sail-needle size-18"></span>', text: '<strong>Mend Torn Sail Cloth</strong> (Sailmaker Needle)' },
+      { icon: '<span class="pixel-icon icon-rope-knot size-18"></span>', text: '<strong>Reinforce Cracked Mast</strong> (Hemp Rope)' }
     ]
   },
   {
     day: 2,
     name: 'Day 2: The Rising Squall',
-    icon: '🌧️',
-    meta: 'Overcast • Choppy Shoals • 🪙 250',
+    icon: '<span class="pixel-icon icon-rain-squall size-20"></span>',
+    meta: 'Overcast • Choppy Shoals • <span class="pixel-icon icon-doubloon size-14"></span> 250',
     vessel: 'Barlow Light Sloop',
-    weather: '🌧️ Overcast & Rising Waves',
-    budget: '🪙 250 Doubloons',
-    hazard: 'Moderate (Choppy Shoals & Siren Call)',
+    weather: '<span class="pixel-icon icon-rain-squall size-16"></span> Overcast &amp; Rising Waves',
+    budget: '<span class="pixel-icon icon-doubloon size-16"></span> 250 Doubloons',
+    hazard: 'Moderate (Choppy Shoals &amp; Siren Call)',
     dispatch: `"Dark clouds gather on the horizon and the wind is howling! Our hull took hits from submerged reef outcroppings, and siren calls were heard echoing off the bluffs. Prepare the ship for rougher seas!"`,
     docket: [
-      { icon: '🔨', text: '<strong>Patch Hull Breaches</strong> (Hammer & Planks)' },
-      { icon: '🪡', text: '<strong>Mend Torn Sail Cloth</strong> (Sailmaker Needle)' },
-      { icon: '🪢', text: '<strong>Reinforce Cracked Mast</strong> (Hemp Rope)' }
+      { icon: '<span class="pixel-icon icon-hammer size-18"></span>', text: '<strong>Patch Hull Breaches</strong> (Hammer &amp; Planks)' },
+      { icon: '<span class="pixel-icon icon-sail-needle size-18"></span>', text: '<strong>Mend Torn Sail Cloth</strong> (Sailmaker Needle)' },
+      { icon: '<span class="pixel-icon icon-rope-knot size-18"></span>', text: '<strong>Reinforce Cracked Mast</strong> (Hemp Rope)' }
     ]
   },
   {
     day: 3,
     name: "Day 3: Siren's Fog",
-    icon: '🌫️',
-    meta: 'Sunset Fog • Reef Hazards • 🪙 300',
+    icon: '<span class="pixel-icon icon-sea-fog size-20"></span>',
+    meta: 'Sunset Fog • Reef Hazards • <span class="pixel-icon icon-doubloon size-14"></span> 300',
     vessel: 'Barlow Light Sloop',
-    weather: '🌇 Golden Sunset & Dense Mist',
-    budget: '🪙 300 Doubloons',
-    hazard: 'High (Siren Allure & Jagged Skerries)',
+    weather: '<span class="pixel-icon icon-dusk-sunset size-16"></span> Golden Sunset &amp; Dense Mist',
+    budget: '<span class="pixel-icon icon-doubloon size-16"></span> 300 Doubloons',
+    hazard: 'High (Siren Allure &amp; Jagged Skerries)',
     dispatch: `"The sunset cast a false calm over the waters—bewitching songs lured our lookouts off course directly onto the teeth of jagged rocks. Patch her up tight and sound the bell!"`,
     docket: [
-      { icon: '🔨', text: '<strong>Patch Hull Breaches</strong> (Hammer & Planks)' },
-      { icon: '🪡', text: '<strong>Mend Torn Sail Cloth</strong> (Sailmaker Needle)' },
-      { icon: '🪢', text: '<strong>Reinforce Cracked Mast</strong> (Hemp Rope)' }
+      { icon: '<span class="pixel-icon icon-hammer size-18"></span>', text: '<strong>Patch Hull Breaches</strong> (Hammer &amp; Planks)' },
+      { icon: '<span class="pixel-icon icon-sail-needle size-18"></span>', text: '<strong>Mend Torn Sail Cloth</strong> (Sailmaker Needle)' },
+      { icon: '<span class="pixel-icon icon-rope-knot size-18"></span>', text: '<strong>Reinforce Cracked Mast</strong> (Hemp Rope)' }
     ]
   },
   {
     day: 4,
     name: 'Day 4: Gale-Force Reef',
-    icon: '⛈️',
-    meta: 'Storm Winds • Heavy Swells • 🪙 350',
+    icon: '<span class="pixel-icon icon-storm-lightning size-20"></span>',
+    meta: 'Storm Winds • Heavy Swells • <span class="pixel-icon icon-doubloon size-14"></span> 350',
     vessel: 'Barlow Light Sloop',
-    weather: '⛈️ Violent Storm & Gale Winds',
-    budget: '🪙 350 Doubloons',
-    hazard: 'Severe (Sudden Squalls & Crashing Swells)',
+    weather: '<span class="pixel-icon icon-storm-lightning size-16"></span> Violent Storm &amp; Gale Winds',
+    budget: '<span class="pixel-icon icon-doubloon size-16"></span> 350 Doubloons',
+    hazard: 'Severe (Sudden Squalls &amp; Crashing Swells)',
     dispatch: `"Gale winds split our mainsail and batter our deck timbers! We barely made it past the outer reefs before the storm broke over us. Quick repairs needed before nightfall!"`,
     docket: [
-      { icon: '🔨', text: '<strong>Patch Hull Breaches</strong> (Hammer & Planks)' },
-      { icon: '🪡', text: '<strong>Mend Torn Sail Cloth</strong> (Sailmaker Needle)' },
-      { icon: '🪢', text: '<strong>Reinforce Cracked Mast</strong> (Hemp Rope)' }
+      { icon: '<span class="pixel-icon icon-hammer size-18"></span>', text: '<strong>Patch Hull Breaches</strong> (Hammer &amp; Planks)' },
+      { icon: '<span class="pixel-icon icon-sail-needle size-18"></span>', text: '<strong>Mend Torn Sail Cloth</strong> (Sailmaker Needle)' },
+      { icon: '<span class="pixel-icon icon-rope-knot size-18"></span>', text: '<strong>Reinforce Cracked Mast</strong> (Hemp Rope)' }
     ]
   },
   {
     day: 5,
     name: 'Day 5: Abyssal Trench',
-    icon: '🌊',
-    meta: 'Heavy Squall • Strong Tide • 🪙 400',
+    icon: '<span class="pixel-icon icon-ocean-wave size-20"></span>',
+    meta: 'Heavy Squall • Strong Tide • <span class="pixel-icon icon-doubloon size-14"></span> 400',
     vessel: 'Barlow Light Sloop',
-    weather: '🌊 Heavy Squall & Torrential Rain',
-    budget: '🪙 400 Doubloons',
-    hazard: 'Extreme (Abyssal Currents & Sea Beasts)',
+    weather: '<span class="pixel-icon icon-ocean-wave size-16"></span> Heavy Squall &amp; Torrential Rain',
+    budget: '<span class="pixel-icon icon-doubloon size-16"></span> 400 Doubloons',
+    hazard: 'Extreme (Abyssal Currents &amp; Sea Beasts)',
     dispatch: `"The deep currents near the trench drag down even the stoutest craft. Timber groaned and joints separated under the pressure of abyssal swells. Rebuild her strength, shipwright!"`,
     docket: [
-      { icon: '🔨', text: '<strong>Patch Hull Breaches</strong> (Hammer & Planks)' },
-      { icon: '🪡', text: '<strong>Mend Torn Sail Cloth</strong> (Sailmaker Needle)' },
-      { icon: '🪢', text: '<strong>Reinforce Cracked Mast</strong> (Hemp Rope)' }
+      { icon: '<span class="pixel-icon icon-hammer size-18"></span>', text: '<strong>Patch Hull Breaches</strong> (Hammer &amp; Planks)' },
+      { icon: '<span class="pixel-icon icon-sail-needle size-18"></span>', text: '<strong>Mend Torn Sail Cloth</strong> (Sailmaker Needle)' },
+      { icon: '<span class="pixel-icon icon-rope-knot size-18"></span>', text: '<strong>Reinforce Cracked Mast</strong> (Hemp Rope)' }
     ]
   },
   {
     day: 6,
     name: 'Day 6: Tempest Surge',
-    icon: '⚡',
-    meta: 'Lightning • Crushing Waves • 🪙 500',
+    icon: '<span class="pixel-icon icon-lightning-spark size-20"></span>',
+    meta: 'Lightning • Crushing Waves • <span class="pixel-icon icon-doubloon size-14"></span> 500',
     vessel: 'Barlow Light Sloop',
-    weather: '⚡ Tempest Surge & Thick Fog',
-    budget: '🪙 500 Doubloons',
-    hazard: 'Extreme (Rolling Lightning & Crushing Waves)',
+    weather: '<span class="pixel-icon icon-lightning-spark size-16"></span> Tempest Surge &amp; Thick Fog',
+    budget: '<span class="pixel-icon icon-doubloon size-16"></span> 500 Doubloons',
+    hazard: 'Extreme (Rolling Lightning &amp; Crushing Waves)',
     dispatch: `"Lightning struck our topmast and lightning arcs scorched the rigging! Shorter waves are slamming against our bow. We need a complete overhaul to weather the next run!"`,
     docket: [
-      { icon: '🔨', text: '<strong>Patch Hull Breaches</strong> (Hammer & Planks)' },
-      { icon: '🪡', text: '<strong>Mend Torn Sail Cloth</strong> (Sailmaker Needle)' },
-      { icon: '🪢', text: '<strong>Reinforce Cracked Mast</strong> (Hemp Rope)' }
+      { icon: '<span class="pixel-icon icon-hammer size-18"></span>', text: '<strong>Patch Hull Breaches</strong> (Hammer &amp; Planks)' },
+      { icon: '<span class="pixel-icon icon-sail-needle size-18"></span>', text: '<strong>Mend Torn Sail Cloth</strong> (Sailmaker Needle)' },
+      { icon: '<span class="pixel-icon icon-rope-knot size-18"></span>', text: '<strong>Reinforce Cracked Mast</strong> (Hemp Rope)' }
     ]
   },
   {
     day: 7,
     name: "Day 7: The Kraken's Wake",
-    icon: '🦑',
-    meta: 'Gale Sky • Ancient Titan • 🪙 600',
+    icon: '<span class="pixel-icon icon-kraken-head size-20"></span>',
+    meta: 'Gale Sky • Ancient Titan • <span class="pixel-icon icon-doubloon size-14"></span> 600',
     vessel: 'Barlow Light Sloop',
-    weather: '🌪️ Blood Gale & Monstrous Tides',
-    budget: '🪙 600 Doubloons',
-    hazard: 'Lethal (The Ancient Kraken & Tentacles)',
+    weather: '<span class="pixel-icon icon-hurricane-gale size-16"></span> Blood Gale &amp; Monstrous Tides',
+    budget: '<span class="pixel-icon icon-doubloon size-16"></span> 600 Doubloons',
+    hazard: 'Lethal (The Ancient Kraken &amp; Tentacles)',
     dispatch: `"The beast awakens from the depths! Tentacles like ancient tree trunks dragged three galleons down yesterday. Our vessel must be in peak fighting shape to survive the Kraken's domain!"`,
     docket: [
-      { icon: '🔨', text: '<strong>Patch Hull Breaches</strong> (Hammer & Planks)' },
-      { icon: '🪡', text: '<strong>Mend Torn Sail Cloth</strong> (Sailmaker Needle)' },
-      { icon: '🪢', text: '<strong>Reinforce Cracked Mast</strong> (Hemp Rope)' }
+      { icon: '<span class="pixel-icon icon-hammer size-18"></span>', text: '<strong>Patch Hull Breaches</strong> (Hammer &amp; Planks)' },
+      { icon: '<span class="pixel-icon icon-sail-needle size-18"></span>', text: '<strong>Mend Torn Sail Cloth</strong> (Sailmaker Needle)' },
+      { icon: '<span class="pixel-icon icon-rope-knot size-18"></span>', text: '<strong>Reinforce Cracked Mast</strong> (Hemp Rope)' }
     ]
   }
 ];
@@ -171,8 +171,8 @@ export class LevelSelectorUI {
 
     const values = dossierRight.querySelectorAll('.dossier-value');
     if (values[0]) values[0].textContent = lvl.vessel;
-    if (values[1]) values[1].textContent = lvl.weather;
-    if (values[2]) values[2].textContent = lvl.budget;
+    if (values[1]) values[1].innerHTML = lvl.weather;
+    if (values[2]) values[2].innerHTML = lvl.budget;
     if (values[3]) values[3].textContent = lvl.hazard;
 
     const dispatchBody = dossierRight.querySelector('.dispatch-body');
@@ -221,7 +221,7 @@ export class LevelSelectorUI {
       <div class="level-book-wrapper">
         <div class="level-book">
           <!-- Close button resembling a wax seal / brass emblem -->
-          <button class="book-close-btn" id="book-close-btn" aria-label="Close Logbook">✕</button>
+          <button class="book-close-btn" id="book-close-btn" aria-label="Close Logbook"><span class="pixel-icon icon-close-cross size-16"></span></button>
 
           <!-- Book spine & decorative ribbon -->
           <div class="book-spine"></div>
@@ -232,7 +232,7 @@ export class LevelSelectorUI {
             <!-- LEFT PAGE: Level & Voyage Index -->
             <div class="book-page page-left">
               <div class="page-header">
-                <div class="nautical-emblem">⚓</div>
+                <div class="nautical-emblem"><span class="pixel-icon icon-anchor size-24"></span></div>
                 <h2 class="book-title">CAPTAIN'S LOGBOOK</h2>
                 <div class="book-subtitle">Charted Voyages &amp; Repair Dockets</div>
                 <div class="page-divider"></div>
@@ -256,11 +256,11 @@ export class LevelSelectorUI {
                 </div>
                 <div class="dossier-row">
                   <span class="dossier-label">Weather Forecast:</span>
-                  <span class="dossier-value" id="dossier-weather">☀️ Clear &amp; Fair Breeze</span>
+                  <span class="dossier-value" id="dossier-weather"><span class="pixel-icon icon-sun-fair size-16"></span> Clear &amp; Fair Breeze</span>
                 </div>
                 <div class="dossier-row">
                   <span class="dossier-label">Repair Budget:</span>
-                  <span class="dossier-value highlight-gold" id="dossier-budget">🪙 200 Doubloons</span>
+                  <span class="dossier-value highlight-gold" id="dossier-budget"><span class="pixel-icon icon-doubloon size-16"></span> 200 Doubloons</span>
                 </div>
                 <div class="dossier-row">
                   <span class="dossier-label">Hazard Rating:</span>
