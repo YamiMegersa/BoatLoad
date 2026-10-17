@@ -38,7 +38,9 @@ export class ShopUI {
         <!-- Header with Ghost Banner & Coin Counter -->
         <div class="shop-modal-header">
           <div class="shop-header-title-box">
-            <div class="shop-ghost-badge">👻</div>
+            <div class="shop-ghost-badge">
+              <span class="pixel-icon icon-phantom-ghost size-32"></span>
+            </div>
             <div>
               <h2 class="shop-title">DEADLY BUSINESS</h2>
               <div class="shop-subtitle">"Ghost has wares if sailor has coin"</div>
@@ -46,24 +48,29 @@ export class ShopUI {
           </div>
           <div class="shop-header-right">
             <div class="shop-wallet-pill">
-              <span class="shop-wallet-icon">🪙</span>
+              <span class="pixel-icon icon-doubloon size-18"></span>
               <span class="shop-wallet-coins" id="shop-coin-display">${this.gameState.coins || 0}</span>
               <span class="shop-wallet-label">Doubloons</span>
             </div>
-            <button class="shop-close-btn" id="shop-btn-close" title="Close Stall (Esc)">&times;</button>
+            <button class="shop-close-btn" id="shop-btn-close" title="Close Stall (Esc)">
+              <span class="pixel-icon icon-close-cross size-16"></span>
+            </button>
           </div>
         </div>
 
         <!-- Category Navigation Tabs -->
         <div class="shop-tabs-row">
           <button class="shop-tab-btn ${this.activeTab === ItemType.WHEEL ? 'active' : ''}" data-tab="${ItemType.WHEEL}">
-            ☸️ Ship's Wheels
+            <span class="pixel-icon icon-helm-wheel size-18"></span>
+            <span>Ship's Wheels</span>
           </button>
           <button class="shop-tab-btn ${this.activeTab === ItemType.PEDESTAL ? 'active' : ''}" data-tab="${ItemType.PEDESTAL}">
-            🏛️ Helmsman Pedestals
+            <span class="pixel-icon icon-helm-pedestal size-18"></span>
+            <span>Helmsman Pedestals</span>
           </button>
           <button class="shop-tab-btn ${this.activeTab === ItemType.LANTERN ? 'active' : ''}" data-tab="${ItemType.LANTERN}">
-            🏮 Bow Lanterns
+            <span class="pixel-icon icon-ship-lantern size-18"></span>
+            <span>Bow Lanterns</span>
           </button>
         </div>
 
@@ -75,6 +82,7 @@ export class ShopUI {
         <!-- Footer / Hint Bar -->
         <div class="shop-modal-footer">
           <div class="shop-footer-hint">
+            <span class="pixel-icon icon-idea-bulb size-16 hint-bulb"></span>
             <span class="hint-tag">TIP:</span> Wheels enhance rudder agility &amp; siren resistance. Pedestals multiply doubloons on QTEs &amp; voyages. Lanterns illuminate fog &amp; waters.
           </div>
         </div>
@@ -186,13 +194,14 @@ export class ShopUI {
       // Action button state
       let btnHtml = '';
       if (isEquipped) {
-        btnHtml = `<button class="shop-action-btn equipped-btn" disabled>✅ Equipped</button>`;
+        btnHtml = `<button class="shop-action-btn equipped-btn" disabled><span class="pixel-icon icon-confirm-check size-16"></span> EQUIPPED</button>`;
       } else if (isOwned) {
-        btnHtml = `<button class="shop-action-btn equip-btn" data-action="equip" data-id="${item.id}">⚓ Equip</button>`;
+        btnHtml = `<button class="shop-action-btn equip-btn" data-action="equip" data-id="${item.id}"><span class="pixel-icon icon-anchor size-16"></span> EQUIP</button>`;
       } else if (canAfford) {
-        btnHtml = `<button class="shop-action-btn buy-btn" data-action="buy" data-id="${item.id}">🪙 ${item.cost} Doubloons</button>`;
+        btnHtml = `<button class="shop-action-btn buy-btn" data-action="buy" data-id="${item.id}"><span class="pixel-icon icon-doubloon size-16"></span> ${item.cost} DOUBLOONS</button>`;
       } else {
-        btnHtml = `<button class="shop-action-btn locked-btn" disabled>🔒 🪙 ${item.cost} (Need ${item.cost - (this.gameState.coins || 0)} more)</button>`;
+        const diff = item.cost - (this.gameState.coins || 0);
+        btnHtml = `<button class="shop-action-btn locked-btn" disabled><span class="pixel-icon icon-lock-padlock size-14"></span> <span class="pixel-icon icon-doubloon size-14"></span> ${item.cost} (Need ${diff})</button>`;
       }
 
       card.innerHTML = `

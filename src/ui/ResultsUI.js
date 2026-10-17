@@ -40,7 +40,9 @@ export class ResultsUI {
     this.root.innerHTML = `
       <div class="results-container">
         <div class="results-header">
-          <div class="results-crest">⚓</div>
+          <div class="results-crest">
+            <span class="pixel-icon icon-anchor size-32"></span>
+          </div>
           <h1 class="results-title">VOYAGE ACCOMPLISHED</h1>
           <div class="results-subtitle">Safe Harbor Reached • Day ${day} Conquered</div>
         </div>
@@ -48,7 +50,7 @@ export class ResultsUI {
         <div class="results-ledger-card">
           <div class="ledger-row">
             <span class="ledger-label">Base Voyage Bounty</span>
-            <span class="ledger-val">+${baseReward} 🪙</span>
+            <span class="ledger-val">+${baseReward} <span class="pixel-icon icon-doubloon size-16"></span></span>
           </div>
 
           <div class="ledger-row highlight">
@@ -56,34 +58,38 @@ export class ResultsUI {
               <span class="ledger-label">Pedestal Bonus (${multiplier}x)</span>
               <span class="ledger-subtext">${pedestalName}</span>
             </div>
-            <span class="ledger-val highlight-gold">+${bonusFromPedestal} 🪙</span>
+            <span class="ledger-val highlight-gold">+${bonusFromPedestal} <span class="pixel-icon icon-doubloon size-16"></span></span>
           </div>
 
           <div class="ledger-divider"></div>
 
           <div class="ledger-row total-row">
             <span class="ledger-label">Total Doubloons Banked</span>
-            <span class="ledger-val total-gold">+${totalAwarded} 🪙</span>
+            <span class="ledger-val total-gold">+${totalAwarded} <span class="pixel-icon icon-doubloon size-18"></span></span>
           </div>
 
           <div class="ledger-wallet-row">
             <span>Current Purse Balance:</span>
-            <strong class="wallet-balance">${this.gameState.coins || 0} 🪙</strong>
+            <strong class="wallet-balance">${this.gameState.coins || 0} <span class="pixel-icon icon-doubloon size-16"></span></strong>
           </div>
         </div>
 
         <div class="results-actions">
           <button class="results-btn shop-action" id="res-btn-shop">
-            🛍️ Visit "Deadly Business" Shop
+            <span class="pixel-icon icon-phantom-ghost size-18"></span>
+            <span>Visit Ghost Salesman Stall</span>
           </button>
           <button class="results-btn dock-action" id="res-btn-dock">
-            🏝️ Return to Dock
+            <span class="pixel-icon icon-harbor-flag size-18"></span>
+            <span>Return to Dock</span>
           </button>
           <button class="results-btn shipyard-action" id="res-btn-shipyard">
-            🔨 Shipyard &amp; Repairs
+            <span class="pixel-icon icon-hammer size-18"></span>
+            <span>Shipyard &amp; Repairs</span>
           </button>
           <button class="results-btn next-action" id="res-btn-next">
-            ⛵ Next Voyage (Day ${Math.min(7, day + 1)})
+            <span class="pixel-icon icon-sloop size-18"></span>
+            <span>Next Voyage (Day ${Math.min(7, day + 1)})</span>
           </button>
         </div>
       </div>
