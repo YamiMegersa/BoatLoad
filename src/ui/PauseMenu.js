@@ -23,35 +23,35 @@ export class PauseMenu {
         <!-- MAIN PAUSE VIEW -->
         <div id="pause-main-view" class="pause-subview">
           <div class="pause-header">
-            <div class="pause-crest-icon">⚓</div>
+            <div class="pause-crest-icon"><span class="pixel-icon icon-anchor size-32"></span></div>
             <h1 class="pause-title">Paused</h1>
             <div class="pause-subtitle">Voyage Temporarily Anchored</div>
           </div>
 
           <div class="pause-actions-list">
-            <button id="btn-resume" class="pause-btn primary">▶ Resume Game</button>
-            <button id="btn-settings" class="pause-btn settings-btn">⚙️ Settings &amp; Performance</button>
-            <button id="btn-director" class="pause-btn director-btn">🎬 Director Mode (F8)</button>
-            <button id="btn-restart" class="pause-btn">↺ Restart Phase</button>
-            <button id="btn-shipyard" class="pause-btn">⚒ Back to Shipyard</button>
-            <button id="btn-title" class="pause-btn danger">✖ Quit to Title</button>
+            <button id="btn-resume" class="pause-btn primary"><span class="pixel-icon icon-play size-18"></span> Resume Game</button>
+            <button id="btn-settings" class="pause-btn settings-btn"><span class="pixel-icon icon-settings-cog size-18"></span> Settings &amp; Performance</button>
+            <button id="btn-director" class="pause-btn director-btn"><span class="pixel-icon icon-director-clapper size-18"></span> Director Mode (F8)</button>
+            <button id="btn-restart" class="pause-btn"><span class="pixel-icon icon-rotate-arrow size-18"></span> Restart Phase</button>
+            <button id="btn-shipyard" class="pause-btn"><span class="pixel-icon icon-hammer size-18"></span> Back to Shipyard</button>
+            <button id="btn-title" class="pause-btn danger"><span class="pixel-icon icon-cabin-door-exit size-18"></span> Quit to Title</button>
           </div>
         </div>
 
         <!-- SETTINGS VIEW -->
         <div id="pause-settings-view" class="pause-subview" style="display: none;">
           <div class="settings-header">
-            <button id="btn-settings-back-top" class="settings-back-btn" title="Back to Pause Menu">← Back</button>
+            <button id="btn-settings-back-top" class="settings-back-btn" title="Back to Pause Menu"><span class="pixel-icon icon-arrow-right size-14" style="transform: scaleX(-1);"></span> Back</button>
             <div class="settings-title-wrap">
-              <h2 class="settings-title">⚙️ Game Settings</h2>
+              <h2 class="settings-title"><span class="pixel-icon icon-settings-cog size-20"></span> Game Settings</h2>
               <span class="settings-subtitle">Optimize Draw Distance, FOV, Fog &amp; Audio</span>
             </div>
           </div>
 
           <!-- Settings Navigation Tabs -->
           <div class="settings-tabs">
-            <button class="settings-tab-btn active" data-tab="tab-graphics">🖥️ Graphics &amp; Performance</button>
-            <button class="settings-tab-btn" data-tab="tab-audio">🔊 Audio Controls</button>
+            <button class="settings-tab-btn active" data-tab="tab-graphics"><span class="pixel-icon icon-display-monitor size-18"></span> Graphics &amp; Performance</button>
+            <button class="settings-tab-btn" data-tab="tab-audio"><span class="pixel-icon icon-audio-horn size-18"></span> Audio Controls</button>
           </div>
 
           <!-- Tab Content: Graphics & Draw Distance -->
@@ -237,8 +237,8 @@ export class PauseMenu {
 
           <!-- Settings Action Bar -->
           <div class="settings-footer-row">
-            <button id="btn-settings-reset" class="settings-action-btn secondary">↺ Reset Defaults</button>
-            <button id="btn-settings-done" class="settings-action-btn primary">✔ Done / Back to Pause</button>
+            <button id="btn-settings-reset" class="settings-action-btn secondary"><span class="pixel-icon icon-rotate-arrow size-16"></span> Reset Defaults</button>
+            <button id="btn-settings-done" class="settings-action-btn primary"><span class="pixel-icon icon-confirm-check size-16"></span> Done / Back to Pause</button>
           </div>
 
         </div>

@@ -819,7 +819,7 @@ export class DirectorMode {
     const launchBtn = document.createElement('button');
     launchBtn.id = 'director-launch-btn';
     launchBtn.innerHTML = `
-      <span class="icon">🎬</span>
+      <span class="icon"><span class="pixel-icon icon-director-clapper size-18"></span></span>
       <span>Director Mode</span>
       <span class="key-badge">F8</span>
     `;
@@ -872,8 +872,8 @@ export class DirectorMode {
 
         <!-- Time Manipulation -->
         <div class="director-time-group">
-          <button id="btn-director-halt" class="director-btn btn-halt active" title="Freeze simulation (Space)">⏸ Freeze</button>
-          <button id="btn-director-step" class="director-btn" title="Advance 1 frame (.)">⏯ Step 1F</button>
+          <button id="btn-director-halt" class="director-btn btn-halt active" title="Freeze simulation (Space)"><span class="pixel-icon icon-director-clapper size-14"></span> Freeze</button>
+          <button id="btn-director-step" class="director-btn" title="Advance 1 frame (.)"><span class="pixel-icon icon-play-step size-14"></span> Step 1F</button>
           
           <button class="director-btn btn-speed" data-speed="0.1">0.1x</button>
           <button class="director-btn btn-speed" data-speed="0.25">0.25x</button>
@@ -889,8 +889,8 @@ export class DirectorMode {
 
         <!-- Top Right Actions -->
         <div class="director-actions-group">
-          <button id="btn-director-hide-ui" class="director-btn" title="Hide UI for recording (H)">👁 Hide UI (H)</button>
-          <button id="btn-director-exit" class="director-btn" style="background:#552222; border-color:#ff6666;" title="Exit (F8)">✕ Exit</button>
+          <button id="btn-director-hide-ui" class="director-btn" title="Hide UI for recording (H)"><span class="pixel-icon icon-hide-ui-eye size-14"></span> Hide UI (H)</button>
+          <button id="btn-director-exit" class="director-btn" style="background:#552222; border-color:#ff6666;" title="Exit (F8)"><span class="pixel-icon icon-close-cross size-14"></span> Exit</button>
         </div>
       </div>
 
@@ -898,10 +898,10 @@ export class DirectorMode {
       <div class="director-deck" id="director-main-deck">
         <div class="director-deck-header">
           <div class="director-tabs">
-            <button class="director-tab-btn active" data-tab="tab-rig">🎥 Rig & Controls</button>
-            <button class="director-tab-btn" data-tab="tab-keyframe">🎞 Keyframe Studio</button>
-            <button class="director-tab-btn" data-tab="tab-lens">🔍 Optics & Framing</button>
-            <button class="director-tab-btn" data-tab="tab-env">🌅 Atmosphere & World</button>
+            <button class="director-tab-btn active" data-tab="tab-rig"><span class="pixel-icon icon-cinema-camera size-16"></span> Rig & Controls</button>
+            <button class="director-tab-btn" data-tab="tab-keyframe"><span class="pixel-icon icon-film-reel size-16"></span> Keyframe Studio</button>
+            <button class="director-tab-btn" data-tab="tab-lens"><span class="pixel-icon icon-optics-lens size-16"></span> Optics & Framing</button>
+            <button class="director-tab-btn" data-tab="tab-env"><span class="pixel-icon icon-sunset size-16"></span> Atmosphere & World</button>
           </div>
           <div class="director-deck-controls">
             <button id="btn-deck-minimize" class="director-btn" style="padding:2px 8px; font-size:10px;">_ Minimize</button>
@@ -984,7 +984,7 @@ export class DirectorMode {
                       <button class="camera-dpad-btn" data-action="rollRight" title="Dutch Tilt Right (hold)">↷</button>
 
                       <button class="camera-dpad-btn" data-action="panLeft" title="Pan Left (hold)">◀ Pan</button>
-                      <button class="camera-dpad-btn" data-action="levelHorizon" title="Level Horizon to 0°">⚓</button>
+                      <button class="camera-dpad-btn" data-action="levelHorizon" title="Level Horizon to 0°"><span class="pixel-icon icon-anchor size-14"></span></button>
                       <button class="camera-dpad-btn" data-action="panRight" title="Pan Right (hold)">Pan ▶</button>
 
                       <div></div>
@@ -1002,12 +1002,12 @@ export class DirectorMode {
               <div class="rig-col-card">
                 <div class="rig-col-title">1-Click Trailer Shots</div>
                 <div class="shot-preset-grid">
-                  <button class="shot-preset-btn" data-preset="bowHero">🏹 Bow Hero</button>
-                  <button class="shot-preset-btn" data-preset="masthead">🦅 Masthead</button>
-                  <button class="shot-preset-btn" data-preset="broadside">💥 Broadside</button>
-                  <button class="shot-preset-btn" data-preset="waveSkimmer">🌊 Wave Skim</button>
-                  <button class="shot-preset-btn" data-preset="dutchAction">⚔ Dutch Action</button>
-                  <button class="shot-preset-btn" data-preset="birdsEye">🗺 Bird's Eye</button>
+                  <button class="shot-preset-btn" data-preset="bowHero"><span class="pixel-icon icon-harpoon size-14"></span> Bow Hero</button>
+                  <button class="shot-preset-btn" data-preset="masthead"><span class="pixel-icon icon-compass size-14"></span> Masthead</button>
+                  <button class="shot-preset-btn" data-preset="broadside"><span class="pixel-icon icon-cannon-flash size-14"></span> Broadside</button>
+                  <button class="shot-preset-btn" data-preset="waveSkimmer"><span class="pixel-icon icon-ocean-wave size-14"></span> Wave Skim</button>
+                  <button class="shot-preset-btn" data-preset="dutchAction"><span class="pixel-icon icon-cutlasses size-14"></span> Dutch Action</button>
+                  <button class="shot-preset-btn" data-preset="birdsEye"><span class="pixel-icon icon-treasure-map size-14"></span> Bird's Eye</button>
                 </div>
               </div>
             </div>
@@ -1019,8 +1019,8 @@ export class DirectorMode {
               <div class="keyframe-controls-row">
                 <div style="display:flex; gap:8px; align-items:center;">
                   <button id="btn-add-kf" class="director-btn" style="background:#225533; border-color:#44cc66;">+ Add Keyframe (K)</button>
-                  <button id="btn-play-path" class="director-btn" style="background:#224466; border-color:#38bdf8;">▶ Play Path</button>
-                  <button id="btn-stop-path" class="director-btn">⏹ Stop</button>
+                  <button id="btn-play-path" class="director-btn" style="background:#224466; border-color:#38bdf8;"><span class="pixel-icon icon-play size-14"></span> Play Path</button>
+                  <button id="btn-stop-path" class="director-btn"><span class="pixel-icon icon-cancel-cross size-14"></span> Stop</button>
                   <label style="font-size:11px; display:flex; align-items:center; gap:4px; margin-left:8px;">
                     <input type="checkbox" id="chk-loop-path" checked style="accent-color:#d4af37;" /> Loop
                   </label>
@@ -1122,11 +1122,11 @@ export class DirectorMode {
               <div class="rig-col-card">
                 <div class="rig-col-title">Atmosphere Presets</div>
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
-                  <button class="director-btn btn-weather-preset" data-weather="clear">☀ Clear</button>
-                  <button class="director-btn btn-weather-preset" data-weather="sunset">🌅 Sunset</button>
-                  <button class="director-btn btn-weather-preset" data-weather="storm">⛈ Storm</button>
-                  <button class="director-btn btn-weather-preset" data-weather="night">🌙 Night</button>
-                  <button class="director-btn btn-weather-preset" data-weather="fog">🌫 Dense Fog</button>
+                  <button class="director-btn btn-weather-preset" data-weather="clear"><span class="pixel-icon icon-sun size-14"></span> Clear</button>
+                  <button class="director-btn btn-weather-preset" data-weather="sunset"><span class="pixel-icon icon-sunset size-14"></span> Sunset</button>
+                  <button class="director-btn btn-weather-preset" data-weather="storm"><span class="pixel-icon icon-storm size-14"></span> Storm</button>
+                  <button class="director-btn btn-weather-preset" data-weather="night"><span class="pixel-icon icon-moon size-14"></span> Night</button>
+                  <button class="director-btn btn-weather-preset" data-weather="fog"><span class="pixel-icon icon-sea-fog size-14"></span> Dense Fog</button>
                 </div>
               </div>
 
@@ -1539,10 +1539,10 @@ export class DirectorMode {
     if (this._dom.haltBtn) {
       if (this.isHalted) {
         this._dom.haltBtn.classList.add('active');
-        this._dom.haltBtn.innerText = '▶ Resume';
+        this._dom.haltBtn.innerHTML = '<span class="pixel-icon icon-play size-14"></span> Resume';
       } else {
         this._dom.haltBtn.classList.remove('active');
-        this._dom.haltBtn.innerText = '⏸ Freeze';
+        this._dom.haltBtn.innerHTML = '<span class="pixel-icon icon-director-clapper size-14"></span> Freeze';
       }
     }
 

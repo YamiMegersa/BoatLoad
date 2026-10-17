@@ -770,7 +770,7 @@ export class EditorSystem {
       const arrowHelper = new THREE.ArrowHelper(new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 0.25, 0), r * 1.5, 0x00e5ff, 2.5, 1.2);
       group.add(arrowHelper);
 
-      const label = this._createLabelSprite('⛵ SHIP SPAWN', '#00e5ff');
+      const label = this._createLabelSprite('SHIP SPAWN', '#00e5ff');
       label.position.set(0, 7.5, 0);
       label.scale.set(16, 4, 1);
       group.add(label);
@@ -1215,7 +1215,7 @@ export class EditorSystem {
       krakenMarker.add(seaRing);
 
       // Label sprite
-      const kLabel = this._createLabelSprite('🐙 KRAKEN', '#ff44aa');
+      const kLabel = this._createLabelSprite('KRAKEN', '#ff44aa');
       kLabel.position.set(0, 14, 0);
       kLabel.scale.set(16, 4, 1);
       krakenMarker.add(kLabel);
@@ -1256,7 +1256,7 @@ export class EditorSystem {
       startMarker.add(flag);
 
       // Label sprite
-      const sLabel = this._createLabelSprite('🏁 RACE START', '#00ff88');
+      const sLabel = this._createLabelSprite('RACE START', '#00ff88');
       sLabel.position.set(0, 10, 0);
       sLabel.scale.set(14, 3.5, 1);
       startMarker.add(sLabel);
@@ -1484,7 +1484,7 @@ export class EditorSystem {
     this._endLocationVisualGroup.add(ringMesh);
 
     // Label sprite
-    const label = this._createLabelSprite('🏁 HARBOR GOAL', '#00ff88');
+    const label = this._createLabelSprite('HARBOR GOAL', '#00ff88');
     label.position.set(0, height + 4, 0);
     label.scale.set(18, 4.5, 1);
     this._endLocationVisualGroup.add(label);
@@ -1600,7 +1600,7 @@ export class EditorSystem {
     this._shipGhostGroup.add(arrowHelper);
 
     // Label sprite
-    const label = this._createLabelSprite('⛵ SHIP SPAWN', profile.isGagTruck ? '#ff4422' : '#00e5ff');
+    const label = this._createLabelSprite('SHIP SPAWN', profile.isGagTruck ? '#ff4422' : '#00e5ff');
     label.position.set(0, 7.5, 0);
     label.scale.set(16, 4, 1);
     this._shipGhostGroup.add(label);

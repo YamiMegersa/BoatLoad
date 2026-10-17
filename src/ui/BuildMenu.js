@@ -28,7 +28,7 @@ export class BuildMenu {
 
     // HUD Data Cache
     this._budgetData = { total: 300, spent: 0, remaining: 300 };
-    this._summaryData = { integrityPct: 100, leaks: 0, intact: 0, missing: 0, damaged: 0, flooded: 0, shipName: 'Sloop', shipIcon: '⛵' };
+    this._summaryData = { integrityPct: 100, leaks: 0, intact: 0, missing: 0, damaged: 0, flooded: 0, shipName: 'Sloop', shipIcon: '<span class="pixel-icon icon-sloop size-20"></span>' };
 
     this._buildHTML();
 
@@ -80,7 +80,7 @@ export class BuildMenu {
       <!-- TOP BAR: Shipyard Brand, Vessel Stats & Actions -->
       <header class="shipyard-top-bar">
         <div class="shipyard-brand">
-          <span class="shipyard-brand-icon">🔨</span>
+          <span class="shipyard-brand-icon"><span class="pixel-icon icon-hammer size-18"></span></span>
           <div class="shipyard-brand-text">
             <span class="shipyard-brand-title">DRYDOCK SHIPWRIGHT</span>
             <span class="shipyard-brand-sub">Ship Repair &amp; Engineering</span>
@@ -111,7 +111,7 @@ export class BuildMenu {
           <div class="hud-stat-box" id="hud-leaks-box" title="Holes below the waterline">
             <span class="hud-stat-label">WATERLINE LEAKS</span>
             <div class="hud-stat-value-row">
-              <span class="hud-leak-icon">💧</span>
+              <span class="hud-leak-icon"><span class="pixel-icon hud-leak-drop size-16"></span></span>
               <span class="hud-stat-number" id="hud-leaks-val">0 Leaks</span>
             </div>
           </div>
@@ -132,10 +132,10 @@ export class BuildMenu {
         <!-- Top Right Actions -->
         <div class="shipyard-top-actions">
           <button id="btn-shipyard-dock" class="action-btn-sm" title="Return to island dock promenade">
-            <span>⚓ Island Dock</span>
+            <span><span class="pixel-icon icon-anchor size-16"></span> Island Dock</span>
           </button>
           <button id="btn-shipyard-sail" class="action-btn-primary" title="Depart drydock and begin sailing!">
-            <span>⛵ Set Sail When Ready!</span>
+            <span><span class="pixel-icon icon-sloop size-16"></span> Set Sail When Ready!</span>
           </button>
         </div>
       </header>
@@ -167,19 +167,19 @@ export class BuildMenu {
           <span class="ribbon-group-label">3. Placement Tools</span>
           <div class="ribbon-group-row">
             <button class="shelf-btn tool-mode-btn" id="btn-ctrl-rotate" title="Rotate brush 90° (Hotkey: R)">
-              <span class="shelf-btn-icon">🔄</span>
+              <span class="shelf-btn-icon"><span class="pixel-icon icon-rotate-arrow size-18"></span></span>
               <span class="shelf-btn-text">Rotate [R]</span>
             </button>
             <button class="shelf-btn tool-mode-btn" id="btn-ctrl-pitch" title="Toggle horizontal or upright orientation (Hotkey: T)">
-              <span class="shelf-btn-icon">📐</span>
+              <span class="shelf-btn-icon"><span class="pixel-icon icon-calipers size-18"></span></span>
               <span class="shelf-btn-text">Pitch [T]</span>
             </button>
             <button class="shelf-btn tool-mode-btn ${this._mirrorMode ? 'tool-active' : ''}" id="btn-ctrl-mirror" title="Toggle port/starboard symmetry (Hotkey: M)">
-              <span class="shelf-btn-icon">🪞</span>
+              <span class="shelf-btn-icon"><span class="pixel-icon icon-mirror size-18"></span></span>
               <span class="shelf-btn-text" id="btn-mirror-text">Symmetry [M]</span>
             </button>
             <button class="shelf-btn tool-mode-btn" id="btn-ctrl-undo" title="Undo placement &amp; refund funds (Hotkey: Ctrl+Z)">
-              <span class="shelf-btn-icon">↩️</span>
+              <span class="shelf-btn-icon"><span class="pixel-icon icon-arrow-right size-18" style="transform: scaleX(-1);"></span></span>
               <span class="shelf-btn-text">Undo [Ctrl+Z]</span>
             </button>
           </div>
@@ -342,7 +342,7 @@ export class BuildMenu {
     // 1. Vessel Info
     const iconEl = this._el.querySelector('#hud-ship-icon');
     const nameEl = this._el.querySelector('#hud-ship-name');
-    if (iconEl) iconEl.textContent = this._summaryData.shipIcon || '⛵';
+    if (iconEl) iconEl.innerHTML = this._summaryData.shipIcon || '<span class="pixel-icon icon-sloop size-20"></span>';
     if (nameEl) nameEl.textContent = this._summaryData.shipName || 'Vessel';
 
     // 2. Hull Integrity

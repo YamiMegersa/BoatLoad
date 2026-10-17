@@ -24,7 +24,7 @@ export const SHIP_REGISTRY = {
     waterlineY: 3,
     waterCapacity: 70,
     modelRotationY: Math.PI / 2, // Flipped to sail forwards with pointed bow
-    icon: '🛶'
+    icon: '<span class="pixel-icon icon-skiff size-24"></span>'
   },
   sloop: {
     id: 'sloop',
@@ -44,7 +44,7 @@ export const SHIP_REGISTRY = {
     waterlineY: 4,
     waterCapacity: 100,
     modelRotationY: 0,
-    icon: '⛵'
+    icon: '<span class="pixel-icon icon-sloop size-24"></span>'
   },
   Ship_Large_Voxelized: {
     id: 'Ship_Large_Voxelized',
@@ -64,7 +64,7 @@ export const SHIP_REGISTRY = {
     waterlineY: 5,
     waterCapacity: 300,
     modelRotationY: Math.PI / 2,
-    icon: '🚢'
+    icon: '<span class="pixel-icon icon-frigate size-24"></span>'
   },
   BigShip_Voxelized: {
     id: 'BigShip_Voxelized',
@@ -84,7 +84,7 @@ export const SHIP_REGISTRY = {
     waterlineY: 6,
     waterCapacity: 600,
     modelRotationY: 0,
-    icon: '🏰'
+    icon: '<span class="pixel-icon icon-dreadnought size-24"></span>'
   },
   Truck: {
     id: 'Truck',
@@ -105,7 +105,7 @@ export const SHIP_REGISTRY = {
     waterCapacity: 20,
     isGagTruck: true,
     modelRotationY: 0,
-    icon: '🛻'
+    icon: '<span class="pixel-icon icon-gag-truck size-24"></span>'
   }
 };
 

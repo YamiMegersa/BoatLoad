@@ -373,7 +373,7 @@ document.getElementById('ui-root')?.appendChild(noticeBanner);
 let noticeTimer = null;
 function showNotice(message, ms = 5000) {
   if (!noticeBanner) return;
-  noticeBanner.textContent = message;
+  noticeBanner.innerHTML = message;
   noticeBanner.style.display = 'block';
   clearTimeout(noticeTimer);
   noticeTimer = setTimeout(() => { noticeBanner.style.display = 'none'; }, ms);
@@ -382,7 +382,7 @@ function showNotice(message, ms = 5000) {
 on('buildError', (d) => {
   console.error('[BoatLoad] Build error:', d.message);
   logEvent(`[Build] ERROR: ${d.message}`);
-  showNotice(`⚠ ${d.message}`);
+  showNotice(`<span class="pixel-icon icon-powder-keg size-16"></span> ${d.message}`);
 });
 
 // ---------------------------------------------------------------------------
@@ -413,7 +413,7 @@ async function boot() {
 
       if (gameState.day > MAX_DAY) {
         logEvent('[Level] All days cleared — voyage complete! Replaying the final day.');
-        showNotice('⛵ ALL 7 DAYS CLEARED — VOYAGE COMPLETE! ⛵', 8000);
+        showNotice('<span class="pixel-icon icon-sloop size-20"></span> ALL 7 DAYS CLEARED — VOYAGE COMPLETE! <span class="pixel-icon icon-sloop size-20"></span>', 8000);
         gameState.day = MAX_DAY;
         if (loadedDay === MAX_DAY) return;
       }
@@ -705,7 +705,7 @@ async function boot() {
     tick();
   } catch (err) {
     console.error('Boot error:', err);
-    showNotice(`⚠ Boot error: ${err.message}`, 10000);
+    showNotice(`<span class="pixel-icon icon-powder-keg size-16"></span> Boot error: ${err.message}`, 10000);
   }
 }
 

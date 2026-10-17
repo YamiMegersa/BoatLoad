@@ -80,8 +80,8 @@ export class HUD {
     on('krakenRaceTimerUpdate', d => this._updateBossTimer(d.timeRemaining));
     on('krakenWaypointProgress',d => this._updateBossWaypoints(d.current, d.total));
     on('krakenRaceStarted',     d => this._onRaceStarted(d));
-    on('krakenTentacleCaught',  () => this._showBossBanner('🐙 TENTACLE CAUGHT!', '#00cc44'));
-    on('krakenDefeated',        () => this._showBossBanner('⚔️ KRAKEN DEFEATED!', '#ffaa00', 5000));
+    on('krakenTentacleCaught',  () => this._showBossBanner('TENTACLE CAUGHT!', '#00cc44'));
+    on('krakenDefeated',        () => this._showBossBanner('KRAKEN DEFEATED!', '#ffaa00', 5000));
     on('krakenCinematicStart',  () => this._setBossTimerVisible(false));
     on('krakenCinematicEnd',    () => this._setBossTimerVisible(true));
     on('goalDistanceUpdate',    d => this._updateGoalDistance(d));
@@ -171,20 +171,20 @@ export class HUD {
         <!-- Clean floating info pill: Score & Day -->
         <div class="hud-info-pill">
           <span class="hud-pill-day">Day ${day ?? 1}</span>
-          <span class="hud-pill-dot">•</span>
-          <span class="hud-score-coin">🪙</span>
+          <span class="hud-pill-dot"><span class="pixel-icon hud-day-pill-dot size-14"></span></span>
+          <span class="hud-score-coin"><span class="pixel-icon icon-doubloon size-16"></span></span>
           <span id="hud-score-val">0</span>
         </div>
       </div>
 
       <!-- Dedicated Settings & Pause Trigger Button -->
       <button id="hud-btn-pause" class="hud-pause-btn" style="position: fixed; top: 14px; left: 180px; z-index: 130;" title="Game Settings & Pause (Esc)" aria-label="Game Settings and Pause">
-        ⚙️
+        <span class="pixel-icon icon-settings-cog size-18"></span>
       </button>
 
       <!-- Safe Harbor Goal Distance -->
       <div id="hud-goal-distance" style="position:fixed; top:20px; left:50%; transform:translateX(-50%); color:#ffd700; font-family:'Trebuchet MS',sans-serif; font-weight:bold; font-size:15px; text-shadow:0 0 8px rgba(0,0,0,0.8); background:rgba(20,15,10,0.7); padding:6px 16px; border-radius:20px; border:1px solid rgba(255,215,0,0.5); display:none; pointer-events:none; z-index:90;">
-        ⚓ Safe Harbor: <span id="hud-goal-val" style="color:#ffffff;">--</span>m
+        <span class="pixel-icon icon-anchor size-16"></span> Safe Harbor: <span id="hud-goal-val" style="color:#ffffff;">--</span>m
       </div>
       <div id="hud-dev-controls" style="display: ${(DEBUG || GameEnv.isDev()) ? 'block' : 'none'};">
         <div id="hud-godmode" style="margin-top: 10px; pointer-events: auto;">
@@ -229,7 +229,7 @@ export class HUD {
       <!-- Dedicated Mobile Harpoon Button for left thumb -->
       <div id="hud-mobile-harpoon" style="display: none;">
         <button id="btn-mobile-harpoon" type="button" aria-label="Harpoon Action">
-          <span class="harpoon-icon">🔱</span>
+          <span class="harpoon-icon"><span class="pixel-icon icon-harpoon size-20"></span></span>
           <span class="harpoon-text">HARPOON</span>
         </button>
       </div>
@@ -244,10 +244,10 @@ export class HUD {
       <!-- Floating Points Notification Container -->
       <div id="hud-bonus-container"></div>
 
-      <div id="hud-ammo">🔫 ∞</div>
+      <div id="hud-ammo"><span class="pixel-icon icon-swivel-cannon size-18"></span> ∞</div>
 
       <!-- Cannon FIRE prompt (edge-triggered while a barrel is in range) -->
-      <button id="hud-fire-btn" type="button" style="display: none;">🔥 FIRE (Space)</button>
+      <button id="hud-fire-btn" type="button" style="display: none;"><span class="pixel-icon icon-cannon-flash size-18"></span> FIRE (Space)</button>
 
       <!-- Dark Souls-inspired Kraken Boss HUD (slimmer, smaller, bottom of screen) -->
       <div id="hud-boss" class="dark-souls-boss-bar" style="display:none;">
@@ -261,7 +261,7 @@ export class HUD {
         </div>
         <div class="boss-meta-row">
           <span id="hud-boss-waypoints" style="display:none;">CHECKPOINT 0 / 3</span>
-          <span id="hud-boss-timer" style="display:none;">⏱️ 25.0s</span>
+          <span id="hud-boss-timer" style="display:none;"><span class="pixel-icon icon-compass size-16"></span> 25.0s</span>
         </div>
       </div>
 
@@ -618,7 +618,7 @@ export class HUD {
     const mobileLabel = this._el?.querySelector('.harpoon-text');
     const drawWrap = this._qteEl.querySelector('#hud-qte-draw-wrap');
 
-    if (actionEl) actionEl.textContent = `${theme?.icon ?? ''} ${label}`;
+    if (actionEl) actionEl.innerHTML = `${theme?.icon ?? ''} ${label}`;
     if (keyEl) {
       const instructions = {
         timing: 'PRESS SPACE IN THE GREEN ZONE (or tap)',
@@ -781,7 +781,7 @@ export class HUD {
 
   _applyAmmo() {
     const el = this._el?.querySelector('#hud-ammo');
-    if (el) el.textContent = this._ammoState.cannon ? `🔫 ${this._ammoState.ammo}` : '🔫 ∞';
+    if (el) el.innerHTML = this._ammoState.cannon ? `<span class="pixel-icon icon-swivel-cannon size-18"></span> ${this._ammoState.ammo}` : '<span class="pixel-icon icon-swivel-cannon size-18"></span> ∞';
   }
 
   /** Toggle the FIRE prompt; Space fires only while it is visible. */
@@ -813,7 +813,7 @@ export class HUD {
   _updateBossTimer(timeRemaining) {
     if (!this._bossTimerEl) return;
     const t = Math.max(0, timeRemaining);
-    this._bossTimerEl.textContent = `⏱️ ${t.toFixed(1)}s`;
+    this._bossTimerEl.innerHTML = `<span class="pixel-icon icon-compass size-16"></span> ${t.toFixed(1)}s`;
     this._bossTimerEl.style.color = t < 5 ? '#f87171' : '#94a3b8';
     this._bossTimerEl.style.textShadow = t < 5 ? '0 0 8px rgba(248,113,113,0.5)' : 'none';
   }

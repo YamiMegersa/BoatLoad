@@ -4642,4 +4642,253 @@ body {
   color: #cbd5e1;
 }
 
+/* ==========================================================================
+   BoatLoad — Pixel-Art Sprite & Icon Utility System
+   High-performance, sharp nearest-neighbor pixel icons
+   ========================================================================== */
+
+.pixel-icon {
+  display: inline-block;
+  vertical-align: middle;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+}
+
+.pixel-icon.size-14 { width: 14px; height: 14px; }
+.pixel-icon.size-16 { width: 16px; height: 16px; }
+.pixel-icon.size-18 { width: 18px; height: 18px; }
+.pixel-icon.size-20 { width: 20px; height: 20px; }
+.pixel-icon.size-22 { width: 22px; height: 22px; }
+.pixel-icon.size-24 { width: 24px; height: 24px; }
+.pixel-icon.size-28 { width: 28px; height: 28px; }
+.pixel-icon.size-32 { width: 32px; height: 32px; }
+.pixel-icon.size-40 { width: 40px; height: 40px; }
+.pixel-icon.size-48 { width: 48px; height: 48px; }
+.pixel-icon.size-64 { width: 64px; height: 64px; }
+
+/* 1. Maritime, Ships & Navigation Icons */
+.icon-anchor              { background-image: url('/assets/ui/icons/icon_anchor_24.png'); }
+.icon-sloop               { background-image: url('/assets/ui/icons/icon_sloop_24.png'); }
+.icon-frigate             { background-image: url('/assets/ui/icons/icon_frigate_24.png'); }
+.icon-dreadnought         { background-image: url('/assets/ui/icons/icon_dreadnought_24.png'); }
+.icon-skiff               { background-image: url('/assets/ui/icons/icon_skiff_24.png'); }
+.icon-gag-truck           { background-image: url('/assets/ui/icons/icon_gag_truck_24.png'); }
+.icon-helm-wheel,
+.icon-wheel               { background-image: url('/assets/ui/icons/icon_helm_wheel_24.png'); }
+.icon-compass             { background-image: url('/assets/ui/icons/icon_compass_24.png'); }
+.icon-ocean-wave,
+.icon-wave                { background-image: url('/assets/ui/icons/icon_ocean_wave_20.png'); }
+.icon-island-atoll,
+.icon-island              { background-image: url('/assets/ui/icons/icon_island_atoll_24.png'); }
+.icon-harbor-flag         { background-image: url('/assets/ui/icons/icon_harbor_flag_20.png'); }
+.icon-nautical-star,
+.icon-star                { background-image: url('/assets/ui/icons/icon_nautical_star_16.png'); }
+.icon-optics-lens,
+.icon-magnify             { background-image: url('/assets/ui/icons/icon_optics_lens_20.png'); }
+.icon-treasure-map,
+.icon-map                 { background-image: url('/assets/ui/icons/icon_treasure_map_20.png'); }
+.icon-waypoint-flag       { background-image: url('/assets/ui/icons/icon_waypoint_flag_16.png'); }
+.icon-fullscreen-expand,
+.icon-fullscreen          { background-image: url('/assets/ui/icons/icon_fullscreen_expand_20.png'); }
+
+/* 2. Tools, Construction & Cargo Icons */
+.icon-hammer              { background-image: url('/assets/ui/icons/icon_hammer_20.png'); }
+.icon-sail-needle,
+.icon-needle              { background-image: url('/assets/ui/icons/icon_sail_needle_20.png'); }
+.icon-rope-knot,
+.icon-knot                { background-image: url('/assets/ui/icons/icon_rope_knot_20.png'); }
+.icon-doubloon,
+.icon-coin                { background-image: url('/assets/ui/icons/icon_doubloon_20.png'); }
+.icon-oak-log,
+.icon-log                 { background-image: url('/assets/ui/icons/icon_oak_log_24.png'); }
+.icon-ironwood            { background-image: url('/assets/ui/icons/icon_ironwood_24.png'); }
+.icon-pine-plank,
+.icon-plank               { background-image: url('/assets/ui/icons/icon_pine_plank_24.png'); }
+.icon-tar-caulk           { background-image: url('/assets/ui/icons/icon_tar_caulk_24.png'); }
+.icon-chisel-eraser,
+.icon-chisel              { background-image: url('/assets/ui/icons/icon_chisel_eraser_20.png'); }
+.icon-calipers            { background-image: url('/assets/ui/icons/icon_calipers_20.png'); }
+.icon-mirror              { background-image: url('/assets/ui/icons/icon_mirror_20.png'); }
+.icon-rotate-arrow,
+.icon-rotate              { background-image: url('/assets/ui/icons/icon_rotate_arrow_20.png'); }
+.icon-pickaxe             { background-image: url('/assets/ui/icons/icon_pickaxe_20.png'); }
+.icon-cargo-crate,
+.icon-crate               { background-image: url('/assets/ui/icons/icon_cargo_crate_20.png'); }
+.icon-powder-keg,
+.icon-keg                 { background-image: url('/assets/ui/icons/icon_powder_keg_20.png'); }
+.icon-reef-rock           { background-image: url('/assets/ui/icons/icon_reef_rock_20.png'); }
+
+/* 3. Combat, Monsters & Hazard Icons */
+.icon-kraken-head,
+.icon-kraken              { background-image: url('/assets/ui/icons/icon_kraken_head_24.png'); }
+.icon-tentacle            { background-image: url('/assets/ui/icons/icon_tentacle_24.png'); }
+.icon-siren               { background-image: url('/assets/ui/icons/icon_siren_24.png'); }
+.icon-cutlasses           { background-image: url('/assets/ui/icons/icon_cutlasses_20.png'); }
+.icon-harpoon             { background-image: url('/assets/ui/icons/icon_harpoon_24.png'); }
+.icon-swivel-cannon,
+.icon-cannon              { background-image: url('/assets/ui/icons/icon_swivel_cannon_20.png'); }
+.icon-cannon-flash        { background-image: url('/assets/ui/icons/icon_cannon_flash_20.png'); }
+.icon-explosion-burst     { background-image: url('/assets/ui/icons/icon_explosion_burst_24.png'); }
+.icon-target-crosshair,
+.icon-target              { background-image: url('/assets/ui/icons/icon_target_crosshair_24.png'); }
+.icon-bailer-bucket,
+.icon-bucket              { background-image: url('/assets/ui/icons/icon_bailer_bucket_24.png'); }
+.icon-siren-note          { background-image: url('/assets/ui/icons/icon_siren_note_20.png'); }
+.icon-maelstrom           { background-image: url('/assets/ui/icons/icon_maelstrom_24.png'); }
+.icon-phantom-ghost,
+.icon-ghost               { background-image: url('/assets/ui/icons/icon_phantom_ghost_24.png'); }
+.icon-seaweed-kelp        { background-image: url('/assets/ui/icons/icon_seaweed_kelp_20.png'); }
+.icon-defiant-finger      { background-image: url('/assets/ui/icons/icon_defiant_finger_28.png'); }
+.icon-smoke-pipe          { background-image: url('/assets/ui/icons/icon_smoke_pipe_28.png'); }
+
+/* 4. Weather, Sky & Atmosphere Icons */
+.icon-sun-fair,
+.icon-sun                 { background-image: url('/assets/ui/icons/icon_sun_fair_20.png'); }
+.icon-dawn-sunrise,
+.icon-sunrise             { background-image: url('/assets/ui/icons/icon_dawn_sunrise_20.png'); }
+.icon-dusk-sunset,
+.icon-sunset              { background-image: url('/assets/ui/icons/icon_dusk_sunset_20.png'); }
+.icon-night-moon,
+.icon-moon                { background-image: url('/assets/ui/icons/icon_night_moon_20.png'); }
+.icon-rain-squall,
+.icon-rain                { background-image: url('/assets/ui/icons/icon_rain_squall_20.png'); }
+.icon-storm-lightning,
+.icon-storm               { background-image: url('/assets/ui/icons/icon_storm_lightning_20.png'); }
+.icon-lightning-spark,
+.icon-lightning           { background-image: url('/assets/ui/icons/icon_lightning_spark_20.png'); }
+.icon-hurricane-gale,
+.icon-hurricane           { background-image: url('/assets/ui/icons/icon_hurricane_gale_20.png'); }
+.icon-sea-fog,
+.icon-fog                 { background-image: url('/assets/ui/icons/icon_sea_fog_20.png'); }
+.icon-wind-gust,
+.icon-wind                { background-image: url('/assets/ui/icons/icon_wind_gust_20.png'); }
+.icon-god-rays            { background-image: url('/assets/ui/icons/icon_god_rays_16.png'); }
+.icon-ship-lantern,
+.icon-lantern             { background-image: url('/assets/ui/icons/icon_ship_lantern_24.png'); }
+.icon-helm-pedestal       { background-image: url('/assets/ui/icons/icon_helm_pedestal_24.png'); }
+.icon-plunder-sack        { background-image: url('/assets/ui/icons/icon_plunder_sack_20.png'); }
+.icon-clap-hands          { background-image: url('/assets/ui/icons/icon_clap_hands_28.png'); }
+.icon-easter-bunny        { background-image: url('/assets/ui/icons/icon_easter_bunny_16.png'); }
+
+/* 5. UI Controls & Navigation Icons */
+.icon-settings-cog,
+.icon-cog                 { background-image: url('/assets/ui/icons/icon_settings_cog_20.png'); }
+.icon-closed-logbook,
+.icon-book                { background-image: url('/assets/ui/icons/icon_closed_logbook_20.png'); }
+.icon-map-maker-scroll,
+.icon-scroll              { background-image: url('/assets/ui/icons/icon_map_maker_scroll_20.png'); }
+.icon-director-clapper    { background-image: url('/assets/ui/icons/icon_director_clapper_20.png'); }
+.icon-cinema-camera       { background-image: url('/assets/ui/icons/icon_cinema_camera_20.png'); }
+.icon-film-reel           { background-image: url('/assets/ui/icons/icon_film_reel_20.png'); }
+.icon-display-monitor     { background-image: url('/assets/ui/icons/icon_display_monitor_20.png'); }
+.icon-audio-horn          { background-image: url('/assets/ui/icons/icon_audio_horn_20.png'); }
+.icon-save-floppy,
+.icon-floppy              { background-image: url('/assets/ui/icons/icon_save_floppy_20.png'); }
+.icon-import-intray       { background-image: url('/assets/ui/icons/icon_import_intray_20.png'); }
+.icon-cabin-door-exit,
+.icon-door                { background-image: url('/assets/ui/icons/icon_cabin_door_exit_20.png'); }
+.icon-hand-select         { background-image: url('/assets/ui/icons/icon_hand_select_20.png'); }
+.icon-delete-basket       { background-image: url('/assets/ui/icons/icon_delete_basket_20.png'); }
+.icon-hide-ui-eye,
+.icon-eye                 { background-image: url('/assets/ui/icons/icon_hide_ui_eye_20.png'); }
+.icon-quill-author,
+.icon-quill               { background-image: url('/assets/ui/icons/icon_quill_author_20.png'); }
+.icon-artist-palette,
+.icon-palette             { background-image: url('/assets/ui/icons/icon_artist_palette_20.png'); }
+
+/* 6. Badges, Biomes & System Icons */
+.icon-confirm-check,
+.icon-check               { background-image: url('/assets/ui/icons/icon_confirm_check_16.png'); }
+.icon-cancel-cross,
+.icon-cancel              { background-image: url('/assets/ui/icons/icon_cancel_cross_16.png'); }
+.icon-close-cross,
+.icon-close               { background-image: url('/assets/ui/icons/icon_close_cross_16.png'); }
+.icon-lock-padlock,
+.icon-lock                { background-image: url('/assets/ui/icons/icon_lock_padlock_16.png'); }
+.icon-idea-bulb           { background-image: url('/assets/ui/icons/icon_idea_bulb_16.png'); }
+.icon-plus-add,
+.icon-plus                { background-image: url('/assets/ui/icons/icon_plus_add_16.png'); }
+.icon-arrow-right         { background-image: url('/assets/ui/icons/icon_arrow_right_16.png'); }
+.icon-play-step,
+.icon-play                { background-image: url('/assets/ui/icons/icon_play_step_16.png'); }
+
+.chip-biome-tropical      { background-image: url('/assets/ui/icons/chip_biome_tropical_20.png'); }
+.chip-biome-volcanic      { background-image: url('/assets/ui/icons/chip_biome_volcanic_20.png'); }
+.chip-biome-autumn        { background-image: url('/assets/ui/icons/chip_biome_autumn_20.png'); }
+.chip-biome-desert        { background-image: url('/assets/ui/icons/chip_biome_desert_20.png'); }
+.chip-biome-nordic        { background-image: url('/assets/ui/icons/chip_biome_nordic_20.png'); }
+
+.icon-brush-circle        { background-image: url('/assets/ui/icons/icon_brush_circle_16.png'); }
+.icon-brush-square        { background-image: url('/assets/ui/icons/icon_brush_square_16.png'); }
+.icon-portrait-captain    { background-image: url('/assets/ui/icons/portrait_captain_48.png'); }
+
+/* 7. HUD & Shipbuilding Material Badges */
+.hud-gold-coin            { background-image: url('/assets/ui/hud/badge_gold_coin_hud.png'); }
+.hud-day-pill-dot         { background-image: url('/assets/ui/hud/badge_day_pill_dot.png'); }
+.hud-leak-drop            { background-image: url('/assets/ui/hud/leak_water_drop_badge.png'); }
+.hud-compass-arrow        { background-image: url('/assets/ui/hud/compass_rose_arrow.png'); }
+.hud-buoy                 { background-image: url('/assets/ui/hud/water_floating_buoy.png'); }
+.hud-qte-needle           { background-image: url('/assets/ui/hud/qte_needle_hand.png'); }
+
+.hud-sloop-hp-100         { background-image: url('/assets/ui/hud/sloop_hp_100.png'); }
+.hud-sloop-hp-75          { background-image: url('/assets/ui/hud/sloop_hp_75.png'); }
+.hud-sloop-hp-40          { background-image: url('/assets/ui/hud/sloop_hp_40.png'); }
+.hud-sloop-hp-10          { background-image: url('/assets/ui/hud/sloop_hp_10.png'); }
+
+.brush-voxel              { background-image: url('/assets/ui/hud/brush_single_voxel.png'); }
+.brush-plank              { background-image: url('/assets/ui/hud/brush_plank_1x3.png'); }
+.brush-beam               { background-image: url('/assets/ui/hud/brush_beam_1x5.png'); }
+.brush-plate              { background-image: url('/assets/ui/hud/brush_plate_2x2.png'); }
+.brush-bulkhead           { background-image: url('/assets/ui/hud/brush_bulkhead_3x3.png'); }
+
+/* ==========================================================================
+   Pixel-Art 9-Slice Modal Frames & Backing Panels
+   ========================================================================== */
+
+/* Main Menu Plaque */
+.main-menu-plaque {
+  border-style: solid !important;
+  border-width: 32px !important;
+  border-image: url('/assets/ui/frames/frame_main_menu_plaque.png') 32 fill stretch !important;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85), 0 0 30px rgba(197, 155, 39, 0.25) !important;
+}
+
+/* Pause & Settings Cabinet Modal */
+.pause-modal-card {
+  border-style: solid !important;
+  border-width: 28px !important;
+  border-image: url('/assets/ui/frames/frame_pause_cabinet.png') 24 fill stretch !important;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8), 0 0 20px rgba(212, 175, 55, 0.25) !important;
+}
+
+/* Captain's Logbook 2-Page Open Spread */
+.level-book {
+  background: url('/assets/ui/frames/modal_logbook_spread.png') no-repeat center center !important;
+  background-size: 100% 100% !important;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  box-shadow: 0 0 0 4px #352013, 0 25px 60px rgba(0, 0, 0, 0.85) !important;
+}
+
+.level-book .book-spine,
+.level-book .book-ribbon {
+  display: none !important;
+}
+
+.level-book .page-left,
+.level-book .page-right {
+  background: transparent !important;
+}
+
+
 

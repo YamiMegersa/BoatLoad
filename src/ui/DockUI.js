@@ -78,7 +78,7 @@ export class DockUI {
     actionsRow.appendChild(camBtn);
 
     const exportShopBtn = document.createElement('button');
-    exportShopBtn.innerText = '📦 Export Shop (.glb)';
+    exportShopBtn.innerHTML = '<span class="pixel-icon icon-cargo-crate size-16"></span> Export Shop (.glb)';
     exportShopBtn.title = 'Export shop stall building and props to Blender (.glb)';
     exportShopBtn.style.cssText = 'padding:10px; cursor:pointer; background:rgba(35,65,45,0.85); color:white; border:1px solid #4a8555; border-radius:5px; font-family:sans-serif; transition: all 0.2s;';
     exportShopBtn.onmouseenter = () => exportShopBtn.style.background = 'rgba(45,85,55,1)';
@@ -86,25 +86,25 @@ export class DockUI {
 
     exportShopBtn.onclick = async () => {
       exportShopBtn.disabled = true;
-      exportShopBtn.innerText = '⏳ Exporting...';
+      exportShopBtn.innerHTML = '<span class="pixel-icon icon-compass size-16"></span> Exporting...';
       try {
         const target = this.dockStall?.shopGroup || this.dockStall?.group;
         await exportToGLB(target, 'shop_stall.glb');
-        exportShopBtn.innerText = '✅ Downloaded!';
+        exportShopBtn.innerHTML = '<span class="pixel-icon icon-confirm-check size-16"></span> Downloaded!';
       } catch (err) {
         console.error('Failed to export shop:', err);
-        exportShopBtn.innerText = '❌ Failed';
+        exportShopBtn.innerHTML = '<span class="pixel-icon icon-cancel-cross size-16"></span> Failed';
       } finally {
         setTimeout(() => {
           exportShopBtn.disabled = false;
-          exportShopBtn.innerText = '📦 Export Shop (.glb)';
+          exportShopBtn.innerHTML = '<span class="pixel-icon icon-cargo-crate size-16"></span> Export Shop (.glb)';
         }, 2500);
       }
     };
     actionsRow.appendChild(exportShopBtn);
 
     const exportDockBtn = document.createElement('button');
-    exportDockBtn.innerText = '🏝️ Export Full Dock (.glb)';
+    exportDockBtn.innerHTML = '<span class="pixel-icon icon-island size-16"></span> Export Full Dock (.glb)';
     exportDockBtn.title = 'Export complete dock, shop stall, island, and pier to Blender (.glb)';
     exportDockBtn.style.cssText = 'padding:10px; cursor:pointer; background:rgba(40,50,70,0.85); color:white; border:1px solid #556688; border-radius:5px; font-family:sans-serif; transition: all 0.2s;';
     exportDockBtn.onmouseenter = () => exportDockBtn.style.background = 'rgba(50,65,90,1)';
@@ -112,18 +112,18 @@ export class DockUI {
 
     exportDockBtn.onclick = async () => {
       exportDockBtn.disabled = true;
-      exportDockBtn.innerText = '⏳ Exporting...';
+      exportDockBtn.innerHTML = '<span class="pixel-icon icon-compass size-16"></span> Exporting...';
       try {
         const target = this.dockStall?.group;
         await exportToGLB(target, 'dock_full_environment.glb');
-        exportDockBtn.innerText = '✅ Downloaded!';
+        exportDockBtn.innerHTML = '<span class="pixel-icon icon-confirm-check size-16"></span> Downloaded!';
       } catch (err) {
         console.error('Failed to export dock:', err);
-        exportDockBtn.innerText = '❌ Failed';
+        exportDockBtn.innerHTML = '<span class="pixel-icon icon-cancel-cross size-16"></span> Failed';
       } finally {
         setTimeout(() => {
           exportDockBtn.disabled = false;
-          exportDockBtn.innerText = '🏝️ Export Full Dock (.glb)';
+          exportDockBtn.innerHTML = '<span class="pixel-icon icon-island size-16"></span> Export Full Dock (.glb)';
         }, 2500);
       }
     };
@@ -131,7 +131,7 @@ export class DockUI {
 
     const repairShipBtn = document.createElement('button');
     const shipName = this.dockStall?.activeShipProfile?.name || 'Vessel';
-    repairShipBtn.innerText = `🔨 Repair ${shipName}`;
+    repairShipBtn.innerHTML = `<span class="pixel-icon icon-hammer size-16"></span> Repair ${shipName}`;
     repairShipBtn.style.cssText = 'padding:10px; cursor:pointer; background:rgba(154, 91, 46, 0.9); color:white; border:1px solid #d4af37; border-radius:5px; font-family:sans-serif; font-weight:bold; transition: all 0.2s;';
     repairShipBtn.onclick = () => {
       emit('requestPhaseChange', { phase: 'SHIPYARD' });
@@ -139,7 +139,7 @@ export class DockUI {
     actionsRow.appendChild(repairShipBtn);
 
     const sailBtn = document.createElement('button');
-    sailBtn.innerText = `⛵ Set Sail`;
+    sailBtn.innerHTML = `<span class="pixel-icon icon-sloop size-16"></span> Set Sail`;
     sailBtn.style.cssText = 'padding:10px; cursor:pointer; background:rgba(46, 125, 50, 0.9); color:white; border:1px solid #66bb6a; border-radius:5px; font-family:sans-serif; font-weight:bold; transition: all 0.2s;';
     sailBtn.onclick = () => {
       emit('startSailing');
@@ -158,7 +158,7 @@ export class DockUI {
     };
     this._onLevelSelected = () => {
       const name = this.dockStall?.activeShipProfile?.name || 'Standard Sloop';
-      repairShipBtn.innerText = `🔨 Repair ${name}`;
+      repairShipBtn.innerHTML = `<span class="pixel-icon icon-hammer size-16"></span> Repair ${name}`;
     };
     on('levelSelected', this._onLevelSelected);
 

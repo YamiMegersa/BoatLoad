@@ -8,7 +8,7 @@ export const MATERIAL_REGISTRY = {
     id: 'oak_plank',
     name: 'Standard Oak',
     shortName: 'Oak',
-    icon: '🪵',
+    icon: '<span class="pixel-icon icon-oak-log size-16"></span>',
     color: 0x8b5a2b,
     unitCost: 5,
     durabilityHP: 100,
@@ -19,7 +19,7 @@ export const MATERIAL_REGISTRY = {
     id: 'dark_ironwood',
     name: 'Hardened Ironwood',
     shortName: 'Ironwood',
-    icon: '🛡️',
+    icon: '<span class="pixel-icon icon-ironwood size-16"></span>',
     color: 0x3d2716,
     unitCost: 12,
     durabilityHP: 220,
@@ -30,7 +30,7 @@ export const MATERIAL_REGISTRY = {
     id: 'light_pine',
     name: 'Lightweight Pine',
     shortName: 'Pine',
-    icon: '🌲',
+    icon: '<span class="pixel-icon icon-pine-plank size-16"></span>',
     color: 0xc19b6c,
     unitCost: 7,
     durabilityHP: 65,
@@ -41,7 +41,7 @@ export const MATERIAL_REGISTRY = {
     id: 'copper_plate',
     name: 'Reinforced Copper',
     shortName: 'Copper',
-    icon: '🪙',
+    icon: '<span class="pixel-icon icon-doubloon size-16"></span>',
     color: 0xb86532,
     unitCost: 18,
     durabilityHP: 350,
@@ -52,7 +52,7 @@ export const MATERIAL_REGISTRY = {
     id: 'tar_canvas',
     name: 'Tarred Oakum Seam',
     shortName: 'Tar Seam',
-    icon: '🧵',
+    icon: '<span class="pixel-icon icon-tar-caulk size-16"></span>',
     color: 0x24282b,
     unitCost: 3,
     durabilityHP: 40,
@@ -68,12 +68,12 @@ export function getMaterial(id) {
 }
 
 export const BRUSHES = {
-  single:   { id: 'single',   label: 'Voxel Block',     size: [1, 1, 1], icon: '◼' },
-  plank:    { id: 'plank',    label: 'Plank (1x3)',     size: [1, 1, 3], icon: '❚' },
-  beam:     { id: 'beam',     label: 'Long Beam (1x5)', size: [1, 1, 5], icon: '━' },
-  plate:    { id: 'plate',    label: 'Deck Plate (2x2)',size: [2, 1, 2], icon: '▧' },
-  bulkhead: { id: 'bulkhead', label: 'Bulkhead (3x3)',  size: [3, 3, 1], icon: '▦' },
-  eraser:   { id: 'eraser',   label: 'Eraser (Refund)', size: [1, 1, 1], isEraser: true, icon: '🧹' }
+  single:   { id: 'single',   label: 'Voxel Block',     size: [1, 1, 1], icon: '<span class="pixel-icon brush-voxel size-18"></span>' },
+  plank:    { id: 'plank',    label: 'Plank (1x3)',     size: [1, 1, 3], icon: '<span class="pixel-icon brush-plank size-18"></span>' },
+  beam:     { id: 'beam',     label: 'Long Beam (1x5)', size: [1, 1, 5], icon: '<span class="pixel-icon brush-beam size-18"></span>' },
+  plate:    { id: 'plate',    label: 'Deck Plate (2x2)',size: [2, 1, 2], icon: '<span class="pixel-icon brush-plate size-18"></span>' },
+  bulkhead: { id: 'bulkhead', label: 'Bulkhead (3x3)',  size: [3, 3, 1], icon: '<span class="pixel-icon brush-bulkhead size-18"></span>' },
+  eraser:   { id: 'eraser',   label: 'Eraser (Refund)', size: [1, 1, 1], isEraser: true, icon: '<span class="pixel-icon icon-chisel-eraser size-18"></span>' }
 };
 
 export const DEFAULT_BRUSH_ID = 'single';

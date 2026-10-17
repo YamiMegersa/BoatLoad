@@ -80,7 +80,7 @@ export class AnchorCountdownUI {
     if (this._completed) return;
     this._completed = true;
     emit('playSound', { sound: 'anchor_lock' });
-    this._updateBadge('GO', 'SET SAIL! ⛵', '#00ff88');
+    this._updateBadge('GO', 'SET SAIL! <span class="pixel-icon icon-sloop size-20"></span>', '#00ff88');
 
     if (this._onComplete) {
       const cb = this._onComplete;
@@ -103,9 +103,9 @@ export class AnchorCountdownUI {
     overlay.innerHTML = `
       <div class="anchor-countdown-box">
         <div class="anchor-winch-header">
-          <span class="anchor-winch-bracket">✦</span>
+          <span class="anchor-winch-bracket"><span class="pixel-icon icon-star size-14"></span></span>
           <span class="anchor-winch-title">CASTING OFF</span>
-          <span class="anchor-winch-bracket">✦</span>
+          <span class="anchor-winch-bracket"><span class="pixel-icon icon-star size-14"></span></span>
         </div>
         <div class="anchor-canvas-wrap">
           <canvas id="anchor-canvas" class="anchor-canvas"></canvas>
@@ -150,7 +150,7 @@ export class AnchorCountdownUI {
       numEl.classList.add('pop-anim');
     }
     if (statusEl) {
-      statusEl.innerText = statusText;
+      statusEl.innerHTML = statusText;
     }
   }
 
@@ -185,7 +185,7 @@ export class AnchorCountdownUI {
       color = '#81c784';
     } else {
       currentCount = 0;
-      label = 'SET SAIL! ⛵';
+      label = 'SET SAIL! <span class="pixel-icon icon-sloop size-20"></span>';
       color = '#00ff88';
     }
 
