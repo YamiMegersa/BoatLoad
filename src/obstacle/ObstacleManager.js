@@ -3,6 +3,7 @@ import { emit } from '../core/EventBus.js';
 import { OBB } from 'three/examples/jsm/math/OBB.js';
 import { WhirlpoolParticles } from './WhirlpoolParticles.js';
 import { LevelConfig } from '../core/LevelConfig.js';
+import { GamePhase } from '../core/GameState.js';
 
 // ---------------------------------------------------------------------------
 // Obstacle descriptor
@@ -75,6 +76,12 @@ export function buildObstacle(type, pos, url, scale, rockModels, pickupModels, s
     arrow.position.z = -10;
     mesh.add(arrow);
     mesh.scale.setScalar(targetScale);
+    // Show wind zone visual only in editor mode
+    if (typeof window !== 'undefined' && window.gameState) {
+      mesh.visible = window.gameState.currentPhase === GamePhase.EDITOR;
+    } else {
+      mesh.visible = false;
+    }
   } else if (type === 'rock' && rockModels && rockModels.length > 0) {
     if (url) {
       selectedModel = rockModels.find(m => m.url === url) || rockModels[Math.floor(Math.random() * rockModels.length)];
