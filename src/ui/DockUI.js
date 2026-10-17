@@ -27,11 +27,13 @@ export class DockUI {
     this.root.style.cssText = `position:absolute; top:10px; left:50%; transform:translateX(-50%); display:${GameEnv.isDev() ? 'flex' : 'none'}; flex-direction: column; gap:10px; z-index:90; pointer-events: none !important;`;
 
     const dayButtons = document.createElement('div');
-    dayButtons.style.cssText = 'display:flex; gap:10px; pointer-events: auto !important; justify-content: center;';
+    dayButtons.style.cssText = 'display:flex; gap:6px; pointer-events: auto !important; justify-content: center;';
     for (let i = 1; i <= 7; i++) {
       const btn = document.createElement('button');
       btn.innerText = `Day ${i}`;
-      btn.style.cssText = 'padding:10px; cursor:pointer; background:rgba(0,0,0,0.7); color:white; border:none; border-radius:5px; font-family:sans-serif;';
+      btn.style.cssText = 'padding:6px 12px; cursor:pointer; background:#1b120a; color:#ffd700; border:2px solid #8c6507; border-radius:0; font-family:\'Cinzel\', serif; font-size:11px; font-weight:700; box-shadow:0 3px 6px #000, inset 1px 1px 0 rgba(255,220,120,0.2); transition:all 0.15s ease;';
+      btn.onmouseenter = () => btn.style.borderColor = '#ffd700';
+      btn.onmouseleave = () => btn.style.borderColor = '#8c6507';
       btn.onclick = async () => {
         this.gameState.day = i;
         await this.gameState._weather.loadLevel(i, {
@@ -48,19 +50,21 @@ export class DockUI {
     this.root.appendChild(dayButtons);
 
     const actionsRow = document.createElement('div');
-    actionsRow.style.cssText = 'display:flex; gap:10px; pointer-events: auto !important; justify-content: center; flex-wrap: wrap; align-self: center;';
+    actionsRow.style.cssText = 'display:flex; gap:8px; pointer-events: auto !important; justify-content: center; flex-wrap: wrap; align-self: center;';
 
     const camBtn = document.createElement('button');
     camBtn.innerText = 'Toggle Shopkeeper View';
-    camBtn.style.cssText = 'padding:10px; cursor:pointer; background:rgba(0,0,0,0.7); color:white; border:none; border-radius:5px; font-family:sans-serif; transition: background 0.2s;';
+    camBtn.style.cssText = 'padding:7px 14px; cursor:pointer; background:#1b120a; color:#f3e3b4; border:2px solid #6b4c24; border-radius:0; font-family:\'Cinzel\', serif; font-size:11px; font-weight:700; box-shadow:0 3px 6px #000; transition:all 0.15s ease;';
     
     const updateBtnText = (mode) => {
       if (mode === 'shop') {
         camBtn.innerText = 'Toggle World View (Outside)';
-        camBtn.style.background = 'rgba(70, 50, 30, 0.9)';
+        camBtn.style.background = '#2e1c0e';
+        camBtn.style.borderColor = '#ffd700';
       } else {
         camBtn.innerText = 'Toggle Shopkeeper View';
-        camBtn.style.background = 'rgba(0, 0, 0, 0.7)';
+        camBtn.style.background = '#1b120a';
+        camBtn.style.borderColor = '#6b4c24';
       }
     };
 
@@ -80,9 +84,9 @@ export class DockUI {
     const exportShopBtn = document.createElement('button');
     exportShopBtn.innerHTML = '<span class="pixel-icon icon-cargo-crate size-16"></span> Export Shop (.glb)';
     exportShopBtn.title = 'Export shop stall building and props to Blender (.glb)';
-    exportShopBtn.style.cssText = 'padding:10px; cursor:pointer; background:rgba(35,65,45,0.85); color:white; border:1px solid #4a8555; border-radius:5px; font-family:sans-serif; transition: all 0.2s;';
-    exportShopBtn.onmouseenter = () => exportShopBtn.style.background = 'rgba(45,85,55,1)';
-    exportShopBtn.onmouseleave = () => exportShopBtn.style.background = 'rgba(35,65,45,0.85)';
+    exportShopBtn.style.cssText = 'padding:7px 14px; cursor:pointer; background:#142318; color:#86efac; border:2px solid #166534; border-radius:0; font-family:\'Cinzel\', serif; font-size:11px; font-weight:700; box-shadow:0 3px 6px #000; transition: all 0.2s;';
+    exportShopBtn.onmouseenter = () => exportShopBtn.style.borderColor = '#4ade80';
+    exportShopBtn.onmouseleave = () => exportShopBtn.style.borderColor = '#166534';
 
     exportShopBtn.onclick = async () => {
       exportShopBtn.disabled = true;

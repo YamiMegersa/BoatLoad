@@ -927,7 +927,7 @@ export class DirectorMode {
                 </div>
                 <div class="deck-field-row">
                   <label>Mode</label>
-                  <select id="select-track-mode" style="background:#1e2d44; color:#fff; border:1px solid #d4af37; border-radius:4px; font-size:10px; padding:2px 6px;">
+                  <select id="select-track-mode" style="background:#111824; color:#ffd700; border:2px solid #3b4e68; border-radius:0; font-family:'Cinzel', serif; font-size:10px; padding:3px 6px; outline:none;">
                     <option value="free">Free 6-DOF Flight</option>
                     <option value="follow">Follow Ship Drone</option>
                     <option value="orbit">Continuous Orbit</option>
@@ -1140,7 +1140,7 @@ export class DirectorMode {
                 </div>
                 <div class="deck-field-row">
                   <label>Art Shader</label>
-                  <select id="select-shader-style" style="background:#1e2d44; color:#fff; border:1px solid #d4af37; border-radius:4px; font-size:10px; padding:2px 6px;">
+                  <select id="select-shader-style" style="background:#111824; color:#ffd700; border:2px solid #3b4e68; border-radius:0; font-family:'Cinzel', serif; font-size:10px; padding:3px 6px; outline:none;">
                     <option value="0">Clean 3D</option>
                     <option value="1">Kuwahara Painterly</option>
                     <option value="2">Crosshatch Sketch</option>

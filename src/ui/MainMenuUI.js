@@ -288,65 +288,65 @@ export class MainMenuUI {
           </div>
 
           <div class="level-cards-list" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px;">
-            <div class="level-card" data-day="1" style="background: rgba(80, 50, 20, 0.15); border: 2px solid #9c6b3c; border-radius: 8px; padding: 12px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
+            <div class="level-card" data-day="1" style="padding: 12px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
               <div>
-                <h3 style="margin: 0 0 4px; font-family: 'Cinzel', serif; font-size: 19px; color: #4a1f0a;">Day 1: Calm Shallows</h3>
-                <div style="font-size: 13px; color: #5a3518;">Vessel: <strong><span class="pixel-icon icon-sloop size-16"></span> Standard Sloop</strong> • Weather: Sunny &amp; Mild</div>
-                <div style="font-size: 12px; color: #7a4f2a; margin-top: 3px;">First port of call. Patch hull breach and set sail across gentle swells.</div>
+                <h3 style="margin: 0 0 4px; font-size: 19px;">Day 1: Calm Shallows</h3>
+                <div style="font-size: 13px;">Vessel: <strong><span class="pixel-icon icon-sloop size-16"></span> Standard Sloop</strong> • Weather: Sunny &amp; Mild</div>
+                <div style="font-size: 12px; margin-top: 3px; opacity: 0.85;">First port of call. Patch hull breach and set sail across gentle swells.</div>
               </div>
               <button class="pirate-btn" style="padding: 8px 14px; font-size: 14px; pointer-events: none;">Embark <span class="pixel-icon icon-arrow-right size-14"></span></button>
             </div>
 
-            <div class="level-card" data-day="2" style="background: rgba(80, 50, 20, 0.15); border: 2px solid #9c6b3c; border-radius: 8px; padding: 12px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
+            <div class="level-card" data-day="2" style="padding: 12px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
               <div>
-                <h3 style="margin: 0 0 4px; font-family: 'Cinzel', serif; font-size: 19px; color: #4a1f0a;">Day 2: Siren's Whisper</h3>
-                <div style="font-size: 13px; color: #5a3518;">Vessel: <strong><span class="pixel-icon icon-sloop size-16"></span> Standard Sloop</strong> • Weather: Overcast &amp; Swell</div>
-                <div style="font-size: 12px; color: #7a4f2a; margin-top: 3px;">Enchanting sirens dwell along the jagged reefs. Steer clear of hypnotic waters!</div>
+                <h3 style="margin: 0 0 4px; font-size: 19px;">Day 2: Siren's Whisper</h3>
+                <div style="font-size: 13px;">Vessel: <strong><span class="pixel-icon icon-sloop size-16"></span> Standard Sloop</strong> • Weather: Overcast &amp; Swell</div>
+                <div style="font-size: 12px; margin-top: 3px; opacity: 0.85;">Enchanting sirens dwell along the jagged reefs. Steer clear of hypnotic waters!</div>
               </div>
               <button class="pirate-btn" style="padding: 8px 14px; font-size: 14px; pointer-events: none;">Embark <span class="pixel-icon icon-arrow-right size-14"></span></button>
             </div>
 
-            <div class="level-card" data-day="3" style="background: rgba(80, 50, 20, 0.15); border: 2px solid #9c6b3c; border-radius: 8px; padding: 12px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
+            <div class="level-card" data-day="3" style="padding: 12px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
               <div>
-                <h3 style="margin: 0 0 4px; font-family: 'Cinzel', serif; font-size: 19px; color: #4a1f0a;">Day 3: Sunset Passage</h3>
-                <div style="font-size: 13px; color: #5a3518;">Vessel: <strong><span class="pixel-icon icon-sloop size-16"></span> Standard Sloop</strong> • Weather: Golden Hour Twilight</div>
-                <div style="font-size: 12px; color: #7a4f2a; margin-top: 3px;">Narrow coral channels under blinding amber rays. Navigate with vigilance.</div>
+                <h3 style="margin: 0 0 4px; font-size: 19px;">Day 3: Sunset Passage</h3>
+                <div style="font-size: 13px;">Vessel: <strong><span class="pixel-icon icon-sloop size-16"></span> Standard Sloop</strong> • Weather: Golden Hour Twilight</div>
+                <div style="font-size: 12px; margin-top: 3px; opacity: 0.85;">Narrow coral channels under blinding amber rays. Navigate with vigilance.</div>
               </div>
               <button class="pirate-btn" style="padding: 8px 14px; font-size: 14px; pointer-events: none;">Embark <span class="pixel-icon icon-arrow-right size-14"></span></button>
             </div>
 
-            <div class="level-card" data-day="4" style="background: rgba(80, 50, 20, 0.15); border: 2px solid #9c6b3c; border-radius: 8px; padding: 12px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
+            <div class="level-card" data-day="4" style="padding: 12px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
               <div>
-                <h3 style="margin: 0 0 4px; font-family: 'Cinzel', serif; font-size: 19px; color: #4a1f0a;">Day 4: Rolling Tempest</h3>
-                <div style="font-size: 13px; color: #5a3518;">Vessel: <strong><span class="pixel-icon icon-sloop size-16"></span> Standard Sloop</strong> • Weather: Squalls &amp; Heavy Rain</div>
-                <div style="font-size: 12px; color: #7a4f2a; margin-top: 3px;">High rolling waves and crosswinds challenge your ship's structural balance.</div>
+                <h3 style="margin: 0 0 4px; font-size: 19px;">Day 4: Rolling Tempest</h3>
+                <div style="font-size: 13px;">Vessel: <strong><span class="pixel-icon icon-sloop size-16"></span> Standard Sloop</strong> • Weather: Squalls &amp; Heavy Rain</div>
+                <div style="font-size: 12px; margin-top: 3px; opacity: 0.85;">High rolling waves and crosswinds challenge your ship's structural balance.</div>
               </div>
               <button class="pirate-btn" style="padding: 8px 14px; font-size: 14px; pointer-events: none;">Embark <span class="pixel-icon icon-arrow-right size-14"></span></button>
             </div>
 
-            <div class="level-card" data-day="5" style="background: rgba(80, 50, 20, 0.15); border: 2px solid #9c6b3c; border-radius: 8px; padding: 12px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
+            <div class="level-card" data-day="5" style="padding: 12px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
               <div>
-                <h3 style="margin: 0 0 4px; font-family: 'Cinzel', serif; font-size: 19px; color: #8a1f0a;">Day 5: The Kraken's Maw</h3>
-                <div style="font-size: 13px; color: #5a3518;">Vessel: <strong><span class="pixel-icon icon-sloop size-16"></span> Standard Sloop</strong> • Weather: Boss Encounter</div>
-                <div style="font-size: 12px; color: #7a4f2a; margin-top: 3px;">The ancient sea monster awakens. Lure its deadly tentacles through the waypoint gates!</div>
+                <h3 style="margin: 0 0 4px; font-size: 19px;">Day 5: The Kraken's Maw</h3>
+                <div style="font-size: 13px;">Vessel: <strong><span class="pixel-icon icon-sloop size-16"></span> Standard Sloop</strong> • Weather: Boss Encounter</div>
+                <div style="font-size: 12px; margin-top: 3px; opacity: 0.85;">The ancient sea monster awakens. Lure its deadly tentacles through the waypoint gates!</div>
               </div>
               <button class="pirate-btn" style="padding: 8px 14px; font-size: 14px; pointer-events: none;">Embark <span class="pixel-icon icon-arrow-right size-14"></span></button>
             </div>
 
-            <div class="level-card" data-day="6" style="background: rgba(80, 50, 20, 0.15); border: 2px solid #9c6b3c; border-radius: 8px; padding: 12px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
+            <div class="level-card" data-day="6" style="padding: 12px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
               <div>
-                <h3 style="margin: 0 0 4px; font-family: 'Cinzel', serif; font-size: 19px; color: #4a1f0a;">Day 6: Ironclad Minefield</h3>
-                <div style="font-size: 13px; color: #5a3518;">Vessel: <strong><span class="pixel-icon icon-sloop size-16"></span> Standard Sloop</strong> • Weather: Dense Marine Fog</div>
-                <div style="font-size: 12px; color: #7a4f2a; margin-top: 3px;">Explosive barrels adrift in the shoals. Use bow lanterns to spot detonators in time.</div>
+                <h3 style="margin: 0 0 4px; font-size: 19px;">Day 6: Ironclad Minefield</h3>
+                <div style="font-size: 13px;">Vessel: <strong><span class="pixel-icon icon-sloop size-16"></span> Standard Sloop</strong> • Weather: Dense Marine Fog</div>
+                <div style="font-size: 12px; margin-top: 3px; opacity: 0.85;">Explosive barrels adrift in the shoals. Use bow lanterns to spot detonators in time.</div>
               </div>
               <button class="pirate-btn" style="padding: 8px 14px; font-size: 14px; pointer-events: none;">Embark <span class="pixel-icon icon-arrow-right size-14"></span></button>
             </div>
 
-            <div class="level-card" data-day="7" style="background: rgba(80, 50, 20, 0.15); border: 2px solid #9c6b3c; border-radius: 8px; padding: 12px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
+            <div class="level-card" data-day="7" style="padding: 12px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
               <div>
-                <h3 style="margin: 0 0 4px; font-family: 'Cinzel', serif; font-size: 19px; color: #4a1f0a;">Day 7: The Final Gauntlet</h3>
-                <div style="font-size: 13px; color: #5a3518;">Vessel: <strong><span class="pixel-icon icon-sloop size-16"></span> Standard Sloop</strong> • Weather: Full Hurricane Gale</div>
-                <div style="font-size: 12px; color: #7a4f2a; margin-top: 3px;">Every maritime peril combined. Only the finest shipwright and helmsman survives.</div>
+                <h3 style="margin: 0 0 4px; font-size: 19px;">Day 7: The Final Gauntlet</h3>
+                <div style="font-size: 13px;">Vessel: <strong><span class="pixel-icon icon-sloop size-16"></span> Standard Sloop</strong> • Weather: Full Hurricane Gale</div>
+                <div style="font-size: 12px; margin-top: 3px; opacity: 0.85;">Every maritime peril combined. Only the finest shipwright and helmsman survives.</div>
               </div>
               <button class="pirate-btn" style="padding: 8px 14px; font-size: 14px; pointer-events: none;">Embark <span class="pixel-icon icon-arrow-right size-14"></span></button>
             </div>
