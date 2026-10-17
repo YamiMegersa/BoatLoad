@@ -1,5 +1,6 @@
 import { emit, on } from '../core/EventBus.js';
 import { settingsManager } from '../core/SettingsManager.js';
+import { autoPerformanceController } from '../core/AutoPerformance.js';
 
 export class PauseMenu {
   constructor() {
@@ -8,6 +9,18 @@ export class PauseMenu {
 
     on('uiMount', d => { if (d.screen === 'pause') this.mount(d); });
     on('uiUnmount', d => { if (d.screen === 'pause') this.unmount(); });
+
+    on('autoPerformanceAdjusted', (data) => {
+      this._onAutoPerformanceAdjusted(data);
+    });
+
+    on('autoPerformanceLightingAdjusted', (data) => {
+      this._onAutoPerformanceLightingAdjusted(data);
+    });
+
+    on('autoPerformanceStatus', (status) => {
+      this._onAutoPerformanceStatus(status);
+    });
   }
 
   mount(opts = {}) {
@@ -57,6 +70,52 @@ export class PauseMenu {
           <!-- Tab Content: Graphics & Draw Distance -->
           <div id="tab-graphics" class="settings-tab-pane active">
             
+            <!-- Dynamic Auto Performance Mode -->
+            <div class="setting-item auto-perf-card" id="card-auto-perf">
+              <div class="setting-info">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <label class="setting-label" for="set-auto-perf" style="color:#7dd3fc; font-weight:700; display:flex; align-items:center; gap:8px;">
+                    ⚡ Auto Performance Mode
+                  </label>
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <span class="setting-val-badge highlight" id="val-auto-perf">Disabled</span>
+                    <label class="switch-wrap">
+                      <input type="checkbox" id="set-auto-perf">
+                      <span class="switch-slider"></span>
+                    </label>
+                  </div>
+                </div>
+                <span class="setting-desc">
+                  Dynamically scales render resolution, draw distance, shadows, and effects on the fly to continuously lock your target frame rate.
+                </span>
+              </div>
+
+              <!-- Target FPS Controls -->
+              <div id="auto-perf-target-section" style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed rgba(56, 189, 248, 0.25);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
+                  <span class="setting-label" style="font-size:0.85rem; color:#bae6fd;">Target Frame Rate (FPS)</span>
+                  <span class="setting-val-badge highlight" id="val-target-fps">20 FPS</span>
+                </div>
+                <div class="setting-ctrl-row">
+                  <input type="range" id="set-target-fps" class="setting-slider" min="15" max="60" step="1" value="20">
+                </div>
+                <div class="setting-presets-row" id="group-target-fps-presets" style="margin-top: 6px;">
+                  <span class="presets-label">Target Presets:</span>
+                  <button class="preset-chip" data-fps="15">15 FPS</button>
+                  <button class="preset-chip active" data-fps="20">20 FPS (Default)</button>
+                  <button class="preset-chip" data-fps="30">30 FPS</button>
+                  <button class="preset-chip" data-fps="45">45 FPS</button>
+                  <button class="preset-chip" data-fps="60">60 FPS</button>
+                </div>
+              </div>
+
+              <!-- Real-time Live Status Display -->
+              <div class="auto-perf-status-bar" id="auto-perf-live-status" style="margin-top: 10px;">
+                <span class="auto-perf-indicator-dot"></span>
+                <span id="auto-perf-status-text">Manual Control • Standby</span>
+              </div>
+            </div>
+
             <!-- Field of View (FOV) -->
             <div class="setting-item">
               <div class="setting-info">
@@ -79,7 +138,7 @@ export class PauseMenu {
                 <input type="range" id="set-draw-dist" class="setting-slider" min="100" max="650" step="25">
                 <span class="setting-val-badge highlight" id="val-draw-dist">350m</span>
               </div>
-              <div class="setting-presets-row">
+              <div class="setting-presets-row" id="group-draw-dist-presets">
                 <span class="presets-label">Presets:</span>
                 <button class="preset-chip" data-dist="150">Low (150m)</button>
                 <button class="preset-chip" data-dist="250">Medium (250m)</button>
@@ -316,6 +375,54 @@ export class PauseMenu {
 
     // --- Interactive Controls ---
 
+    // Auto Performance Mode Toggle & Target FPS
+    const autoPerfCard       = this._el.querySelector('#card-auto-perf');
+    const autoPerfToggle     = this._el.querySelector('#set-auto-perf');
+    const autoPerfBadge      = this._el.querySelector('#val-auto-perf');
+    const targetFpsSlider    = this._el.querySelector('#set-target-fps');
+    const targetFpsBadge     = this._el.querySelector('#val-target-fps');
+    const autoPerfStatusText = this._el.querySelector('#auto-perf-status-text');
+
+    autoPerfToggle?.addEventListener('change', (e) => {
+      const enabled = e.target.checked;
+      settingsManager.set('autoPerformance', enabled);
+      if (autoPerfBadge) {
+        autoPerfBadge.innerText = enabled ? 'Active' : 'Disabled';
+        autoPerfBadge.style.color = enabled ? '#38bdf8' : '#94a3b8';
+      }
+      if (autoPerfCard) {
+        autoPerfCard.classList.toggle('active', enabled);
+      }
+      if (!enabled) {
+        this._populateSettings();
+      } else {
+        const summary = autoPerformanceController.getStatusSummary();
+        if (autoPerfStatusText) autoPerfStatusText.innerText = summary.text;
+      }
+    });
+
+    targetFpsSlider?.addEventListener('input', (e) => {
+      const val = Number(e.target.value);
+      if (targetFpsBadge) targetFpsBadge.innerText = `${val} FPS`;
+      this._el.querySelectorAll('#group-target-fps-presets .preset-chip').forEach(chip => {
+        const chipFps = Number(chip.dataset.fps);
+        chip.classList.toggle('active', chipFps === val);
+      });
+      settingsManager.set('targetFps', val);
+    });
+
+    this._el.querySelectorAll('#group-target-fps-presets .preset-chip').forEach(chip => {
+      chip.addEventListener('click', (e) => {
+        const fps = Number(e.currentTarget.dataset.fps);
+        if (targetFpsSlider) targetFpsSlider.value = fps;
+        if (targetFpsBadge) targetFpsBadge.innerText = `${fps} FPS`;
+        this._el.querySelectorAll('#group-target-fps-presets .preset-chip').forEach(c => {
+          c.classList.toggle('active', Number(c.dataset.fps) === fps);
+        });
+        settingsManager.set('targetFps', fps);
+      });
+    });
+
     // FOV Slider
     const fovSlider = this._el.querySelector('#set-fov');
     const fovBadge  = this._el.querySelector('#val-fov');
@@ -335,7 +442,7 @@ export class PauseMenu {
     });
 
     // Presets chips for Draw Distance
-    this._el.querySelectorAll('.preset-chip').forEach(chip => {
+    this._el.querySelectorAll('#group-draw-dist-presets .preset-chip').forEach(chip => {
       chip.addEventListener('click', (e) => {
         const dist = Number(e.currentTarget.dataset.dist);
         if (drawDistSlider) drawDistSlider.value = dist;
@@ -478,6 +585,35 @@ export class PauseMenu {
   _populateSettings() {
     if (!this._el) return;
 
+    // Auto Performance Mode
+    const autoPerf = Boolean(settingsManager.get('autoPerformance'));
+    const targetFps = Number(settingsManager.get('targetFps')) || 20;
+    const autoPerfToggle = this._el.querySelector('#set-auto-perf');
+    const autoPerfBadge  = this._el.querySelector('#val-auto-perf');
+    const autoPerfCard   = this._el.querySelector('#card-auto-perf');
+    const targetFpsSlider = this._el.querySelector('#set-target-fps');
+    const targetFpsBadge  = this._el.querySelector('#val-target-fps');
+    const autoPerfStatusText = this._el.querySelector('#auto-perf-status-text');
+
+    if (autoPerfToggle) autoPerfToggle.checked = autoPerf;
+    if (autoPerfBadge) {
+      autoPerfBadge.innerText = autoPerf ? 'Active' : 'Disabled';
+      autoPerfBadge.style.color = autoPerf ? '#38bdf8' : '#94a3b8';
+    }
+    if (autoPerfCard) {
+      autoPerfCard.classList.toggle('active', autoPerf);
+    }
+    if (targetFpsSlider) targetFpsSlider.value = targetFps;
+    if (targetFpsBadge) targetFpsBadge.innerText = `${targetFps} FPS`;
+    this._el.querySelectorAll('#group-target-fps-presets .preset-chip').forEach(chip => {
+      const chipFps = Number(chip.dataset.fps);
+      chip.classList.toggle('active', chipFps === targetFps);
+    });
+    if (autoPerfStatusText) {
+      const summary = autoPerformanceController.getStatusSummary();
+      autoPerfStatusText.innerText = summary.text;
+    }
+
     // FOV
     const fov = settingsManager.get('fov');
     const fovSlider = this._el.querySelector('#set-fov');
@@ -565,5 +701,65 @@ export class PauseMenu {
     const ambBadge  = this._el.querySelector('#val-vol-amb');
     if (ambSlider) ambSlider.value = ambVol;
     if (ambBadge) ambBadge.innerText = `${ambVol}%`;
+  }
+
+  _onAutoPerformanceAdjusted({ drawDistance, renderScale, currentFps, targetFps, reason }) {
+    if (!this._el) return;
+
+    // Live update draw distance and resolution in PauseMenu if open
+    const drawDistSlider = this._el.querySelector('#set-draw-dist');
+    const drawDistBadge  = this._el.querySelector('#val-draw-dist');
+    if (drawDistSlider && drawDistance !== undefined) drawDistSlider.value = drawDistance;
+    if (drawDistBadge && drawDistance !== undefined) drawDistBadge.innerText = `${drawDistance}m`;
+
+    const scaleBadge = this._el.querySelector('#val-render-scale');
+    if (scaleBadge && renderScale !== undefined) {
+      const w = Math.round(window.innerWidth * renderScale);
+      const h = Math.round(window.innerHeight * renderScale);
+      scaleBadge.innerText = `${w} × ${h} (${Math.round(renderScale * 100)}%)`;
+    }
+    if (renderScale !== undefined) {
+      this._el.querySelectorAll('#group-render-scale .pill-btn').forEach(btn => {
+        btn.classList.toggle('active', Math.abs(Number(btn.dataset.val) - renderScale) < 0.01);
+      });
+    }
+
+    const statusText = this._el.querySelector('#auto-perf-status-text');
+    if (statusText) {
+      const summary = autoPerformanceController.getStatusSummary();
+      statusText.innerText = summary.text;
+    }
+  }
+
+  _onAutoPerformanceLightingAdjusted({ tier, shadowQuality, godRays, reason }) {
+    if (!this._el) return;
+
+    // Updated once per level during transition
+    if (shadowQuality) {
+      this._el.querySelectorAll('#group-shadows .pill-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.val === shadowQuality);
+      });
+    }
+
+    if (godRays !== undefined) {
+      const godRaysToggle = this._el.querySelector('#set-god-rays');
+      const godRaysBadge  = this._el.querySelector('#val-god-rays');
+      if (godRaysToggle) godRaysToggle.checked = godRays;
+      if (godRaysBadge) godRaysBadge.innerText = godRays ? 'On' : 'Off';
+    }
+
+    const statusText = this._el.querySelector('#auto-perf-status-text');
+    if (statusText) {
+      const summary = autoPerformanceController.getStatusSummary();
+      statusText.innerText = summary.text;
+    }
+  }
+
+  _onAutoPerformanceStatus(summary) {
+    if (!this._el) return;
+    const statusText = this._el.querySelector('#auto-perf-status-text');
+    if (statusText) {
+      statusText.innerText = summary.text;
+    }
   }
 }

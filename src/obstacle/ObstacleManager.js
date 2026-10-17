@@ -941,7 +941,7 @@ export class ObstacleManager {
         dummyMesh.updateMatrixWorld(true);
 
         const baseOBB = new OBB();
-        baseOBB.center.copy(center);
+        baseOBB.center.set(0, 0, 0); // Local space mesh origin!
         baseOBB.halfSize.copy(halfSize);
 
         const obb = new OBB();
@@ -961,10 +961,10 @@ export class ObstacleManager {
         };
       };
 
-      // 1. Main Island Landmass & Bluffs: covers the large rocky island bluffs
+      // 1. Main Island Landmass & Bluffs: covers the large rocky island bluffs (leaving sailing channel at X <= -52 completely clear)
       this._obstacles.push(createDockCollider(
-        new THREE.Vector3(-20.0, 1.5, -4.0),
-        new THREE.Vector3(16.0, 6.0, 10.0),
+        new THREE.Vector3(-26.0, 1.5, 0.0),
+        new THREE.Vector3(15.0, 6.0, 11.0),
         'dockIslandMain'
       ));
 

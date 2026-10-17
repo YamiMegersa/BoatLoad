@@ -12,6 +12,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   paperShader: 'auto',    // 'auto', 'painterly', 'hatching', 'off'
   godRays: true,          // boolean
   showFps: true,          // boolean
+  autoPerformance: false, // boolean (toggleable in Performance Menu)
+  targetFps: 20,          // default target frame rate is 20 FPS
   masterVolume: 0.8,      // 0.0 to 1.0
   muted: false,           // boolean
   sfxVolume: 0.8,         // 0.0 to 1.0

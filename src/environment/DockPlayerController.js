@@ -448,17 +448,7 @@ export class DockPlayerController {
       // Main shop building and front counter
       { minX: -1.05 * s, maxX: 5.25 * s, minZ: 1.10 * s, maxZ: 6.65 * s },
       // Crates stacked beside shop on the dock
-      { minX: -2.1 * s, maxX: -1.2 * s, minZ: 2.1 * s, maxZ: 3.1 * s },
-      // Shipyard workshop building and slipway timber frame
-      { minX: -64.0 * s, maxX: -51.0 * s, minZ: 5.0 * s, maxZ: 17.0 * s },
-      // Shipyard heavy timber crane
-      { minX: -70.0 * s, maxX: -64.0 * s, minZ: 10.0 * s, maxZ: 16.0 * s },
-      // Lookout campfire and seating overlook
-      { minX: -39.0 * s, maxX: -34.0 * s, minZ: 10.5 * s, maxZ: 15.0 * s },
-      // South bluff cliff rocks
-      { minX: -40.0 * s, maxX: -30.0 * s, minZ: 16.0 * s, maxZ: 21.0 * s },
-      // North bluff cliff rocks
-      { minX: -41.0 * s, maxX: -31.0 * s, minZ: -22.0 * s, maxZ: -16.0 * s }
+      { minX: -2.1 * s, maxX: -1.2 * s, minZ: 2.1 * s, maxZ: 3.1 * s }
     ];
 
     for (let i = 0; i < obstacles.length; i++) {
@@ -515,9 +505,12 @@ export class DockPlayerController {
       // Resolve obstacle collisions against shop walls, door, and counter
       this._resolveObstacleCollisions(candidate);
 
+      const currentGround = this.yawObject.position.y - this.eyeHeight;
+      const maxStepUp = 0.45; // Max vertical step height (allows ramps, steps, decks; blocks steep cliff drops)
+
       // Ground raycast check to ensure player stays on solid land / dock
       const groundHit = this._getGroundHeightAt(candidate.x, candidate.z);
-      if (groundHit !== null) {
+      if (groundHit !== null && (groundHit - currentGround <= maxStepUp)) {
         this.yawObject.position.x = candidate.x;
         this.yawObject.position.z = candidate.z;
         // Smooth vertical ground alignment
@@ -528,7 +521,7 @@ export class DockPlayerController {
         const candX = new THREE.Vector3(candidate.x, this.yawObject.position.y, this.yawObject.position.z);
         this._resolveObstacleCollisions(candX);
         const slideXHit = this._getGroundHeightAt(candX.x, this.yawObject.position.z);
-        if (slideXHit !== null) {
+        if (slideXHit !== null && (slideXHit - currentGround <= maxStepUp)) {
           this.yawObject.position.x = candX.x;
           this.yawObject.position.y += (slideXHit + this.eyeHeight - this.yawObject.position.y) * Math.min(1.0, delta * 14.0);
         } else {
@@ -536,7 +529,7 @@ export class DockPlayerController {
           const candZ = new THREE.Vector3(this.yawObject.position.x, this.yawObject.position.y, candidate.z);
           this._resolveObstacleCollisions(candZ);
           const slideZHit = this._getGroundHeightAt(this.yawObject.position.x, candZ.z);
-          if (slideZHit !== null) {
+          if (slideZHit !== null && (slideZHit - currentGround <= maxStepUp)) {
             this.yawObject.position.z = candZ.z;
             this.yawObject.position.y += (slideZHit + this.eyeHeight - this.yawObject.position.y) * Math.min(1.0, delta * 14.0);
           }
@@ -565,8 +558,8 @@ export class DockPlayerController {
     const hits = this.downRaycaster.intersectObject(this.dockStall.group, true);
     for (let i = 0; i < hits.length; i++) {
       const hit = hits[i];
-      // Exclude roofs, high cranes, gulls, or high props
-      if (hit.point.y > 6.2 * this.scale) continue;
+      // Exclude roofs, overhead tie beams, high cranes, gulls, or high props (> 5.1 * scale)
+      if (hit.point.y > 5.1 * this.scale) continue;
       // Exclude water/below water level
       if (hit.point.y < 0.1 * this.scale) continue;
 

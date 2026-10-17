@@ -24,6 +24,7 @@ import { exportToGLB } from './utils/exportGLTF.js';
 import { DirectorMode } from './director/DirectorMode.js';
 import { GameEnv } from './core/GameEnv.js';
 import { settingsManager } from './core/SettingsManager.js';
+import { autoPerformanceController } from './core/AutoPerformance.js';
 import './ui/ui.css';
 
 // ---------------------------------------------------------------------------
@@ -218,7 +219,8 @@ settingsManager.bindContext({
   godRays,
   paperFilter,
   fpsCounter,
-  directorMode
+  directorMode,
+  autoPerformance: autoPerformanceController
 });
 
 on('phaseChanged', () => {
@@ -265,11 +267,19 @@ function tick() {
   }
 
   frameCount++;
+  autoPerformanceController.update(delta, now);
   if (now - lastFpsTime >= 1000) {
     const trisStr = lastRecordedTris >= 1000
       ? `${Math.round(lastRecordedTris / 1000)}k`
       : `${lastRecordedTris}`;
-    fpsCounter.innerText = `FPS: ${frameCount} | Calls: ${lastRecordedCalls} | Tris: ${trisStr}`;
+    if (autoPerformanceController.isEnabled()) {
+      const dist = autoPerformanceController.getCurrentDrawDistance();
+      const scale = Math.round(autoPerformanceController.getCurrentRenderScale() * 100);
+      const targetFps = autoPerformanceController.getTargetFps();
+      fpsCounter.innerText = `FPS: ${frameCount} (Target: ${targetFps} • ${dist}m, ${scale}%) | Calls: ${lastRecordedCalls} | Tris: ${trisStr}`;
+    } else {
+      fpsCounter.innerText = `FPS: ${frameCount} | Calls: ${lastRecordedCalls} | Tris: ${trisStr}`;
+    }
     frameCount = 0;
     lastFpsTime = now;
   }

@@ -1735,6 +1735,68 @@ body {
   background: rgba(212, 175, 55, 0.08);
 }
 
+/* Dynamic Auto Performance Card & Status */
+.setting-item.auto-perf-card {
+  border-color: rgba(56, 189, 248, 0.45);
+  background: radial-gradient(circle at 10% 20%, rgba(14, 165, 233, 0.12) 0%, rgba(15, 23, 42, 0.6) 90%);
+  box-shadow: 0 0 15px rgba(56, 189, 248, 0.12);
+  transition: all 0.25s ease;
+}
+
+.setting-item.auto-perf-card:hover {
+  border-color: #38bdf8;
+  background: radial-gradient(circle at 10% 20%, rgba(14, 165, 233, 0.18) 0%, rgba(15, 23, 42, 0.7) 90%);
+}
+
+.setting-item.auto-perf-card.active {
+  border-color: #38bdf8;
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.25);
+}
+
+.setting-item.auto-perf-card.active .switch-wrap input:checked + .switch-slider {
+  background-color: #0284c7;
+  border-color: #38bdf8;
+}
+
+.setting-item.auto-perf-card.active .switch-wrap input:checked + .switch-slider:before {
+  background-color: #ffffff;
+}
+
+.auto-perf-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(10, 18, 30, 0.85);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 0.82rem;
+  color: #7dd3fc;
+  font-family: monospace;
+}
+
+.auto-perf-indicator-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #38bdf8;
+  box-shadow: 0 0 8px #38bdf8;
+  animation: autoPerfDot 1.5s infinite ease-in-out;
+  flex-shrink: 0;
+}
+
+@keyframes autoPerfDot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+
+.preset-chip.active {
+  background: #d4af37;
+  color: #1a0f00;
+  border-color: #ffe082;
+  font-weight: bold;
+}
+
 .setting-info {
   display: flex;
   flex-direction: column;

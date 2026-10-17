@@ -1531,6 +1531,10 @@ export class DockStall {
         tree.add(notch);
       });
 
+      tree.traverse(child => {
+        if (child.isMesh) child.userData.noWalk = true;
+      });
+
       islandGroup.add(tree);
     };
 
@@ -1585,6 +1589,9 @@ export class DockStall {
         center.position.set(ox, 0.36, oz);
         cluster.add(center);
       }
+      cluster.traverse(child => {
+        if (child.isMesh) child.userData.noWalk = true;
+      });
       islandGroup.add(cluster);
     };
 
@@ -1634,6 +1641,10 @@ export class DockStall {
         bush.add(berry);
       });
 
+      bush.traverse(child => {
+        if (child.isMesh) child.userData.noWalk = true;
+      });
+
       islandGroup.add(bush);
     };
 
@@ -1670,6 +1681,9 @@ export class DockStall {
           patch.add(spot);
         }
       });
+      patch.traverse(child => {
+        if (child.isMesh) child.userData.noWalk = true;
+      });
       islandGroup.add(patch);
     };
 
@@ -1693,6 +1707,10 @@ export class DockStall {
       const crown = createVoxelBox(w * 0.72, h * 0.4, d * 0.72, mats.stoneLight);
       crown.position.set(w * 0.08, h * 0.42, -d * 0.08);
       bGroup.add(crown);
+
+      bGroup.traverse(child => {
+        if (child.isMesh) child.userData.noWalk = true;
+      });
 
       islandGroup.add(bGroup);
     };
@@ -1737,6 +1755,10 @@ export class DockStall {
       brace1.rotation.z = Math.PI / 4;
       brace1.position.z = cp.s / 2 + frameThick * 0.2;
       crateGroup.add(brace1);
+
+      crateGroup.traverse(child => {
+        if (child.isMesh) child.userData.noWalk = true;
+      });
 
       islandGroup.add(crateGroup);
     });
@@ -2351,6 +2373,10 @@ export class DockStall {
     crankHandle.position.set(0.55, 0.8, 0);
     craneGroup.add(crankHandle);
 
+    craneGroup.traverse(child => {
+      if (child.isMesh) child.userData.noWalk = true;
+    });
+
     shipyardGroup.add(craneGroup);
 
     // 6. Shipyard Staging Scaffolding (Along South side of ship)
@@ -2413,6 +2439,10 @@ export class DockStall {
     }
     scaffoldGroup.add(ladder);
 
+    scaffoldGroup.traverse(child => {
+      if (child.isMesh) child.userData.noWalk = true;
+    });
+
     shipyardGroup.add(scaffoldGroup);
 
     // 7. Shipwright's Workshop / Framing Shed Skeleton (Open Post-and-Beam Pavilion)
@@ -2429,11 +2459,13 @@ export class DockStall {
       [-shedD / 2 + 0.3, 0, shedD / 2 - 0.3].forEach(cz => {
         const col = createVoxelBox(0.38, shedH, 0.38, mats.woodTrim);
         col.position.set(cx, shedH / 2, cz);
+        col.userData.noWalk = true;
         shedGroup.add(col);
 
         // Stone column footing
         const foot = createVoxelBox(0.48, 0.32, 0.48, mats.stone);
         foot.position.set(cx, 0.16, cz);
+        foot.userData.noWalk = true;
         shedGroup.add(foot);
       });
     });
@@ -2442,11 +2474,13 @@ export class DockStall {
     [-shedD / 2 + 0.3, shedD / 2 - 0.3].forEach(cz => {
       const tieX = createVoxelBox(shedW, 0.32, 0.32, mats.woodTrim);
       tieX.position.set(0, shedH, cz);
+      tieX.userData.noWalk = true;
       shedGroup.add(tieX);
     });
     [-shedW / 2 + 0.3, shedW / 2 - 0.3].forEach(cx => {
       const tieZ = createVoxelBox(0.32, 0.32, shedD, mats.woodTrim);
       tieZ.position.set(cx, shedH, 0);
+      tieZ.userData.noWalk = true;
       shedGroup.add(tieZ);
     });
 
@@ -2541,6 +2575,10 @@ export class DockStall {
       benchGroup.add(curl);
     });
 
+    benchGroup.traverse(child => {
+      if (child.isMesh) child.userData.noWalk = true;
+    });
+
     shedGroup.add(benchGroup);
 
     // 9. DRAFTSMAN'S BLUEPRINT TABLE (INTERACTABLE STATION!)
@@ -2596,6 +2634,10 @@ export class DockStall {
     compassLeg2.rotation.z = -0.3;
     draftGroup.add(compassLeg2);
 
+    draftGroup.traverse(child => {
+      if (child.isMesh) child.userData.noWalk = true;
+    });
+
     shedGroup.add(draftGroup);
 
     // Lumber Drying Racks & Timber Stacks in workshop
@@ -2621,15 +2663,24 @@ export class DockStall {
       plank.position.set(0, 0.7 + p * 0.28, (p % 2 === 0 ? 0.12 : -0.12));
       lumberRack.add(plank);
     }
+    lumberRack.traverse(child => {
+      if (child.isMesh) child.userData.noWalk = true;
+    });
     shedGroup.add(lumberRack);
 
     // Barrels of caulking tar and nail kegs
     const tarBarrel = createVoxelBarrel(0.38, 1.1, mats.woodAged, mats.iron);
     tarBarrel.position.set(2.0, 0.55, 2.2);
+    tarBarrel.traverse(child => {
+      if (child.isMesh) child.userData.noWalk = true;
+    });
     shedGroup.add(tarBarrel);
 
     const nailKeg = createVoxelBarrel(0.28, 0.75, mats.woodMid, mats.iron);
     nailKeg.position.set(1.4, 0.38, 2.6);
+    nailKeg.traverse(child => {
+      if (child.isMesh) child.userData.noWalk = true;
+    });
     shedGroup.add(nailKeg);
 
     shipyardGroup.add(shedGroup);
@@ -3100,10 +3151,12 @@ export class DockStall {
     // 5. Slanted Weathered Roof & Expanded Canopy
     const roofBeamFront = createVoxelBox(baseW + 0.6, 0.22, 0.24, mats.woodDark);
     roofBeamFront.position.set(0, postHeight + 0.26, baseD / 2 - 0.2);
+    roofBeamFront.userData.noWalk = true;
     stallGroup.add(roofBeamFront);
 
     const roofBeamBack = createVoxelBox(baseW + 0.6, 0.22, 0.24, mats.woodDark);
     roofBeamBack.position.set(0, postHeight + 0.78, -baseD / 2 + 0.2);
+    roofBeamBack.userData.noWalk = true;
     stallGroup.add(roofBeamBack);
 
     const roofSlant = new THREE.Group();
@@ -3117,8 +3170,12 @@ export class DockStall {
       const rx = -baseW / 2 + (rp + 0.5) * (baseW / roofPlankCount);
       const rPlank = createVoxelBox(baseW / roofPlankCount - 0.04, 0.09, baseD + 0.8, rp % 2 === 0 ? mats.plankDark : roofPlankMat);
       rPlank.position.set(rx, 0, 0);
+      rPlank.userData.noWalk = true;
       roofSlant.add(rPlank);
     }
+    roofSlant.traverse(child => {
+      if (child.isMesh) child.userData.noWalk = true;
+    });
 
     // 6. Hanging "DEADLY BUSINESS" Sign (Elevated to give clear shopkeeper sightline)
     const ghostSignPivot = new THREE.Group();
@@ -3155,13 +3212,26 @@ export class DockStall {
     signBorder.position.set(0, -0.55, -0.02);
     ghostSignPivot.add(signBorder);
 
+    ghostSignPivot.traverse(child => {
+      if (child.isMesh) child.userData.noWalk = true;
+    });
+
+    // Curios & counter noWalk to avoid stepping on counter
+    counterDesk.userData.noWalk = true;
+    counterTop.userData.noWalk = true;
+    counterTrim.userData.noWalk = true;
+    lanternGroup.traverse(child => { if (child.isMesh) child.userData.noWalk = true; });
+    bookCover.userData.noWalk = true;
+    bookPages.userData.noWalk = true;
+    vialMesh.userData.noWalk = true;
+
     // 7. Ghost Merchant Stationed Behind His Dedicated Counter (Voxel Pac-Man Ghost)
     this.ghostMerchant = new GhostMerchant(stallGroup, new THREE.Vector3(0, 1.55, counterFrontZ - 0.85));
     this.ghostMerchantInteractables = this.ghostMerchant.interactables;
 
     // Counter click hitboxes for easy interaction
-    counterTop.userData = { isGhostMerchant: true };
-    counterDesk.userData = { isGhostMerchant: true };
+    counterTop.userData.isGhostMerchant = true;
+    counterDesk.userData.isGhostMerchant = true;
     this.ghostMerchantInteractables.push(counterTop, counterDesk);
   }
 
