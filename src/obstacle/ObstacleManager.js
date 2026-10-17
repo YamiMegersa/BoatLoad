@@ -588,6 +588,9 @@ export class ObstacleManager {
     // Ignore wind zones for collision
     if (obs.type === 'wind_zone') return;
 
+    // Ignore dock obstacles when ship is moored, halted during countdown, or has departure immunity
+    if (obs.isDockObstacle && (ship.isImmune() || ship._isHalted)) return;
+
     // Whirlpool applies a continuous radial pull
     if (obs.type === 'whirlpool') {
       const dx = obs.mesh.position.x - ship.mesh.position.x;
@@ -958,10 +961,10 @@ export class ObstacleManager {
         };
       };
 
-      // 1. Main Island Landmass & Bluffs: covers the large rocky island
+      // 1. Main Island Landmass & Bluffs: covers the large rocky island bluffs
       this._obstacles.push(createDockCollider(
-        new THREE.Vector3(-25.5, 1.5, 0.0),
-        new THREE.Vector3(18.5, 6.0, 13.0),
+        new THREE.Vector3(-20.0, 1.5, -4.0),
+        new THREE.Vector3(16.0, 6.0, 10.0),
         'dockIslandMain'
       ));
 
@@ -970,13 +973,6 @@ export class ObstacleManager {
         new THREE.Vector3(0.0, 1.0, 1.0),
         new THREE.Vector3(6.5, 4.0, 4.0),
         'dockPierEast'
-      ));
-
-      // 3. West Shipyard Pier (adjacent to ship spawn berth)
-      this._obstacles.push(createDockCollider(
-        new THREE.Vector3(-46.5, 1.0, 10.5),
-        new THREE.Vector3(4.5, 4.0, 2.0),
-        'dockPierWest'
       ));
     }
   }

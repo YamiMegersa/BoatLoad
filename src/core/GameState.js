@@ -30,6 +30,7 @@ import { WeatherSystem }      from '../environment/WeatherSystem.js';
 import { DEBUG }              from '../utils/debug.js';
 import { LevelConfig }        from './LevelConfig.js';
 import { ShipRegistry, DEFAULT_SHIP_ID } from '../config/ShipRegistry.js';
+import { ShopRegistry, ItemType } from '../config/ShopRegistry.js';
 import { getAssetUrl } from '../utils/paths.js';
 import { emit, on, off, clear } from './EventBus.js';
 
@@ -43,6 +44,7 @@ export const GamePhase = Object.freeze({
   SHIPYARD: 'SHIPYARD',
   OBSTACLE: 'OBSTACLE',
   EDITOR:   'EDITOR',
+  RESULTS:  'RESULTS',
 });
 
 // Mooring position & orientation at the West yard dock (T-head perpendicular berth across west pier terminus)
@@ -81,6 +83,12 @@ export class GameState {
     this.day           = 1;
     this.shipId        = 'sloop';
     this.abilityInventory = [];
+
+    // Economy and Shop System
+    this.coins = 350;
+    this.inventory = ['wheel_default', 'pedestal_lvl0', 'lantern_lvl1'];
+    this.equippedItems = ShopRegistry.getDefaultEquipped();
+    this._loadEconomy();
 
     // Phase-specific instances (null when not active)
     this._grid          = null;
@@ -187,6 +195,137 @@ export class GameState {
   }
 
   // -------------------------------------------------------------------------
+  // Economy & Shop System
+  // -------------------------------------------------------------------------
+
+  _loadEconomy() {
+    try {
+      const data = localStorage.getItem('boatload_economy');
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (typeof parsed.coins === 'number') this.coins = parsed.coins;
+        if (Array.isArray(parsed.inventory)) this.inventory = parsed.inventory;
+        if (parsed.equippedItems && typeof parsed.equippedItems === 'object') {
+          this.equippedItems = { ...this.equippedItems, ...parsed.equippedItems };
+        }
+      }
+    } catch (e) {
+      console.warn('[GameState] Could not load economy from localStorage:', e);
+    }
+  }
+
+  _saveEconomy() {
+    try {
+      const payload = {
+        coins: this.coins,
+        inventory: this.inventory,
+        equippedItems: this.equippedItems
+      };
+      localStorage.setItem('boatload_economy', JSON.stringify(payload));
+    } catch (e) {
+      console.warn('[GameState] Could not save economy to localStorage:', e);
+    }
+  }
+
+  addCoins(amount) {
+    if (typeof amount !== 'number' || isNaN(amount) || amount <= 0) return;
+    this.coins += Math.round(amount);
+    this._saveEconomy();
+    emit('economyUpdated', { coins: this.coins, inventory: this.inventory, equipped: this.equippedItems });
+  }
+
+  spendCoins(amount) {
+    if (typeof amount !== 'number' || isNaN(amount) || amount <= 0) return false;
+    if (this.coins < amount) return false;
+    this.coins -= Math.round(amount);
+    this._saveEconomy();
+    emit('economyUpdated', { coins: this.coins, inventory: this.inventory, equipped: this.equippedItems });
+    return true;
+  }
+
+  buyItem(itemId) {
+    const item = ShopRegistry.getItem(itemId);
+    if (!item) return false;
+    if (this.coins < item.cost) {
+      emit('playSound', { sound: 'qte_fail' });
+      return false;
+    }
+    this.coins -= item.cost;
+    if (!this.inventory.includes(itemId)) {
+      this.inventory.push(itemId);
+    }
+    this.equipItem(itemId);
+    emit('playSound', { sound: 'qte_success' });
+    this._saveEconomy();
+    emit('economyUpdated', { coins: this.coins, inventory: this.inventory, equipped: this.equippedItems });
+    return true;
+  }
+
+  equipItem(itemId) {
+    const item = ShopRegistry.getItem(itemId);
+    if (!item) return false;
+    if (!this.inventory.includes(itemId)) return false;
+
+    let category = null;
+    if (ShopRegistry.getItemsByType(ItemType.WHEEL).some(i => i.id === itemId)) {
+      category = ItemType.WHEEL;
+    } else if (ShopRegistry.getItemsByType(ItemType.PEDESTAL).some(i => i.id === itemId)) {
+      category = ItemType.PEDESTAL;
+    } else if (ShopRegistry.getItemsByType(ItemType.LANTERN).some(i => i.id === itemId)) {
+      category = ItemType.LANTERN;
+    }
+    if (!category) return false;
+
+    this.equippedItems[category] = itemId;
+    this._saveEconomy();
+    emit('economyUpdated', { coins: this.coins, inventory: this.inventory, equipped: this.equippedItems });
+    emit('itemsEquipped', { type: category, itemId, item });
+    return true;
+  }
+
+  isItemOwned(itemId) {
+    return this.inventory.includes(itemId);
+  }
+
+  getPedestalMultiplier() {
+    return ShopRegistry.getPedestalMultiplier(this.equippedItems?.pedestal);
+  }
+
+  getWheelStats() {
+    return ShopRegistry.getWheelStats(this.equippedItems?.wheel);
+  }
+
+  getLanternStats() {
+    return ShopRegistry.getLanternStats(this.equippedItems?.lantern);
+  }
+
+  async _enterResults(opts = {}) {
+    const day = this.day || 1;
+    const baseReward = 150 + day * 75;
+    const multiplier = this.getPedestalMultiplier();
+    const totalAwarded = Math.round(baseReward * multiplier);
+
+    // Deposit earned doubloons
+    this.addCoins(totalAwarded);
+
+    emit('uiMount', {
+      screen: 'results',
+      data: {
+        day,
+        baseReward,
+        multiplier,
+        bonusCoins: totalAwarded
+      }
+    });
+
+    emit('playSound', { sound: 'success' });
+  }
+
+  _exitResults() {
+    emit('uiUnmount', { screen: 'results' });
+  }
+
+  // -------------------------------------------------------------------------
   // Transition
   // -------------------------------------------------------------------------
 
@@ -287,6 +426,7 @@ export class GameState {
 
     this._isCountdownActive = true;
     this._playerShip.halt();
+    this._playerShip.setImmune(9.0); // Departure grace immunity (6s countdown + 3s clear departure)
 
     emit('startAnchorCountdown', {
       duration: 6.0,
@@ -295,6 +435,7 @@ export class GameState {
         this._isCountdownActive = false;
         if (this._playerShip) {
           this._playerShip.resumeSpeed();
+          this._playerShip.setImmune(3.0);
         }
       }
     });
@@ -437,6 +578,10 @@ export class GameState {
         this._enterEditor(opts);
         break;
 
+      case GamePhase.RESULTS:
+        await this._enterResults(opts);
+        break;
+
       default:
         break;
     }
@@ -465,6 +610,10 @@ export class GameState {
 
       case GamePhase.EDITOR:
         this._exitEditor();
+        break;
+
+      case GamePhase.RESULTS:
+        this._exitResults();
         break;
 
       default:
@@ -543,13 +692,12 @@ export class GameState {
       this._dockMooredGroup.scale.setScalar(s);
 
       // Moored at the West Shipyard Outfitting Dock (opposite end of the island)
-      // Pier extends west to X = -65.9, centered along Z = 14.5
-      const pierTerminusX = -50.9;
-      const pierCenterZ = 10.5;
+      const pierTerminusX = -54.0;
+      const pierCenterZ = 12.0;
       const halfBeam = (this._grid?.width || 24) * s * 0.5;
       const draft = (shipProfile.waterlineY || 4) * s;
       
-      this._dockMooredTargetPos = new THREE.Vector3(pierTerminusX - halfBeam - 0.4, -draft, pierCenterZ);
+      this._dockMooredTargetPos = new THREE.Vector3(pierTerminusX - halfBeam - 0.8, -draft, pierCenterZ);
       // Cubic Bezier curve control points:
       // P0: Off-screen to the far right (+X, seaward)
       // P1: Gliding seaward from the east channel towards the shopfront at the same distance (Z = -20)
@@ -740,12 +888,12 @@ export class GameState {
       const s = shipProfile.scale || 0.12;
       this._dockMooredGroup.scale.setScalar(s);
 
-      const pierTerminusX = -50.9;
-      const pierCenterZ = 10.5;
+      const pierTerminusX = -54.0;
+      const pierCenterZ = 12.0;
       const halfBeam = (this._grid?.width || 24) * s * 0.5;
       const draft = (shipProfile.waterlineY || 4) * s;
 
-      this._dockMooredTargetPos = new THREE.Vector3(pierTerminusX - halfBeam - 0.4, -draft, pierCenterZ);
+      this._dockMooredTargetPos = new THREE.Vector3(pierTerminusX - halfBeam - 0.8, -draft, pierCenterZ);
       this._dockMooredP0 = new THREE.Vector3(55.0, -draft, -27.0);
       this._dockMooredP1 = new THREE.Vector3(15.0, -draft, -20.0);
       this._dockMooredP2 = new THREE.Vector3(-82.0, -draft, -20.0);
@@ -801,6 +949,10 @@ export class GameState {
     on('dockPlayerEnteredShop', this._onDockPlayerEnteredShop);
 
     emit('uiMount', { screen: 'dock', dockStall: this._dockStall, gameState: this, dockPlayerController: this._dockPlayerController });
+
+    if (opts?.openShop) {
+      setTimeout(() => emit('openShopUI'), 300);
+    }
   }
 
   _exitDock() {
@@ -1375,10 +1527,10 @@ export class GameState {
     if (hasDock) {
       const s = profile.scale || 0.12;
       const halfBeam = ((this._grid?.width || 24) * 0.5) * s;
-      spawnX = this._dockMooredTargetPos ? this._dockMooredTargetPos.x : (-50.9 - halfBeam - 0.4);
+      spawnX = this._dockMooredTargetPos ? this._dockMooredTargetPos.x : (-54.0 - halfBeam - 0.8);
       spawnY = 0;
-      spawnZ = this._dockMooredTargetPos ? this._dockMooredTargetPos.z : 10.5;
-      spawnRot = 0;
+      spawnZ = this._dockMooredTargetPos ? this._dockMooredTargetPos.z : 12.0;
+      spawnRot = -0.15; // Angled outward into open sea fairway away from island bluffs
     } else if (spawnConfig) {
       if (spawnConfig.position) {
         spawnX = spawnConfig.position.x ?? 0;
@@ -1440,13 +1592,21 @@ export class GameState {
       isDirectorActive: () => Boolean(window.directorMode?.isActive),
     });
 
+    const wheelStats = this.getWheelStats();
+    const lanternStats = this.getLanternStats();
+    const pedestalMultiplier = this.getPedestalMultiplier();
+
     const effectiveShipStats = {
       ...(shipStats || {}),
       profile,
       scale: profile.scale,
       speedMultiplier: profile.speedMultiplier,
-      turnAccel: profile.turnAccel,
-      turnDamping: profile.turnDamping,
+      turnAccel: wheelStats?.turnAccel ?? profile.turnAccel ?? 2.0,
+      turnDamping: wheelStats?.turnDamping ?? profile.turnDamping ?? 3.0,
+      sirenResistance: wheelStats?.sirenResistance ?? 0,
+      wheelStats,
+      lanternStats,
+      pedestalMultiplier,
       isGagTruck: profile.isGagTruck,
       waterCapacity: profile.waterCapacity,
       waterlineY: profile.waterlineY,
@@ -1458,6 +1618,7 @@ export class GameState {
     };
 
     this._playerShip = new PlayerShip(effectiveShipStats, this._scene, this._chunkRenderer, this._grid, this._qteSystem);
+    this._playerShip.setImmune(9.0); // Full immunity during anchor countdown + initial departure
     if (spawnX !== 0 || spawnY !== 0 || spawnZ !== 0) {
       this._playerShip.mesh.position.set(spawnX, spawnY, spawnZ);
     }

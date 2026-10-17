@@ -12,6 +12,8 @@ import { MainMenuUI } from './ui/MainMenuUI.js';
 import { LevelSelectorUI } from './ui/LevelSelectorUI.js';
 import { LoadingScreenUI } from './ui/LoadingScreenUI.js';
 import { AnchorCountdownUI } from './ui/AnchorCountdownUI.js';
+import { ShopUI } from './ui/ShopUI.js';
+import { ResultsUI } from './ui/ResultsUI.js';
 import { ParticleSystem } from './environment/ParticleSystem.js';
 import { DamageSystem } from './shipyard/DamageSystem.js';
 import { GodRays } from './environment/GodRays.js';
@@ -146,6 +148,8 @@ const pauseMenu = new PauseMenu();
 const levelSelectorUI = new LevelSelectorUI();
 const loadingScreenUI = new LoadingScreenUI();
 const anchorCountdownUI = new AnchorCountdownUI();
+const shopUI = new ShopUI(gameState);
+const resultsUI = new ResultsUI(gameState);
 const particles = new ParticleSystem(scene);
 
 const directorMode = new DirectorMode({
@@ -615,7 +619,7 @@ async function boot() {
         const activeShipId = opts?.shipDef?.id || gameState._levelCfg?.ship || level.levelCfg?.ship || DEFAULT_SHIP_ID;
         const activeShipDef = opts?.shipDef || LevelConfig.getShipDef(activeShipId);
         const activeLevelCfg = opts?.levelCfg || gameState._levelCfg || level.levelCfg;
-        gameState.transition(GamePhase.DOCK, { shipDef: activeShipDef, levelCfg: activeLevelCfg, fishModels: level.fishModels });
+        gameState.transition(GamePhase.DOCK, { shipDef: activeShipDef, levelCfg: activeLevelCfg, fishModels: level.fishModels, openShop: opts?.openShop });
       } else if (phase === GamePhase.SHIPYARD) {
         logEvent('Entering Shipyard...');
         emit('showLoading', { title: 'Entering Shipyard', message: 'Entering outfitting berth & inspecting hull...', progress: 0.1 });

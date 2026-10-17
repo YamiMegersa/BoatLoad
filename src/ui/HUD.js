@@ -2,6 +2,7 @@ import { emit, on, off } from '../core/EventBus.js';
 import { GameEnv } from '../core/GameEnv.js';
 import { DEBUG } from '../utils/debug.js';
 import { getAssetUrl } from '../utils/paths.js';
+import { ShopRegistry } from '../config/ShopRegistry.js';
 
 const wheelImage = getAssetUrl('assets/wheels/wheel_threshold.png');
 
@@ -268,8 +269,9 @@ export class HUD {
       <!-- Kraken Banner (flash messages) -->
       <div id="hud-boss-banner" style="display:none; position:fixed; top:40%; left:50%; transform:translate(-50%,-50%); font-size:48px; font-weight:bold; color:#00cc44; text-shadow:0 0 20px rgba(0,200,60,0.6), 0 4px 12px rgba(0,0,0,0.8); pointer-events:none; z-index:200; animation:bossBannerPop 0.4s ease-out;"></div>
       
-      <!-- Steering Wheel -->
+      <!-- Steering Wheel & Pedestal -->
       <div id="hud-wheel-container">
+        <img id="hud-pedestal" src="" style="display:none;" />
         <img id="hud-wheel" src="${wheelImage}">
       </div>
     `;
@@ -304,9 +306,27 @@ export class HUD {
     this._qteIndicator = this._el.querySelector('.qte-indicator');
     this._bailCanvas   = this._el.querySelector('#hud-qte-draw');
     this._wheel        = this._el.querySelector('#hud-wheel');
+    this._pedestal     = this._el.querySelector('#hud-pedestal');
     this._mobileBtnEl  = this._el.querySelector('#hud-mobile-harpoon');
     this._scoreEl      = this._el.querySelector('#hud-score-val');
     this._bonusBoxEl   = this._el.querySelector('#hud-bonus-container');
+
+    this._updateEquippedAssets = () => {
+      if (!window.gameState) return;
+      const wheelItem = ShopRegistry.getItem(window.gameState.equippedItems?.wheel);
+      if (wheelItem && this._wheel) {
+        this._wheel.src = wheelItem.icon;
+      }
+      const pedestalItem = ShopRegistry.getItem(window.gameState.equippedItems?.pedestal);
+      if (pedestalItem && this._pedestal) {
+        this._pedestal.src = pedestalItem.icon;
+        this._pedestal.style.display = 'block';
+      }
+    };
+    this._updateEquippedAssets();
+    this._onEconomyUpdated = () => this._updateEquippedAssets();
+    on('economyUpdated', this._onEconomyUpdated);
+    on('itemsEquipped', this._onEconomyUpdated);
 
     // Click/Tap on QTE reticle
     this._qteEl.addEventListener('pointerdown', (e) => {
@@ -445,7 +465,8 @@ export class HUD {
       // Siren hypnotic steering pull: turns the wheel or resists player drag
       if (this._sirenPullTimer > 0) {
         this._sirenPullTimer -= 0.016;
-        const pullSpeed = this._isDraggingWheel ? 25 : 65;
+        const sirenResistance = window.gameState?.getWheelStats?.()?.sirenResistance || 0;
+        const pullSpeed = (this._isDraggingWheel ? 25 : 65) * Math.max(0.1, 1 - sirenResistance);
         this._wheelAngle += this._sirenSteerPull * pullSpeed * 0.016;
         const glowAlpha = Math.min(0.9, this._sirenIntensity * 1.3).toFixed(2);
         this._wheel.style.filter = `drop-shadow(0 0 16px rgba(255, 102, 204, ${glowAlpha}))`;
@@ -518,6 +539,12 @@ export class HUD {
       off('sirenPulling', this._onSirenPulling);
       this._onSirenPulling = null;
     }
+    if (this._onEconomyUpdated) {
+      off('economyUpdated', this._onEconomyUpdated);
+      off('itemsEquipped', this._onEconomyUpdated);
+      this._onEconomyUpdated = null;
+    }
+    this._pedestal = null;
     clearInterval(this._qteTimer);
     clearTimeout(this._qteHideTimer);
     clearTimeout(this._bannerTimer);

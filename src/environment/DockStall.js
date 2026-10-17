@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { VoxelLopBunny } from './VoxelLopBunny.js';
 import { DockNPC } from './DockNPC.js';
+import { GhostMerchant } from './GhostMerchant.js';
 
 // ---------------------------------------------------------------------------
 // Voxel Palette & Procedural Voxel Texture Generators
@@ -124,6 +125,60 @@ function createVoxelWoodTexture(baseR, baseG, baseB, contrast = 0.18) {
 }
 
 /**
+ * Procedural glowing sign texture for "Deadly Business" stall
+ */
+function createDeadlyBusinessSignTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 160;
+  const ctx = canvas.getContext('2d');
+
+  // Weathered dark timber plank
+  ctx.fillStyle = '#18110b';
+  ctx.fillRect(0, 0, 512, 160);
+
+  // Distressed wood grain
+  ctx.fillStyle = '#26170e';
+  for (let y = 0; y < 160; y += 8) {
+    ctx.fillRect(0, y, 512, 3);
+  }
+
+  // Spectral cyan/emerald borders
+  ctx.strokeStyle = '#059669';
+  ctx.lineWidth = 6;
+  ctx.strokeRect(8, 8, 496, 144);
+  ctx.strokeStyle = '#34d399';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(14, 14, 484, 132);
+
+  // Glowing eerie header
+  ctx.font = '900 42px "Cinzel", Georgia, serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  // Outer glow
+  ctx.shadowColor = '#34d399';
+  ctx.shadowBlur = 18;
+  ctx.fillStyle = '#a7f3d0';
+  ctx.fillText('DEADLY BUSINESS', 256, 70);
+
+  // Sharp text core
+  ctx.shadowBlur = 3;
+  ctx.fillStyle = '#f0fdf4';
+  ctx.fillText('DEADLY BUSINESS', 256, 70);
+
+  // Subtitle
+  ctx.font = 'bold 15px sans-serif';
+  ctx.fillStyle = '#6ee7b7';
+  ctx.shadowBlur = 6;
+  ctx.fillText('☠  SPECTRAL CHANDLERY & OUTFITS  ☠', 256, 118);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/**
  * Creates a flat-shaded standard material matching VoxelArms / ChunkRenderer aesthetics.
  */
 function createVoxelMat(color, opts = {}) {
@@ -234,6 +289,8 @@ export class DockStall {
     this.activeShipProfile = null;
     this.shipyardInteractables = [];
     this.dockNPC = null;
+    this.ghostMerchant = null;
+    this.ghostMerchantInteractables = [];
     this.bookLight = null;
     this.bookAura = null;
     this._isBuilt = false;
@@ -432,6 +489,7 @@ export class DockStall {
     this._buildIslandFoliageAndDetails(islandGroup, mats);
     this._buildIslandTrailAndLookout(islandGroup, mats);
     this._buildShipyardSkeleton(islandGroup, mats);
+    this._buildGhostMerchantStall(islandGroup, mats);
 
     // Easter Egg: Voxel Lop-Eared Bunny hopping around island grass meadow
     this.bunny = new VoxelLopBunny(islandGroup, new THREE.Vector3(0, 2.0, 2.5), this.group);
@@ -2888,9 +2946,231 @@ export class DockStall {
     dockGroup.add(pierCollider);
   }
 
-  update(delta, time) {
+  // =========================================================================
+  // 2F. "DEADLY BUSINESS" GHOST MERCHANT STALL (Shipyard Precinct)
+  // =========================================================================
+  _buildGhostMerchantStall(islandGroup, mats) {
+    const stallGroup = new THREE.Group();
+    stallGroup.name = 'DeadlyBusinessGhostStall';
+
+    // Positioned further down the island by the shipyard entrance terrace / courtyard
+    // IslandGroup sits at (-22, 0, 0). Shipyard arch is at X = -26, Z = 0; workshop shed is at X = -35.5, Z = 11.
+    // Stall sits at (-28.0, 1.76, 5.2), angled with rotation.y = -Math.PI * 0.75 so the grand front counter
+    // directly addresses visitors arriving through the archway and facing the active shipyard precinct.
+    stallGroup.position.set(-28.0, 1.76, 5.2);
+    stallGroup.rotation.y = -Math.PI * 0.75;
+    islandGroup.add(stallGroup);
+
+    // 1. Weathered Dark Timber Platform Base (Substantially enlarged 5.2m x 4.2m)
+    const baseW = 5.2;
+    const baseD = 4.2;
+    const baseMat = mats.plankDark || mats.woodDark;
+    const base = createVoxelBox(baseW, 0.26, baseD, baseMat);
+    base.position.set(0, 0.13, 0);
+    stallGroup.add(base);
+
+    // Individual rustic floor planks across the deck
+    const floorPlankCount = 9;
+    for (let p = 0; p < floorPlankCount; p++) {
+      const pz = -baseD / 2 + (p + 0.5) * (baseD / floorPlankCount);
+      const plank = createVoxelBox(baseW - 0.12, 0.04, baseD / floorPlankCount - 0.04, p % 2 === 0 ? mats.plank : mats.plankDark);
+      plank.position.set(0, 0.28, pz);
+      stallGroup.add(plank);
+    }
+
+    // 2. Heavy Corner Posts & Pilings (Grand height: 3.8m, thicker 0.36m weathered oak)
+    const postHeight = 3.8;
+    const postThickness = 0.36;
+    const postLocations = [
+      [-baseW / 2 + 0.28, -baseD / 2 + 0.28],
+      [ baseW / 2 - 0.28, -baseD / 2 + 0.28],
+      [-baseW / 2 + 0.28,  baseD / 2 - 0.28],
+      [ baseW / 2 - 0.28,  baseD / 2 - 0.28],
+    ];
+    postLocations.forEach(([px, pz]) => {
+      const post = createVoxelBox(postThickness, postHeight, postThickness, mats.woodDark);
+      post.position.set(px, postHeight / 2 + 0.26, pz);
+      stallGroup.add(post);
+
+      // Iron top cap
+      const cap = createVoxelBox(postThickness + 0.08, 0.14, postThickness + 0.08, mats.iron);
+      cap.position.set(px, postHeight + 0.26, pz);
+      stallGroup.add(cap);
+
+      // Iron base reinforcement collar
+      const collar = createVoxelBox(postThickness + 0.06, 0.18, postThickness + 0.06, mats.iron);
+      collar.position.set(px, 0.35, pz);
+      stallGroup.add(collar);
+    });
+
+    // 3. Trade Counter (Grand 4.4m width front desk facing shipyard visitors)
+    const counterY = 1.05;
+    const counterFrontZ = baseD / 2 - 0.85;
+    const counterWidth = 4.4;
+    const counterDesk = createVoxelBox(counterWidth, 0.92, 0.72, mats.woodHi);
+    counterDesk.position.set(0, counterY - 0.46, counterFrontZ);
+    stallGroup.add(counterDesk);
+
+    const counterTop = createVoxelBox(counterWidth + 0.24, 0.14, 0.88, mats.woodDark);
+    counterTop.position.set(0, counterY + 0.07, counterFrontZ);
+    stallGroup.add(counterTop);
+
+    const counterTrim = createVoxelBox(counterWidth + 0.26, 0.07, 0.07, mats.iron);
+    counterTrim.position.set(0, counterY + 0.07, counterFrontZ + 0.44);
+    stallGroup.add(counterTrim);
+
+    // 4. Ghostly Curios on Counter:
+    // (a) Spectral Lantern & PointLight
+    const lanternMat = new THREE.MeshStandardMaterial({
+      color: 0x34d399,
+      emissive: 0x34d399,
+      emissiveIntensity: 2.5,
+      roughness: 0.2
+    });
+    // (a) Spectral Lantern & PointLight
+    const lanternGroup = new THREE.Group();
+    lanternGroup.position.set(-counterWidth / 2 + 0.55, counterY + 0.32, counterFrontZ);
+    stallGroup.add(lanternGroup);
+
+    const lanternCore = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.36, 0.24), lanternMat);
+    lanternGroup.add(lanternCore);
+
+    const lanternCap = createVoxelBox(0.30, 0.06, 0.30, mats.iron);
+    lanternCap.position.y = 0.21;
+    lanternGroup.add(lanternCap);
+
+    const lanternBase = createVoxelBox(0.30, 0.06, 0.30, mats.iron);
+    lanternBase.position.y = -0.21;
+    lanternGroup.add(lanternBase);
+
+    [-0.12, 0.12].forEach(lx => {
+      [-0.12, 0.12].forEach(lz => {
+        const rib = createVoxelBox(0.04, 0.36, 0.04, mats.iron);
+        rib.position.set(lx, 0, lz);
+        lanternGroup.add(rib);
+      });
+    });
+
+    const stallLight = new THREE.PointLight(0x34d399, 2.8, 9.5, 1.8);
+    stallLight.position.set(-counterWidth / 2 + 0.55, counterY + 0.35, counterFrontZ);
+    stallGroup.add(stallLight);
+
+    // (b) Phantom Doubloons stacks
+    const coinMat = createVoxelMat(Palette.goldCoin, { metalness: 0.85, roughness: 0.25 });
+    for (let c = 0; c < 6; c++) {
+      const coin = createVoxelBox(0.16, 0.028, 0.16, coinMat);
+      coin.position.set(counterWidth / 2 - 0.55, counterY + 0.15 + c * 0.028, counterFrontZ);
+      coin.rotation.y = c * 0.35;
+      stallGroup.add(coin);
+    }
+    for (let c = 0; c < 4; c++) {
+      const coin = createVoxelBox(0.14, 0.028, 0.14, coinMat);
+      coin.position.set(counterWidth / 2 - 0.82, counterY + 0.15 + c * 0.028, counterFrontZ);
+      coin.rotation.y = c * -0.4;
+      stallGroup.add(coin);
+    }
+
+    // (c) Ancient Weathered Tome / Grimoire of the Deep
+    const bookCover = createVoxelBox(0.48, 0.08, 0.58, mats.woodDark);
+    bookCover.position.set(0.55, counterY + 0.18, counterFrontZ - 0.04);
+    bookCover.rotation.y = 0.28;
+    stallGroup.add(bookCover);
+
+    const bookPages = createVoxelBox(0.44, 0.06, 0.54, mats.sailCloth);
+    bookPages.position.set(0.55, counterY + 0.18, counterFrontZ - 0.04);
+    bookPages.rotation.y = 0.28;
+    stallGroup.add(bookPages);
+
+    // (d) Spectral Alchemical Vial
+    const vialMat = new THREE.MeshStandardMaterial({
+      color: 0x34d399,
+      emissive: 0x34d399,
+      emissiveIntensity: 1.8,
+      roughness: 0.15,
+      transparent: true,
+      opacity: 0.85
+    });
+    const vialMesh = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.30, 0.18), vialMat);
+    vialMesh.position.set(-0.65, counterY + 0.22, counterFrontZ);
+    stallGroup.add(vialMesh);
+    const vialStopper = createVoxelBox(0.12, 0.06, 0.12, mats.cork || mats.woodMid);
+    vialStopper.position.set(-0.65, counterY + 0.39, counterFrontZ);
+    stallGroup.add(vialStopper);
+
+    // 5. Slanted Weathered Roof & Expanded Canopy
+    const roofBeamFront = createVoxelBox(baseW + 0.6, 0.22, 0.24, mats.woodDark);
+    roofBeamFront.position.set(0, postHeight + 0.26, baseD / 2 - 0.2);
+    stallGroup.add(roofBeamFront);
+
+    const roofBeamBack = createVoxelBox(baseW + 0.6, 0.22, 0.24, mats.woodDark);
+    roofBeamBack.position.set(0, postHeight + 0.78, -baseD / 2 + 0.2);
+    stallGroup.add(roofBeamBack);
+
+    const roofSlant = new THREE.Group();
+    roofSlant.position.set(0, postHeight + 0.52, 0);
+    roofSlant.rotation.x = -0.16;
+    stallGroup.add(roofSlant);
+
+    const roofPlankMat = mats.woodDark;
+    const roofPlankCount = 10;
+    for (let rp = 0; rp < roofPlankCount; rp++) {
+      const rx = -baseW / 2 + (rp + 0.5) * (baseW / roofPlankCount);
+      const rPlank = createVoxelBox(baseW / roofPlankCount - 0.04, 0.09, baseD + 0.8, rp % 2 === 0 ? mats.plankDark : roofPlankMat);
+      rPlank.position.set(rx, 0, 0);
+      roofSlant.add(rPlank);
+    }
+
+    // 6. Hanging "DEADLY BUSINESS" Sign (Elevated to give clear shopkeeper sightline)
+    const ghostSignPivot = new THREE.Group();
+    ghostSignPivot.position.set(0, postHeight + 0.18, baseD / 2 - 0.1);
+    stallGroup.add(ghostSignPivot);
+    this.ghostSignPivot = ghostSignPivot;
+
+    [-1.4, 1.4].forEach(cx => {
+      for (let cl = 0; cl < 2; cl++) {
+        const link = createVoxelBox(0.05, 0.12, 0.05, mats.iron);
+        link.position.set(cx, -0.06 - cl * 0.10, 0);
+        ghostSignPivot.add(link);
+      }
+    });
+
+    const signTex = createDeadlyBusinessSignTexture();
+    const signFrontMat = new THREE.MeshStandardMaterial({
+      map: signTex,
+      emissive: 0x34d399,
+      emissiveIntensity: 0.75,
+      roughness: 0.55
+    });
+    const mainSign = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.95, 0.10), [
+      mats.woodDark, mats.woodDark, mats.woodDark, mats.woodDark, signFrontMat, mats.woodDark
+    ]);
+    mainSign.position.set(0, -0.55, 0);
+    ghostSignPivot.add(mainSign);
+
+    const signLight = new THREE.PointLight(0x34d399, 2.4, 6.5, 2);
+    signLight.position.set(0, -0.55, 0.55);
+    ghostSignPivot.add(signLight);
+
+    const signBorder = createVoxelBox(3.34, 1.08, 0.06, mats.woodDark);
+    signBorder.position.set(0, -0.55, -0.02);
+    ghostSignPivot.add(signBorder);
+
+    // 7. Ghost Merchant Stationed Behind His Dedicated Counter (Voxel Pac-Man Ghost)
+    this.ghostMerchant = new GhostMerchant(stallGroup, new THREE.Vector3(0, 1.55, counterFrontZ - 0.85));
+    this.ghostMerchantInteractables = this.ghostMerchant.interactables;
+
+    // Counter click hitboxes for easy interaction
+    counterTop.userData = { isGhostMerchant: true };
+    counterDesk.userData = { isGhostMerchant: true };
+    this.ghostMerchantInteractables.push(counterTop, counterDesk);
+  }
+
+  update(delta, time, playerCamera = null) {
     if (this.signPivot) {
       this.signPivot.rotation.z = Math.sin(time * (2 * Math.PI / 5)) * 0.045;
+    }
+    if (this.ghostSignPivot) {
+      this.ghostSignPivot.rotation.z = Math.sin(time * 1.5) * 0.04;
     }
     this.gulls.forEach(g => {
       g.mesh.position.set(
@@ -2912,9 +3192,24 @@ export class DockStall {
     if (this.dockNPC) {
       this.dockNPC.update(delta, time, this.shopCam);
     }
+    if (this.ghostMerchant) {
+      let pPos = null;
+      if (playerCamera) {
+        pPos = playerCamera.getWorldPosition(new THREE.Vector3());
+      } else if (window.gameState?.activeCamera) {
+        pPos = window.gameState.activeCamera.getWorldPosition(new THREE.Vector3());
+      } else if (this.shopCam) {
+        pPos = this.shopCam.getWorldPosition(new THREE.Vector3());
+      }
+      this.ghostMerchant.update(delta, time, pPos);
+    }
   }
 
   dispose() {
+    if (this.ghostMerchant) {
+      this.ghostMerchant.dispose();
+      this.ghostMerchant = null;
+    }
     if (this.dockNPC) {
       this.dockNPC.dispose();
       this.dockNPC = null;

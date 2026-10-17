@@ -63,6 +63,7 @@ export class DockPlayerController {
     this.hoveredShip = null;
     this.hoveredLedger = null;
     this.hoveredShipyard = null;
+    this.hoveredGhost = null;
 
     // UI elements
     this._createUI();
@@ -211,7 +212,9 @@ export class DockPlayerController {
         break;
       case 'KeyE':
         // Interaction key
-        if (this.hoveredBunny) {
+        if (this.hoveredGhost) {
+          this._interactWithGhost();
+        } else if (this.hoveredBunny) {
           this._interactWithBunny();
         } else if (this.hoveredDoor) {
           this.toggleShop();
@@ -277,6 +280,11 @@ export class DockPlayerController {
     // Left click
     if (e.button !== 0) return;
     if (this.emoteWheel && this.emoteWheel.isOpen) return;
+
+    if (this.hoveredGhost) {
+      this._interactWithGhost();
+      return;
+    }
 
     if (this.hoveredBunny) {
       this._interactWithBunny();
@@ -605,6 +613,9 @@ export class DockPlayerController {
     if (this.dockStall.shipyardInteractables) {
       interactables.push(...this.dockStall.shipyardInteractables);
     }
+    if (this.dockStall.ghostMerchantInteractables) {
+      interactables.push(...this.dockStall.ghostMerchantInteractables);
+    }
 
     if (interactables.length === 0) {
       this._setHoverState(null);
@@ -653,7 +664,12 @@ export class DockPlayerController {
             return;
           }
         } else if (hit.object.userData) {
-          if (hit.object.userData.isBunny) {
+          if (hit.object.userData.isGhostMerchant) {
+            if (hit.distance <= 7.5 * this.scale) {
+              this._setHoverState(hit.object, 'ghost');
+              return;
+            }
+          } else if (hit.object.userData.isBunny) {
             if (hit.distance <= 6.5 * this.scale) {
               this._setHoverState(hit.object, 'bunny');
               return;
@@ -683,6 +699,7 @@ export class DockPlayerController {
     this.hoveredShip = type === 'ship' ? obj : null;
     this.hoveredLedger = type === 'ledger' ? obj : null;
     this.hoveredShipyard = type === 'shipyard' ? obj : null;
+    this.hoveredGhost = type === 'ghost' ? obj : null;
 
     if (type) {
       this.domElement.style.cursor = 'pointer';
@@ -691,7 +708,9 @@ export class DockPlayerController {
       this.crosshair.style.borderColor = '#ffffff';
 
       this.prompt.style.display = 'flex';
-      if (type === 'bunny') {
+      if (type === 'ghost') {
+        this.prompt.innerHTML = `👻 <span style="background:#0f766e; padding:2px 6px; border-radius:3px; border:1px solid #2dd4bf; font-size:11px; margin-right:4px;">E</span> or Click to Trade with Ghost Merchant`;
+      } else if (type === 'bunny') {
         this.prompt.innerHTML = `🐰 <span style="background:#4a3520; padding:2px 6px; border-radius:3px; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Pet Bunny`;
       } else if (type === 'ledger') {
         this.prompt.innerHTML = `📖 <span style="background:#4a3520; padding:2px 6px; border-radius:3px; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click Logbook to Select Voyage`;
@@ -712,6 +731,14 @@ export class DockPlayerController {
       this.crosshair.style.borderColor = 'rgba(0, 0, 0, 0.6)';
       this.prompt.style.display = 'none';
     }
+  }
+
+  _interactWithGhost() {
+    emit('playSound', { sound: 'qte_success' });
+    if (this.isLocked && document.exitPointerLock) {
+      document.exitPointerLock();
+    }
+    emit('openShopUI');
   }
 
   // ---------------------------------------------------------------------------
