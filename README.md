@@ -10,6 +10,7 @@ BoatLoad is an arcade-style, voxel-based ship simulation and puzzle game where y
 - **Sailing Mode:** Take your newly built/repaired ship out onto the open water! The custom ship you built in the shipyard is directly transported into an obstacle avoidance trial.
 - **Dynamic Obstacles:** Dodge rocks, seaweed, islands, whirlpools, and waves (with dynamic wind particle effects) using keyboard controls. Your ship's bounding box scales dynamically to match your customizations.
 - **Level Creation Kit:** Developers can use a fully-featured in-game editor to drag and drop assets from the entire 3D library, dynamically scale them (including improved scaling for non-terrain objects), and position them in 3D space to construct new JSON levels. God Mode is available for easy testing.
+- **Day 3 weather:** The authored `day3.json` level uses sunny weather; its siren and reef hazards do not imply fog or sunset conditions.
 
 ## How to Play
 

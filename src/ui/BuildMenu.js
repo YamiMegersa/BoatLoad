@@ -28,7 +28,7 @@ export class BuildMenu {
 
     // HUD Data Cache
     this._budgetData = { total: 300, spent: 0, remaining: 300 };
-    this._summaryData = { integrityPct: 100, leaks: 0, intact: 0, missing: 0, damaged: 0, flooded: 0, shipName: 'Sloop', shipIcon: '⛵' };
+    this._summaryData = { integrityPct: 100, leaks: 0, intact: 0, missing: 0, damaged: 0, flooded: 0, shipName: 'Sloop', shipIcon: '<span class="pixel-icon icon-sloop size-20"></span>' };
 
     this._buildHTML();
 
@@ -77,17 +77,25 @@ export class BuildMenu {
 
   _buildHTML() {
     this._el.innerHTML = `
-      <!-- TOP HUD: Shipyard Status & Budget Bar -->
-      <div id="shipyard-top-hud" class="shipyard-hud-bar">
-        <div class="hud-ship-info">
-          <span class="hud-ship-icon" id="hud-ship-icon">${this._summaryData.shipIcon}</span>
-          <div class="hud-ship-titles">
-            <span class="hud-ship-name" id="hud-ship-name">${this._summaryData.shipName}</span>
-            <span class="hud-ship-subtitle">Drydock Repair Bay</span>
+      <!-- TOP BAR: Shipyard Brand, Vessel Stats & Actions -->
+      <header class="shipyard-top-bar">
+        <div class="shipyard-brand">
+          <span class="shipyard-brand-icon"><span class="pixel-icon icon-hammer size-18"></span></span>
+          <div class="shipyard-brand-text">
+            <span class="shipyard-brand-title">DRYDOCK SHIPWRIGHT</span>
+            <span class="shipyard-brand-sub">Ship Repair &amp; Engineering</span>
           </div>
         </div>
 
-        <div class="hud-stats-group">
+        <div class="shipyard-vessel-stats">
+          <div class="hud-ship-info">
+            <span class="hud-ship-icon" id="hud-ship-icon">${this._summaryData.shipIcon}</span>
+            <div class="hud-ship-titles">
+              <span class="hud-ship-name" id="hud-ship-name">${this._summaryData.shipName}</span>
+              <span class="hud-ship-subtitle">Active Vessel</span>
+            </div>
+          </div>
+
           <!-- Hull Integrity -->
           <div class="hud-stat-box" title="Overall hull structural health">
             <span class="hud-stat-label">HULL INTEGRITY</span>
@@ -100,16 +108,16 @@ export class BuildMenu {
           </div>
 
           <!-- Waterline Leaks -->
-          <div class="hud-stat-box" id="hud-leaks-box" title="Holes below the waterline that will flood the ship while sailing">
+          <div class="hud-stat-box" id="hud-leaks-box" title="Holes below the waterline">
             <span class="hud-stat-label">WATERLINE LEAKS</span>
             <div class="hud-stat-value-row">
-              <span class="hud-leak-icon">💧</span>
+              <span class="hud-leak-icon"><span class="pixel-icon hud-leak-drop size-16"></span></span>
               <span class="hud-stat-number" id="hud-leaks-val">0 Leaks</span>
             </div>
           </div>
 
-          <!-- Repair Budget -->
-          <div class="hud-stat-box hud-budget-box" title="Level funds available for timber and plates">
+          <!-- Repair Funds -->
+          <div class="hud-stat-box hud-budget-box" title="Funds available for hull timber and plates">
             <div class="hud-budget-top">
               <span class="hud-stat-label">REPAIR FUNDS</span>
               <span class="hud-budget-spent" id="hud-spent-val">Spent: $0</span>
@@ -120,95 +128,78 @@ export class BuildMenu {
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- MAIN LEFT FLOATING PALETTE -->
-      <div id="shipyard-palette-panel" class="shipyard-glass-panel">
-        <div class="palette-header">
-          <h3>Shipwright Workshop</h3>
-          <span class="palette-subtitle">Select materials &amp; brush shapes</span>
-        </div>
-
-        <!-- 1. MATERIAL TILES -->
-        <div class="palette-section">
-          <div class="section-label-row">
-            <span class="palette-section-title">1. Repair Timber &amp; Materials</span>
-            <span class="hotkey-hint">Keys [1-5]</span>
-          </div>
-          <div class="material-tiles-grid" id="material-tiles-list">
-            <!-- Dynamically populated -->
-          </div>
-        </div>
-
-        <!-- 2. BRUSH SHAPES -->
-        <div class="palette-section">
-          <div class="section-label-row">
-            <span class="palette-section-title">2. Brush Geometry</span>
-          </div>
-          <div class="brush-tiles-grid" id="brush-tiles-list">
-            <!-- Dynamically populated -->
-          </div>
-        </div>
-
-        <!-- 3. SHIPYARD CONTROLS -->
-        <div class="palette-section">
-          <div class="section-label-row">
-            <span class="palette-section-title">3. Placement Controls</span>
-          </div>
-          <div class="controls-action-grid">
-            <button class="ctrl-action-btn" id="btn-ctrl-rotate" title="Rotate brush 90° around Y (Hotkey: R)">
-              <span class="ctrl-icon">🔄</span>
-              <span class="ctrl-text">Rotate [R]</span>
-            </button>
-            <button class="ctrl-action-btn" id="btn-ctrl-pitch" title="Toggle horizontal or upright orientation (Hotkey: T)">
-              <span class="ctrl-icon">📐</span>
-              <span class="ctrl-text">Pitch [T]</span>
-            </button>
-            <button class="ctrl-action-btn ${this._mirrorMode ? 'active-glow' : ''}" id="btn-ctrl-mirror" title="Toggle symmetrical port/starboard placement (Hotkey: M)">
-              <span class="ctrl-icon">🪞</span>
-              <span class="ctrl-text" id="btn-mirror-text">Symmetry [M]</span>
-            </button>
-            <button class="ctrl-action-btn" id="btn-ctrl-undo" title="Undo last placement and refund funds (Hotkey: Ctrl+Z)">
-              <span class="ctrl-icon">↩️</span>
-              <span class="ctrl-text">Undo [Ctrl+Z]</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- DEV PAPER SHADER TWEAKS -->
-        <div id="shipyard-shader-tweaks" style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px; display: ${GameEnv.isDev() ? 'block' : 'none'};">
-          <h4 style="margin: 0 0 8px 0; font-size: 12px; color: #94a3b8; text-transform: uppercase;">Paper Shader Tweaks (Dev)</h4>
-          <div style="margin-bottom: 8px; color: white; font-size: 13px;">
-            <label style="display:flex; align-items:center; cursor: pointer;">
-              <input type="checkbox" id="shipyard-paper-shader-check" style="margin-right: 8px;">
-              Enable Paper Shader
-            </label>
-          </div>
-          <div style="margin-bottom: 8px; color: white; font-size: 12px;">
-            <label style="display:flex; justify-content:space-between; align-items: center;">
-              Style:
-              <select id="shipyard-paper-style-select" style="background:#1e293b; color:white; border:1px solid #475569; border-radius: 4px; padding: 2px 6px;">
-                <option value="0">Hatching</option>
-                <option value="1">Kuwahara (Painterly)</option>
-              </select>
-            </label>
-          </div>
-        </div>
-
-        <!-- BOTTOM ACTION ROW -->
-        <div class="shipyard-actions-footer">
-          <button id="btn-shipyard-sail" class="btn-primary-sail" title="Depart the dock and begin your voyage">
-            <span class="sail-icon">⛵</span>
-            <div class="sail-text-group">
-              <span class="sail-title">Set Sail When Ready!</span>
-              <span class="sail-subtitle">Depart drydock to open sea</span>
-            </div>
+        <!-- Top Right Actions -->
+        <div class="shipyard-top-actions">
+          <button id="btn-shipyard-dock" class="action-btn-sm" title="Return to island dock promenade">
+            <span><span class="pixel-icon icon-anchor size-16"></span> Island Dock</span>
           </button>
-          <button id="btn-shipyard-dock" class="btn-secondary-dock" title="Return to island dock promenade">
-            <span>⚓</span> <span>Return to Island Dock</span>
+          <button id="btn-shipyard-sail" class="action-btn-primary" title="Depart drydock and begin sailing!">
+            <span><span class="pixel-icon icon-sloop size-16"></span> Set Sail When Ready!</span>
           </button>
         </div>
-      </div>
+      </header>
+
+      <!-- RIBBON SHELF: Materials, Brushes & Placement Tools -->
+      <section class="shipyard-ribbon-shelf" id="shipyard-ribbon-shelf">
+        <!-- 1. MATERIAL SELECTION GROUP -->
+        <div class="ribbon-group">
+          <span class="ribbon-group-label">1. Materials <strong class="hotkey-hint">[1-5]</strong></span>
+          <div class="ribbon-group-row" id="material-tiles-list">
+            <!-- Dynamically populated shelf-buttons -->
+          </div>
+        </div>
+
+        <div class="ribbon-divider"></div>
+
+        <!-- 2. BRUSH GEOMETRY GROUP -->
+        <div class="ribbon-group">
+          <span class="ribbon-group-label">2. Brush Geometry</span>
+          <div class="ribbon-group-row" id="brush-tiles-list">
+            <!-- Dynamically populated shelf-buttons -->
+          </div>
+        </div>
+
+        <div class="ribbon-divider"></div>
+
+        <!-- 3. PLACEMENT & TOOLS GROUP -->
+        <div class="ribbon-group">
+          <span class="ribbon-group-label">3. Placement Tools</span>
+          <div class="ribbon-group-row">
+            <button class="shelf-btn tool-mode-btn" id="btn-ctrl-rotate" title="Rotate brush 90° (Hotkey: R)">
+              <span class="shelf-btn-icon"><span class="pixel-icon icon-rotate-arrow size-18"></span></span>
+              <span class="shelf-btn-text">Rotate [R]</span>
+            </button>
+            <button class="shelf-btn tool-mode-btn" id="btn-ctrl-pitch" title="Toggle horizontal or upright orientation (Hotkey: T)">
+              <span class="shelf-btn-icon"><span class="pixel-icon icon-calipers size-18"></span></span>
+              <span class="shelf-btn-text">Pitch [T]</span>
+            </button>
+            <button class="shelf-btn tool-mode-btn ${this._mirrorMode ? 'tool-active' : ''}" id="btn-ctrl-mirror" title="Toggle port/starboard symmetry (Hotkey: M)">
+              <span class="shelf-btn-icon"><span class="pixel-icon icon-mirror size-18"></span></span>
+              <span class="shelf-btn-text" id="btn-mirror-text">Symmetry [M]</span>
+            </button>
+            <button class="shelf-btn tool-mode-btn" id="btn-ctrl-undo" title="Undo placement &amp; refund funds (Hotkey: Ctrl+Z)">
+              <span class="shelf-btn-icon"><span class="pixel-icon icon-arrow-right size-18" style="transform: scaleX(-1);"></span></span>
+              <span class="shelf-btn-text">Undo [Ctrl+Z]</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Dev Controls Divider & Group -->
+        <div class="ribbon-divider" style="display: ${GameEnv.isDev() ? 'block' : 'none'};"></div>
+        <div class="ribbon-group" id="shipyard-shader-tweaks" style="display: ${GameEnv.isDev() ? 'flex' : 'none'};">
+          <span class="ribbon-group-label">Shaders (Dev)</span>
+          <div class="ribbon-group-row" style="gap: 8px;">
+            <label style="display:flex; align-items:center; gap:4px; font-size:11px; color:#cbd5e1; cursor:pointer;">
+              <input type="checkbox" id="shipyard-paper-shader-check"> Paper
+            </label>
+            <select id="shipyard-paper-style-select" style="background:#1e293b; color:white; border:1px solid #475569; border-radius:4px; padding:2px 4px; font-size:10px;">
+              <option value="0">Hatching</option>
+              <option value="1">Kuwahara</option>
+            </select>
+          </div>
+        </div>
+      </section>
     `;
 
     this._bindEvents();
@@ -279,29 +270,19 @@ export class BuildMenu {
     let index = 1;
     for (const [id, mat] of Object.entries(MATERIAL_REGISTRY)) {
       const isSelected = this._activeMaterialId === id;
-      const tile = document.createElement('div');
-      tile.className = `material-tile ${isSelected ? 'active' : ''}`;
+      const tile = document.createElement('button');
+      tile.className = `shelf-btn material-shelf-btn ${isSelected ? 'tool-active' : ''}`;
       tile.dataset.materialId = id;
+      tile.title = `${mat.name} ($${mat.unitCost})\n${mat.durabilityHP} HP • ${mat.description}`;
 
       const hexStr = '#' + mat.color.toString(16).padStart(6, '0');
-      const wtStr = mat.weightMultiplier < 1.0 ? `${Math.round(mat.weightMultiplier * 100)}% wt (Agile)` :
-                    mat.weightMultiplier > 1.0 ? `${Math.round(mat.weightMultiplier * 100)}% wt (Heavy)` : `100% wt`;
 
       tile.innerHTML = `
-        <div class="tile-swatch" style="background: ${hexStr};">
-          <span class="tile-key-badge">${index}</span>
+        <div class="material-swatch-badge" style="background: ${hexStr};">
+          <span class="swatch-key">${index}</span>
         </div>
-        <div class="tile-info">
-          <div class="tile-title-row">
-            <span class="tile-name">${mat.name}</span>
-            <span class="tile-cost">$${mat.unitCost}</span>
-          </div>
-          <div class="tile-stats-row">
-            <span class="tile-hp">🛡️ ${mat.durabilityHP} HP</span>
-            <span class="tile-weight">⚖️ ${wtStr}</span>
-          </div>
-          <div class="tile-desc">${mat.description}</div>
-        </div>
+        <span class="shelf-btn-text">${mat.name}</span>
+        <span class="material-cost-tag">$${mat.unitCost}</span>
       `;
 
       tile.addEventListener('click', () => {
@@ -323,17 +304,15 @@ export class BuildMenu {
     for (const [id, brush] of Object.entries(BRUSHES)) {
       const isSelected = this._activeBrushId === id;
       const tile = document.createElement('button');
-      tile.className = `brush-tile ${isSelected ? 'active' : ''} ${brush.isEraser ? 'eraser-tile' : ''}`;
+      tile.className = `shelf-btn brush-shelf-btn ${isSelected ? 'tool-active' : ''} ${brush.isEraser ? 'btn-danger-hover' : ''}`;
       tile.dataset.brushId = id;
-
-      const sizeStr = brush.isEraser ? 'Demolish / Refund' : `${brush.size[0]}×${brush.size[1]}×${brush.size[2]}`;
+      const sizeStr = brush.isEraser ? 'Demolish' : `${brush.size[0]}×${brush.size[1]}×${brush.size[2]}`;
+      tile.title = `${brush.label} (${sizeStr})`;
 
       tile.innerHTML = `
-        <span class="brush-icon">${brush.icon}</span>
-        <div class="brush-text">
-          <span class="brush-name">${brush.label}</span>
-          <span class="brush-dim">${sizeStr}</span>
-        </div>
+        <span class="shelf-btn-icon">${brush.icon}</span>
+        <span class="shelf-btn-text">${brush.label}</span>
+        <span class="brush-dim-badge">${sizeStr}</span>
       `;
 
       tile.addEventListener('click', () => {
@@ -350,10 +329,10 @@ export class BuildMenu {
     const mirrorBtn = this._el.querySelector('#btn-ctrl-mirror');
     if (mirrorBtn) {
       if (this._mirrorMode) {
-        mirrorBtn.classList.add('active-glow');
+        mirrorBtn.classList.add('tool-active');
         mirrorBtn.querySelector('#btn-mirror-text').textContent = 'Symmetry: ON [M]';
       } else {
-        mirrorBtn.classList.remove('active-glow');
+        mirrorBtn.classList.remove('tool-active');
         mirrorBtn.querySelector('#btn-mirror-text').textContent = 'Symmetry: OFF [M]';
       }
     }
@@ -363,7 +342,7 @@ export class BuildMenu {
     // 1. Vessel Info
     const iconEl = this._el.querySelector('#hud-ship-icon');
     const nameEl = this._el.querySelector('#hud-ship-name');
-    if (iconEl) iconEl.textContent = this._summaryData.shipIcon || '⛵';
+    if (iconEl) iconEl.innerHTML = this._summaryData.shipIcon || '<span class="pixel-icon icon-sloop size-20"></span>';
     if (nameEl) nameEl.textContent = this._summaryData.shipName || 'Vessel';
 
     // 2. Hull Integrity

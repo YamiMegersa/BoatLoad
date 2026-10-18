@@ -42,6 +42,8 @@ export class EditorUI {
     const timeOfDay = levelCfg.timeOfDay !== undefined ? levelCfg.timeOfDay : 8.0;
     const isStormy = !!levelCfg.isStormy;
     this._godRaysEnabled = levelCfg.godRays !== undefined ? !!levelCfg.godRays : (window.godRays ? window.godRays.enabled : true);
+    const hasDock = levelCfg.hasDock !== false;
+    this._hasDock = hasDock;
 
     this._el = document.createElement('div');
     this._el.id = 'editor-ui-container';
@@ -55,6 +57,16 @@ export class EditorUI {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
       if (e.code === 'KeyG') {
         this._setGodRays(!this._godRaysEnabled);
+      } else if (e.code === 'Digit1' || e.code === 'Numpad1') {
+        emit('editorCameraPreset', { preset: 'default' });
+      } else if (e.code === 'Digit7' || e.code === 'Numpad7') {
+        emit('editorCameraPreset', { preset: 'top' });
+      } else if (e.code === 'Digit3' || e.code === 'Numpad3') {
+        emit('editorCameraPreset', { preset: 'isometric' });
+      } else if (e.code === 'Digit0' || e.code === 'Numpad0') {
+        emit('editorCameraPreset', { preset: 'horizon' });
+      } else if (e.code === 'Digit4' || e.code === 'Numpad4') {
+        emit('editorCameraPreset', { preset: 'harbor' });
       }
     };
     window.addEventListener('keydown', this._onKeyDown);
@@ -88,67 +100,67 @@ export class EditorUI {
     this._categories = {
       rocks: {
         label: 'Rocks & Reefs',
-        icon: '🪨',
+        icon: '<span class="pixel-icon icon-reef-rock size-24"></span>',
         type: 'rock',
         items: LevelConfig.rockUrls.map(url => ({
           type: 'rock',
           url,
           name: getFriendlyName(url, 'rock'),
-          icon: '🪨'
+          icon: '<span class="pixel-icon icon-reef-rock size-24"></span>'
         }))
       },
       islands: {
         label: 'Islands',
-        icon: '🏝️',
+        icon: '<span class="pixel-icon icon-island size-24"></span>',
         type: 'island',
         items: LevelConfig.islandUrls.map(url => ({
           type: 'island',
           url,
           name: getFriendlyName(url, 'island'),
-          icon: '🏝️'
+          icon: '<span class="pixel-icon icon-island size-24"></span>'
         }))
       },
       seaweed: {
         label: 'Flora & Kelp',
-        icon: '🌿',
+        icon: '<span class="pixel-icon icon-seaweed-kelp size-24"></span>',
         type: 'seaweed',
         items: LevelConfig.seaweedUrls.map(url => ({
           type: 'seaweed',
           url,
           name: getFriendlyName(url, 'seaweed'),
-          icon: '🌿'
+          icon: '<span class="pixel-icon icon-seaweed-kelp size-24"></span>'
         }))
       },
       waves: {
         label: 'Waves & Ocean',
-        icon: '🌊',
+        icon: '<span class="pixel-icon icon-ocean-wave size-24"></span>',
         type: 'wave_small',
         items: LevelConfig.waveUrls.map(url => ({
           type: 'wave_small',
           url,
           name: getFriendlyName(url, 'wave_small'),
-          icon: '🌊'
+          icon: '<span class="pixel-icon icon-ocean-wave size-24"></span>'
         }))
       },
       pickups: {
         label: 'Plunder & Cargo',
-        icon: '📦',
+        icon: '<span class="pixel-icon icon-cargo-crate size-24"></span>',
         type: 'pickup',
         items: LevelConfig.pickupUrls.map(url => ({
           type: 'pickup',
           url,
           name: getFriendlyName(url, 'pickup'),
-          icon: '📦'
+          icon: '<span class="pixel-icon icon-cargo-crate size-24"></span>'
         }))
       },
       hazards: {
         label: 'Naval Hazards',
-        icon: '⚠️',
+        icon: '<span class="pixel-icon icon-powder-keg size-24"></span>',
         items: [
-          { type: 'barrel', url: '', name: 'Explosive Barrel', icon: '🛢️' },
-          { type: 'whirlpool', url: '', name: 'Maelstrom Whirlpool', icon: '🌀' },
-          { type: 'wind_zone', url: '', name: 'Squall / Wind Zone', icon: '💨' },
-          { type: 'siren', url: '', name: 'Siren (Hypnotic)', icon: '🧜' }
+          { type: 'barrel', url: '', name: 'Explosive Barrel', icon: '<span class="pixel-icon icon-powder-keg size-24"></span>' },
+          { type: 'whirlpool', url: '', name: 'Maelstrom Whirlpool', icon: '<span class="pixel-icon icon-maelstrom size-24"></span>' },
+          { type: 'wind_zone', url: '', name: 'Squall / Wind Zone', icon: '<span class="pixel-icon icon-wind-gust size-24"></span>' },
+          { type: 'siren', url: '', name: 'Siren (Hypnotic)', icon: '<span class="pixel-icon icon-siren size-24"></span>' }
         ]
       }
     };
@@ -158,7 +170,7 @@ export class EditorUI {
       <header class="editor-top-bar">
         <!-- Brand / Identity -->
         <div class="editor-brand">
-          <span class="editor-brand-icon">⚓</span>
+          <span class="editor-brand-icon"><span class="pixel-icon icon-anchor size-18"></span></span>
           <div class="editor-brand-text">
             <span class="brand-title">BoatLoad</span>
             <span class="brand-badge">STUDIO</span>
@@ -171,28 +183,28 @@ export class EditorUI {
             <button class="menu-dropdown-btn" data-menu="file">File <span class="arrow-down">▾</span></button>
             <div class="menu-dropdown-content" id="menu-file">
               <button class="dropdown-item" id="btn-menu-play">
-                <span class="dropdown-item-icon">▶️</span>
+                <span class="dropdown-item-icon"><span class="pixel-icon icon-play size-16"></span></span>
                 <span class="dropdown-item-text">Play Level</span>
                 <span class="dropdown-item-hotkey">F5</span>
               </button>
               <button class="dropdown-item" id="btn-menu-export">
-                <span class="dropdown-item-icon">💾</span>
+                <span class="dropdown-item-icon"><span class="pixel-icon icon-save-floppy size-16"></span></span>
                 <span class="dropdown-item-text">Export Level JSON</span>
                 <span class="dropdown-item-hotkey">Ctrl+S</span>
               </button>
               <button class="dropdown-item" id="btn-menu-import">
-                <span class="dropdown-item-icon">📥</span>
+                <span class="dropdown-item-icon"><span class="pixel-icon icon-import-intray size-16"></span></span>
                 <span class="dropdown-item-text">Import Level JSON...</span>
                 <span class="dropdown-item-hotkey">Ctrl+O</span>
               </button>
               <div class="dropdown-divider"></div>
               <button class="dropdown-item text-danger" id="btn-menu-clear">
-                <span class="dropdown-item-icon">🧹</span>
+                <span class="dropdown-item-icon"><span class="pixel-icon icon-chisel-eraser size-16"></span></span>
                 <span class="dropdown-item-text">Clear All Placed Objects</span>
               </button>
               <div class="dropdown-divider"></div>
               <button class="dropdown-item" id="btn-menu-exit">
-                <span class="dropdown-item-icon">🚪</span>
+                <span class="dropdown-item-icon"><span class="pixel-icon icon-cabin-door-exit size-16"></span></span>
                 <span class="dropdown-item-text">Exit to Main Menu</span>
                 <span class="dropdown-item-hotkey">Esc</span>
               </button>
@@ -203,18 +215,18 @@ export class EditorUI {
             <button class="menu-dropdown-btn" data-menu="edit">Edit <span class="arrow-down">▾</span></button>
             <div class="menu-dropdown-content" id="menu-edit">
               <button class="dropdown-item" id="btn-menu-tool-select">
-                <span class="dropdown-item-icon">✋</span>
+                <span class="dropdown-item-icon"><span class="pixel-icon icon-hand-select size-16"></span></span>
                 <span class="dropdown-item-text">Cursor / Selection Tool</span>
                 <span class="dropdown-item-hotkey">V</span>
               </button>
               <button class="dropdown-item" id="btn-menu-tool-delete">
-                <span class="dropdown-item-icon">🗑️</span>
+                <span class="dropdown-item-icon"><span class="pixel-icon icon-delete-basket size-16"></span></span>
                 <span class="dropdown-item-text">Delete Object Tool</span>
                 <span class="dropdown-item-hotkey">Del</span>
               </button>
               <div class="dropdown-divider"></div>
               <button class="dropdown-item" id="btn-menu-reset-transform">
-                <span class="dropdown-item-icon">↺</span>
+                <span class="dropdown-item-icon"><span class="pixel-icon icon-rotate size-16"></span></span>
                 <span class="dropdown-item-text">Reset Placement Transforms</span>
                 <span class="dropdown-item-hotkey">R</span>
               </button>
@@ -225,28 +237,33 @@ export class EditorUI {
             <button class="menu-dropdown-btn" data-menu="view">View <span class="arrow-down">▾</span></button>
             <div class="menu-dropdown-content" id="menu-view">
               <button class="dropdown-item" data-cam="default">
-                <span class="dropdown-item-icon">🎥</span>
+                <span class="dropdown-item-icon"><span class="pixel-icon icon-cinema-camera size-16"></span></span>
                 <span class="dropdown-item-text">Default Perspective</span>
                 <span class="dropdown-item-hotkey">1</span>
               </button>
               <button class="dropdown-item" data-cam="top">
-                <span class="dropdown-item-icon">🧭</span>
+                <span class="dropdown-item-icon"><span class="pixel-icon icon-compass size-16"></span></span>
                 <span class="dropdown-item-text">Top-Down (Map View)</span>
                 <span class="dropdown-item-hotkey">7</span>
               </button>
               <button class="dropdown-item" data-cam="isometric">
-                <span class="dropdown-item-icon">📐</span>
+                <span class="dropdown-item-icon"><span class="pixel-icon icon-calipers size-16"></span></span>
                 <span class="dropdown-item-text">Isometric Angle</span>
                 <span class="dropdown-item-hotkey">3</span>
               </button>
               <button class="dropdown-item" data-cam="horizon">
-                <span class="dropdown-item-icon">⛵</span>
+                <span class="dropdown-item-icon"><span class="pixel-icon icon-sloop size-16"></span></span>
                 <span class="dropdown-item-text">Sea Level View</span>
                 <span class="dropdown-item-hotkey">0</span>
               </button>
+              <button class="dropdown-item" data-cam="harbor">
+                <span class="dropdown-item-icon"><span class="pixel-icon icon-anchor size-16"></span></span>
+                <span class="dropdown-item-text">Harbor Berth & Pier</span>
+                <span class="dropdown-item-hotkey">4</span>
+              </button>
               <div class="dropdown-divider"></div>
               <button class="dropdown-item" id="btn-menu-toggle-godrays">
-                <span class="dropdown-item-icon">✨</span>
+                <span class="dropdown-item-icon"><span class="pixel-icon icon-god-rays size-16"></span></span>
                 <span class="dropdown-item-text">God Rays</span>
                 <span class="dropdown-item-hotkey" id="godrays-menu-badge">${this._godRaysEnabled !== false ? 'ON (G)' : 'OFF (G)'}</span>
               </button>
@@ -257,7 +274,7 @@ export class EditorUI {
             <button class="menu-dropdown-btn" data-menu="help">Help <span class="arrow-down">▾</span></button>
             <div class="menu-dropdown-content" id="menu-help">
               <button class="dropdown-item" id="btn-menu-open-help">
-                <span class="dropdown-item-icon">📖</span>
+                <span class="dropdown-item-icon"><span class="pixel-icon icon-closed-logbook size-16"></span></span>
                 <span class="dropdown-item-text">Keyboard &amp; Mouse Guide</span>
                 <span class="dropdown-item-hotkey">?</span>
               </button>
@@ -268,22 +285,22 @@ export class EditorUI {
         <!-- Ribbon Workspace Tabs (Word / Blender Tabs) -->
         <div class="editor-workspace-tabs">
           <button class="ribbon-tab-btn active" data-tab="assets">
-            <span class="tab-icon">📦</span> Assets &amp; Objects
+            <span class="tab-icon"><span class="pixel-icon icon-cargo-crate size-16"></span></span> Assets &amp; Objects
           </button>
           <button class="ribbon-tab-btn" data-tab="terrain">
-            <span class="tab-icon">⛰️</span> Terraforming
+            <span class="tab-icon"><span class="pixel-icon icon-reef-rock size-16"></span></span> Terraforming
           </button>
           <button class="ribbon-tab-btn" data-tab="boss">
-            <span class="tab-icon">🐙</span> Boss (Kraken)
+            <span class="tab-icon"><span class="pixel-icon icon-kraken size-16"></span></span> Boss (Kraken)
           </button>
           <button class="ribbon-tab-btn" data-tab="ship">
-            <span class="tab-icon">🚢</span> Flagship &amp; Fleet
+            <span class="tab-icon"><span class="pixel-icon icon-frigate size-16"></span></span> Flagship &amp; Fleet
           </button>
           <button class="ribbon-tab-btn" data-tab="world">
-            <span class="tab-icon">🌍</span> Environment &amp; World
+            <span class="tab-icon"><span class="pixel-icon icon-compass size-16"></span></span> Environment &amp; World
           </button>
           <button class="ribbon-tab-btn" data-tab="paper">
-            <span class="tab-icon">🎨</span> Paper &amp; Shaders
+            <span class="tab-icon"><span class="pixel-icon icon-artist-palette size-16"></span></span> Paper &amp; Shaders
           </button>
         </div>
 
@@ -293,13 +310,13 @@ export class EditorUI {
             <span id="ribbon-toggle-icon">▲</span>
           </button>
           <button class="action-btn-sm" id="btn-quick-export" title="Export Level JSON">
-            <span>💾 Export</span>
+            <span><span class="pixel-icon icon-save-floppy size-14"></span> Export</span>
           </button>
           <button class="action-btn-primary" id="btn-quick-play" title="Test &amp; Play Current Map">
-            <span>▶️ Test Sail</span>
+            <span><span class="pixel-icon icon-play size-14"></span> Test Sail</span>
           </button>
           <button class="action-btn-exit" id="btn-quick-exit" title="Exit to Main Menu">
-            <span>✕</span>
+            <span><span class="pixel-icon icon-close-cross size-14"></span></span>
           </button>
         </div>
       </header>
@@ -314,12 +331,16 @@ export class EditorUI {
             <span class="ribbon-group-label">Modes</span>
             <div class="ribbon-group-row">
               <button class="shelf-btn tool-mode-btn tool-active" data-tool="select" id="tool-btn-select" title="Selection &amp; Free Navigation (V)">
-                <span class="shelf-btn-icon">✋</span>
+                <span class="shelf-btn-icon"><span class="pixel-icon icon-hand-select size-18"></span></span>
                 <span class="shelf-btn-text">Cursor</span>
               </button>
               <button class="shelf-btn tool-mode-btn btn-danger-hover" data-tool="delete" id="tool-btn-delete" title="Click any object to remove it (Del)">
-                <span class="shelf-btn-icon">🗑️</span>
+                <span class="shelf-btn-icon"><span class="pixel-icon icon-delete-basket size-18"></span></span>
                 <span class="shelf-btn-text">Delete</span>
+              </button>
+              <button class="shelf-btn tool-mode-btn" data-tool="place_end_location" id="tool-btn-end-location-assets" title="Click anywhere on the map to relocate the End Harbor / Destination Goal waypoint">
+                <span class="shelf-btn-icon"><span class="pixel-icon icon-waypoint-flag size-18"></span></span>
+                <span class="shelf-btn-text">Goal Waypoint</span>
               </button>
             </div>
           </div>
@@ -330,12 +351,12 @@ export class EditorUI {
           <div class="ribbon-group">
             <span class="ribbon-group-label">Asset Categories</span>
             <div class="ribbon-category-chips" id="category-chips">
-              <button class="cat-chip active" data-cat="rocks">🪨 Rocks</button>
-              <button class="cat-chip" data-cat="islands">🏝️ Islands</button>
-              <button class="cat-chip" data-cat="hazards">⚠️ Hazards</button>
-              <button class="cat-chip" data-cat="pickups">📦 Cargo</button>
-              <button class="cat-chip" data-cat="seaweed">🌿 Kelp</button>
-              <button class="cat-chip" data-cat="waves">🌊 Waves</button>
+              <button class="cat-chip active" data-cat="rocks"><span class="pixel-icon icon-reef-rock size-16"></span> Rocks</button>
+              <button class="cat-chip" data-cat="islands"><span class="pixel-icon icon-island size-16"></span> Islands</button>
+              <button class="cat-chip" data-cat="hazards"><span class="pixel-icon icon-powder-keg size-16"></span> Hazards</button>
+              <button class="cat-chip" data-cat="pickups"><span class="pixel-icon icon-cargo-crate size-16"></span> Cargo</button>
+              <button class="cat-chip" data-cat="seaweed"><span class="pixel-icon icon-seaweed-kelp size-16"></span> Kelp</button>
+              <button class="cat-chip" data-cat="waves"><span class="pixel-icon icon-ocean-wave size-16"></span> Waves</button>
             </div>
           </div>
 
@@ -388,11 +409,11 @@ export class EditorUI {
             <span class="ribbon-group-label">Voxel Sculpting</span>
             <div class="ribbon-group-row">
               <button class="shelf-btn tool-mode-btn" data-tool="terrain_raise" id="tool-btn-raise" title="Click &amp; drag on water to raise islands">
-                <span class="shelf-btn-icon">⛰️</span>
+                <span class="shelf-btn-icon"><span class="pixel-icon icon-reef-rock size-18"></span></span>
                 <span class="shelf-btn-text">Raise Land</span>
               </button>
               <button class="shelf-btn tool-mode-btn" data-tool="terrain_lower" id="tool-btn-lower" title="Click &amp; drag on terrain to carve valleys">
-                <span class="shelf-btn-icon">⛏️</span>
+                <span class="shelf-btn-icon"><span class="pixel-icon icon-pickaxe size-18"></span></span>
                 <span class="shelf-btn-text">Carve Land</span>
               </button>
             </div>
@@ -404,23 +425,23 @@ export class EditorUI {
             <span class="ribbon-group-label">Brush Pattern &amp; Noise</span>
             <div class="ribbon-group-row brush-shapes-row">
               <button class="brush-shape-btn active" data-shape="circle" title="Standard circular brush">
-                <span class="brush-shape-icon">⭕</span>
+                <span class="brush-shape-icon"><span class="pixel-icon icon-brush-circle size-16"></span></span>
                 <span class="brush-shape-text">Circle</span>
               </button>
               <button class="brush-shape-btn" data-shape="organic" title="Organic coastlines and bays with fractal noise">
-                <span class="brush-shape-icon">🌊</span>
+                <span class="brush-shape-icon"><span class="pixel-icon icon-ocean-wave size-16"></span></span>
                 <span class="brush-shape-text">Organic</span>
               </button>
               <button class="brush-shape-btn" data-shape="crag" title="Jagged crags, sharp sea stacks and rocky cliffs">
-                <span class="brush-shape-icon">🪨</span>
+                <span class="brush-shape-icon"><span class="pixel-icon icon-reef-rock size-16"></span></span>
                 <span class="brush-shape-text">Crag</span>
               </button>
               <button class="brush-shape-btn" data-shape="scatter" title="Archipelago scatter, atolls and islet clusters">
-                <span class="brush-shape-icon">✨</span>
+                <span class="brush-shape-icon"><span class="pixel-icon icon-lightning-spark size-16"></span></span>
                 <span class="brush-shape-text">Scatter</span>
               </button>
               <button class="brush-shape-btn" data-shape="square" title="Geometric square brush for quays, forts and docks">
-                <span class="brush-shape-icon">⬛</span>
+                <span class="brush-shape-icon"><span class="pixel-icon icon-brush-square size-16"></span></span>
                 <span class="brush-shape-text">Square</span>
               </button>
             </div>
@@ -447,23 +468,23 @@ export class EditorUI {
             <span class="ribbon-group-label">Terrain Biome &amp; Palette</span>
             <div class="ribbon-group-row biome-chips-row">
               <button class="biome-chip active" data-biome="tropical" title="Tropical Archipelago: Emerald turf, golden sands, coral reefs, limestone cliffs">
-                <span class="biome-chip-icon">🌴</span>
+                <span class="biome-chip-icon"><span class="pixel-icon chip-biome-tropical size-16"></span></span>
                 <span class="biome-chip-text">Tropical</span>
               </button>
               <button class="biome-chip" data-biome="volcanic" title="Volcanic Outpost: Obsidian basalt, black ash sand, sulfur clay strata">
-                <span class="biome-chip-icon">🌋</span>
+                <span class="biome-chip-icon"><span class="pixel-icon chip-biome-volcanic size-16"></span></span>
                 <span class="biome-chip-text">Volcanic</span>
               </button>
               <button class="biome-chip" data-biome="autumn" title="Autumn Highlands: Amber &amp; russet turf, mountain slate, ironstone">
-                <span class="biome-chip-icon">🍂</span>
+                <span class="biome-chip-icon"><span class="pixel-icon chip-biome-autumn size-16"></span></span>
                 <span class="biome-chip-text">Autumn</span>
               </button>
               <button class="biome-chip" data-biome="desert" title="Desert Canyons: Terracotta sandstone, apricot dunes, dry sage scrub">
-                <span class="biome-chip-icon">🏜️</span>
+                <span class="biome-chip-icon"><span class="pixel-icon chip-biome-desert size-16"></span></span>
                 <span class="biome-chip-text">Desert</span>
               </button>
               <button class="biome-chip" data-biome="nordic" title="Nordic Fjords: Deep spruce green, icy blue granite, glacial snow">
-                <span class="biome-chip-icon">❄️</span>
+                <span class="biome-chip-icon"><span class="pixel-icon chip-biome-nordic size-16"></span></span>
                 <span class="biome-chip-text">Nordic</span>
               </button>
             </div>
@@ -474,7 +495,7 @@ export class EditorUI {
           <div class="ribbon-group ribbon-info-group">
             <span class="ribbon-group-label">Sculpting Tips</span>
             <div class="ribbon-tip-box">
-              <span class="tip-icon">💡</span>
+              <span class="tip-icon"><span class="pixel-icon icon-idea-bulb size-16"></span></span>
               <span class="tip-text">Click &amp; Drag paints smooth, flat islands &amp; plateaus. Click &amp; Hold stationary pulses layers vertically to build hills without camera drift.</span>
             </div>
           </div>
@@ -486,23 +507,23 @@ export class EditorUI {
             <span class="ribbon-group-label">Boss Placement</span>
             <div class="ribbon-group-row">
               <button class="shelf-btn tool-mode-btn" data-tool="place_kraken" id="tool-btn-kraken" title="Place Kraken encounter position">
-                <span class="shelf-btn-icon">🐙</span>
+                <span class="shelf-btn-icon"><span class="pixel-icon icon-kraken size-18"></span></span>
                 <span class="shelf-btn-text">Place Kraken</span>
               </button>
               <button class="shelf-btn tool-mode-btn" data-tool="place_race_start" id="tool-btn-race-start" title="Place race trigger zone">
-                <span class="shelf-btn-icon">🏁</span>
+                <span class="shelf-btn-icon"><span class="pixel-icon icon-harbor-flag size-18"></span></span>
                 <span class="shelf-btn-text">Race Start</span>
               </button>
               <button class="shelf-btn tool-mode-btn" data-tool="place_waypoint" id="tool-btn-waypoint" title="Place race waypoints">
-                <span class="shelf-btn-icon">🏳️</span>
+                <span class="shelf-btn-icon"><span class="pixel-icon icon-waypoint-flag size-18"></span></span>
                 <span class="shelf-btn-text">Add Waypoint</span>
               </button>
               <button class="shelf-btn tool-mode-btn" data-tool="place_end_location" id="tool-btn-end-location" title="Place End Harbor / Destination Goal zone">
-                <span class="shelf-btn-icon">🏁</span>
+                <span class="shelf-btn-icon"><span class="pixel-icon icon-harbor-flag size-18"></span></span>
                 <span class="shelf-btn-text">Harbor Goal</span>
               </button>
               <button class="shelf-btn tool-mode-btn" data-tool="place_ship_spawn" id="tool-btn-ship-spawn" title="Place where the ship will start (Ship Spawn)">
-                <span class="shelf-btn-icon">⛵</span>
+                <span class="shelf-btn-icon"><span class="pixel-icon icon-sloop size-18"></span></span>
                 <span class="shelf-btn-text">Ship Spawn</span>
               </button>
             </div>
@@ -516,8 +537,8 @@ export class EditorUI {
               <select id="editor-tentacle-select" class="editor-select" style="flex: 1; padding: 4px 6px; background: rgba(0,0,0,0.5); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; font-size: 12px;">
                 <option value="0">Tentacle 1 (0 pts)</option>
               </select>
-              <button class="mini-chip" id="btn-add-tentacle" title="Add Tentacle" style="padding: 4px 8px;">➕ Add</button>
-              <button class="mini-chip" id="btn-remove-tentacle" title="Delete Tentacle" style="padding: 4px 8px; background: rgba(200,40,40,0.4);">❌ Del</button>
+              <button class="mini-chip" id="btn-add-tentacle" title="Add Tentacle" style="padding: 4px 8px;"><span class="pixel-icon icon-plus size-14"></span> Add</button>
+              <button class="mini-chip" id="btn-remove-tentacle" title="Delete Tentacle" style="padding: 4px 8px; background: rgba(200,40,40,0.4);"><span class="pixel-icon icon-cancel size-14"></span> Del</button>
             </div>
             <div style="display: flex; gap: 12px;">
               <div style="flex: 1;">
@@ -537,11 +558,11 @@ export class EditorUI {
             <span class="ribbon-group-label">Encounter Actions</span>
             <div class="ribbon-group-row">
               <button class="shelf-btn" id="btn-clear-waypoints" title="Clear waypoints for active tentacle">
-                <span class="shelf-btn-icon">🧹</span>
+                <span class="shelf-btn-icon"><span class="pixel-icon icon-chisel-eraser size-18"></span></span>
                 <span class="shelf-btn-text">Clear WPs</span>
               </button>
               <button class="shelf-btn btn-danger-hover" id="btn-remove-boss" title="Remove Boss encounter from level">
-                <span class="shelf-btn-icon">🗑️</span>
+                <span class="shelf-btn-icon"><span class="pixel-icon icon-delete-basket size-18"></span></span>
                 <span class="shelf-btn-text">Clear Boss</span>
               </button>
             </div>
@@ -556,7 +577,7 @@ export class EditorUI {
               ${ShipRegistry.getAll().map(ship => `
                 <button class="ship-card ${ship.id === this._selectedShipId ? 'active' : ''} ${ship.isGagTruck ? 'gag-ship' : ''}" data-ship-id="${ship.id}">
                   ${ship.isGagTruck ? '<span class="ship-card-gag-badge">GAG TRUCK</span>' : ''}
-                  <span class="ship-card-icon">${ship.icon || '⛵'}</span>
+                  <span class="ship-card-icon">${ship.icon || '<span class="pixel-icon icon-sloop size-20"></span>'}</span>
                   <div class="ship-card-details">
                     <div class="ship-card-title">${ship.name}</div>
                     <div class="ship-card-meta">
@@ -580,7 +601,7 @@ export class EditorUI {
             <label class="editor-toggle-switch" style="margin-top: 6px;">
               <input type="checkbox" id="ship-ghost-check" checked>
               <span class="toggle-slider"></span>
-              <span class="toggle-label" style="font-size: 11px;">👻 3D Ghost Preview</span>
+              <span class="toggle-label" style="font-size: 11px;"><span class="pixel-icon icon-ghost size-14"></span> 3D Ghost Preview</span>
             </label>
           </div>
 
@@ -606,11 +627,11 @@ export class EditorUI {
             <span class="ribbon-group-label">Test Sail Vessel</span>
             <div class="ribbon-group-row">
               <button class="shelf-btn ship-action-btn-sail" id="btn-ship-test-sail" title="Sail this vessel immediately on the map">
-                <span class="shelf-btn-icon">⛵</span>
+                <span class="shelf-btn-icon"><span class="pixel-icon icon-sloop size-18"></span></span>
                 <span class="shelf-btn-text">Test Sail</span>
               </button>
               <button class="shelf-btn ship-action-btn-dock" id="btn-ship-test-dock" title="Test this vessel moored in the dock and shipyard">
-                <span class="shelf-btn-icon">⚓</span>
+                <span class="shelf-btn-icon"><span class="pixel-icon icon-anchor size-18"></span></span>
                 <span class="shelf-btn-text">Test in Dock</span>
               </button>
             </div>
@@ -677,10 +698,10 @@ export class EditorUI {
             <div class="slider-with-presets">
               <input type="range" id="time-slider" min="0" max="24" step="0.5" value="${timeOfDay}" class="editor-slider">
               <div class="quick-chips-row">
-                <button class="mini-chip" data-time="6">🌅 Dawn</button>
-                <button class="mini-chip" data-time="12">☀️ Noon</button>
-                <button class="mini-chip" data-time="18">🌇 Dusk</button>
-                <button class="mini-chip" data-time="24">🌙 Night</button>
+                <button class="mini-chip" data-time="6"><span class="pixel-icon icon-sunrise size-14"></span> Dawn</button>
+                <button class="mini-chip" data-time="12"><span class="pixel-icon icon-sun size-14"></span> Noon</button>
+                <button class="mini-chip" data-time="18"><span class="pixel-icon icon-sunset size-14"></span> Dusk</button>
+                <button class="mini-chip" data-time="24"><span class="pixel-icon icon-moon size-14"></span> Night</button>
               </div>
             </div>
           </div>
@@ -692,19 +713,31 @@ export class EditorUI {
             <label class="editor-toggle-switch">
               <input type="checkbox" id="storm-check" ${isStormy ? 'checked' : ''}>
               <span class="toggle-slider"></span>
-              <span class="toggle-label">⛈️ Stormy Weather</span>
+              <span class="toggle-label"><span class="pixel-icon icon-storm size-14"></span> Stormy Weather</span>
             </label>
           </div>
 
           <div class="ribbon-divider"></div>
 
           <div class="ribbon-group">
-            <span class="ribbon-group-label">Atmosphere</span>
+            <span class="ribbon-group-label">Finish Destination</span>
+            <button class="shelf-btn tool-mode-btn" data-tool="place_end_location" id="tool-btn-end-location-world" title="Click anywhere on the map to relocate the End Harbor / Destination Goal waypoint">
+              <span class="shelf-btn-icon"><span class="pixel-icon icon-harbor-flag size-18"></span></span>
+              <span class="shelf-btn-text">Move Harbor Goal</span>
+            </button>
+          </div>
+
+          <div class="ribbon-divider"></div>
+
+          <!-- Harbor Dock Toggle -->
+          <div class="ribbon-group" style="min-width: 175px;">
+            <span class="ribbon-group-label">Harbor Berth & Dock</span>
             <label class="editor-toggle-switch">
-              <input type="checkbox" id="godrays-check" ${this._godRaysEnabled !== false ? 'checked' : ''}>
+              <input type="checkbox" id="chk-editor-has-dock" ${hasDock ? 'checked' : ''}>
               <span class="toggle-slider"></span>
-              <span class="toggle-label">✨ God Rays</span>
+              <span class="toggle-label" id="lbl-editor-has-dock">${hasDock ? '<span class="pixel-icon icon-anchor size-14"></span> Dock Included' : '<span class="pixel-icon icon-cancel size-14"></span> Dock Removed'}</span>
             </label>
+            <div style="font-size: 10px; color: #8a99a8; margin-top: 4px;">Sailing departs from dock</div>
           </div>
         </div>
 
@@ -719,8 +752,8 @@ export class EditorUI {
             </label>
             <div style="margin-top: 6px;">
               <select id="paper-style-select" class="editor-select">
-                <option value="0">🖋️ Hatching Style</option>
-                <option value="1">🎨 Kuwahara (Painterly)</option>
+                <option value="0">Hatching Style</option>
+                <option value="1">Kuwahara (Painterly)</option>
               </select>
             </div>
           </div>
@@ -732,7 +765,7 @@ export class EditorUI {
             <label class="editor-toggle-switch">
               <input type="checkbox" id="godrays-check-paper" ${this._godRaysEnabled !== false ? 'checked' : ''}>
               <span class="toggle-slider"></span>
-              <span class="toggle-label">✨ God Rays</span>
+              <span class="toggle-label"><span class="pixel-icon icon-god-rays size-14"></span> God Rays</span>
             </label>
           </div>
 
@@ -775,13 +808,13 @@ export class EditorUI {
       <footer class="editor-status-bar" id="editor-status-bar">
         <div class="status-left">
           <span class="status-badge" id="status-tool-badge">
-            <span class="status-icon">✋</span>
+            <span class="status-icon"><span class="pixel-icon icon-hand-select size-14"></span></span>
             <span class="status-text" id="status-tool-text">Mode: Cursor</span>
           </span>
           <span class="status-badge" id="status-item-badge" style="display:none;">
             <span class="status-text" id="status-item-text"></span>
           </span>
-          <span class="status-pill" id="status-count-pill">⚓ 0 Placed Objects</span>
+          <span class="status-pill" id="status-count-pill"><span class="pixel-icon icon-anchor size-14"></span> 0 Placed Objects</span>
         </div>
 
         <div class="status-center">
@@ -791,7 +824,7 @@ export class EditorUI {
         </div>
 
         <div class="status-right">
-          <button class="status-btn-link" id="btn-status-help">⌨️ Shortcuts</button>
+          <button class="status-btn-link" id="btn-status-help"><span class="pixel-icon icon-closed-logbook size-14"></span> Shortcuts</button>
         </div>
       </footer>
 
@@ -802,8 +835,8 @@ export class EditorUI {
       <div class="editor-modal-backdrop" id="editor-help-modal" style="display: none;">
         <div class="editor-modal-card">
           <div class="modal-card-header">
-            <h3>⚓ Map Maker — Navigation &amp; Hotkeys</h3>
-            <button class="modal-close-btn" id="btn-close-help">✕</button>
+            <h3><span class="pixel-icon icon-anchor size-18"></span> Map Maker — Navigation &amp; Hotkeys</h3>
+            <button class="modal-close-btn" id="btn-close-help"><span class="pixel-icon icon-close size-14"></span></button>
           </div>
           <div class="modal-card-body">
             <div class="shortcut-group">
@@ -1334,6 +1367,26 @@ export class EditorUI {
         this._setGodRays(e.target.checked);
       };
     }
+
+    // Harbor Dock Checkbox
+    const dockChk = this._el.querySelector('#chk-editor-has-dock');
+    const dockLbl = this._el.querySelector('#lbl-editor-has-dock');
+    if (dockChk) {
+      dockChk.onchange = (e) => {
+        const enabled = e.target.checked;
+        this._hasDock = enabled;
+        if (dockLbl) dockLbl.innerHTML = enabled ? '<span class="pixel-icon icon-anchor size-14"></span> Dock Included' : '<span class="pixel-icon icon-cancel size-14"></span> Dock Removed';
+        emit('editorToggleDock', { hasDock: enabled });
+        this._showToast(enabled ? 'Harbor dock included' : 'Harbor dock removed');
+      };
+    }
+
+    this._onEditorHasDockChanged = ({ hasDock }) => {
+      this._hasDock = hasDock;
+      if (dockChk) dockChk.checked = hasDock;
+      if (dockLbl) dockLbl.innerHTML = hasDock ? '<span class="pixel-icon icon-anchor size-14"></span> Dock Included' : '<span class="pixel-icon icon-cancel size-14"></span> Dock Removed';
+    };
+    on('editorHasDockChanged', this._onEditorHasDockChanged);
   }
 
   // -------------------------------------------------------------------------
@@ -1693,7 +1746,7 @@ export class EditorUI {
     if (d.obstacleCount !== undefined) {
       this._obstacleCount = d.obstacleCount;
       const countPill = this._el?.querySelector('#status-count-pill');
-      if (countPill) countPill.innerText = `⚓ ${this._obstacleCount} Placed Objects`;
+      if (countPill) countPill.innerHTML = `<span class="pixel-icon icon-anchor size-14"></span> ${this._obstacleCount} Placed Objects`;
     }
 
     if (d.scale !== undefined) {
@@ -1856,7 +1909,7 @@ export class EditorUI {
 
     const toast = document.createElement('div');
     toast.className = 'editor-toast';
-    toast.innerHTML = `<span class="toast-icon">⚓</span> <span>${msg}</span>`;
+    toast.innerHTML = `<span class="toast-icon"><span class="pixel-icon icon-anchor size-16"></span></span> <span>${msg}</span>`;
     container.appendChild(toast);
 
     setTimeout(() => {
@@ -1877,6 +1930,10 @@ export class EditorUI {
     if (this._onShipSpawnPlaced) {
       off('editorShipSpawnPlaced', this._onShipSpawnPlaced);
       this._onShipSpawnPlaced = null;
+    }
+    if (this._onEditorHasDockChanged) {
+      off('editorHasDockChanged', this._onEditorHasDockChanged);
+      this._onEditorHasDockChanged = null;
     }
     off('editorStateUpdated', this._onStateUpdated);
     off('editorConfigLoaded', this._onConfigLoaded);

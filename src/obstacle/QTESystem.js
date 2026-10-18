@@ -27,22 +27,22 @@ export const QTE_DEFINITIONS = Object.freeze({
   [QTEType.SHOOT]: {
     input: 'timing', keys: { tap: 'Space' }, windowMs: 1800, priority: 20,
     label: 'FIRE!', prompt: 'Tap in the green zone', sweetSpot: [0.42, 0.62],
-    theme: { color: '#ff9800', icon: '💥', sound: 'barrel_shot' },
+    theme: { color: '#ff9800', icon: '<span class="pixel-icon icon-explosion-burst size-18"></span>', sound: 'barrel_shot' },
   },
   [QTEType.HARPOON]: {
     input: 'timing', keys: { tap: 'Space' }, windowMs: 2000, priority: 30,
     label: 'HARPOON!', prompt: 'Tap in the green zone', sweetSpot: [0.40, 0.60],
-    theme: { color: '#4fc3f7', icon: '🎯', sound: 'harpoon' },
+    theme: { color: '#4fc3f7', icon: '<span class="pixel-icon icon-target size-18"></span>', sound: 'harpoon' },
   },
   [QTEType.BAIL]: {
     input: 'draw', keys: { assist: 'Space' }, windowMs: 8000, priority: 100,
     label: 'BAIL WATER!', prompt: 'Draw one complete circle',
-    theme: { color: '#2196f3', icon: '🪣', sound: 'bail' },
+    theme: { color: '#2196f3', icon: '<span class="pixel-icon icon-bailer-bucket size-18"></span>', sound: 'bail' },
   },
   [QTEType.SIREN]: {
     input: 'mash', keys: { tap: 'Space' }, windowMs: 3000, priority: 70,
     label: 'RESIST THE SONG!', prompt: 'Press SPACE repeatedly', mashTarget: 8,
-    theme: { color: '#ff66cc', icon: '♫', sound: 'siren_resist' },
+    theme: { color: '#ff66cc', icon: '<span class="pixel-icon icon-siren-note size-18"></span>', sound: 'siren_resist' },
   },
 });
 

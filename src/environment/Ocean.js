@@ -10,7 +10,8 @@ export class Ocean {
   }
 
   init(scene) {
-    const oceanGeo = new THREE.PlaneGeometry(600, 600, 256, 256);
+    // 128x128 grid (16k vertices instead of 66k) provides smooth wave curves with 75% less vertex overhead
+    const oceanGeo = new THREE.PlaneGeometry(600, 600, 128, 128);
     oceanGeo.rotateX(-Math.PI / 2);
 
     const seaColor = 0x4a6f78;

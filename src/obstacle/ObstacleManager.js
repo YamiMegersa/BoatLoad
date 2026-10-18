@@ -3,6 +3,7 @@ import { emit } from '../core/EventBus.js';
 import { OBB } from 'three/examples/jsm/math/OBB.js';
 import { WhirlpoolParticles } from './WhirlpoolParticles.js';
 import { LevelConfig } from '../core/LevelConfig.js';
+import { GamePhase } from '../core/GameState.js';
 
 // ---------------------------------------------------------------------------
 // Obstacle descriptor
@@ -75,6 +76,12 @@ export function buildObstacle(type, pos, url, scale, rockModels, pickupModels, s
     arrow.position.z = -10;
     mesh.add(arrow);
     mesh.scale.setScalar(targetScale);
+    // Show wind zone visual only in editor mode
+    if (typeof window !== 'undefined' && window.gameState) {
+      mesh.visible = window.gameState.currentPhase === GamePhase.EDITOR;
+    } else {
+      mesh.visible = false;
+    }
   } else if (type === 'rock' && rockModels && rockModels.length > 0) {
     if (url) {
       selectedModel = rockModels.find(m => m.url === url) || rockModels[Math.floor(Math.random() * rockModels.length)];
@@ -292,18 +299,6 @@ export function buildObstacle(type, pos, url, scale, rockModels, pickupModels, s
   localBox.getCenter(baseOBB.center);
   localBox.getSize(baseOBB.halfSize).multiplyScalar(0.5);
 
-  // HITBOX VISUALIZATION
-  if (type === 'barrel') {
-    const sphereGeo = new THREE.WireframeGeometry(new THREE.SphereGeometry(0.5, 8, 8));
-    const sphereMesh = new THREE.LineSegments(sphereGeo, new THREE.LineBasicMaterial({ color: 0xff0000 }));
-    mesh.add(sphereMesh);
-  } else if (type !== 'island') { // Don't draw giant AABB for islands since they use BVH
-    const wireMat = new THREE.LineBasicMaterial({ color: 0xff0000 });
-    const wireGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(baseOBB.halfSize.x * 2, baseOBB.halfSize.y * 2, baseOBB.halfSize.z * 2));
-    const wireMesh = new THREE.LineSegments(wireGeo, wireMat);
-    wireMesh.position.copy(baseOBB.center);
-    mesh.add(wireMesh);
-  }
 
   // Now place it at actual position
   mesh.position.set(pos.x, pos.y !== undefined ? pos.y : 0.5, pos.z);
@@ -412,6 +407,7 @@ export class ObstacleManager {
     this._waveTime = 0;
     this._tempCrossWind = new THREE.Vector3();
     this._random = createSeededRandom(levelCfg.obstacleSeed ?? levelCfg.day ?? 1);
+    this._hasDock = levelCfg?.hasDock !== false;
     
     this._spawnAllRandomly(levelCfg.obstacles || []);
   }
@@ -599,6 +595,9 @@ export class ObstacleManager {
     // Ignore wind zones for collision
     if (obs.type === 'wind_zone') return;
 
+    // Ignore dock obstacles when ship is moored, halted during countdown, or has departure immunity
+    if (obs.isDockObstacle && (ship.isImmune() || ship._isHalted)) return;
+
     // Whirlpool applies a continuous radial pull
     if (obs.type === 'whirlpool') {
       const dx = obs.mesh.position.x - ship.mesh.position.x;
@@ -689,26 +688,34 @@ export class ObstacleManager {
       return;
     }
 
-    // Solid Obstacles (island, rock, siren)
+    // Solid Obstacles (island, rock, siren, dock island)
     if (ship.obb.intersectsOBB(obs.obb)) {
-      if (obs.type === 'island') {
-        // Narrowphase Mesh BVH
-        const shipBox = new THREE.Box3().setFromObject(ship.mesh);
-        let meshHit = false;
-        const invMat = new THREE.Matrix4();
+      if (obs.type === 'island' && !obs.isDockObstacle) {
+        // Check if mesh has BVH tree built
+        let hasBVH = false;
         obs.mesh.traverse(child => {
-          if (meshHit || !child.isMesh || !child.geometry.boundsTree) return;
-          invMat.copy(child.matrixWorld).invert();
-          if (child.geometry.boundsTree.intersectsBox(shipBox, invMat)) {
-            meshHit = true;
-          }
+          if (child.isMesh && child.geometry?.boundsTree) hasBVH = true;
         });
-        if (meshHit) {
-          this._resolveSolidCollision(obs, ship, delta);
+
+        if (hasBVH) {
+          // Narrowphase Mesh BVH
+          const shipBox = new THREE.Box3().setFromObject(ship.mesh);
+          let meshHit = false;
+          const invMat = new THREE.Matrix4();
+          obs.mesh.traverse(child => {
+            if (meshHit || !child.isMesh || !child.geometry?.boundsTree) return;
+            invMat.copy(child.matrixWorld).invert();
+            if (child.geometry.boundsTree.intersectsBox(shipBox, invMat)) {
+              meshHit = true;
+            }
+          });
+          if (meshHit) {
+            this._resolveSolidCollision(obs, ship, delta);
+          }
+          return;
         }
-      } else {
-        this._resolveSolidCollision(obs, ship, delta);
       }
+      this._resolveSolidCollision(obs, ship, delta);
     }
   }
 
@@ -906,8 +913,11 @@ export class ObstacleManager {
           attempts++;
         } while (
           attempts < 40 &&
-          this._obstacles.some(existing =>
-            Math.hypot(existing.mesh.position.x - px, existing.mesh.position.z - pz) < 8
+          (
+            (this._hasDock && px >= -70 && px <= 20 && pz >= -30 && pz <= 30) ||
+            this._obstacles.some(existing =>
+              Math.hypot(existing.mesh.position.x - px, existing.mesh.position.z - pz) < 8
+            )
           )
         );
 
@@ -927,6 +937,50 @@ export class ObstacleManager {
         this._scene.add(obs.mesh);
         this._obstacles.push(obs);
       }
+    }
+
+    // Register solid colliders for the Dock Island and Piers
+    if (this._hasDock) {
+      const createDockCollider = (center, halfSize, name) => {
+        const dummyMesh = new THREE.Object3D();
+        dummyMesh.name = name;
+        dummyMesh.position.copy(center);
+        dummyMesh.updateMatrixWorld(true);
+
+        const baseOBB = new OBB();
+        baseOBB.center.set(0, 0, 0); // Local space mesh origin!
+        baseOBB.halfSize.copy(halfSize);
+
+        const obb = new OBB();
+        obb.copy(baseOBB).applyMatrix4(dummyMesh.matrixWorld);
+
+        return {
+          type: 'island',
+          mesh: dummyMesh,
+          baseOBB,
+          obb,
+          damage: 15,
+          active: true,
+          scrollSpeed: 0,
+          qteResolved: false,
+          qteTriggered: false,
+          isDockObstacle: true
+        };
+      };
+
+      // 1. Main Island Landmass & Bluffs: covers the large rocky island bluffs (leaving sailing channel at X <= -52 completely clear)
+      this._obstacles.push(createDockCollider(
+        new THREE.Vector3(-26.0, 1.5, 0.0),
+        new THREE.Vector3(15.0, 6.0, 11.0),
+        'dockIslandMain'
+      ));
+
+      // 2. East Dock Pier & Shop platform
+      this._obstacles.push(createDockCollider(
+        new THREE.Vector3(0.0, 1.0, 1.0),
+        new THREE.Vector3(6.5, 4.0, 4.0),
+        'dockPierEast'
+      ));
     }
   }
 }

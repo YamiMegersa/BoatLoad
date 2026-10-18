@@ -87,6 +87,7 @@ export class EnvironmentManager {
     
     // Enable true depth-based fog to obscure objects like islands and the ship
     scene.fog = new THREE.FogExp2(0x1a2430, initialDensity);
+    emit('weatherChanged', { density: initialDensity, isDense: (initialDensity >= 0.05) });
     
     if (initialDensity >= 0.05) {
       this._isDenseFog = true;
@@ -95,18 +96,26 @@ export class EnvironmentManager {
     }
     
     this._timeOfDay = levelCfg && levelCfg.timeOfDay !== undefined ? levelCfg.timeOfDay : 8.0;
-    this._isStormy = levelCfg && levelCfg.isStormy !== undefined ? levelCfg.isStormy : false;
+    const isStormWeather = Boolean(levelCfg?.weather === 'stormy' || levelCfg?.weather === 'gale');
+    this._isStormy = levelCfg && levelCfg.isStormy !== undefined ? Boolean(levelCfg.isStormy) : isStormWeather;
     if (levelCfg && levelCfg.godRays !== undefined) {
       this._godRaysEnabled = !!levelCfg.godRays;
     }
     
-    this._updateTimeAndLighting(0);
-    this.toggleStorm(this._isStormy);
-
     this._windParticles = new WindParticles(scene);
     this._rainManager = new RainManager(scene);
     this._fogVolume = new FogVolume(scene);
     this._stormClouds = new StormClouds(scene);
+
+    if (this._fogVolume?.mesh) {
+      this._fogVolume.mesh.visible = this._isDenseFog;
+    }
+    if (this._stormClouds?.mesh) {
+      this._stormClouds.mesh.visible = this._isStormy;
+    }
+
+    this._updateTimeAndLighting(0);
+    this.toggleStorm(this._isStormy);
 
     if (this._fishModels && this._fishModels.length > 0) {
       // Find shark model if available and guarantee at least 4 sharks spawn
@@ -466,6 +475,8 @@ export class EnvironmentManager {
       this._sunLight.position.set(sunX, sunY, sunZ);
       const sunAlt = THREE.MathUtils.clamp((sunY + 5) / (this._sunRadius + 5), 0.0, 1.0);
       this._sunLight.intensity = sunAlt * (this._isStormy ? 0.3 : 1.2);
+      // Dynamic shadow: only render sun shadow map when sun is above horizon
+      this._sunLight.castShadow = (sunY > 0);
     }
 
     if (this._moonLight) {
@@ -476,6 +487,8 @@ export class EnvironmentManager {
       }
       this._moonLight.color.copy(moonCol);
       this._moonLight.intensity = moonAltitude * (this._isStormy ? 0.12 : 0.35);
+      // Dynamic shadow: only render moon shadow map at night when sun is down
+      this._moonLight.castShadow = (moonY > 0 && sunY <= 0);
     }
 
     if (this._ambientLight) {
@@ -563,7 +576,7 @@ export class EnvironmentManager {
     }
     
     if (this._fogVolume && this._fogVolume.mesh) {
-      this._fogVolume.mesh.visible = !this._isDenseFog;
+      this._fogVolume.mesh.visible = this._isDenseFog;
     }
     
     if (this._stormClouds && this._stormClouds.mesh) {
@@ -581,6 +594,11 @@ export class EnvironmentManager {
     }
     emit('editorToggleGodRays', { enabled: this._godRaysEnabled });
     return this._godRaysEnabled;
+  }
+
+  setTimeOfDay(tod) {
+    this._timeOfDay = ((tod % 24) + 24) % 24;
+    this._updateTimeAndLighting(0);
   }
 
   dispose() {

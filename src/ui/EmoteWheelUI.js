@@ -20,7 +20,7 @@ export class EmoteWheelUI {
         title: 'Smoke',
         fullTitle: 'Light & Smoke',
         desc: 'A sailor’s tobacco break',
-        icon: '🚬',
+        icon: '<span class="pixel-icon icon-smoke-pipe size-28"></span>',
         angle: 270 // Top
       },
       {
@@ -29,7 +29,7 @@ export class EmoteWheelUI {
         title: 'Gesture',
         fullTitle: 'Middle Finger',
         desc: 'Defiant salute to the sea',
-        icon: '🖕',
+        icon: '<span class="pixel-icon icon-defiant-finger size-28"></span>',
         angle: 30 // Bottom-Right
       },
       {
@@ -38,7 +38,7 @@ export class EmoteWheelUI {
         title: 'Clap',
         fullTitle: 'Applause',
         desc: 'Cheer for the crew & voyage',
-        icon: '👏',
+        icon: '<span class="pixel-icon icon-clap-hands size-28"></span>',
         angle: 150 // Bottom-Left
       }
     ];

@@ -43,6 +43,7 @@ export class PlayerShip {
     this._laneHalfWidth  = stats.laneHalfWidth ?? 6;
     this.turnAccel       = stats.turnAccel ?? profile.turnAccel ?? 2.0;
     this.turnDamping     = stats.turnDamping ?? profile.turnDamping ?? 3.0;
+    this.sirenResistance = stats.sirenResistance ?? 0;
     this.isGagTruck      = !!(stats.isGagTruck || profile.isGagTruck);
     this.shipScale       = stats.scale ?? profile.scale ?? 0.10;
 
@@ -154,6 +155,26 @@ export class PlayerShip {
     wireMesh.visible = false;
     this.mesh.add(wireMesh);
     this.hitboxWireMesh = wireMesh;
+
+    // 3D Bow Lantern & Lights
+    this.lanternStats = stats.lanternStats || null;
+    this._bowLanternGroup = null;
+    this._buildBowLantern(this.lanternStats);
+
+    this._onItemsEquipped = (d) => {
+      if (d?.type === 'lantern') {
+        this.lanternStats = d.item?.stats;
+        this._buildBowLantern(this.lanternStats);
+      } else if (d?.type === 'wheel') {
+        const wStats = d.item?.stats;
+        if (wStats) {
+          this.turnAccel = wStats.turnAccel ?? this.turnAccel;
+          this.turnDamping = wStats.turnDamping ?? this.turnDamping;
+          this.sirenResistance = wStats.sirenResistance ?? this.sirenResistance;
+        }
+      }
+    };
+    on('itemsEquipped', this._onItemsEquipped);
 
     this.obb = new OBB();
 
@@ -334,8 +355,8 @@ export class PlayerShip {
         },
         onFail: ({ metadata }) => {
           this._bailingWater = false;
-          this._bailCooldown = 1.25;
-          if (!metadata.debug) emit('waterBailFailed');
+          this._bailCooldown = 10.0;
+          if (!metadata.debug) emit('waterBailFailed', { cooldown: 10 });
         }
       });
       this._bailingWater = accepted;
@@ -720,11 +741,196 @@ export class PlayerShip {
     off('toggleGodMode', this._onGodMode);
     if (this._onCinematicStart) off('krakenCinematicStart', this._onCinematicStart);
     if (this._onCinematicEnd) off('krakenCinematicEnd', this._onCinematicEnd);
+    if (this._onItemsEquipped) {
+      off('itemsEquipped', this._onItemsEquipped);
+      this._onItemsEquipped = null;
+    }
+    this._buildBowLantern(null);
     clearTimeout(this._speedTimer);
     this._sirenDisorientationSources.clear();
     scene.remove(this.mesh);
     // Note: chunkRenderer disposal is handled by GameState phase teardown later,
     // so we don't deeply dispose its geometry here.
+  }
+
+  _getBowLanternMountPosition() {
+    if (this.shipProfile?.bowLanternMount) {
+      const m = this.shipProfile.bowLanternMount;
+      return new THREE.Vector3(m.x || 0, m.y, m.z);
+    }
+
+    // Dynamic detection from vessel geometry:
+    let mountZ = -2.12;
+    let mountY = 1.58;
+
+    if (this.baseOBB) {
+      const halfZ = this.baseOBB.halfSize.z;
+      const centerZ = this.baseOBB.center.z;
+      const bowTipZ = centerZ - halfZ;
+      const draft = (this.shipProfile?.waterlineY || 4) * this.shipScale;
+
+      // Sample vertices from the vessel mesh to find the solid prow deck/stem
+      const targetVertices = [];
+      this.mesh.traverse(child => {
+        if (child.isMesh && child.geometry && child !== this.innerWater) {
+          const pos = child.geometry.attributes.position;
+          if (pos) {
+            const v = new THREE.Vector3();
+            const step = Math.max(1, Math.floor(pos.count / 300));
+            for (let i = 0; i < pos.count; i += step) {
+              v.fromBufferAttribute(pos, i);
+              v.applyMatrix4(child.matrixWorld);
+              this.mesh.worldToLocal(v);
+              if (Math.abs(v.x) <= 0.45 && v.z <= centerZ && v.z >= bowTipZ) {
+                targetVertices.push(v.clone());
+              }
+            }
+          }
+        }
+      });
+
+      let found = false;
+      if (targetVertices.length > 0) {
+        for (let z = bowTipZ; z <= centerZ; z += 0.05) {
+          const slice = targetVertices.filter(v => Math.abs(v.z - z) <= 0.05 && v.y <= draft + 3.0 && v.y >= draft * 0.5);
+          if (slice.length >= 2) {
+            const xs = slice.map(v => Math.abs(v.x));
+            const w = Math.max(...xs) * 2;
+            if (w >= 0.20 || z >= bowTipZ + halfZ * 0.15) {
+              mountZ = z;
+              mountY = Math.max(...slice.map(v => v.y));
+              found = true;
+              break;
+            }
+          }
+        }
+      }
+
+      if (!found) {
+        // Fallback: inset behind the bow tip, deck height at waterline + 1.1m
+        mountZ = bowTipZ + halfZ * 0.22;
+        mountY = draft + 1.1;
+      }
+    }
+
+    return new THREE.Vector3(0, mountY, mountZ);
+  }
+
+  _buildBowLantern(stats) {
+    if (this._bowLanternGroup) {
+      this.mesh.remove(this._bowLanternGroup);
+      this._bowLanternGroup.traverse(c => {
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) {
+          if (Array.isArray(c.material)) c.material.forEach(m => m.dispose());
+          else c.material.dispose();
+        }
+      });
+      this._bowLanternGroup = null;
+    }
+
+    if (!stats) return;
+
+    const group = new THREE.Group();
+    group.name = 'BowLantern';
+
+    this.mesh.updateMatrixWorld(true);
+    const mountPos = this._getBowLanternMountPosition();
+    group.position.copy(mountPos);
+
+    const metalColor = stats.lightColor === 0x66ffcc ? 0x0f2d24 : (stats.lightColor === 0x9be8ff ? 0xd4af37 : 0x221810);
+    const metalMat = new THREE.MeshStandardMaterial({
+      color: metalColor,
+      roughness: 0.4,
+      metalness: 0.8
+    });
+
+    // 1. Deck Mounting Flange / Base Plate (seated flush on the foredeck / prow timber)
+    const flangeGeo = new THREE.CylinderGeometry(0.14, 0.16, 0.04, 8);
+    const flange = new THREE.Mesh(flangeGeo, metalMat);
+    flange.position.set(0, 0.02, 0);
+    group.add(flange);
+
+    // 2. Vertical Mounting Stanchion / Post
+    const postGeo = new THREE.CylinderGeometry(0.045, 0.06, 0.18, 8);
+    const post = new THREE.Mesh(postGeo, metalMat);
+    post.position.set(0, 0.11, 0);
+    group.add(post);
+
+    // Angled iron brace connecting firmly to the prow stem
+    const braceGeo = new THREE.BoxGeometry(0.03, 0.14, 0.16);
+    braceGeo.rotateX(Math.PI / 6);
+    const brace = new THREE.Mesh(braceGeo, metalMat);
+    brace.position.set(0, 0.08, 0.02);
+    group.add(brace);
+
+    // 3. Lantern Oil Basin / Reservoir
+    const baseGeo = new THREE.CylinderGeometry(0.15, 0.12, 0.08, 8);
+    const base = new THREE.Mesh(baseGeo, metalMat);
+    base.position.set(0, 0.24, 0);
+    group.add(base);
+
+    // 4. Glowing Glass Core
+    const glassColor = stats.lightColor || 0xffaa44;
+    const glassMat = new THREE.MeshStandardMaterial({
+      color: glassColor,
+      emissive: glassColor,
+      emissiveIntensity: 2.0,
+      transparent: true,
+      opacity: 0.88,
+      roughness: 0.1
+    });
+    const glassGeo = new THREE.CylinderGeometry(0.11, 0.11, 0.26, 8);
+    const glassCore = new THREE.Mesh(glassGeo, glassMat);
+    glassCore.position.set(0, 0.41, 0);
+    group.add(glassCore);
+
+    // 4 iron protective cage bars guarding the glass from deck spray
+    const barGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.26, 6);
+    const barOffsets = [
+      [-0.09, -0.09],
+      [0.09, -0.09],
+      [-0.09, 0.09],
+      [0.09, 0.09]
+    ];
+    for (const [bx, bz] of barOffsets) {
+      const bar = new THREE.Mesh(barGeo, metalMat);
+      bar.position.set(bx, 0.41, bz);
+      group.add(bar);
+    }
+
+    // 5. Lantern Hood / Tiered Cap
+    const capGeo = new THREE.ConeGeometry(0.17, 0.13, 8);
+    const cap = new THREE.Mesh(capGeo, metalMat);
+    cap.position.set(0, 0.60, 0);
+    group.add(cap);
+
+    // Brass/iron finial hanging loop
+    const ringGeo = new THREE.TorusGeometry(0.04, 0.012, 6, 12);
+    const ring = new THREE.Mesh(ringGeo, metalMat);
+    ring.position.set(0, 0.69, 0);
+    group.add(ring);
+
+    // 6. Lights
+    // 6a. PointLight (casts warm radiance on ship prow, foredeck, and sea)
+    const intensity = stats.lightIntensity || 2.2;
+    const distance = stats.lightDistance || 35;
+    const lanternPointLight = new THREE.PointLight(glassColor, intensity, distance, 1.8);
+    lanternPointLight.position.set(0, 0.41, 0);
+    group.add(lanternPointLight);
+
+    // 6b. Forward Spotlight (cuts through murky sea fog and dark waves ahead)
+    const spotTarget = new THREE.Object3D();
+    spotTarget.position.set(0, -1.0, -distance * 0.8);
+    group.add(spotTarget);
+
+    const lanternSpotLight = new THREE.SpotLight(glassColor, intensity * 1.6, distance * 1.4, Math.PI / 4.5, 0.5, 1.2);
+    lanternSpotLight.position.set(0, 0.41, -0.05);
+    lanternSpotLight.target = spotTarget;
+    group.add(lanternSpotLight);
+
+    this.mesh.add(group);
+    this._bowLanternGroup = group;
   }
 
   // -------------------------------------------------------------------------

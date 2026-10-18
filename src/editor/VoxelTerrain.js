@@ -166,26 +166,141 @@ export class VoxelTerrain {
     }
   }
 
+  isChunkEmpty(chunk) {
+    if (!chunk) return true;
+    for (let i = 0; i < chunk.length; i++) {
+      if (chunk[i] !== BLOCK.AIR) return false;
+    }
+    return true;
+  }
+
+  compressChunk(chunk) {
+    const len = chunk.length;
+    if (len === 0) return '';
+    let currentVal = chunk[0];
+    let currentRun = 1;
+    const parts = [];
+
+    for (let i = 1; i < len; i++) {
+      const val = chunk[i];
+      if (val === currentVal) {
+        currentRun++;
+      } else {
+        parts.push(`${currentRun}x${currentVal}`);
+        currentVal = val;
+        currentRun = 1;
+      }
+    }
+    parts.push(`${currentRun}x${currentVal}`);
+    return parts.join(',');
+  }
+
+  decompressChunk(data) {
+    const totalVoxels = CHUNK_SIZE * CHUNK_HEIGHT * CHUNK_SIZE;
+    const chunk = new Uint8Array(totalVoxels);
+    if (!data) return chunk;
+
+    // Format 1: Compact RLE string: "countxval,countxval,..."
+    if (typeof data === 'string') {
+      if (data.includes('x')) {
+        const runs = data.split(',');
+        let ptr = 0;
+        for (let i = 0; i < runs.length; i++) {
+          const run = runs[i];
+          const xIdx = run.indexOf('x');
+          if (xIdx !== -1) {
+            const count = parseInt(run.substring(0, xIdx), 10);
+            const val = parseInt(run.substring(xIdx + 1), 10);
+            if (!isNaN(count) && !isNaN(val) && count > 0) {
+              const end = Math.min(totalVoxels, ptr + count);
+              chunk.fill(val, ptr, end);
+              ptr = end;
+              if (ptr >= totalVoxels) break;
+            }
+          }
+        }
+        return chunk;
+      }
+
+      // Fallback: Base64 string if ever encountered
+      try {
+        const binary = atob(data);
+        const copyLen = Math.min(binary.length, totalVoxels);
+        for (let i = 0; i < copyLen; i++) {
+          chunk[i] = binary.charCodeAt(i);
+        }
+        return chunk;
+      } catch (_) {}
+    }
+
+    // Format 2: RLE array [count, val, count, val, ...] or full array [v0, v1, ...]
+    if (Array.isArray(data)) {
+      if (data.length === totalVoxels) {
+        chunk.set(data);
+        return chunk;
+      }
+      let ptr = 0;
+      for (let i = 0; i < data.length; i += 2) {
+        const count = data[i];
+        const val = data[i + 1];
+        if (count > 0) {
+          const end = Math.min(totalVoxels, ptr + count);
+          chunk.fill(val, ptr, end);
+          ptr = end;
+          if (ptr >= totalVoxels) break;
+        }
+      }
+      return chunk;
+    }
+
+    // Format 3: Legacy JSON dictionary object { "0": 0, "1": 1, ... }
+    if (typeof data === 'object') {
+      if (data instanceof Uint8Array) {
+        return data;
+      }
+      for (const k in data) {
+        const idx = parseInt(k, 10);
+        if (!isNaN(idx) && idx >= 0 && idx < totalVoxels) {
+          chunk[idx] = data[k];
+        }
+      }
+      return chunk;
+    }
+
+    return chunk;
+  }
+
   serialize() {
     const data = {
       biome: this.biome || 'tropical',
       chunks: {}
     };
     for (const [key, chunk] of this.chunks.entries()) {
-      data.chunks[key] = chunk;
+      if (!chunk || this.isChunkEmpty(chunk)) continue;
+      data.chunks[key] = this.compressChunk(chunk);
     }
     return data;
   }
 
   deserialize(data) {
     if (!data) return;
+    this.chunks.clear();
+    for (const mesh of this.meshes.values()) {
+      mesh.geometry?.dispose();
+    }
+    this.meshGroup.clear();
+    this.meshes.clear();
+
     const chunkSource = data.chunks ? data.chunks : data;
     if (data.biome) {
       this.biome = data.biome;
+      this.activeBiome = data.biome;
     }
     for (const key in chunkSource) {
       if (key === 'biome' || key === 'chunks') continue;
-      this.chunks.set(key, chunkSource[key]);
+      const chunk = this.decompressChunk(chunkSource[key]);
+      if (this.isChunkEmpty(chunk)) continue;
+      this.chunks.set(key, chunk);
       const [cx, cz] = key.split(',').map(Number);
       this.updateChunkMesh(cx, cz);
     }
@@ -196,12 +311,11 @@ export class VoxelTerrain {
     const wz = Math.floor(worldZ);
     const cx = Math.floor(wx / CHUNK_SIZE);
     const cz = Math.floor(wz / CHUNK_SIZE);
-    
-    if (!this.chunks.has(this.getChunkKey(cx, cz))) return false;
+    const chunk = this.chunks.get(this.getChunkKey(cx, cz));
+    if (!chunk) return false;
 
     let lx = wx % CHUNK_SIZE; if (lx < 0) lx += CHUNK_SIZE;
     let lz = wz % CHUNK_SIZE; if (lz < 0) lz += CHUNK_SIZE;
-    const chunk = this.getChunk(cx, cz);
     
     for (let y = 0; y < 5; y++) {
       if (chunk[lx + CHUNK_SIZE * (y + CHUNK_HEIGHT * lz)] !== BLOCK.AIR) {
@@ -243,18 +357,27 @@ export class VoxelTerrain {
     if (y < 0 || y >= CHUNK_HEIGHT) return 0;
     const cx = Math.floor(x / CHUNK_SIZE);
     const cz = Math.floor(z / CHUNK_SIZE);
+    const chunk = this.chunks.get(this.getChunkKey(cx, cz));
+    if (!chunk) return 0;
     const lx = x - cx * CHUNK_SIZE;
     const lz = z - cz * CHUNK_SIZE;
-    return this.getChunk(cx, cz)[lx + CHUNK_SIZE * (y + CHUNK_HEIGHT * lz)];
+    return chunk[lx + CHUNK_SIZE * (y + CHUNK_HEIGHT * lz)];
   }
 
   setVoxel(x, y, z, v) {
     if (y < 0 || y >= CHUNK_HEIGHT) return;
     const cx = Math.floor(x / CHUNK_SIZE);
     const cz = Math.floor(z / CHUNK_SIZE);
+    const key = this.getChunkKey(cx, cz);
+    let chunk = this.chunks.get(key);
+    if (!chunk) {
+      if (v === BLOCK.AIR) return;
+      chunk = new Uint8Array(CHUNK_SIZE * CHUNK_HEIGHT * CHUNK_SIZE);
+      this.chunks.set(key, chunk);
+    }
     const lx = x - cx * CHUNK_SIZE;
     const lz = z - cz * CHUNK_SIZE;
-    this.getChunk(cx, cz)[lx + CHUNK_SIZE * (y + CHUNK_HEIGHT * lz)] = v;
+    chunk[lx + CHUNK_SIZE * (y + CHUNK_HEIGHT * lz)] = v;
   }
   
   getBlockTypeForHeight(x, y, z) {
@@ -758,6 +881,11 @@ export class VoxelTerrain {
       if (mesh) {
         this.meshGroup.remove(mesh);
         mesh.geometry.dispose();
+        this.meshes.delete(key);
+      }
+      const chunk = this.chunks.get(key);
+      if (chunk && this.isChunkEmpty(chunk)) {
+        this.chunks.delete(key);
       }
       return;
     }
@@ -773,6 +901,7 @@ export class VoxelTerrain {
     if (mesh) {
       this.meshGroup.remove(mesh);
       mesh.geometry.dispose();
+      this.meshes.delete(key);
     }
     
     mesh = new THREE.Mesh(geometry, this.material);

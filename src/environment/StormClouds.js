@@ -142,10 +142,14 @@ export class StormClouds {
 
     this.mesh = new THREE.Mesh(geometry, material);
     this.mesh.position.y = 150; // High in the sky
+    this.mesh.visible = false; // Hidden unless storm weather is active
+    this.mesh.userData.noGodRays = true;
+    this.mesh.userData.noOcclusion = true;
     this._scene.add(this.mesh);
   }
 
   update(delta, shipPosition, windDir) {
+    if (!this.mesh || !this.mesh.visible) return;
     this._time += delta;
     
     // Handle lightning decay

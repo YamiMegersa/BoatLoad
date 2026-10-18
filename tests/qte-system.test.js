@@ -24,7 +24,7 @@ test('QTE deduplication is per instance when an instance ID is provided', () => 
   assert.equal(events[0].dedupeKey, 'reef-a');
 
   for (let index = 0; index < 8; index++) {
-    emit('qteInput', { kind: index % 2 ? 'right' : 'left' });
+    emit('qteInput', { kind: 'tap' });
   }
   assert.equal(system._active.metadata.instanceId, 'reef-b');
 

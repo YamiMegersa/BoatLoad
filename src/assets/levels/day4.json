@@ -1,5 +1,6 @@
 {
   "day": 4,
+  "hasDock": true,
   "ship": "sloop",
   "weather": "stormy",
   "budget": 350,

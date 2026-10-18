@@ -20,6 +20,7 @@ import { EditorUI }       from '../ui/EditorUI.js';
 import { EditorSystem }   from '../editor/EditorSystem.js';
 import { VoxelTerrain }   from '../editor/VoxelTerrain.js';
 import { WindManager }        from '../environment/WindManager.js';
+import { WindParticles }      from '../environment/WindParticles.js';
 import { SirenManager }       from '../monsters/SirenManager.js';
 import { KrakenBoss }         from '../monsters/KrakenBoss.js';
 import { Sky }                from '../environment/Sky.js';
@@ -29,6 +30,8 @@ import { WeatherSystem }      from '../environment/WeatherSystem.js';
 import { DEBUG }              from '../utils/debug.js';
 import { LevelConfig }        from './LevelConfig.js';
 import { ShipRegistry, DEFAULT_SHIP_ID } from '../config/ShipRegistry.js';
+import { ShopRegistry, ItemType } from '../config/ShopRegistry.js';
+import { getAssetUrl } from '../utils/paths.js';
 import { emit, on, off, clear } from './EventBus.js';
 
 // ---------------------------------------------------------------------------
@@ -42,6 +45,7 @@ export const GamePhase = Object.freeze({
   OBSTACLE: 'OBSTACLE',
   RESULTS:  'RESULTS',
   EDITOR:   'EDITOR',
+  RESULTS:  'RESULTS',
 });
 
 // Mooring position & orientation at the West yard dock (T-head perpendicular berth across west pier terminus)
@@ -81,6 +85,12 @@ export class GameState {
     this.shipId        = 'sloop';
     this.abilityInventory = [];
 
+    // Economy and Shop System
+    this.coins = 350;
+    this.inventory = ['wheel_default', 'pedestal_lvl0', 'lantern_lvl1'];
+    this.equippedItems = ShopRegistry.getDefaultEquipped();
+    this._loadEconomy();
+
     // Phase-specific instances (null when not active)
     this._grid          = null;
     this._zones         = null;
@@ -117,6 +127,7 @@ export class GameState {
     this._editorUI        = new EditorUI();
     this._editorSystem    = null;
     this._windManager     = null;
+    this._dockWindParticles = null;
     this._sirenManager    = null;
     this._krakenBoss      = null;
     this._time            = 0;
@@ -124,6 +135,8 @@ export class GameState {
     this._sky.init(this._scene);
     this._weather         = new WeatherSystem();
     this._dockStall       = new DockStall();
+    this._hasDock         = true;
+    this._isCountdownActive = false;
     
     // Ship arrival cutscene state
     this._shipDocked = true;
@@ -183,6 +196,137 @@ export class GameState {
   }
 
   // -------------------------------------------------------------------------
+  // Economy & Shop System
+  // -------------------------------------------------------------------------
+
+  _loadEconomy() {
+    try {
+      const data = localStorage.getItem('boatload_economy');
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (typeof parsed.coins === 'number') this.coins = parsed.coins;
+        if (Array.isArray(parsed.inventory)) this.inventory = parsed.inventory;
+        if (parsed.equippedItems && typeof parsed.equippedItems === 'object') {
+          this.equippedItems = { ...this.equippedItems, ...parsed.equippedItems };
+        }
+      }
+    } catch (e) {
+      console.warn('[GameState] Could not load economy from localStorage:', e);
+    }
+  }
+
+  _saveEconomy() {
+    try {
+      const payload = {
+        coins: this.coins,
+        inventory: this.inventory,
+        equippedItems: this.equippedItems
+      };
+      localStorage.setItem('boatload_economy', JSON.stringify(payload));
+    } catch (e) {
+      console.warn('[GameState] Could not save economy to localStorage:', e);
+    }
+  }
+
+  addCoins(amount) {
+    if (typeof amount !== 'number' || isNaN(amount) || amount <= 0) return;
+    this.coins += Math.round(amount);
+    this._saveEconomy();
+    emit('economyUpdated', { coins: this.coins, inventory: this.inventory, equipped: this.equippedItems });
+  }
+
+  spendCoins(amount) {
+    if (typeof amount !== 'number' || isNaN(amount) || amount <= 0) return false;
+    if (this.coins < amount) return false;
+    this.coins -= Math.round(amount);
+    this._saveEconomy();
+    emit('economyUpdated', { coins: this.coins, inventory: this.inventory, equipped: this.equippedItems });
+    return true;
+  }
+
+  buyItem(itemId) {
+    const item = ShopRegistry.getItem(itemId);
+    if (!item) return false;
+    if (this.coins < item.cost) {
+      emit('playSound', { sound: 'qte_fail' });
+      return false;
+    }
+    this.coins -= item.cost;
+    if (!this.inventory.includes(itemId)) {
+      this.inventory.push(itemId);
+    }
+    this.equipItem(itemId);
+    emit('playSound', { sound: 'qte_success' });
+    this._saveEconomy();
+    emit('economyUpdated', { coins: this.coins, inventory: this.inventory, equipped: this.equippedItems });
+    return true;
+  }
+
+  equipItem(itemId) {
+    const item = ShopRegistry.getItem(itemId);
+    if (!item) return false;
+    if (!this.inventory.includes(itemId)) return false;
+
+    let category = null;
+    if (ShopRegistry.getItemsByType(ItemType.WHEEL).some(i => i.id === itemId)) {
+      category = ItemType.WHEEL;
+    } else if (ShopRegistry.getItemsByType(ItemType.PEDESTAL).some(i => i.id === itemId)) {
+      category = ItemType.PEDESTAL;
+    } else if (ShopRegistry.getItemsByType(ItemType.LANTERN).some(i => i.id === itemId)) {
+      category = ItemType.LANTERN;
+    }
+    if (!category) return false;
+
+    this.equippedItems[category] = itemId;
+    this._saveEconomy();
+    emit('economyUpdated', { coins: this.coins, inventory: this.inventory, equipped: this.equippedItems });
+    emit('itemsEquipped', { type: category, itemId, item });
+    return true;
+  }
+
+  isItemOwned(itemId) {
+    return this.inventory.includes(itemId);
+  }
+
+  getPedestalMultiplier() {
+    return ShopRegistry.getPedestalMultiplier(this.equippedItems?.pedestal);
+  }
+
+  getWheelStats() {
+    return ShopRegistry.getWheelStats(this.equippedItems?.wheel);
+  }
+
+  getLanternStats() {
+    return ShopRegistry.getLanternStats(this.equippedItems?.lantern);
+  }
+
+  async _enterResults(opts = {}) {
+    const day = this.day || 1;
+    const baseReward = 150 + day * 75;
+    const multiplier = this.getPedestalMultiplier();
+    const totalAwarded = Math.round(baseReward * multiplier);
+
+    // Deposit earned doubloons
+    this.addCoins(totalAwarded);
+
+    emit('uiMount', {
+      screen: 'results',
+      data: {
+        day,
+        baseReward,
+        multiplier,
+        bonusCoins: totalAwarded
+      }
+    });
+
+    emit('playSound', { sound: 'success' });
+  }
+
+  _exitResults() {
+    emit('uiUnmount', { screen: 'results' });
+  }
+
+  // -------------------------------------------------------------------------
   // Transition
   // -------------------------------------------------------------------------
 
@@ -195,13 +339,73 @@ export class GameState {
   async transition(newPhase, opts = {}, force = false) {
     if (this.currentPhase === newPhase && !force) return;
 
+    const skipLoading = opts?.skipLoading || false;
+    if (!skipLoading) {
+      const titles = {
+        [GamePhase.DOCK]: 'Mooring at Harbor',
+        [GamePhase.SHIPYARD]: 'Entering Shipyard',
+        [GamePhase.OBSTACLE]: 'Setting Sail',
+        [GamePhase.EDITOR]: 'Level Editor',
+        [GamePhase.MAIN_MENU]: 'Returning to Port',
+        [GamePhase.RESULTS]: 'Voyage Complete'
+      };
+
+      const messages = {
+        [GamePhase.DOCK]: 'Mooring vessel and preparing dockyard...',
+        [GamePhase.SHIPYARD]: 'Entering outfitting berth & inspecting hull...',
+        [GamePhase.OBSTACLE]: 'Navigating past treacherous waters & reefs...',
+        [GamePhase.EDITOR]: 'Charting map layout & terrain...',
+        [GamePhase.MAIN_MENU]: 'Returning to harbor tavern...',
+        [GamePhase.RESULTS]: 'Calculating voyage ledger & repairs...'
+      };
+
+      const loadingTitle = opts.loadingTitle || titles[newPhase] || 'Navigating Seas';
+      const loadingMessage = opts.loadingMessage || messages[newPhase] || 'Plotting course...';
+
+      emit('showLoading', { title: loadingTitle, message: loadingMessage, progress: 0.15 });
+    }
+
     this.nextPhase = newPhase;
     await this._onExit(this.currentPhase);
+    if (!skipLoading) emit('updateLoading', { progress: 0.45 });
+
     this.currentPhase = newPhase;
     this.nextPhase = null;
     await this._onEnter(newPhase, opts);
+    if (!skipLoading) emit('updateLoading', { progress: 0.88 });
+
+    // Ensure the 3D scene renders cleanly with character and camera in place before revealing
+    await new Promise(resolve => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(resolve);
+      });
+    });
+
+    if (!skipLoading) {
+      emit('updateLoading', { progress: 1.0 });
+    }
 
     emit('phaseChanged', { phase: newPhase });
+
+    if (!skipLoading) {
+      await new Promise(resolve => {
+        emit('hideLoading', { onDismissed: resolve });
+      });
+    }
+
+    // Now the loading screen is fully dismissed and the player is stably loaded and visible
+    if (newPhase === GamePhase.OBSTACLE) {
+      // Allow a brief pause (2 animation frames + 100ms) for the player to see their
+      // ship stably resting at the berth before the anchor countdown begins.
+      await new Promise(resolve => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            setTimeout(resolve, 100);
+          });
+        });
+      });
+      this._startAnchorCountdownSequence();
+    }
   }
 
   /**
@@ -216,6 +420,26 @@ export class GameState {
     if (this.currentPhase !== GamePhase.OBSTACLE || !this._sailSnapshot) return;
     const shipStats = { ...(this._obstacleOpts?.shipStats ?? {}) };
     await this.transition(GamePhase.OBSTACLE, { ...this._obstacleOpts, shipStats }, true);
+  }
+
+  _startAnchorCountdownSequence() {
+    if (this.currentPhase !== GamePhase.OBSTACLE || !this._playerShip) return;
+
+    this._isCountdownActive = true;
+    this._playerShip.halt();
+    this._playerShip.setImmune(9.0); // Departure grace immunity (6s countdown + 3s clear departure)
+
+    emit('startAnchorCountdown', {
+      duration: 6.0,
+      hasDock: this._hasDock,
+      onComplete: () => {
+        this._isCountdownActive = false;
+        if (this._playerShip) {
+          this._playerShip.resumeSpeed();
+          this._playerShip.setImmune(3.0);
+        }
+      }
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -234,6 +458,7 @@ export class GameState {
       case GamePhase.DOCK:
         if (this._dockStall) this._dockStall.update(delta, this._time);
         if (this._dockPlayerController) this._dockPlayerController.update(delta);
+        if (this._dockWindParticles && this._windManager) this._dockWindParticles.update(delta, this._windManager);
         if (this._dockOrbitControls && this._dockOrbitControls.enabled) this._dockOrbitControls.update();
         if (this._dockMooredGroup && this._dockMooredGroup.visible) {
           const isTruck = this._mooredShipProfile?.isGagTruck;
@@ -314,10 +539,12 @@ export class GameState {
         break;
 
       case GamePhase.OBSTACLE:
+        if (this._dockStall && this._hasDock) this._dockStall.update(delta, this._time);
         this._updateObstacle(delta);
         break;
 
       case GamePhase.EDITOR:
+        if (this._dockStall && this._hasDock) this._dockStall.update(delta, this._time);
         this._updateEditor(delta);
         break;
 
@@ -356,6 +583,10 @@ export class GameState {
         this._enterEditor(opts);
         break;
 
+      case GamePhase.RESULTS:
+        await this._enterResults(opts);
+        break;
+
       default:
         break;
     }
@@ -388,6 +619,10 @@ export class GameState {
 
       case GamePhase.EDITOR:
         this._exitEditor();
+        break;
+
+      case GamePhase.RESULTS:
+        this._exitResults();
         break;
 
       default:
@@ -466,13 +701,12 @@ export class GameState {
       this._dockMooredGroup.scale.setScalar(s);
 
       // Moored at the West Shipyard Outfitting Dock (opposite end of the island)
-      // Pier extends west to X = -65.9, centered along Z = 14.5
-      const pierTerminusX = -50.9;
-      const pierCenterZ = 10.5;
+      const pierTerminusX = -54.0;
+      const pierCenterZ = 12.0;
       const halfBeam = (this._grid?.width || 24) * s * 0.5;
       const draft = (shipProfile.waterlineY || 4) * s;
       
-      this._dockMooredTargetPos = new THREE.Vector3(pierTerminusX - halfBeam - 0.4, -draft, pierCenterZ);
+      this._dockMooredTargetPos = new THREE.Vector3(pierTerminusX - halfBeam - 0.8, -draft, pierCenterZ);
       // Cubic Bezier curve control points:
       // P0: Off-screen to the far right (+X, seaward)
       // P1: Gliding seaward from the east channel towards the shopfront at the same distance (Z = -20)
@@ -526,7 +760,7 @@ export class GameState {
     this._ocean.breakwaterEnabled = true;
 
     // Load and apply weather
-    await this._weather.loadLevel(this.day, {
+    const weatherResult = await this._weather.loadLevel(this.day, {
       ambient: this._ambient,
       sun: this._sun,
       ocean: this._ocean,
@@ -534,6 +768,14 @@ export class GameState {
       lanternLight: this._dockStall.lanternLight,
       scene: this._scene
     });
+
+    // Wind particles and wind manager on island for this day
+    const dayCfg = weatherResult?.levelData || payload?.levelCfg || this._levelCfg || {};
+    this._windManager = new WindManager(dayCfg);
+    if (this._dockWindParticles) {
+      this._dockWindParticles.dispose();
+    }
+    this._dockWindParticles = new WindParticles(this._scene, 140, 55, new THREE.Vector3(-20, 0, 0));
 
     // Moveable Player Camera
     this._dockPlayerController = new DockPlayerController(this._scene, this._camera, this._renderer.domElement, this._dockStall);
@@ -545,12 +787,14 @@ export class GameState {
     this._dockOrbitControls.target.set(0, 2, 0);
     this._dockOrbitControls.enabled = false;
 
-    // Trigger cutscene & dialogue when Level 1 is chosen in the logbook
+    // Trigger cutscene & dialogue when a level is chosen in the logbook
     this._startLevelCutscene = () => {
-      if (this._dockShipArrived || this._shipArriving) return;
+      if (this._shipArriving) return;
+      this._dockShipArrived = false;
+      this._shipDocked = false;
 
-      // Start 2D humanoid sprite walk animation from island to counter
-      if (this._dockStall && this._dockStall.dockNPC) {
+      // Start 2D humanoid sprite walk animation from island to counter if not already at counter
+      if (this._dockStall && this._dockStall.dockNPC && !this._dockStall.dockNPC.hasArrived) {
         this._dockStall.dockNPC.startWalkToCounter(() => {
           this._triggerShipArrivalAndDialogue();
         });
@@ -575,13 +819,13 @@ export class GameState {
           this._dockStall.shipInteractables = [this._dockMooredGroup];
         }
 
-        const shipName = shipProfile?.name || 'Vessel';
+        const shipName = this._mooredShipProfile?.name || shipProfile?.name || 'Vessel';
         emit('showDialogue', {
           dialogue: {
-            portrait: '<img src="/assets/npc/custom_npc.png" alt="Captain Barlow" />',
+            portrait: `<img src="${getAssetUrl('assets/npc/custom_npc.png')}" alt="Captain Barlow" />`,
             name: 'Captain Barlow',
             lines: [
-              `Ahoy there shipwright! We ran into treacherous hazards offshore!`,
+              `Ahoy there shipwright! We ran into treacherous hazards offshore on Day ${this.day}!`,
               `Look out your shop window—my crew is navigating the ${shipName} to the pier now!`,
               `Head out and board her at the dock to repair her hull before we set sail again!`
             ]
@@ -592,8 +836,98 @@ export class GameState {
 
     this._onLevelSelected = async (data) => {
       const day = data?.day || 1;
+      emit('showLoading', {
+        title: `Summoning Day ${day}`,
+        message: `Preparing vessel & harbor conditions...`,
+        progress: 0.15
+      });
       this.day = day;
 
+      // 1. Fetch level config & ship definition for selected day
+      const level = await LevelConfig.load(day);
+      this._levelCfg = level.levelCfg;
+      this._shipDef = level.shipDef;
+      emit('updateLoading', { progress: 0.45 });
+
+      // 2. Identify active ship & profile (Day 3 specifies 'sloop')
+      const activeShipId = this._levelCfg?.ship || this._shipDef?.id || 'sloop';
+      const activeShipDef = LevelConfig.getShipDef(activeShipId);
+      const shipProfile = ShipRegistry.get(activeShipId);
+      this._mooredShipProfile = shipProfile;
+      this._currentShipId = activeShipId;
+      this._lastDockLevel = activeShipId;
+      this._lastDockDay = this.day;
+
+      // 3. Reset ship arrival state so cutscene replays
+      this._dockShipArrived = false;
+      this._shipDocked = false;
+      this._shipArriving = false;
+
+      // 4. Rebuild the ship voxel grid and models for the selected day
+      const { grid, zones, def, gltfScene } = await ShipBuilder.build(activeShipDef, this._levelCfg);
+      this._grid = grid;
+      this._zones = zones;
+
+      if (this._chunkRenderer) {
+        this._chunkRenderer.dispose(this._scene);
+        this._chunkRenderer = null;
+      }
+      this._chunkRenderer = new ChunkRenderer();
+      this._chunkRenderer.init(grid, this._scene, gltfScene);
+
+      if (!this._dockMooredGroup) {
+        this._dockMooredGroup = new THREE.Group();
+        this._dockMooredGroup.name = 'dockMooredGroup';
+        this._scene.add(this._dockMooredGroup);
+      } else {
+        while (this._dockMooredGroup.children.length > 0) {
+          this._dockMooredGroup.remove(this._dockMooredGroup.children[0]);
+        }
+      }
+
+      this._dockMooredGroup.add(this._chunkRenderer.container);
+      this._chunkRenderer.container.visible = true;
+
+      const cx = (this._grid?.width || 24) * 0.5;
+      const cz = (this._grid?.depth || 48) * 0.5;
+      this._chunkRenderer.container.position.set(-cx, 0, -cz);
+      this._chunkRenderer.container.rotation.set(0, 0, 0);
+      this._chunkRenderer.container.scale.set(1, 1, 1);
+
+      const s = shipProfile.scale || 0.12;
+      this._dockMooredGroup.scale.setScalar(s);
+
+      const pierTerminusX = -54.0;
+      const pierCenterZ = 12.0;
+      const halfBeam = (this._grid?.width || 24) * s * 0.5;
+      const draft = (shipProfile.waterlineY || 4) * s;
+
+      this._dockMooredTargetPos = new THREE.Vector3(pierTerminusX - halfBeam - 0.8, -draft, pierCenterZ);
+      this._dockMooredP0 = new THREE.Vector3(55.0, -draft, -27.0);
+      this._dockMooredP1 = new THREE.Vector3(15.0, -draft, -20.0);
+      this._dockMooredP2 = new THREE.Vector3(-82.0, -draft, -20.0);
+
+      this._dockMooredGroup.userData.isMooredShip = true;
+      this._chunkRenderer.container.userData.isMooredShip = true;
+      this._chunkRenderer.container.traverse(c => {
+        c.userData.isMooredShip = true;
+      });
+
+      this._dockMooredGroup.position.copy(this._dockMooredP0);
+      this._dockMooredGroup.rotation.set(0, Math.atan2(this._dockMooredP1.x - this._dockMooredP0.x, this._dockMooredP1.z - this._dockMooredP0.z), 0);
+      this._dockMooredGroup.visible = false;
+
+      // 5. Update stall interactables & repair state
+      const integrity = this._grid ? DamageSystem.getSummary(this._grid).integrityPct : 100;
+      if (this._dockStall) {
+        this._dockStall.shipNeedsRepair = integrity < 100;
+        this._dockStall.activeShipProfile = shipProfile;
+        this._dockStall.shipInteractables = [];
+      }
+
+      emit('updateLoading', { progress: 0.75 });
+
+      // 6. Update weather & lighting for selected day
       if (this._weather) {
         await this._weather.loadLevel(this.day, {
           ambient: this._ambient,
@@ -605,6 +939,15 @@ export class GameState {
         });
       }
 
+      // Update island wind for selected day
+      this._windManager = new WindManager(this._levelCfg || {});
+      if (!this._dockWindParticles) {
+        this._dockWindParticles = new WindParticles(this._scene, 140, 55, new THREE.Vector3(-20, 0, 0));
+      }
+      emit('updateLoading', { progress: 1.0 });
+      emit('hideLoading');
+
+      // 7. Start arrival cutscene
       this._startLevelCutscene();
     };
     on('levelSelected', this._onLevelSelected);
@@ -615,6 +958,10 @@ export class GameState {
     on('dockPlayerEnteredShop', this._onDockPlayerEnteredShop);
 
     emit('uiMount', { screen: 'dock', dockStall: this._dockStall, gameState: this, dockPlayerController: this._dockPlayerController });
+
+    if (opts?.openShop) {
+      setTimeout(() => emit('openShopUI'), 300);
+    }
   }
 
   _exitDock() {
@@ -628,7 +975,7 @@ export class GameState {
     }
     emit('hideDialogue');
 
-    if (this.nextPhase !== GamePhase.SHIPYARD) {
+    if (this.nextPhase !== GamePhase.SHIPYARD && this.nextPhase !== GamePhase.OBSTACLE) {
       this._scene.remove(this._dockStall.group);
       this._ocean.breakwaterEnabled = false;
     }
@@ -659,6 +1006,10 @@ export class GameState {
     if (this._dockOrbitControls) {
       this._dockOrbitControls.dispose();
       this._dockOrbitControls = null;
+    }
+    if (this._dockWindParticles) {
+      this._dockWindParticles.dispose();
+      this._dockWindParticles = null;
     }
     this.activeCamera = null;
     emit('uiUnmount', { screen: 'dock' });
@@ -899,7 +1250,7 @@ export class GameState {
         ...summary,
         leaks,
         shipName: profile?.name || activeShipDef?.name || 'Vessel',
-        shipIcon: profile?.icon || '⛵'
+        shipIcon: profile?.icon || '<span class="pixel-icon icon-sloop size-20"></span>'
       });
     };
 
@@ -964,7 +1315,7 @@ export class GameState {
   }
 
   _exitShipyard() {
-    if (this.nextPhase !== GamePhase.DOCK) {
+    if (this.nextPhase !== GamePhase.DOCK && this.nextPhase !== GamePhase.OBSTACLE) {
       this._scene.remove(this._dockStall.group);
       this._ocean.breakwaterEnabled = false;
     }
@@ -1120,6 +1471,10 @@ export class GameState {
       this._dockMooredGroup = null;
     }
 
+    if (this._weather?.rainMesh) {
+      this._weather.rainMesh.visible = false;
+    }
+
     const activeShipId = shipDef?.id || levelCfg?.ship || this._levelCfg?.ship || DEFAULT_SHIP_ID;
     const activeShipDef = shipDef || LevelConfig.getShipDef(activeShipId);
     const profile = ShipRegistry.get(activeShipId);
@@ -1149,6 +1504,26 @@ export class GameState {
       this._chunkRenderer.container.visible = true;
     }
 
+    const hasDock = levelCfg?.hasDock !== false && this._levelCfg?.hasDock !== false;
+    this._hasDock = hasDock;
+
+    if (hasDock) {
+      const stallGroup = this._dockStall.build();
+      if (stallGroup.parent !== this._scene) {
+        this._scene.add(stallGroup);
+      }
+      if (this._ocean) {
+        this._ocean.breakwaterEnabled = true;
+      }
+    } else {
+      if (this._dockStall?.group && this._dockStall.group.parent === this._scene) {
+        this._scene.remove(this._dockStall.group);
+      }
+      if (this._ocean) {
+        this._ocean.breakwaterEnabled = false;
+      }
+    }
+
     const camDist = profile.cameraDist ?? 16;
     const camHeight = profile.cameraHeight ?? 5;
 
@@ -1157,7 +1532,15 @@ export class GameState {
     let spawnY = 0;
     let spawnZ = 0;
     let spawnRot = 0;
-    if (spawnConfig) {
+
+    if (hasDock) {
+      const s = profile.scale || 0.12;
+      const halfBeam = ((this._grid?.width || 24) * 0.5) * s;
+      spawnX = this._dockMooredTargetPos ? this._dockMooredTargetPos.x : (-54.0 - halfBeam - 0.8);
+      spawnY = 0;
+      spawnZ = this._dockMooredTargetPos ? this._dockMooredTargetPos.z : 12.0;
+      spawnRot = -0.15; // Angled outward into open sea fairway away from island bluffs
+    } else if (spawnConfig) {
       if (spawnConfig.position) {
         spawnX = spawnConfig.position.x ?? 0;
         spawnY = spawnConfig.position.y ?? 0;
@@ -1218,13 +1601,21 @@ export class GameState {
       isDirectorActive: () => Boolean(window.directorMode?.isActive),
     });
 
+    const wheelStats = this.getWheelStats();
+    const lanternStats = this.getLanternStats();
+    const pedestalMultiplier = this.getPedestalMultiplier();
+
     const effectiveShipStats = {
       ...(shipStats || {}),
       profile,
       scale: profile.scale,
       speedMultiplier: profile.speedMultiplier,
-      turnAccel: profile.turnAccel,
-      turnDamping: profile.turnDamping,
+      turnAccel: wheelStats?.turnAccel ?? profile.turnAccel ?? 2.0,
+      turnDamping: wheelStats?.turnDamping ?? profile.turnDamping ?? 3.0,
+      sirenResistance: wheelStats?.sirenResistance ?? 0,
+      wheelStats,
+      lanternStats,
+      pedestalMultiplier,
       isGagTruck: profile.isGagTruck,
       waterCapacity: profile.waterCapacity,
       waterlineY: profile.waterlineY,
@@ -1236,6 +1627,7 @@ export class GameState {
     };
 
     this._playerShip = new PlayerShip(effectiveShipStats, this._scene, this._chunkRenderer, this._grid, this._qteSystem);
+    this._playerShip.setImmune(9.0); // Full immunity during anchor countdown + initial departure
     if (spawnX !== 0 || spawnY !== 0 || spawnZ !== 0) {
       this._playerShip.mesh.position.set(spawnX, spawnY, spawnZ);
     }
@@ -1256,6 +1648,18 @@ export class GameState {
     
     this._windManager = new WindManager(levelCfg);
 
+    // Pre-settle ship stably on ocean surface and orient camera
+    if (this._playerShip && this._ocean) {
+      this._playerShip.update(0.016, this._ocean, this._windManager);
+      this._playerShip.halt();
+      const p = this._playerShip.mesh.position;
+      const baseCam = p.clone().add(shipDir.clone().multiplyScalar(-camDist));
+      baseCam.y = p.y + camHeight;
+      this._camera.position.copy(baseCam);
+      this._camLookTarget = p.clone();
+      this._camera.lookAt(this._camLookTarget);
+    }
+
     // Kraken Boss (only if level defines one)
     if (levelCfg.kraken) {
       this._krakenBoss = new KrakenBoss();
@@ -1272,6 +1676,7 @@ export class GameState {
     this._buildEndLocationVisual(this._endLocation);
 
     this._onSteer = (d) => {
+      if (this._isCountdownActive) return;
       if (this._playerShip) {
         this._playerShip.steerInput = d.value;
       }
@@ -1312,9 +1717,17 @@ export class GameState {
     this._wasCinematicActive = false;
     this.score = 0;
     emit('uiMount', { screen: 'obstacle' });
+
+    // Anchor Hoisting Countdown state before casting off
+    this._hasDock = hasDock;
+    this._isCountdownActive = true;
+    this._playerShip?.halt();
   }
 
   _updateObstacle(delta) {
+    if (this._isCountdownActive && this._playerShip) {
+      this._playerShip.halt();
+    }
     this._qteSystem?.update(delta);
     // Pass WindManager instead of static windDir
     this._playerShip?.update(delta, this._ocean, this._windManager);
@@ -1526,7 +1939,7 @@ export class GameState {
     ctx.font = 'bold 22px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('🏁 SAFE HARBOR', 128, 32);
+    ctx.fillText('SAFE HARBOR', 128, 32);
 
     const texture = new THREE.CanvasTexture(canvas);
     const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
@@ -1547,6 +1960,16 @@ export class GameState {
   }
 
   _exitObstacle() {
+    emit('cancelAnchorCountdown');
+    this._isCountdownActive = false;
+
+    if (this._dockStall?.group && this._dockStall.group.parent === this._scene) {
+      this._scene.remove(this._dockStall.group);
+    }
+    if (this._ocean) {
+      this._ocean.breakwaterEnabled = false;
+    }
+
     off('steer', this._onSteer);
     if (DEBUG) off('qteDebugTrigger', this._onDebugQTE);
     off('cannonFire', this._onCannonFire);
@@ -1653,21 +2076,59 @@ export class GameState {
   _enterEditor({ levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel }) {
     this._levelCfg = levelCfg;
 
-    // Ensure the dock/shipyard island environment and breakwater are not active in the editor
-    if (this._dockStall?.group && this._dockStall.group.parent === this._scene) {
-      this._scene.remove(this._dockStall.group);
+    const hasDock = levelCfg?.hasDock !== false && this._levelCfg?.hasDock !== false;
+    this._hasDock = hasDock;
+
+    if (hasDock) {
+      const stallGroup = this._dockStall.build();
+      if (stallGroup.parent !== this._scene) {
+        this._scene.add(stallGroup);
+      }
+      if (this._ocean) {
+        this._ocean.breakwaterEnabled = true;
+      }
+    } else {
+      if (this._dockStall?.group && this._dockStall.group.parent === this._scene) {
+        this._scene.remove(this._dockStall.group);
+      }
+      if (this._ocean) {
+        this._ocean.breakwaterEnabled = false;
+      }
     }
-    if (this._ocean) {
-      this._ocean.breakwaterEnabled = false;
-    }
+
+    this._onEditorToggleDock = ({ hasDock }) => {
+      this._hasDock = Boolean(hasDock);
+      if (this._hasDock) {
+        const stallGroup = this._dockStall.build();
+        if (stallGroup.parent !== this._scene) {
+          this._scene.add(stallGroup);
+        }
+        if (this._ocean) {
+          this._ocean.breakwaterEnabled = true;
+        }
+      } else {
+        if (this._dockStall?.group && this._dockStall.group.parent === this._scene) {
+          this._scene.remove(this._dockStall.group);
+        }
+        if (this._ocean) {
+          this._ocean.breakwaterEnabled = false;
+        }
+      }
+    };
+    on('editorToggleDock', this._onEditorToggleDock);
 
     if (this._chunkRenderer && this._chunkRenderer.container) {
       this._chunkRenderer.container.visible = false;
       this._chunkRenderer.container.position.set(0, -999, 0);
     }
 
-    this._camera.position.set(0, 30, 0);
-    this._camera.lookAt(0, 0, -5);
+    if (hasDock) {
+      this._camera.position.set(-35, 30, 35);
+      this._camera.lookAt(-35, 0, 5);
+    } else {
+      this._camera.position.set(0, 30, 20);
+      this._camera.lookAt(0, 0, -5);
+    }
     
     if (this._ocean) {
       this._ocean.setWorldSize(levelCfg?.worldSize || 200);
@@ -1679,7 +2140,11 @@ export class GameState {
       MIDDLE: THREE.MOUSE.PAN,
       RIGHT: THREE.MOUSE.ROTATE
     };
-    this._orbitControls.target.set(0, 0, -5);
+    if (hasDock) {
+      this._orbitControls.target.set(-35, 0, 5);
+    } else {
+      this._orbitControls.target.set(0, 0, -5);
+    }
     this._orbitControls.update();
 
     this._editorSystem = new EditorSystem();
@@ -1693,6 +2158,9 @@ export class GameState {
       if (d?.preset === 'top') {
         this._camera.position.set(0, 100, 0.01);
         this._orbitControls.target.set(0, 0, 0);
+      } else if (d?.preset === 'harbor') {
+        this._camera.position.set(-52, 14, 28);
+        this._orbitControls.target.set(-52, 1, 10);
       } else if (d?.preset === 'horizon') {
         this._camera.position.set(0, 8, 30);
         this._orbitControls.target.set(0, 4, -40);
@@ -1700,8 +2168,13 @@ export class GameState {
         this._camera.position.set(50, 60, 50);
         this._orbitControls.target.set(0, 0, 0);
       } else { // default
-        this._camera.position.set(0, 30, 20);
-        this._orbitControls.target.set(0, 0, -5);
+        if (this._hasDock) {
+          this._camera.position.set(-35, 30, 35);
+          this._orbitControls.target.set(-35, 0, 5);
+        } else {
+          this._camera.position.set(0, 30, 20);
+          this._orbitControls.target.set(0, 0, -5);
+        }
       }
       this._orbitControls.update();
     };
@@ -1750,6 +2223,17 @@ export class GameState {
     if (this._onEditorCameraPreset) {
       off('editorCameraPreset', this._onEditorCameraPreset);
       this._onEditorCameraPreset = null;
+    }
+    if (this._onEditorToggleDock) {
+      off('editorToggleDock', this._onEditorToggleDock);
+      this._onEditorToggleDock = null;
+    }
+
+    if (this._dockStall?.group && this._dockStall.group.parent === this._scene) {
+      this._scene.remove(this._dockStall.group);
+    }
+    if (this._ocean) {
+      this._ocean.breakwaterEnabled = false;
     }
 
     this._editorSystem?.dispose();

@@ -59,6 +59,7 @@ test('authored damage in every day config maps to the intended docket zones', as
   for (const filename of filenames) {
     const level = JSON.parse(await readFile(new URL(filename, levelsUrl), 'utf8'));
     const grid = new VoxelGrid(ship.grid.x, ship.grid.y, ship.grid.z);
+    grid.data.fill(CellState.INTACT);
 
     for (const entry of level.damage) {
       for (const [x, y, z] of entry.cells) {

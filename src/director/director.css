@@ -1,8 +1,8 @@
 /* ==========================================================================
-   BoatLoad — Director Mode Cinema Deck & Film Rig Styles
+   BoatLoad — Director Mode Cinema Deck & Film Rig Styles (Pixel-Art Board Edition)
    ========================================================================== */
 
-/* Floating Launch Pill Button */
+/* Floating Launch Plaque Button */
 #director-launch-btn {
   position: fixed;
   top: 14px;
@@ -11,29 +11,28 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 14px;
-  background: rgba(13, 23, 38, 0.85);
-  border: 1px solid rgba(212, 175, 55, 0.45);
-  border-radius: 20px;
-  color: #f3e3b4;
+  padding: 6px 14px;
+  background: #181109;
+  border: 2px solid #b8860b;
+  border-radius: 0;
+  color: #ffd700;
   font-family: 'Cinzel', serif;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1px;
   text-transform: uppercase;
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(8px);
-  transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 230, 140, 0.3);
+  transition: all 0.15s ease;
   pointer-events: auto;
 }
 
 #director-launch-btn:hover {
-  background: rgba(22, 38, 62, 0.95);
-  border-color: #d4af37;
-  color: #fff;
-  transform: translateY(-1px) scale(1.02);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6), 0 0 12px rgba(212, 175, 55, 0.3);
+  background: #2b1d0e;
+  border-color: #ffe082;
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.95), 0 0 10px rgba(255, 215, 0, 0.4);
 }
 
 #director-launch-btn .icon {
@@ -44,9 +43,9 @@
 #director-launch-btn .key-badge {
   font-family: monospace;
   font-size: 10px;
-  background: rgba(212, 175, 55, 0.2);
-  border: 1px solid rgba(212, 175, 55, 0.4);
-  border-radius: 4px;
+  background: #0d0804;
+  border: 1px solid #8c6507;
+  border-radius: 0;
   padding: 1px 5px;
   color: #ffe082;
 }
@@ -68,42 +67,45 @@
   pointer-events: none !important;
 }
 
-/* Top Director Bar */
+/* Top Director Transom Plaque */
 .director-top-bar {
   position: absolute;
-  top: 12px;
+  top: 10px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: 12px;
-  background: rgba(10, 18, 30, 0.9);
-  border: 1px solid rgba(212, 175, 55, 0.4);
-  border-radius: 12px;
-  padding: 6px 16px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(14px);
+  border-style: solid;
+  border-width: 14px;
+  border-image: url('/assets/ui/frames/frame_main_menu_plaque.png') 32 fill stretch;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  border-radius: 0;
+  padding: 2px 14px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.9);
   pointer-events: auto;
   z-index: 10000;
+  background: #150f07;
 }
 
 .director-title-badge {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 800;
   color: #f3e3b4;
   letter-spacing: 1px;
   padding-right: 12px;
-  border-right: 1px solid rgba(255, 255, 255, 0.15);
+  border-right: 1px solid rgba(212, 175, 55, 0.3);
 }
 
 .director-title-badge .rec-dot {
   width: 9px;
   height: 9px;
   background: #ff3344;
-  border-radius: 50%;
+  border-radius: 0;
   box-shadow: 0 0 8px #ff3344;
   animation: director-pulse 1.8s infinite;
 }
@@ -115,18 +117,18 @@
 
 .director-state-tag {
   font-family: monospace;
-  font-size: 11px;
-  padding: 2px 7px;
-  border-radius: 4px;
-  background: rgba(56, 189, 248, 0.15);
-  border: 1px solid rgba(56, 189, 248, 0.4);
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 0;
+  background: #0b1420;
+  border: 1px solid #38bdf8;
   color: #7dd3fc;
   font-weight: 700;
 }
 
 .director-state-tag.halted {
-  background: rgba(239, 68, 68, 0.18);
-  border-color: rgba(239, 68, 68, 0.5);
+  background: #240a0a;
+  border-color: #ef4444;
   color: #fca5a5;
 }
 
@@ -138,41 +140,44 @@
 }
 
 .director-btn {
-  background: rgba(25, 40, 60, 0.7);
-  border: 1px solid rgba(212, 175, 55, 0.3);
-  border-radius: 6px;
+  background: #1b2636;
+  border: 2px solid;
+  border-color: #3b4e68 #0a0f16 #070a0f #2c3c52;
+  border-radius: 0;
   color: #f1f5f9;
-  font-family: inherit;
-  font-size: 11px;
-  font-weight: 600;
+  font-family: 'Cinzel', serif;
+  font-size: 10.5px;
+  font-weight: 700;
   padding: 5px 10px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  transition: all 0.18s ease;
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.12), 0 2px 0 #000;
+  transition: all 0.12s ease;
+  user-select: none;
 }
 
 .director-btn:hover {
-  background: rgba(45, 75, 115, 0.85);
-  border-color: #d4af37;
+  background: #27384e;
+  border-color: #ffd700 #4d3a0e #332609 #c49e29;
   color: #fff;
   transform: translateY(-1px);
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.2), 0 3px 0 #000;
 }
 
 .director-btn:active, .director-btn.active {
-  background: #d4af37;
-  border-color: #ffe082;
-  color: #0b1320;
-  font-weight: 700;
-  box-shadow: 0 0 10px rgba(212, 175, 55, 0.45);
+  background: #4a3410;
+  border-color: #8c6507 #ffd700 #ffe082 #6b4d05;
+  color: #ffd700;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.8);
+  transform: translateY(1px);
 }
 
 .director-btn.btn-halt.active {
-  background: #ef4444;
-  border-color: #f87171;
+  background: #7a1515;
+  border-color: #ff5555;
   color: #fff;
-  box-shadow: 0 0 12px rgba(239, 68, 68, 0.5);
 }
 
 .director-speed-slider-wrap {
@@ -197,22 +202,25 @@
   align-items: center;
   gap: 8px;
   padding-left: 10px;
-  border-left: 1px solid rgba(255, 255, 255, 0.15);
+  border-left: 1px solid rgba(212, 175, 55, 0.3);
 }
 
-/* Floating Bottom Cinema Deck */
+/* Floating Bottom Cinema Deck — Framed Chalkboard Slate */
 .director-deck {
   position: absolute;
-  bottom: 16px;
+  bottom: 12px;
   left: 50%;
   transform: translateX(-50%);
-  width: 860px;
-  max-width: 95vw;
-  background: rgba(10, 18, 30, 0.92);
-  border: 1px solid rgba(212, 175, 55, 0.45);
-  border-radius: 14px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(18px);
+  width: 880px;
+  max-width: 96vw;
+  border-style: solid;
+  border-width: 22px;
+  border-image: url('/assets/ui/frames/frame_chalkboard_slate_256.png') 30 fill stretch !important;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  border-radius: 0;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.95), 0 0 24px rgba(0, 0, 0, 0.7);
+  background: #101722;
   pointer-events: auto;
   overflow: hidden;
   display: flex;
@@ -222,7 +230,7 @@
 }
 
 .director-deck.minimized {
-  transform: translateX(-50%) translateY(calc(100% - 38px));
+  transform: translateX(-50%) translateY(calc(100% - 46px));
 }
 
 /* Deck Header / Tabs */
@@ -230,9 +238,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: rgba(7, 13, 22, 0.85);
-  border-bottom: 1px solid rgba(212, 175, 55, 0.25);
-  padding: 4px 12px;
+  background: rgba(8, 12, 18, 0.85);
+  border-bottom: 2px solid #3a2614;
+  padding: 2px 8px 4px 8px;
 }
 
 .director-tabs {
@@ -241,28 +249,33 @@
 }
 
 .director-tab-btn {
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  padding: 7px 14px;
-  font-family: inherit;
+  background: #151d29;
+  border: 2px solid;
+  border-color: #2e3e54 #0c1219 #070b10 #243244;
+  border-bottom: none;
+  border-radius: 0;
+  padding: 5px 12px;
+  font-family: 'Cinzel', serif;
   font-size: 11px;
   font-weight: 700;
-  color: #94a3b8;
-  letter-spacing: 0.5px;
+  color: #8fa2b8;
+  letter-spacing: 0.8px;
   text-transform: uppercase;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
 }
 
 .director-tab-btn:hover {
+  background: #1f2c3d;
   color: #f1f5f9;
+  border-top-color: #ffd700;
 }
 
 .director-tab-btn.active {
-  color: #f3e3b4;
-  border-bottom-color: #d4af37;
-  text-shadow: 0 0 8px rgba(212, 175, 55, 0.4);
+  background: #253449;
+  border-color: #ffd700 #101722 #253449 #ffd700;
+  color: #ffd700;
+  text-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
 }
 
 .director-deck-controls {
@@ -273,11 +286,12 @@
 
 /* Deck Tab Panels */
 .director-deck-body {
-  padding: 14px 18px;
+  padding: 12px 14px;
   max-height: 250px;
   overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: rgba(212, 175, 55, 0.4) transparent;
+  scrollbar-color: #ffd700 #0b111a;
+  background: #0f1520;
 }
 
 .director-tab-panel {
@@ -292,27 +306,34 @@
 .rig-layout-grid {
   display: grid;
   grid-template-columns: 240px 1fr 200px;
-  gap: 16px;
+  gap: 14px;
   align-items: start;
 }
 
+/* Column Cards — Inset Pixel Slate Panels */
 .rig-col-card {
-  background: rgba(18, 30, 48, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  padding: 10px 12px;
+  background: #111824;
+  border: 2px solid;
+  border-color: #2b3a4f #090e16 #05080d #222f40;
+  border-radius: 0;
+  box-shadow: inset 1px 1px 0 rgba(212, 175, 55, 0.2), inset -1px -1px 0 rgba(0, 0, 0, 0.7), 0 3px 6px rgba(0, 0, 0, 0.6);
+  padding: 9px 12px;
 }
 
 .rig-col-title {
+  font-family: 'Cinzel', serif;
   font-size: 10px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.8px;
-  color: #d4af37;
+  color: #ffd700;
   margin-bottom: 8px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  border-bottom: 1px solid #1f2c3d;
+  padding-bottom: 4px;
+  text-shadow: 0 1px 2px #000;
 }
 
 /* Camera Rig Movement Buttons */
@@ -323,52 +344,54 @@
 }
 
 .rig-sub-cluster {
-  background: rgba(14, 23, 37, 0.75);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 7px;
-  padding: 8px 6px;
+  background: #0d131c;
+  border: 2px solid #1d2836;
+  border-radius: 0;
+  padding: 7px 6px;
 }
 
 .camera-dpad-btn {
-  background: rgba(28, 44, 68, 0.85);
-  border: 1px solid rgba(212, 175, 55, 0.3);
-  border-radius: 5px;
+  background: #1b2636;
+  border: 2px solid;
+  border-color: #364860 #0c1219 #070a0f #293749;
+  border-radius: 0;
   color: #cbd5e1;
   font-family: inherit;
   font-size: 10px;
-  font-weight: 600;
-  padding: 7px 3px;
+  font-weight: 700;
+  padding: 6px 3px;
   text-align: center;
   cursor: pointer;
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.1), 0 2px 0 #000;
   transition: background 0.1s ease, transform 0.1s ease, box-shadow 0.1s ease;
   user-select: none;
   touch-action: none;
 }
 
 .camera-dpad-btn:hover {
-  background: rgba(45, 75, 115, 0.95);
-  border-color: #d4af37;
+  background: #27384e;
+  border-color: #ffd700;
   color: #fff;
 }
 
 .camera-dpad-btn:active, .camera-dpad-btn.pressed {
-  background: #d4af37 !important;
-  border-color: #ffe082 !important;
+  background: #b8860b !important;
+  border-color: #ffd700 !important;
   color: #0b1320 !important;
   font-weight: 800 !important;
-  box-shadow: 0 0 14px rgba(212, 175, 55, 0.7) !important;
-  transform: scale(0.95);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.8) !important;
+  transform: translateY(1px);
 }
 
 .camera-dpad-btn.btn-stop-move {
-  background: rgba(185, 28, 28, 0.35);
-  border-color: rgba(239, 68, 68, 0.5);
+  background: #4a1313;
+  border-color: #ef4444;
   color: #fca5a5;
   font-size: 12px;
 }
 
 .camera-dpad-btn.btn-stop-move:hover {
-  background: rgba(239, 68, 68, 0.6);
+  background: #6e1c1c;
   color: #fff;
 }
 
@@ -380,12 +403,12 @@
 }
 
 .shot-preset-btn {
-  background: rgba(25, 40, 62, 0.65);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 5px;
+  background: #17212e;
+  border: 2px solid #28374a;
+  border-radius: 0;
   color: #94a3b8;
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 700;
   padding: 6px 8px;
   cursor: pointer;
   text-align: left;
@@ -393,7 +416,7 @@
 }
 
 .shot-preset-btn:hover {
-  background: rgba(35, 60, 95, 0.8);
+  background: #223247;
   border-color: #38bdf8;
   color: #e2e8f0;
 }
@@ -437,9 +460,9 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  background: rgba(14, 22, 35, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+  background: #0d131c;
+  border: 2px solid #243244;
+  border-radius: 0;
   padding: 8px 12px;
   min-height: 52px;
   overflow-x: auto;
@@ -449,29 +472,29 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: rgba(30, 48, 75, 0.8);
-  border: 1px solid rgba(212, 175, 55, 0.35);
-  border-radius: 6px;
+  background: #1c2738;
+  border: 2px solid #364860;
+  border-radius: 0;
   padding: 4px 8px;
   font-size: 10.5px;
   font-family: monospace;
   color: #f1f5f9;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
   white-space: nowrap;
 }
 
 .keyframe-chip:hover {
-  border-color: #d4af37;
-  background: rgba(45, 75, 115, 0.9);
-  transform: translateY(-2px);
+  border-color: #ffd700;
+  background: #27384e;
+  transform: translateY(-1px);
 }
 
 .keyframe-chip.active {
-  background: #d4af37;
+  background: #b8860b;
   color: #0b1320;
-  font-weight: 700;
-  border-color: #fff;
+  font-weight: 800;
+  border-color: #ffd700;
 }
 
 .keyframe-chip .del-kf {
@@ -509,7 +532,7 @@
 #director-letterbox-bottom { bottom: 0; }
 
 #director-letterbox-top.active-cinemascope, #director-letterbox-bottom.active-cinemascope {
-  height: 12.5vh; /* 2.39:1 Anamorphic ratio on 16:9 screen */
+  height: 12.5vh;
 }
 
 #director-letterbox-top.active-academy, #director-letterbox-bottom.active-academy {
@@ -557,18 +580,21 @@
   bottom: 30px;
   left: 50%;
   transform: translateX(-50%) translateY(20px);
-  background: rgba(10, 18, 30, 0.92);
-  border: 1px solid rgba(212, 175, 55, 0.5);
-  border-radius: 8px;
-  padding: 8px 18px;
-  color: #f3e3b4;
+  border-style: solid;
+  border-width: 12px;
+  border-image: url('/assets/ui/frames/frame_main_menu_plaque.png') 32 fill stretch;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  border-radius: 0;
+  background: #1a1209;
+  padding: 6px 16px;
+  color: #ffd700;
   font-size: 12px;
-  font-weight: 600;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(8px);
+  font-weight: 700;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.8);
   pointer-events: none;
   opacity: 0;
-  transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: all 0.25s ease;
   z-index: 10010;
 }
 

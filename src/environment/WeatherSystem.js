@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { getAssetUrl } from '../utils/paths.js';
+import { emit } from '../core/EventBus.js';
 
 export class WeatherSystem {
   constructor() {
@@ -229,5 +230,7 @@ export class WeatherSystem {
       lanternLight.color.set(w.lanternColor);
       lanternLight.intensity = w.lanternIntensity;
     }
+
+    emit('weatherChanged', { weatherName, weather: w });
   }
 }

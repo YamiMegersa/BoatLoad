@@ -63,6 +63,7 @@ export class DockPlayerController {
     this.hoveredShip = null;
     this.hoveredLedger = null;
     this.hoveredShipyard = null;
+    this.hoveredGhost = null;
 
     // UI elements
     this._createUI();
@@ -124,7 +125,7 @@ export class DockPlayerController {
       backdrop-filter: blur(4px); transition: opacity 0.4s ease;
     `;
     this.instructions.innerHTML = `
-      <span>🖱️ <b>Click Canvas</b> to look</span>
+      <span><span class="pixel-icon icon-hand-select size-14"></span> <b>Click Canvas</b> to look</span>
       <span>|</span>
       <span><b>WASD</b> Walk</span>
       <span>|</span>
@@ -211,7 +212,9 @@ export class DockPlayerController {
         break;
       case 'KeyE':
         // Interaction key
-        if (this.hoveredBunny) {
+        if (this.hoveredGhost) {
+          this._interactWithGhost();
+        } else if (this.hoveredBunny) {
           this._interactWithBunny();
         } else if (this.hoveredDoor) {
           this.toggleShop();
@@ -277,6 +280,11 @@ export class DockPlayerController {
     // Left click
     if (e.button !== 0) return;
     if (this.emoteWheel && this.emoteWheel.isOpen) return;
+
+    if (this.hoveredGhost) {
+      this._interactWithGhost();
+      return;
+    }
 
     if (this.hoveredBunny) {
       this._interactWithBunny();
@@ -497,9 +505,12 @@ export class DockPlayerController {
       // Resolve obstacle collisions against shop walls, door, and counter
       this._resolveObstacleCollisions(candidate);
 
+      const currentGround = this.yawObject.position.y - this.eyeHeight;
+      const maxStepUp = 0.45; // Max vertical step height (allows ramps, steps, decks; blocks steep cliff drops)
+
       // Ground raycast check to ensure player stays on solid land / dock
       const groundHit = this._getGroundHeightAt(candidate.x, candidate.z);
-      if (groundHit !== null) {
+      if (groundHit !== null && (groundHit - currentGround <= maxStepUp)) {
         this.yawObject.position.x = candidate.x;
         this.yawObject.position.z = candidate.z;
         // Smooth vertical ground alignment
@@ -510,7 +521,7 @@ export class DockPlayerController {
         const candX = new THREE.Vector3(candidate.x, this.yawObject.position.y, this.yawObject.position.z);
         this._resolveObstacleCollisions(candX);
         const slideXHit = this._getGroundHeightAt(candX.x, this.yawObject.position.z);
-        if (slideXHit !== null) {
+        if (slideXHit !== null && (slideXHit - currentGround <= maxStepUp)) {
           this.yawObject.position.x = candX.x;
           this.yawObject.position.y += (slideXHit + this.eyeHeight - this.yawObject.position.y) * Math.min(1.0, delta * 14.0);
         } else {
@@ -518,7 +529,7 @@ export class DockPlayerController {
           const candZ = new THREE.Vector3(this.yawObject.position.x, this.yawObject.position.y, candidate.z);
           this._resolveObstacleCollisions(candZ);
           const slideZHit = this._getGroundHeightAt(this.yawObject.position.x, candZ.z);
-          if (slideZHit !== null) {
+          if (slideZHit !== null && (slideZHit - currentGround <= maxStepUp)) {
             this.yawObject.position.z = candZ.z;
             this.yawObject.position.y += (slideZHit + this.eyeHeight - this.yawObject.position.y) * Math.min(1.0, delta * 14.0);
           }
@@ -547,8 +558,8 @@ export class DockPlayerController {
     const hits = this.downRaycaster.intersectObject(this.dockStall.group, true);
     for (let i = 0; i < hits.length; i++) {
       const hit = hits[i];
-      // Exclude roofs, high cranes, gulls, or high props
-      if (hit.point.y > 6.2 * this.scale) continue;
+      // Exclude roofs, overhead tie beams, high cranes, gulls, or high props (> 5.1 * scale)
+      if (hit.point.y > 5.1 * this.scale) continue;
       // Exclude water/below water level
       if (hit.point.y < 0.1 * this.scale) continue;
 
@@ -594,6 +605,9 @@ export class DockPlayerController {
     }
     if (this.dockStall.shipyardInteractables) {
       interactables.push(...this.dockStall.shipyardInteractables);
+    }
+    if (this.dockStall.ghostMerchantInteractables) {
+      interactables.push(...this.dockStall.ghostMerchantInteractables);
     }
 
     if (interactables.length === 0) {
@@ -643,7 +657,12 @@ export class DockPlayerController {
             return;
           }
         } else if (hit.object.userData) {
-          if (hit.object.userData.isBunny) {
+          if (hit.object.userData.isGhostMerchant) {
+            if (hit.distance <= 7.5 * this.scale) {
+              this._setHoverState(hit.object, 'ghost');
+              return;
+            }
+          } else if (hit.object.userData.isBunny) {
             if (hit.distance <= 6.5 * this.scale) {
               this._setHoverState(hit.object, 'bunny');
               return;
@@ -673,6 +692,7 @@ export class DockPlayerController {
     this.hoveredShip = type === 'ship' ? obj : null;
     this.hoveredLedger = type === 'ledger' ? obj : null;
     this.hoveredShipyard = type === 'shipyard' ? obj : null;
+    this.hoveredGhost = type === 'ghost' ? obj : null;
 
     if (type) {
       this.domElement.style.cursor = 'pointer';
@@ -681,19 +701,21 @@ export class DockPlayerController {
       this.crosshair.style.borderColor = '#ffffff';
 
       this.prompt.style.display = 'flex';
-      if (type === 'bunny') {
-        this.prompt.innerHTML = `🐰 <span style="background:#4a3520; padding:2px 6px; border-radius:3px; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Pet Bunny`;
+      if (type === 'ghost') {
+        this.prompt.innerHTML = `<span class="pixel-icon icon-phantom-ghost size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click Ghost to Barter Wares`;
+      } else if (type === 'bunny') {
+        this.prompt.innerHTML = `<span class="pixel-icon icon-easter-bunny size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Pet Bunny`;
       } else if (type === 'ledger') {
-        this.prompt.innerHTML = `📖 <span style="background:#4a3520; padding:2px 6px; border-radius:3px; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click Logbook to Select Voyage`;
+        this.prompt.innerHTML = `<span class="pixel-icon icon-closed-logbook size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click Logbook to Select Voyage`;
       } else if (type === 'ship') {
         const shipName = this.dockStall?.activeShipProfile?.name || 'Vessel';
-        this.prompt.innerHTML = `🔨 <span style="background:#4a3520; padding:2px 6px; border-radius:3px; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shipyard &amp; Alter ${shipName}`;
+        this.prompt.innerHTML = `<span class="pixel-icon icon-hammer size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shipyard &amp; Alter ${shipName}`;
       } else if (type === 'shipyard') {
-        this.prompt.innerHTML = `🔨 <span style="background:#4a3520; padding:2px 6px; border-radius:3px; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shipyard`;
+        this.prompt.innerHTML = `<span class="pixel-icon icon-hammer size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shipyard`;
       } else if (this.mode === 'player') {
-        this.prompt.innerHTML = `🚪 <span style="background:#4a3520; padding:2px 6px; border-radius:3px; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shop`;
+        this.prompt.innerHTML = `<span class="pixel-icon icon-cabin-door-exit size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shop`;
       } else {
-        this.prompt.innerHTML = `🚪 <span style="background:#4a3520; padding:2px 6px; border-radius:3px; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Exit Shop`;
+        this.prompt.innerHTML = `<span class="pixel-icon icon-cabin-door-exit size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Exit Shop`;
       }
     } else {
       this.domElement.style.cursor = 'default';
@@ -702,6 +724,14 @@ export class DockPlayerController {
       this.crosshair.style.borderColor = 'rgba(0, 0, 0, 0.6)';
       this.prompt.style.display = 'none';
     }
+  }
+
+  _interactWithGhost() {
+    emit('playSound', { sound: 'qte_success' });
+    if (this.isLocked && document.exitPointerLock) {
+      document.exitPointerLock();
+    }
+    emit('openShopUI');
   }
 
   // ---------------------------------------------------------------------------

@@ -46,46 +46,18 @@ const PaperShader = {
 
     varying vec2 vUv;
 
-    // Pseudo-random noise function
+    // Fast pseudo-random noise function
     float rand(vec2 n) { 
       return fract(sin(dot(n, vec2(12.9898, 4.1414))) * 43758.5453);
     }
 
-    // Value noise
-    float noise(vec2 p){
-      vec2 ip = floor(p);
-      vec2 u = fract(p);
-      u = u*u*(3.0-2.0*u);
-      
-      float res = mix(
-        mix(rand(ip),rand(ip+vec2(1.0,0.0)),u.x),
-        mix(rand(ip+vec2(0.0,1.0)),rand(ip+vec2(1.0,1.0)),u.x),u.y);
-      return res*res;
-    }
-
-    // Fractal Brownian Motion
-    float fbm(vec2 p) {
-      float f = 0.0;
-      f += 0.5000 * noise(p); p = p * 2.02;
-      f += 0.2500 * noise(p); p = p * 2.03;
-      f += 0.1250 * noise(p); p = p * 2.01;
-      f += 0.0625 * noise(p);
-      return f / 0.9375;
-    }
-
-    // Ridged noise for sharp creases
-    float ridgedNoise(vec2 p) {
-      float f = fbm(p);
-      return 1.0 - abs(f * 2.0 - 1.0);
-    }
-
-    // Helper for Hatching
+    // Helper for Hatching: fast trigonometric wobble
     float hatch(vec2 uv, float luma, float scale) {
       float h = 1.0;
       float hatchSpacing = scale * 50.0;
       
-      // Hand-drawn wobble for the lines
-      float lineWobble = fbm(uv * 40.0) * 0.4;
+      // Hand-drawn line wobble using fast analytical sine/cosine
+      float lineWobble = (sin(uv.y * 60.0 + uv.x * 20.0) + cos(uv.x * 60.0 - uv.y * 20.0)) * 0.25;
       
       float w1 = sin((uv.x + uv.y) * hatchSpacing + lineWobble);
       float w2 = sin((uv.x - uv.y) * hatchSpacing + lineWobble);
@@ -95,7 +67,6 @@ const PaperShader = {
       // Thin lines
       float t = 0.8; 
       
-      // Use higher thresholds so hatching doesn't trigger everywhere
       if (luma < 0.55) {
         if (w1 > t) h -= 0.4;
       }
@@ -112,51 +83,53 @@ const PaperShader = {
       return clamp(h, 0.0, 1.0);
     }
     
-    // Helper for Kuwahara
-    vec3 kuwahara(sampler2D tex, vec2 uv, vec2 texel, int radius) {
-      vec3 m[4];
-      vec3 s[4];
-      for (int k = 0; k < 4; ++k) {
-        m[k] = vec3(0.0);
-        s[k] = vec3(0.0);
-      }
+    // Helper for Kuwahara:
+    // Fixed 5x5 kernel (radius 2, 25 samples total).
+    // Replaces the 121-loop kernel and dynamic branching with a constant, branchless
+    // hardware-friendly texture accumulation that eliminates warp divergence.
+    vec3 kuwahara(sampler2D tex, vec2 uv, vec2 texel) {
+      vec3 m0 = vec3(0.0), m1 = vec3(0.0), m2 = vec3(0.0), m3 = vec3(0.0);
+      vec3 s0 = vec3(0.0), s1 = vec3(0.0), s2 = vec3(0.0), s3 = vec3(0.0);
       
-      int r = radius;
-      float n = float((r + 1) * (r + 1));
+      const float n = 9.0;
       
-      // We must use constant bounds for WebGL1 compatibility
-      // We will loop from -5 to 5, but only process up to 'radius'
-      for(int j = -5; j <= 5; ++j) {
-        for(int i = -5; i <= 5; ++i) {
-          if (abs(i) > r || abs(j) > r) continue;
-          
+      for (int j = -2; j <= 2; ++j) {
+        for (int i = -2; i <= 2; ++i) {
           vec3 c = texture2D(tex, uv + vec2(float(i), float(j)) * texel).rgb;
+          vec3 cc = c * c;
           
-          if (i <= 0 && j <= 0) { m[0] += c; s[0] += c * c; }
-          if (i >= 0 && j <= 0) { m[1] += c; s[1] += c * c; }
-          if (i >= 0 && j >= 0) { m[2] += c; s[2] += c * c; }
-          if (i <= 0 && j >= 0) { m[3] += c; s[3] += c * c; }
+          if (i <= 0 && j <= 0) { m0 += c; s0 += cc; }
+          if (i >= 0 && j <= 0) { m1 += c; s1 += cc; }
+          if (i >= 0 && j >= 0) { m2 += c; s2 += cc; }
+          if (i <= 0 && j >= 0) { m3 += c; s3 += cc; }
         }
       }
       
-      float min_sigma2 = 1e20;
-      vec3 final_col = vec3(0.0);
+      m0 /= n; s0 = abs(s0 / n - m0 * m0);
+      m1 /= n; s1 = abs(s1 / n - m1 * m1);
+      m2 /= n; s2 = abs(s2 / n - m2 * m2);
+      m3 /= n; s3 = abs(s3 / n - m3 * m3);
       
-      for (int k = 0; k < 4; ++k) {
-        m[k] /= n;
-        s[k] = abs(s[k] / n - m[k] * m[k]);
-        float sigma2 = s[k].r + s[k].g + s[k].b;
-        if (sigma2 < min_sigma2) {
-          min_sigma2 = sigma2;
-          final_col = m[k];
-        }
-      }
-      return final_col;
+      float v0 = s0.r + s0.g + s0.b;
+      float v1 = s1.r + s1.g + s1.b;
+      float v2 = s2.r + s2.g + s2.b;
+      float v3 = s3.r + s3.g + s3.b;
+      
+      float minV = v0;
+      vec3 col = m0;
+      if (v1 < minV) { minV = v1; col = m1; }
+      if (v2 < minV) { minV = v2; col = m2; }
+      if (v3 < minV) { minV = v3; col = m3; }
+      
+      return col;
     }
 
     void main() {
-      // 1. Subtle UV Wobble (reduced intensity so it's less jarring)
-      vec2 wobble = vec2(fbm(vUv * 15.0 + uTime * 0.05), fbm(vUv * 15.0 - uTime * 0.05)) * 2.0 - 1.0;
+      // 1. Subtle UV Wobble (fast analytical sine/cosine)
+      vec2 wobble = vec2(
+        sin(vUv.y * 25.0 + uTime * 0.4) * cos(vUv.x * 15.0),
+        cos(vUv.x * 25.0 - uTime * 0.4) * sin(vUv.y * 15.0)
+      );
       vec2 uv = vUv + wobble * uWobbleIntensity;
 
       // 2. Base scene color & Shading Style
@@ -167,91 +140,55 @@ const PaperShader = {
       
       if (uStyle == 1) {
         // Kuwahara Filter
-        // Exaggerate radius by widening the texel step based on radius
-        // This gives massive painterly blobs without increasing loop cost
+        // Widened texel step based on radius gives broad painterly strokes
         vec2 wideTexel = texel * (1.0 + float(uKuwaharaRadius) * 1.5);
-        baseColor = vec4(kuwahara(tDiffuse, uv, wideTexel, uKuwaharaRadius), 1.0);
+        baseColor = vec4(kuwahara(tDiffuse, uv, wideTexel), 1.0);
         shadingLuma = dot(baseColor.rgb, vec3(0.299, 0.587, 0.114));
       } else {
         // Hatching Filter
         baseColor = texture2D(tDiffuse, uv);
         float luma = dot(baseColor.rgb, vec3(0.299, 0.587, 0.114));
         hatchMask = hatch(vUv, luma, uHatchScale);
-        shadingLuma = luma; // Keep original luma, we apply hatch mask later
+        shadingLuma = luma;
       }
-      
-      // Base luma for edge detection
-      float rawLuma = dot(texture2D(tDiffuse, uv).rgb, vec3(0.299, 0.587, 0.114));
 
-      // 3. Edge Detection (Sobel) - Exaggerated for thicker sketch outlines
-      // We sample further apart to create a thicker, bolder ink outline
+      // 3. Fast 4-tap Edge Detection (cardinal samples)
       vec2 edgeTexel = 2.5 / uResolution;
-      
-      float s00 = dot(texture2D(tDiffuse, uv + vec2(-edgeTexel.x, -edgeTexel.y)).rgb, vec3(0.299, 0.587, 0.114));
-      float s10 = dot(texture2D(tDiffuse, uv + vec2( 0.0,         -edgeTexel.y)).rgb, vec3(0.299, 0.587, 0.114));
-      float s20 = dot(texture2D(tDiffuse, uv + vec2( edgeTexel.x, -edgeTexel.y)).rgb, vec3(0.299, 0.587, 0.114));
-      
-      float s01 = dot(texture2D(tDiffuse, uv + vec2(-edgeTexel.x,  0.0)).rgb, vec3(0.299, 0.587, 0.114));
-      float s21 = dot(texture2D(tDiffuse, uv + vec2( edgeTexel.x,  0.0)).rgb, vec3(0.299, 0.587, 0.114));
-      
-      float s02 = dot(texture2D(tDiffuse, uv + vec2(-edgeTexel.x,  edgeTexel.y)).rgb, vec3(0.299, 0.587, 0.114));
-      float s12 = dot(texture2D(tDiffuse, uv + vec2( 0.0,          edgeTexel.y)).rgb, vec3(0.299, 0.587, 0.114));
-      float s22 = dot(texture2D(tDiffuse, uv + vec2( edgeTexel.x,  edgeTexel.y)).rgb, vec3(0.299, 0.587, 0.114));
+      float sLeft  = dot(texture2D(tDiffuse, uv - vec2(edgeTexel.x, 0.0)).rgb, vec3(0.299, 0.587, 0.114));
+      float sRight = dot(texture2D(tDiffuse, uv + vec2(edgeTexel.x, 0.0)).rgb, vec3(0.299, 0.587, 0.114));
+      float sUp    = dot(texture2D(tDiffuse, uv - vec2(0.0, edgeTexel.y)).rgb, vec3(0.299, 0.587, 0.114));
+      float sDown  = dot(texture2D(tDiffuse, uv + vec2(0.0, edgeTexel.y)).rgb, vec3(0.299, 0.587, 0.114));
+      float edge = length(vec2(sRight - sLeft, sDown - sUp)) * 2.2;
+      float edgeMask = smoothstep(uEdgeThreshold, uEdgeThreshold + 0.35, edge);
 
-      float sx = s00 + 2.0*s10 + s20 - (s02 + 2.0*s12 + s22);
-      float sy = s00 + 2.0*s01 + s02 - (s20 + 2.0*s21 + s22);
-      float edge = length(vec2(sx, sy)) * 1.5; // Boost edge intensity
-      
-      // Softer threshold for edges so they aren't so solid and blocky, but still prominent
-      float edgeMask = smoothstep(uEdgeThreshold, uEdgeThreshold + 0.4, edge);
-
-      // 4. Paper Base Color & Grain
-      float paperNoise = fbm(vUv * uResolution * 0.2); // High freq noise
+      // 4. Paper Base Color & Grain (fast high-frequency stipple)
+      float paperNoise = fract(sin(dot(floor(vUv * uResolution * 0.25), vec2(12.9898, 78.233))) * 43758.5453);
       vec3 paperBase = mix(uPaperColor, uPaperHighlight, paperNoise * 0.5);
 
       // 5. Sepia & Color Preservation
       vec3 sepiaColor;
       if (uStyle == 1) {
-        // Kuwahara gets much brighter shading to act as a map background
-        // Map the lower half of luma to mid-tones, keeping paper bright
         sepiaColor = mix(uInkColor, paperBase, shadingLuma * 0.7 + 0.3);
       } else {
-        // Hatching needs to be much brighter overall (paper background)
-        // Wash out the darks a bit so it's mostly paper
         sepiaColor = mix(uInkColor, paperBase, shadingLuma * 0.6 + 0.4); 
-        // Apply the dark hatch lines
         sepiaColor = mix(uInkColor * 0.5, sepiaColor, hatchMask);
       }
       
-      // Blend original colors back in to reduce monochromacity
-      // Multiply original color by paper color to keep the warmth of the map
       vec3 tintedOriginal = baseColor.rgb * paperBase * 1.2;
       vec3 mixedColor = mix(sepiaColor, tintedOriginal, uColorPreservation); 
-      
-      // Apply bold ink edges (1.0 opacity for maximum pop)
       vec3 finalColor = mix(mixedColor, uInkColor, edgeMask);
 
-      // 6. Subtle Vignette
+      // 6. Fast Subtle Vignette
       vec2 center = vUv - 0.5;
       float dist = length(center);
-      float vNoise = fbm(vUv * 3.0) * 0.1;
+      float vNoise = sin(vUv.x * 4.0) * cos(vUv.y * 4.0) * 0.06;
       float vignette = smoothstep(0.8, 0.35, dist + vNoise);
-      
-      // Soften vignette darkness
       finalColor = mix(uInkColor * 0.3, finalColor, vignette);
 
       // 7. Static Crumple Texture
-      // We read the red channel of the grayscale texture.
-      // Zoom in slightly (0.1 to 0.9) to avoid the dark borders of the generated image.
-      // We allow it to stretch with the screen to avoid repeating grid lines.
       vec2 crumpleUv = vUv * 0.8 + 0.1;
       float crumpleMap = texture2D(tCrumple, crumpleUv).r;
-      
-      // Isolate the dark creases. This texture is subtle, so we use a gentler threshold.
-      // crumpleMap is mostly bright (~0.75-0.85) with faint darker fold lines (~0.5-0.7).
       float crumpleMask = smoothstep(0.8, 0.55, crumpleMap);
-      
-      // Apply gently — just a hint of darkening along the folds
       finalColor = mix(finalColor, uInkColor * 0.5, crumpleMask * 0.3);
 
       gl_FragColor = vec4(finalColor, 1.0);

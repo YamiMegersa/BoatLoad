@@ -10,6 +10,9 @@ import { PauseMenu } from './ui/PauseMenu.js';
 import { DockUI } from './ui/DockUI.js';
 import { MainMenuUI } from './ui/MainMenuUI.js';
 import { LevelSelectorUI } from './ui/LevelSelectorUI.js';
+import { LoadingScreenUI } from './ui/LoadingScreenUI.js';
+import { AnchorCountdownUI } from './ui/AnchorCountdownUI.js';
+import { ShopUI } from './ui/ShopUI.js';
 import { ResultsUI } from './ui/ResultsUI.js';
 import { ParticleSystem } from './environment/ParticleSystem.js';
 import { DamageSystem } from './shipyard/DamageSystem.js';
@@ -20,6 +23,8 @@ import { DEBUG } from './utils/debug.js';
 import { exportToGLB } from './utils/exportGLTF.js';
 import { DirectorMode } from './director/DirectorMode.js';
 import { GameEnv } from './core/GameEnv.js';
+import { settingsManager } from './core/SettingsManager.js';
+import { autoPerformanceController } from './core/AutoPerformance.js';
 import './ui/ui.css';
 
 // ---------------------------------------------------------------------------
@@ -27,10 +32,13 @@ import './ui/ui.css';
 // ---------------------------------------------------------------------------
 
 const canvas = document.querySelector('#canvas');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+// Cap pixel ratio to 1.25: renders crisp on high-DPI displays without 4K fillrate collapse
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
 renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.info.autoReset = false;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x222233);
@@ -49,12 +57,30 @@ const sun = new THREE.DirectionalLight(0xffffff, 1.0);
 sun.name = 'sunLight';
 sun.position.set(10, 20, 10);
 sun.castShadow = true;
+sun.shadow.mapSize.width = 1024;
+sun.shadow.mapSize.height = 1024;
+sun.shadow.camera.near = 0.5;
+sun.shadow.camera.far = 160;
+sun.shadow.camera.left = -50;
+sun.shadow.camera.right = 50;
+sun.shadow.camera.top = 50;
+sun.shadow.camera.bottom = -50;
+sun.shadow.bias = -0.0005;
 scene.add(sun);
 
 const moon = new THREE.DirectionalLight(0x9bc0f5, 0.35);
 moon.name = 'moonLight';
 moon.position.set(-10, -20, -10);
-moon.castShadow = true;
+moon.castShadow = false; // Enabled dynamically only when moon rises
+moon.shadow.mapSize.width = 1024;
+moon.shadow.mapSize.height = 1024;
+moon.shadow.camera.near = 0.5;
+moon.shadow.camera.far = 160;
+moon.shadow.camera.left = -50;
+moon.shadow.camera.right = 50;
+moon.shadow.camera.top = 50;
+moon.shadow.camera.bottom = -50;
+moon.shadow.bias = -0.0005;
 scene.add(moon);
 
 // ---------------------------------------------------------------------------
@@ -121,7 +147,10 @@ const hud = new HUD();
 const dialogue = new DialogueBox();
 const pauseMenu = new PauseMenu();
 const levelSelectorUI = new LevelSelectorUI();
-const resultsUI = new ResultsUI();
+const loadingScreenUI = new LoadingScreenUI();
+const anchorCountdownUI = new AnchorCountdownUI();
+const shopUI = new ShopUI(gameState);
+const resultsUI = new ResultsUI(gameState);
 const particles = new ParticleSystem(scene);
 
 const directorMode = new DirectorMode({
@@ -153,6 +182,7 @@ window.addEventListener('resize', () => {
   }
 
   renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
   godRays.resize(window.innerWidth, window.innerHeight);
   mainRT.setSize(window.innerWidth, window.innerHeight);
   paperFilter.resize(window.innerWidth, window.innerHeight);
@@ -164,6 +194,9 @@ window.addEventListener('resize', () => {
 
 let frameCount = 0;
 let lastFpsTime = performance.now();
+let lastRecordedCalls = 0;
+let lastRecordedTris = 0;
+
 const fpsCounter = document.createElement('div');
 fpsCounter.id = 'fps-counter';
 fpsCounter.style.cssText = `
@@ -175,6 +208,29 @@ fpsCounter.style.cssText = `
 `;
 fpsCounter.innerText = 'FPS: 0';
 document.getElementById('ui-root')?.appendChild(fpsCounter);
+
+// Connect SettingsManager to all game subsystems
+settingsManager.bindContext({
+  scene,
+  camera,
+  renderer,
+  audio,
+  gameState,
+  godRays,
+  paperFilter,
+  fpsCounter,
+  directorMode,
+  autoPerformance: autoPerformanceController
+});
+
+on('phaseChanged', () => {
+  settingsManager.applyCamera();
+  settingsManager.applyFog();
+});
+
+on('weatherChanged', () => {
+  settingsManager.applyFog();
+});
 
 // ---------------------------------------------------------------------------
 // Game loop
@@ -211,8 +267,19 @@ function tick() {
   }
 
   frameCount++;
+  autoPerformanceController.update(delta, now);
   if (now - lastFpsTime >= 1000) {
-    fpsCounter.innerText = `FPS: ${frameCount}`;
+    const trisStr = lastRecordedTris >= 1000
+      ? `${Math.round(lastRecordedTris / 1000)}k`
+      : `${lastRecordedTris}`;
+    if (autoPerformanceController.isEnabled()) {
+      const dist = autoPerformanceController.getCurrentDrawDistance();
+      const scale = Math.round(autoPerformanceController.getCurrentRenderScale() * 100);
+      const targetFps = autoPerformanceController.getTargetFps();
+      fpsCounter.innerText = `FPS: ${frameCount} (Target: ${targetFps} • ${dist}m, ${scale}%) | Calls: ${lastRecordedCalls} | Tris: ${trisStr}`;
+    } else {
+      fpsCounter.innerText = `FPS: ${frameCount} | Calls: ${lastRecordedCalls} | Tris: ${trisStr}`;
+    }
     frameCount = 0;
     lastFpsTime = now;
   }
@@ -220,20 +287,53 @@ function tick() {
   const activeCam = directorMode.isActive ? directorMode.camera : (gameState.activeCamera || camera);
   godRays._camera = activeCam;
 
+  // Re-apply camera FOV and far clipping plane based on Settings
+  settingsManager.applyCamera(activeCam);
+
   const isMainMenu = gameState.currentPhase === GamePhase.MAIN_MENU;
-  const usePaperShader = isMainMenu || paperShaderEnabled;
+  const paperSetting = settingsManager.get('paperShader');
+  let usePaperShader = false;
+  if (paperSetting === 'off') {
+    usePaperShader = false;
+  } else if (paperSetting === 'painterly') {
+    usePaperShader = true;
+    paperFilter.setStyle(1);
+  } else if (paperSetting === 'hatching') {
+    usePaperShader = true;
+    paperFilter.setStyle(0);
+  } else {
+    // 'auto' mode
+    usePaperShader = isMainMenu || paperShaderEnabled;
+    if (usePaperShader) {
+      paperFilter.setStyle(isMainMenu ? 1 : userPaperStyle);
+    }
+  }
+
+  const godRaysEnabled = Boolean(settingsManager.get('godRays'));
+
+  // Clear render metrics once per frame before any render passes execute
+  renderer.info.reset();
 
   if (usePaperShader) {
-    if (isMainMenu) {
-      paperFilter.setStyle(1); // Kuwahara (Painterly) permanently on for Main Menu
+    if (godRaysEnabled) {
+      godRays.render(sun, moon, mainRT);
     } else {
-      paperFilter.setStyle(userPaperStyle);
+      renderer.setRenderTarget(mainRT);
+      renderer.render(scene, activeCam);
     }
-    godRays.render(sun, moon, mainRT);
     paperFilter.render(mainRT);
   } else {
-    godRays.render(sun, moon, null);
+    if (godRaysEnabled) {
+      godRays.render(sun, moon, null);
+    } else {
+      renderer.setRenderTarget(null);
+      renderer.render(scene, activeCam);
+    }
   }
+
+  // Capture the true cumulative calls and triangles rendered across the entire frame
+  lastRecordedCalls = renderer.info.render.calls;
+  lastRecordedTris = renderer.info.render.triangles;
 }
 
 // ---------------------------------------------------------------------------
@@ -287,7 +387,7 @@ document.getElementById('ui-root')?.appendChild(noticeBanner);
 let noticeTimer = null;
 function showNotice(message, ms = 5000) {
   if (!noticeBanner) return;
-  noticeBanner.textContent = message;
+  noticeBanner.innerHTML = message;
   noticeBanner.style.display = 'block';
   clearTimeout(noticeTimer);
   noticeTimer = setTimeout(() => { noticeBanner.style.display = 'none'; }, ms);
@@ -296,7 +396,7 @@ function showNotice(message, ms = 5000) {
 on('buildError', (d) => {
   console.error('[BoatLoad] Build error:', d.message);
   logEvent(`[Build] ERROR: ${d.message}`);
-  showNotice(`⚠ ${d.message}`);
+  showNotice(`<span class="pixel-icon icon-powder-keg size-16"></span> ${d.message}`);
 });
 
 // ---------------------------------------------------------------------------
@@ -327,7 +427,7 @@ async function boot() {
 
       if (gameState.day > MAX_DAY) {
         logEvent('[Level] All days cleared — voyage complete! Replaying the final day.');
-        showNotice('⛵ ALL 7 DAYS CLEARED — VOYAGE COMPLETE! ⛵', 8000);
+        showNotice('<span class="pixel-icon icon-sloop size-20"></span> ALL 7 DAYS CLEARED — VOYAGE COMPLETE! <span class="pixel-icon icon-sloop size-20"></span>', 8000);
         gameState.day = MAX_DAY;
         if (loadedDay === MAX_DAY) return;
       }
@@ -436,8 +536,16 @@ async function boot() {
       await gameState.transition(GamePhase.SHIPYARD, shipyardPayload());
     });
 
+    on('levelSelected', async ({ day }) => {
+      if (day) {
+        gameState.day = day;
+        await syncLevel();
+      }
+    });
+
     // Start sailing from shipyard or dock
     on('startSailing', async () => {
+      emit('showLoading', { title: 'Setting Sail', message: 'Rigging canvas & casting off lines...', progress: 0.1 });
       await syncLevel();
       const activeShipId = gameState._levelCfg?.ship || level.levelCfg?.ship || DEFAULT_SHIP_ID;
       const activeShipDef = LevelConfig.getShipDef(activeShipId);
@@ -458,6 +566,7 @@ async function boot() {
 
     on('editorRequestPlay', (d) => {
       if (gameState.currentPhase === GamePhase.EDITOR && gameState._editorSystem) {
+        emit('showLoading', { title: 'Test Voyage', message: 'Launching vessel into custom map...', progress: 0.1 });
         const customLevelCfg = gameState._editorSystem.getPlayableConfig();
         const activeShipId = customLevelCfg.ship || DEFAULT_SHIP_ID;
         const activeShipDef = LevelConfig.getShipDef(activeShipId);
@@ -511,22 +620,26 @@ async function boot() {
       }
       if (phase === GamePhase.MAIN_MENU) {
         logEvent('Main Menu requested...');
+        emit('showLoading', { title: 'Returning to Port', message: 'Returning to harbor tavern...', progress: 0.1 });
         gameState.transition(GamePhase.MAIN_MENU);
       } else if (phase === GamePhase.DOCK) {
         logEvent('Setting Sail -> Arriving at Dock...');
+        emit('showLoading', { title: 'Mooring at Harbor', message: 'Arriving at harbor dock...', progress: 0.1 });
         await syncLevel();
         const activeShipId = opts?.shipDef?.id || gameState._levelCfg?.ship || level.levelCfg?.ship || DEFAULT_SHIP_ID;
         const activeShipDef = opts?.shipDef || LevelConfig.getShipDef(activeShipId);
         const activeLevelCfg = opts?.levelCfg || gameState._levelCfg || level.levelCfg;
-        gameState.transition(GamePhase.DOCK, { shipDef: activeShipDef, levelCfg: activeLevelCfg, fishModels: level.fishModels });
+        gameState.transition(GamePhase.DOCK, { shipDef: activeShipDef, levelCfg: activeLevelCfg, fishModels: level.fishModels, openShop: opts?.openShop });
       } else if (phase === GamePhase.SHIPYARD) {
         logEvent('Entering Shipyard...');
+        emit('showLoading', { title: 'Entering Shipyard', message: 'Entering outfitting berth & inspecting hull...', progress: 0.1 });
         await syncLevel();
         const activeShipId = gameState._levelCfg?.ship || level.levelCfg?.ship || DEFAULT_SHIP_ID;
         const activeShipDef = LevelConfig.getShipDef(activeShipId);
         gameState.transition(GamePhase.SHIPYARD, { shipDef: activeShipDef, levelCfg: gameState._levelCfg || level.levelCfg, fishModels: level.fishModels });
       } else if (phase === GamePhase.OBSTACLE) {
         logEvent('Setting Sail -> Heading to High Seas...');
+        emit('showLoading', { title: 'Setting Sail', message: 'Heading out to open waters...', progress: 0.1 });
         await syncLevel();
         const activeShipId = gameState._levelCfg?.ship || level.levelCfg?.ship || DEFAULT_SHIP_ID;
         const activeShipDef = LevelConfig.getShipDef(activeShipId);
@@ -545,6 +658,7 @@ async function boot() {
         });
       } else if (phase === GamePhase.EDITOR) {
         logEvent('Opening Map Maker / Level Editor...');
+        emit('showLoading', { title: 'Level Editor', message: 'Opening map maker...', progress: 0.1 });
         await syncLevel();
         gameState.transition(GamePhase.EDITOR, editorPayload());
       }
@@ -568,6 +682,10 @@ async function boot() {
           directorMode.isActive) return;
       setPaused(!isPaused);
     }
+
+    on('requestPause', () => {
+      togglePause();
+    });
 
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Escape' && !directorMode.isActive) togglePause();
@@ -598,12 +716,12 @@ async function boot() {
     });
 
     // Start at Main Menu
-    await gameState.transition(GamePhase.MAIN_MENU, shipyardPayload());
+    await gameState.transition(GamePhase.MAIN_MENU, { ...shipyardPayload(), skipLoading: true });
 
     tick();
   } catch (err) {
     console.error('Boot error:', err);
-    showNotice(`⚠ Boot error: ${err.message}`, 10000);
+    showNotice(`<span class="pixel-icon icon-powder-keg size-16"></span> Boot error: ${err.message}`, 10000);
   }
 }
 

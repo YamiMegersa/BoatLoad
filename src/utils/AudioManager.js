@@ -38,6 +38,15 @@ const SYNTH = Object.freeze({
   },
   bail:        (a, t) => a._noise({ type: 'bandpass', from: 1500, to: 500, dur: 0.2, gain: 0.18 }),
   siren_resist:(a, t) => a._tone({ type: 'sine', from: 680, to: 920, dur: 0.14, gain: 0.1 }),
+  anchor_reel: (a, t) => {
+    a._tone({ type: 'triangle', from: 880, to: 1200, dur: 0.04, gain: 0.12, at: t });
+    a._noise({ type: 'bandpass', from: 3500, to: 1200, dur: 0.05, gain: 0.12, at: t });
+  },
+  anchor_lock: (a, t) => {
+    a._tone({ type: 'square', from: 440, to: 220, dur: 0.12, gain: 0.18, at: t });
+    a._tone({ type: 'triangle', from: 1046, dur: 0.25, gain: 0.22, at: t + 0.02 });
+    a._noise({ type: 'bandpass', from: 2400, to: 400, dur: 0.18, gain: 0.18, at: t });
+  },
 });
 
 /**
@@ -71,6 +80,9 @@ export class AudioManager {
     this._missing = new Set();  // ids whose mp3 fetch failed — go straight to synth
     this._noiseBuf = null;
     this._muted  = false;
+    this._masterVolume = 0.8;
+    this._sfxVolume = 0.8;
+    this._ambientVolume = 0.8;
 
     // Siren ambience state
     this._sirenOsc = null;
@@ -85,6 +97,10 @@ export class AudioManager {
     on('playSound', ({ sound, ...params }) => this.play(sound, params));
     on('sirenPulling', (d) => this._updateSiren(d));
     on('phaseChanged', () => this._stopSiren());
+    on('setAudioVolume', ({ volume }) => this.setMasterVolume(volume));
+    on('setAudioMute', ({ muted }) => this.setMuted(muted));
+    on('setSfxVolume', ({ volume }) => this.setSfxVolume(volume));
+    on('setAmbientVolume', ({ volume }) => this.setAmbientVolume(volume));
   }
 
   // -------------------------------------------------------------------------
@@ -104,12 +120,47 @@ export class AudioManager {
   }
 
   /**
+   * Set master output volume (0.0 to 1.0).
+   */
+  setMasterVolume(val) {
+    this._masterVolume = Math.max(0, Math.min(1, Number(val) || 0));
+    if (this._ctx && this._master) {
+      this._master.gain.setTargetAtTime(this._muted ? 0 : this._masterVolume, this._ctx.currentTime, 0.02);
+    }
+  }
+
+  /**
+   * Set mute state explicitly.
+   */
+  setMuted(val) {
+    this._muted = Boolean(val);
+    if (this._ctx && this._master) {
+      this._master.gain.setTargetAtTime(this._muted ? 0 : this._masterVolume, this._ctx.currentTime, 0.02);
+    }
+    return this._muted;
+  }
+
+  /**
+   * Set SFX volume (0.0 to 1.0).
+   */
+  setSfxVolume(val) {
+    this._sfxVolume = Math.max(0, Math.min(1, Number(val) || 0));
+  }
+
+  /**
+   * Set ambient / siren volume (0.0 to 1.0).
+   */
+  setAmbientVolume(val) {
+    this._ambientVolume = Math.max(0, Math.min(1, Number(val) || 0));
+  }
+
+  /**
    * Play a named sound effect.
    * @param {string} soundId  e.g. 'collision', 'qte_success', 'harpoon'
    * @param {object} [params] e.g. { alt: true } for alternate-mode ticks
    */
   async play(soundId, params = {}) {
-    if (!soundId || this._muted) return;
+    if (!soundId || this._muted || this._sfxVolume <= 0) return;
     try {
       await this._ensureContext();
       let buffer = this._buffers.get(soundId);
@@ -131,11 +182,7 @@ export class AudioManager {
 
   /** Toggle mute state. Returns the new muted flag. */
   toggleMute() {
-    this._muted = !this._muted;
-    if (this._ctx && this._master) {
-      this._master.gain.setTargetAtTime(this._muted ? 0 : 1, this._ctx.currentTime, 0.02);
-    }
-    return this._muted;
+    return this.setMuted(!this._muted);
   }
 
   // -------------------------------------------------------------------------
@@ -148,7 +195,7 @@ export class AudioManager {
       if (!Ctx) throw new Error('Web Audio not supported');
       this._ctx = new Ctx();
       this._master = this._ctx.createGain();
-      this._master.gain.value = this._muted ? 0 : 1;
+      this._master.gain.value = this._muted ? 0 : this._masterVolume;
       this._master.connect(this._ctx.destination);
     }
     // Resume if suspended (browser auto-suspend policy)
@@ -170,7 +217,10 @@ export class AudioManager {
   _playBuffer(buffer) {
     const source = this._ctx.createBufferSource();
     source.buffer = buffer;
-    source.connect(this._master);
+    const gainNode = this._ctx.createGain();
+    gainNode.gain.value = this._sfxVolume;
+    source.connect(gainNode);
+    gainNode.connect(this._master);
     source.start();
   }
 
@@ -198,7 +248,8 @@ export class AudioManager {
     osc.type = type;
     osc.frequency.setValueAtTime(from, t);
     if (to) osc.frequency.exponentialRampToValueAtTime(Math.max(1, to), t + dur);
-    g.gain.setValueAtTime(gain, t);
+    const effectiveGain = gain * this._sfxVolume;
+    g.gain.setValueAtTime(effectiveGain, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     osc.connect(g);
     g.connect(this._master);
@@ -223,7 +274,8 @@ export class AudioManager {
     filter.frequency.setValueAtTime(from, t);
     if (to) filter.frequency.exponentialRampToValueAtTime(Math.max(10, to), t + dur);
     const g = ctx.createGain();
-    g.gain.setValueAtTime(gain, t);
+    const effectiveGain = gain * this._sfxVolume;
+    g.gain.setValueAtTime(effectiveGain, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     src.connect(filter);
     filter.connect(g);
@@ -251,7 +303,7 @@ export class AudioManager {
 
     const t = this._ctx.currentTime;
     const k = Math.min(1, intensity);
-    this._sirenGain.gain.setTargetAtTime(0.02 + 0.09 * k, t, 0.15);
+    this._sirenGain.gain.setTargetAtTime((0.02 + 0.09 * k) * this._ambientVolume, t, 0.15);
     this._sirenLfo.frequency.setTargetAtTime(0.7 + 1.8 * k, t, 0.2);
     this._sirenLfoDepth.gain.setTargetAtTime(15 + 45 * k, t, 0.2);
   }

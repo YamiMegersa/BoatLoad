@@ -2,6 +2,7 @@ import { emit, on, off } from '../core/EventBus.js';
 import { GameEnv } from '../core/GameEnv.js';
 import { DEBUG } from '../utils/debug.js';
 import { getAssetUrl } from '../utils/paths.js';
+import { ShopRegistry } from '../config/ShopRegistry.js';
 
 const wheelImage = getAssetUrl('assets/wheels/wheel_threshold.png');
 
@@ -80,8 +81,8 @@ export class HUD {
     on('krakenRaceTimerUpdate', d => this._updateBossTimer(d.timeRemaining));
     on('krakenWaypointProgress',d => this._updateBossWaypoints(d.current, d.total));
     on('krakenRaceStarted',     d => this._onRaceStarted(d));
-    on('krakenTentacleCaught',  () => this._showBossBanner('🐙 TENTACLE CAUGHT!', '#00cc44'));
-    on('krakenDefeated',        () => this._showBossBanner('⚔️ KRAKEN DEFEATED!', '#ffaa00', 5000));
+    on('krakenTentacleCaught',  () => this._showBossBanner('TENTACLE CAUGHT!', '#00cc44'));
+    on('krakenDefeated',        () => this._showBossBanner('KRAKEN DEFEATED!', '#ffaa00', 5000));
     on('krakenCinematicStart',  () => this._setBossTimerVisible(false));
     on('krakenCinematicEnd',    () => this._setBossTimerVisible(true));
     on('goalDistanceUpdate',    d => this._updateGoalDistance(d));
@@ -122,28 +123,69 @@ export class HUD {
     this._el = document.createElement('div');
     this._el.id = 'hud';
     this._el.innerHTML = `
-      <div id="hud-hp">
-        <span>Hull HP</span>
-        <div id="hud-hp-bar-track"><div id="hud-hp-bar"></div></div>
-        <span id="hud-hp-val">100%</span>
-      </div>
-      <div id="hud-water">
-        <span>Water</span>
-        <div id="hud-water-bar-track"><div id="hud-water-bar"></div></div>
-        <span id="hud-water-val">0%</span>
-      </div>
-      
-      <!-- Score Display -->
-      <div id="hud-score">
-        <span class="hud-score-coin">🪙</span>
-        <span id="hud-score-val">0</span> pts
+      <!-- Floating Top-Left Nautical Status Cluster -->
+      <div id="hud-status-cluster">
+        <!-- Circular Health Gauge (Red circle with capsizing boat sprite) -->
+        <div class="hud-circle-gauge" id="hud-hp-gauge" title="Hull Health">
+          <svg class="hud-gauge-svg" viewBox="0 0 64 64">
+            <circle class="hud-gauge-track" cx="32" cy="32" r="27" />
+            <circle class="hud-gauge-fill hp-fill" id="hud-hp-ring" cx="32" cy="32" r="27" stroke-dasharray="169.65" stroke-dashoffset="0" />
+          </svg>
+          <div class="hud-gauge-content">
+            <!-- Capsizing Boat Sprite -->
+            <svg class="hud-boat-icon" id="hud-capsizing-boat" viewBox="0 0 32 32">
+              <path class="boat-hull" d="M 4 21 C 7 26, 25 26, 28 21 L 26 18 L 6 18 Z" fill="#ef4444" stroke="#7f1d1d" stroke-width="1.2" />
+              <line class="boat-mast" x1="16" y1="5" x2="16" y2="18" stroke="#fecaca" stroke-width="1.6" stroke-linecap="round" />
+              <path class="boat-sail-main" d="M 16 6 L 25 16 L 16 16 Z" fill="#fee2e2" opacity="0.9" />
+              <path class="boat-sail-jib" d="M 14 8 L 7 17 L 14 17 Z" fill="#ffffff" opacity="0.75" />
+            </svg>
+            <span class="hud-gauge-val" id="hud-hp-val">100%</span>
+          </div>
+          <span class="hud-gauge-badge">HULL</span>
+        </div>
+
+        <!-- Circular Water Intake Gauge (Circle filling with water + upright boat sprite) -->
+        <div class="hud-circle-gauge" id="hud-water-gauge" title="Water Intake">
+          <svg class="hud-gauge-svg" viewBox="0 0 64 64">
+            <circle class="hud-gauge-track" cx="32" cy="32" r="27" />
+            <circle class="hud-gauge-fill water-ring" id="hud-water-ring" cx="32" cy="32" r="27" stroke-dasharray="169.65" stroke-dashoffset="169.65" />
+          </svg>
+          <div class="hud-gauge-content">
+            <!-- Rising Water Fill Background inside the circle -->
+            <div class="hud-water-mask">
+              <div class="hud-water-fill-level" id="hud-water-fill">
+                <div class="hud-water-wave"></div>
+              </div>
+            </div>
+            <!-- Upright Boat Sprite floating on water -->
+            <svg class="hud-boat-icon" id="hud-upright-boat" viewBox="0 0 32 32">
+              <path class="boat-hull" d="M 4 21 C 7 26, 25 26, 28 21 L 26 18 L 6 18 Z" fill="#38bdf8" stroke="#0369a1" stroke-width="1.2" />
+              <line class="boat-mast" x1="16" y1="5" x2="16" y2="18" stroke="#bae6fd" stroke-width="1.6" stroke-linecap="round" />
+              <path class="boat-sail-main" d="M 16 6 L 25 16 L 16 16 Z" fill="#e0f2fe" opacity="0.95" />
+              <path class="boat-sail-jib" d="M 14 8 L 7 17 L 14 17 Z" fill="#ffffff" opacity="0.8" />
+            </svg>
+            <span class="hud-gauge-val" id="hud-water-val">0%</span>
+          </div>
+          <span class="hud-gauge-badge">WATER</span>
+        </div>
+
+        <!-- Clean floating info pill: Score & Day -->
+        <div class="hud-info-pill">
+          <span class="hud-pill-day">Day ${day ?? 1}</span>
+          <span class="hud-pill-dot"><span class="pixel-icon hud-day-pill-dot size-14"></span></span>
+          <span class="hud-score-coin"><span class="pixel-icon icon-doubloon size-16"></span></span>
+          <span id="hud-score-val">0</span>
+        </div>
       </div>
 
-      <div id="hud-day">Day ${day ?? 1}</div>
+      <!-- Dedicated Settings & Pause Trigger Button -->
+      <button id="hud-btn-pause" class="hud-pause-btn" style="position: fixed; top: 14px; left: 180px; z-index: 130;" title="Game Settings & Pause (Esc)" aria-label="Game Settings and Pause">
+        <span class="pixel-icon icon-settings-cog size-18"></span>
+      </button>
 
       <!-- Safe Harbor Goal Distance -->
       <div id="hud-goal-distance" style="position:fixed; top:20px; left:50%; transform:translateX(-50%); color:#ffd700; font-family:'Trebuchet MS',sans-serif; font-weight:bold; font-size:15px; text-shadow:0 0 8px rgba(0,0,0,0.8); background:rgba(20,15,10,0.7); padding:6px 16px; border-radius:20px; border:1px solid rgba(255,215,0,0.5); display:none; pointer-events:none; z-index:90;">
-        ⚓ Safe Harbor: <span id="hud-goal-val" style="color:#ffffff;">--</span>m
+        <span class="pixel-icon icon-anchor size-16"></span> Safe Harbor: <span id="hud-goal-val" style="color:#ffffff;">--</span>m
       </div>
       <div id="hud-dev-controls" style="display: ${(DEBUG || GameEnv.isDev()) ? 'block' : 'none'};">
         <div id="hud-godmode" style="margin-top: 10px; pointer-events: auto;">
@@ -188,7 +230,7 @@ export class HUD {
       <!-- Dedicated Mobile Harpoon Button for left thumb -->
       <div id="hud-mobile-harpoon" style="display: none;">
         <button id="btn-mobile-harpoon" type="button" aria-label="Harpoon Action">
-          <span class="harpoon-icon">🔱</span>
+          <span class="harpoon-icon"><span class="pixel-icon icon-harpoon size-20"></span></span>
           <span class="harpoon-text">HARPOON</span>
         </button>
       </div>
@@ -203,26 +245,33 @@ export class HUD {
       <!-- Floating Points Notification Container -->
       <div id="hud-bonus-container"></div>
 
-      <div id="hud-ammo">🔫 ∞</div>
+      <div id="hud-ammo"><span class="pixel-icon icon-swivel-cannon size-18"></span> ∞</div>
 
       <!-- Cannon FIRE prompt (edge-triggered while a barrel is in range) -->
-      <button id="hud-fire-btn" type="button" style="display: none;">🔥 FIRE (Space)</button>
+      <button id="hud-fire-btn" type="button" style="display: none;"><span class="pixel-icon icon-cannon-flash size-18"></span> FIRE (Space)</button>
 
-      <!-- Kraken Boss HUD (hidden until fight starts) -->
-      <div id="hud-boss" style="display:none; position:fixed; top:15px; left:50%; transform:translateX(-50%); text-align:center; z-index:100; pointer-events:none;">
-        <div style="color:#ff6644; font-weight:bold; font-size:14px; text-transform:uppercase; letter-spacing:2px; margin-bottom:4px; text-shadow:0 0 8px rgba(255,60,30,0.6);">🐙 KRAKEN</div>
-        <div id="hud-boss-hp-track" style="width:300px; height:14px; background:rgba(0,0,0,0.6); border:1px solid #ff4422; border-radius:7px; overflow:hidden;">
-          <div id="hud-boss-hp-bar" style="width:100%; height:100%; background:linear-gradient(90deg, #ff2200, #ff6644); transition:width 0.4s ease;"></div>
+      <!-- Dark Souls-inspired Kraken Boss HUD (slimmer, smaller, bottom of screen) -->
+      <div id="hud-boss" class="dark-souls-boss-bar" style="display:none;">
+        <div class="boss-decorations">
+          <span class="boss-bracket left">‹</span>
+          <span class="boss-title">THE ABYSSAL KRAKEN</span>
+          <span class="boss-bracket right">›</span>
         </div>
-        <div id="hud-boss-timer" style="display:none; color:#ffcc00; font-size:28px; font-weight:bold; margin-top:8px; text-shadow:0 0 10px rgba(255,200,0,0.5); font-family:monospace;"></div>
-        <div id="hud-boss-waypoints" style="display:none; color:#ffffff; font-size:14px; margin-top:4px;"></div>
+        <div id="hud-boss-hp-track" class="dark-souls-hp-track">
+          <div id="hud-boss-hp-bar" class="dark-souls-hp-fill"></div>
+        </div>
+        <div class="boss-meta-row">
+          <span id="hud-boss-waypoints" style="display:none;">CHECKPOINT 0 / 3</span>
+          <span id="hud-boss-timer" style="display:none;"><span class="pixel-icon icon-compass size-16"></span> 25.0s</span>
+        </div>
       </div>
 
       <!-- Kraken Banner (flash messages) -->
       <div id="hud-boss-banner" style="display:none; position:fixed; top:40%; left:50%; transform:translate(-50%,-50%); font-size:48px; font-weight:bold; color:#00cc44; text-shadow:0 0 20px rgba(0,200,60,0.6), 0 4px 12px rgba(0,0,0,0.8); pointer-events:none; z-index:200; animation:bossBannerPop 0.4s ease-out;"></div>
       
-      <!-- Steering Wheel -->
+      <!-- Steering Wheel & Pedestal -->
       <div id="hud-wheel-container">
+        <img id="hud-pedestal" src="" style="display:none;" />
         <img id="hud-wheel" src="${wheelImage}">
       </div>
     `;
@@ -241,16 +290,43 @@ export class HUD {
       document.head.appendChild(style);
     }
 
-    this._hpBar = this._el.querySelector('#hud-hp-bar');
-    this._waterBar = this._el.querySelector('#hud-water-bar');
-    this._qteEl = this._el.querySelector('#hud-qte');
-    this._qteMeter = this._el.querySelector('#hud-qte-meter');
+    this._hpRing       = this._el.querySelector('#hud-hp-ring');
+    this._hpBoat       = this._el.querySelector('#hud-capsizing-boat');
+    this._hpVal        = this._el.querySelector('#hud-hp-val');
+    this._hpGauge      = this._el.querySelector('#hud-hp-gauge');
+
+    this._waterRing    = this._el.querySelector('#hud-water-ring');
+    this._waterFill    = this._el.querySelector('#hud-water-fill');
+    this._waterBoat    = this._el.querySelector('#hud-upright-boat');
+    this._waterVal     = this._el.querySelector('#hud-water-val');
+    this._waterGauge   = this._el.querySelector('#hud-water-gauge');
+
+    this._qteEl        = this._el.querySelector('#hud-qte');
+    this._qteMeter     = this._el.querySelector('#hud-qte-meter');
     this._qteIndicator = this._el.querySelector('.qte-indicator');
-    this._bailCanvas = this._el.querySelector('#hud-qte-draw');
-    this._wheel = this._el.querySelector('#hud-wheel');
-    this._mobileBtnEl = this._el.querySelector('#hud-mobile-harpoon');
-    this._scoreEl = this._el.querySelector('#hud-score-val');
-    this._bonusBoxEl = this._el.querySelector('#hud-bonus-container');
+    this._bailCanvas   = this._el.querySelector('#hud-qte-draw');
+    this._wheel        = this._el.querySelector('#hud-wheel');
+    this._pedestal     = this._el.querySelector('#hud-pedestal');
+    this._mobileBtnEl  = this._el.querySelector('#hud-mobile-harpoon');
+    this._scoreEl      = this._el.querySelector('#hud-score-val');
+    this._bonusBoxEl   = this._el.querySelector('#hud-bonus-container');
+
+    this._updateEquippedAssets = () => {
+      if (!window.gameState) return;
+      const wheelItem = ShopRegistry.getItem(window.gameState.equippedItems?.wheel);
+      if (wheelItem && this._wheel) {
+        this._wheel.src = wheelItem.icon;
+      }
+      const pedestalItem = ShopRegistry.getItem(window.gameState.equippedItems?.pedestal);
+      if (pedestalItem && this._pedestal) {
+        this._pedestal.src = pedestalItem.icon;
+        this._pedestal.style.display = 'block';
+      }
+    };
+    this._updateEquippedAssets();
+    this._onEconomyUpdated = () => this._updateEquippedAssets();
+    on('economyUpdated', this._onEconomyUpdated);
+    on('itemsEquipped', this._onEconomyUpdated);
 
     // Click/Tap on QTE reticle
     this._qteEl.addEventListener('pointerdown', (e) => {
@@ -311,6 +387,13 @@ export class HUD {
       e.preventDefault();
       e.stopPropagation();
       emit('cannonFire');
+    });
+
+    // Pause / Settings trigger button
+    this._el.querySelector('#hud-btn-pause')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      emit('requestPause');
     });
 
     // ammoChanged fires in _enterObstacle before uiMount — replay stored state
@@ -382,7 +465,8 @@ export class HUD {
       // Siren hypnotic steering pull: turns the wheel or resists player drag
       if (this._sirenPullTimer > 0) {
         this._sirenPullTimer -= 0.016;
-        const pullSpeed = this._isDraggingWheel ? 25 : 65;
+        const sirenResistance = window.gameState?.getWheelStats?.()?.sirenResistance || 0;
+        const pullSpeed = (this._isDraggingWheel ? 25 : 65) * Math.max(0.1, 1 - sirenResistance);
         this._wheelAngle += this._sirenSteerPull * pullSpeed * 0.016;
         const glowAlpha = Math.min(0.9, this._sirenIntensity * 1.3).toFixed(2);
         this._wheel.style.filter = `drop-shadow(0 0 16px rgba(255, 102, 204, ${glowAlpha}))`;
@@ -455,22 +539,35 @@ export class HUD {
       off('sirenPulling', this._onSirenPulling);
       this._onSirenPulling = null;
     }
+    if (this._onEconomyUpdated) {
+      off('economyUpdated', this._onEconomyUpdated);
+      off('itemsEquipped', this._onEconomyUpdated);
+      this._onEconomyUpdated = null;
+    }
+    this._pedestal = null;
     clearInterval(this._qteTimer);
     clearTimeout(this._qteHideTimer);
     clearTimeout(this._bannerTimer);
     this._el?.remove();
-    this._el          = null;
-    this._hpBar       = null;
-    this._waterBar    = null;
-    this._qteEl       = null;
-    this._qteMeter    = null;
+    this._el           = null;
+    this._hpRing       = null;
+    this._hpBoat       = null;
+    this._hpVal        = null;
+    this._hpGauge      = null;
+    this._waterRing    = null;
+    this._waterFill    = null;
+    this._waterBoat    = null;
+    this._waterVal     = null;
+    this._waterGauge   = null;
+    this._qteEl        = null;
+    this._qteMeter     = null;
     this._qteIndicator = null;
-    this._bailCanvas = null;
+    this._bailCanvas   = null;
     this._activeQTEInput = null;
-    this._bailDrawing = false;
-    this._mobileBtnEl = null;
-    this._scoreEl     = null;
-    this._bonusBoxEl  = null;
+    this._bailDrawing  = false;
+    this._mobileBtnEl  = null;
+    this._scoreEl      = null;
+    this._bonusBoxEl   = null;
   }
 
   _onScoreAdded({ points = 0, label = '', isPerfect = false }) {
@@ -490,21 +587,48 @@ export class HUD {
   }
 
   _updateHP(hp, maxHP) {
-    if (!this._hpBar) return;
     const pct = Math.max(0, Math.min(100, (hp / maxHP) * 100));
-    this._hpBar.style.width = `${pct}%`;
-    this._hpBar.style.background = pct < 25 ? '#f44336' : pct < 50 ? '#ff9800' : '#4caf50';
-    const valEl = this._el?.querySelector('#hud-hp-val');
-    if (valEl) valEl.textContent = `${Math.floor(pct)}%`;
+    const circ = 169.65;
+    if (this._hpRing) {
+      const offset = circ * (1 - pct / 100);
+      this._hpRing.style.strokeDashoffset = `${offset}`;
+      this._hpRing.style.stroke = pct < 25 ? '#ef4444' : pct < 50 ? '#f97316' : '#22c55e';
+    }
+    if (this._hpBoat) {
+      // Boat tilts/capsizes up to 55 degrees as HP depletes
+      const capsizeAngle = (1 - pct / 100) * 55;
+      const capsizeSink = (1 - pct / 100) * 4;
+      this._hpBoat.style.transform = `rotate(${capsizeAngle}deg) translateY(${capsizeSink}px)`;
+    }
+    if (this._hpVal) {
+      this._hpVal.textContent = `${Math.floor(pct)}%`;
+    }
+    if (this._hpGauge) {
+      this._hpGauge.classList.toggle('critical-hp', pct < 25);
+    }
   }
 
   _updateWater(level, maxLevel) {
-    if (!this._waterBar) return;
     const pct = Math.max(0, Math.min(100, (level / maxLevel) * 100));
-    this._waterBar.style.width = `${pct}%`;
-    this._waterBar.style.background = pct > 75 ? '#f44336' : pct > 50 ? '#ff9800' : '#2196f3';
-    const valEl = this._el?.querySelector('#hud-water-val');
-    if (valEl) valEl.textContent = `${Math.floor(pct)}%`;
+    const circ = 169.65;
+    if (this._waterRing) {
+      const offset = circ * (1 - pct / 100);
+      this._waterRing.style.strokeDashoffset = `${offset}`;
+      this._waterRing.style.stroke = pct > 75 ? '#ef4444' : pct > 50 ? '#f59e0b' : '#38bdf8';
+    }
+    if (this._waterFill) {
+      this._waterFill.style.height = `${pct}%`;
+    }
+    if (this._waterBoat) {
+      const sinkDepth = (pct / 100) * 7;
+      this._waterBoat.style.transform = `translateY(${sinkDepth}px)`;
+    }
+    if (this._waterVal) {
+      this._waterVal.textContent = `${Math.floor(pct)}%`;
+    }
+    if (this._waterGauge) {
+      this._waterGauge.classList.toggle('critical-water', pct > 75);
+    }
   }
 
   _showQTE({ input, label, sweetSpot, theme }) {
@@ -521,7 +645,7 @@ export class HUD {
     const mobileLabel = this._el?.querySelector('.harpoon-text');
     const drawWrap = this._qteEl.querySelector('#hud-qte-draw-wrap');
 
-    if (actionEl) actionEl.textContent = `${theme?.icon ?? ''} ${label}`;
+    if (actionEl) actionEl.innerHTML = `${theme?.icon ?? ''} ${label}`;
     if (keyEl) {
       const instructions = {
         timing: 'PRESS SPACE IN THE GREEN ZONE (or tap)',
@@ -684,7 +808,7 @@ export class HUD {
 
   _applyAmmo() {
     const el = this._el?.querySelector('#hud-ammo');
-    if (el) el.textContent = this._ammoState.cannon ? `🔫 ${this._ammoState.ammo}` : '🔫 ∞';
+    if (el) el.innerHTML = this._ammoState.cannon ? `<span class="pixel-icon icon-swivel-cannon size-18"></span> ${this._ammoState.ammo}` : '<span class="pixel-icon icon-swivel-cannon size-18"></span> ∞';
   }
 
   /** Toggle the FIRE prompt; Space fires only while it is visible. */
@@ -700,7 +824,7 @@ export class HUD {
   _showBossHUD({ totalHP, tentacleCount }) {
     if (!this._el) return;
     const bossEl = this._el.querySelector('#hud-boss');
-    if (bossEl) bossEl.style.display = 'block';
+    if (bossEl) bossEl.style.display = 'flex';
     this._bossHPBar = this._el.querySelector('#hud-boss-hp-bar');
     this._bossTimerEl = this._el.querySelector('#hud-boss-timer');
     this._bossWaypointEl = this._el.querySelector('#hud-boss-waypoints');
@@ -716,31 +840,26 @@ export class HUD {
   _updateBossTimer(timeRemaining) {
     if (!this._bossTimerEl) return;
     const t = Math.max(0, timeRemaining);
-    this._bossTimerEl.textContent = t.toFixed(1) + 's';
-    // Flash red when time is low
-    this._bossTimerEl.style.color = t < 5 ? '#ff2200' : '#ffcc00';
-    if (t < 5) {
-      this._bossTimerEl.style.textShadow = '0 0 15px rgba(255,30,0,0.8)';
-    } else {
-      this._bossTimerEl.style.textShadow = '0 0 10px rgba(255,200,0,0.5)';
-    }
+    this._bossTimerEl.innerHTML = `<span class="pixel-icon icon-compass size-16"></span> ${t.toFixed(1)}s`;
+    this._bossTimerEl.style.color = t < 5 ? '#f87171' : '#94a3b8';
+    this._bossTimerEl.style.textShadow = t < 5 ? '0 0 8px rgba(248,113,113,0.5)' : 'none';
   }
 
   _updateBossWaypoints(current, total) {
     if (!this._bossWaypointEl) return;
-    this._bossWaypointEl.textContent = `Checkpoint ${current} / ${total}`;
+    this._bossWaypointEl.textContent = `CHECKPOINT ${current} / ${total}`;
   }
 
   _onRaceStarted({ tentacleIdx, waypoints, timeLimit }) {
     if (!this._bossTimerEl || !this._bossWaypointEl) return;
-    this._bossTimerEl.style.display = 'block';
-    this._bossWaypointEl.style.display = 'block';
-    this._bossWaypointEl.textContent = `Checkpoint 0 / ${waypoints}`;
+    this._bossTimerEl.style.display = 'inline-block';
+    this._bossWaypointEl.style.display = 'inline-block';
+    this._bossWaypointEl.textContent = `CHECKPOINT 0 / ${waypoints}`;
   }
 
   _setBossTimerVisible(visible) {
-    if (this._bossTimerEl) this._bossTimerEl.style.display = visible ? 'block' : 'none';
-    if (this._bossWaypointEl) this._bossWaypointEl.style.display = visible ? 'block' : 'none';
+    if (this._bossTimerEl) this._bossTimerEl.style.display = visible ? 'inline-block' : 'none';
+    if (this._bossWaypointEl) this._bossWaypointEl.style.display = visible ? 'inline-block' : 'none';
   }
 
   _showBossBanner(text, color = '#00cc44', durationMs = 2000) {

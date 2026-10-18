@@ -1,64 +1,115 @@
-import { emit, on } from '../core/EventBus.js';
+import { emit, on, off } from '../core/EventBus.js';
+import { GamePhase } from '../core/GameState.js';
+import { ShopRegistry } from '../config/ShopRegistry.js';
 
 export class ResultsUI {
-  constructor() {
-    this._el = null;
-    on('uiMount', d => {
-      if (d.screen === 'results') this.mount(d);
-    });
-    on('uiUnmount', d => {
-      if (d.screen === 'results') this.unmount();
-    });
+  constructor(gameState) {
+    this.gameState = gameState;
+    this.root = null;
+
+    this._onMount = (data) => {
+      if (data?.screen === 'results') this.mount(data.data);
+    };
+    this._onUnmount = (data) => {
+      if (data?.screen === 'results') this.unmount();
+    };
+
+    on('uiMount', this._onMount);
+    on('uiUnmount', this._onUnmount);
   }
 
-  mount({ passed, day }) {
-    this.unmount();
+  mount(data = {}) {
+    if (this.root) this.unmount();
 
-    const title = passed ? `DAY ${day} COMPLETE` : 'VOYAGE LOST';
-    const message = passed
-      ? 'You made it safely to harbor. Your voyage is complete!'
-      : 'Your ship needs repairs before you can sail again.';
-    const buttonLabel = passed ? 'Return to Port' : 'Return to Shipyard';
-    const phase = passed ? 'DOCK' : 'SHIPYARD';
+    const day = data.day || this.gameState.day || 1;
+    const baseReward = data.baseReward || (150 + day * 75);
+    const multiplier = data.multiplier || this.gameState.getPedestalMultiplier();
+    const totalAwarded = data.bonusCoins || Math.round(baseReward * multiplier);
+    const bonusFromPedestal = Math.max(0, totalAwarded - baseReward);
+    const pedestalItem = ShopRegistry.getItem(this.gameState.equippedItems?.pedestal);
+    const pedestalName = pedestalItem?.name || 'Weathered Oak Binnacle';
 
-    this._el = document.createElement('div');
-    this._el.id = 'results-screen';
-    this._el.setAttribute('role', 'dialog');
-    this._el.setAttribute('aria-modal', 'true');
-    this._el.style.cssText = `
-      position: absolute; inset: 0; z-index: 250;
-      display: flex; align-items: center; justify-content: center;
-      padding: 24px; background: rgba(8, 20, 25, 0.78);
-      color: #f3e3b4; font-family: 'IM Fell English', Georgia, serif;
+    this.root = document.createElement('div');
+    this.root.id = 'voyage-results-modal';
+    this.root.className = 'results-modal-backdrop';
+    this.root.innerHTML = `
+      <div class="results-container">
+        <div class="results-header">
+          <div class="results-crest"><span class="pixel-icon icon-anchor size-32"></span></div>
+          <h1 class="results-title">VOYAGE ACCOMPLISHED</h1>
+          <div class="results-subtitle">Safe Harbor Reached • Day ${day} Conquered</div>
+        </div>
+        <div class="results-ledger-card">
+          <div class="ledger-row">
+            <span class="ledger-label">Base Voyage Bounty</span>
+            <span class="ledger-val">+${baseReward} <span class="pixel-icon icon-doubloon size-16"></span></span>
+          </div>
+          <div class="ledger-row highlight">
+            <div class="ledger-mult-desc">
+              <span class="ledger-label">Pedestal Bonus (${multiplier}x)</span>
+              <span class="ledger-subtext">${pedestalName}</span>
+            </div>
+            <span class="ledger-val highlight-gold">+${bonusFromPedestal} <span class="pixel-icon icon-doubloon size-16"></span></span>
+          </div>
+          <div class="ledger-divider"></div>
+          <div class="ledger-row total-row">
+            <span class="ledger-label">Total Doubloons Banked</span>
+            <span class="ledger-val total-gold">+${totalAwarded} <span class="pixel-icon icon-doubloon size-18"></span></span>
+          </div>
+          <div class="ledger-wallet-row">
+            <span>Current Purse Balance:</span>
+            <strong class="wallet-balance">${this.gameState.coins || 0} <span class="pixel-icon icon-doubloon size-16"></span></strong>
+          </div>
+        </div>
+        <div class="results-actions">
+          <button class="results-btn shop-action" id="res-btn-shop">
+            <span class="pixel-icon icon-phantom-ghost size-18"></span><span>Visit Ghost Salesman Stall</span>
+          </button>
+          <button class="results-btn dock-action" id="res-btn-dock">
+            <span class="pixel-icon icon-harbor-flag size-18"></span><span>Return to Dock</span>
+          </button>
+          <button class="results-btn shipyard-action" id="res-btn-shipyard">
+            <span class="pixel-icon icon-hammer size-18"></span><span>Shipyard &amp; Repairs</span>
+          </button>
+          <button class="results-btn next-action" id="res-btn-next">
+            <span class="pixel-icon icon-sloop size-18"></span><span>Next Voyage (Day ${Math.min(7, day + 1)})</span>
+          </button>
+        </div>
+      </div>
     `;
-    this._el.innerHTML = `
-      <section style="
-        width: min(520px, 100%); padding: 36px;
-        text-align: center; background: #e6d2aa;
-        border: 3px solid #9c6b3c; border-radius: 12px;
-        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
-        color: #4a1f0a;
-      ">
-        <div aria-hidden="true" style="font-size: 42px; margin-bottom: 8px;">⚓</div>
-        <h1 style="font-family: 'Cinzel', Georgia, serif; font-size: clamp(26px, 6vw, 38px); margin: 0 0 14px;">${title}</h1>
-        <p style="font-size: 18px; line-height: 1.5; margin: 0 0 26px;">${message}</p>
-        <button id="results-return" type="button" style="
-          min-height: 48px; padding: 12px 24px; cursor: pointer;
-          color: #f3e3b4; background: #321b10; border: 2px solid #d4af37;
-          border-radius: 8px; font: 700 16px 'Cinzel', Georgia, serif;
-        ">${buttonLabel}</button>
-      </section>
-    `;
 
-    this._el.querySelector('#results-return').addEventListener('click', () => {
-      emit('requestPhaseChange', { phase });
-    });
-    document.getElementById('ui-root')?.appendChild(this._el);
-    this._el.querySelector('#results-return').focus();
+    this.root.querySelector('#res-btn-shop').onclick = () => {
+      this.unmount();
+      emit('requestPhaseChange', { phase: GamePhase.DOCK, openShop: true });
+    };
+    this.root.querySelector('#res-btn-dock').onclick = () => {
+      this.unmount();
+      emit('requestPhaseChange', { phase: GamePhase.DOCK });
+    };
+    this.root.querySelector('#res-btn-shipyard').onclick = () => {
+      this.unmount();
+      emit('requestPhaseChange', { phase: GamePhase.SHIPYARD });
+    };
+    this.root.querySelector('#res-btn-next').onclick = () => {
+      this.unmount();
+      const nextDay = Math.min(7, day + 1);
+      this.gameState.day = nextDay;
+      emit('levelSelected', { day: nextDay });
+      emit('startSailing');
+    };
+
+    const uiRoot = document.getElementById('ui-root') || document.body;
+    uiRoot.appendChild(this.root);
   }
 
   unmount() {
-    this._el?.remove();
-    this._el = null;
+    this.root?.remove();
+    this.root = null;
+  }
+
+  dispose() {
+    this.unmount();
+    off('uiMount', this._onMount);
+    off('uiUnmount', this._onUnmount);
   }
 }

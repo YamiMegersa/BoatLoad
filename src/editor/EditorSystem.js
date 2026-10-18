@@ -72,6 +72,7 @@ export class EditorSystem {
 
     // Ship Spawn State
     this._shipSpawn = null;
+    this._hasDock = true;
     
     on('editorSelectType', d => {
       this._activeType = d.type;
@@ -139,6 +140,10 @@ export class EditorSystem {
         else if (this._scene) this._scene.remove(obs.mesh);
       }
       this._placedObstacles = [];
+      if (this._voxelTerrain) {
+        this._voxelTerrain.dispose();
+        this._voxelTerrain = new VoxelTerrain(this._editorGroup || this._scene);
+      }
       this._emitState();
     });
 
@@ -176,10 +181,10 @@ export class EditorSystem {
       // Re-create & deserialize voxels cleanly
       if (this._voxelTerrain) {
         this._voxelTerrain.dispose();
-        this._voxelTerrain = new VoxelTerrain(this._editorGroup || this._scene);
-        if (cfg.voxels) {
-          this._voxelTerrain.deserialize(cfg.voxels);
-        }
+      }
+      this._voxelTerrain = new VoxelTerrain(this._editorGroup || this._scene);
+      if (cfg.voxels) {
+        this._voxelTerrain.deserialize(cfg.voxels);
       }
 
       // World size
@@ -243,7 +248,11 @@ export class EditorSystem {
           rotation: cfg.shipSpawn.rotation || 0
         };
       } else {
-        this._shipSpawn = { position: { x: 0, y: 0, z: 0 }, rotation: 0 };
+        this._shipSpawn = null;
+      }
+      if (cfg.hasDock !== undefined) {
+        this._hasDock = Boolean(cfg.hasDock);
+        emit('editorToggleDock', { hasDock: this._hasDock });
       }
       this._updateShipGhost();
 
@@ -306,6 +315,13 @@ export class EditorSystem {
       if (this._envManager) {
         this._envManager._godRaysEnabled = d.enabled;
       }
+    });
+
+    on('editorToggleDock', d => {
+      this._hasDock = Boolean(d.hasDock);
+      if (this._levelCfg) this._levelCfg.hasDock = this._hasDock;
+      this._updateShipGhost();
+      emit('editorHasDockChanged', { hasDock: this._hasDock });
     });
 
     on('editorExport', () => this.exportLevel());
@@ -413,6 +429,7 @@ export class EditorSystem {
     this._camera = camera;
     this._renderer = renderer;
     this._levelCfg = levelCfg;
+    this._hasDock = this._levelCfg?.hasDock !== false;
     this._budget = levelCfg?.budget !== undefined ? levelCfg.budget : 300;
     this._rockModels = rockModels;
     this._pickupModels = pickupModels;
@@ -450,10 +467,7 @@ export class EditorSystem {
         rotation: this._levelCfg.shipSpawn.rotation || 0
       };
     } else {
-      this._shipSpawn = {
-        position: { x: 0, y: 0, z: 0 },
-        rotation: 0
-      };
+      this._shipSpawn = null;
     }
     this._updateShipGhost();
 
@@ -613,6 +627,7 @@ export class EditorSystem {
     off('editorSetTimeOfDay');
     off('editorSetStormy');
     off('editorToggleGodRays');
+    off('editorToggleDock');
     off('editorExport');
     off('editorSelectTentacle');
     off('editorAddTentacle');
@@ -755,7 +770,7 @@ export class EditorSystem {
       const arrowHelper = new THREE.ArrowHelper(new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 0.25, 0), r * 1.5, 0x00e5ff, 2.5, 1.2);
       group.add(arrowHelper);
 
-      const label = this._createLabelSprite('⛵ SHIP SPAWN', '#00e5ff');
+      const label = this._createLabelSprite('SHIP SPAWN', '#00e5ff');
       label.position.set(0, 7.5, 0);
       label.scale.set(16, 4, 1);
       group.add(label);
@@ -1122,7 +1137,8 @@ export class EditorSystem {
       sirens: sirens.length > 0 ? sirens : (this._levelCfg?.sirens || []),
       kraken: this._krakenConfig ? this._krakenConfig : null,
       endLocation: this._endLocation || this._levelCfg?.endLocation || { position: { x: 0, y: 0, z: -220 }, radius: 16 },
-      shipSpawn: this._shipSpawn || this._levelCfg?.shipSpawn || { position: { x: 0, y: 0, z: 0 }, rotation: 0 }
+      shipSpawn: this._shipSpawn || (this._hasDock ? null : (this._levelCfg?.shipSpawn || { position: { x: 0, y: 0, z: 0 }, rotation: 0 })),
+      hasDock: this._hasDock !== undefined ? this._hasDock : (this._levelCfg?.hasDock !== false)
     };
   }
 
@@ -1199,7 +1215,7 @@ export class EditorSystem {
       krakenMarker.add(seaRing);
 
       // Label sprite
-      const kLabel = this._createLabelSprite('🐙 KRAKEN', '#ff44aa');
+      const kLabel = this._createLabelSprite('KRAKEN', '#ff44aa');
       kLabel.position.set(0, 14, 0);
       kLabel.scale.set(16, 4, 1);
       krakenMarker.add(kLabel);
@@ -1240,7 +1256,7 @@ export class EditorSystem {
       startMarker.add(flag);
 
       // Label sprite
-      const sLabel = this._createLabelSprite('🏁 RACE START', '#00ff88');
+      const sLabel = this._createLabelSprite('RACE START', '#00ff88');
       sLabel.position.set(0, 10, 0);
       sLabel.scale.set(14, 3.5, 1);
       startMarker.add(sLabel);
@@ -1468,7 +1484,7 @@ export class EditorSystem {
     this._endLocationVisualGroup.add(ringMesh);
 
     // Label sprite
-    const label = this._createLabelSprite('🏁 HARBOR GOAL', '#00ff88');
+    const label = this._createLabelSprite('HARBOR GOAL', '#00ff88');
     label.position.set(0, height + 4, 0);
     label.scale.set(18, 4.5, 1);
     this._endLocationVisualGroup.add(label);
@@ -1486,13 +1502,16 @@ export class EditorSystem {
   exportLevel() {
     const exportData = this.getPlayableConfig();
     
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData, null, 2));
+    const jsonStr = JSON.stringify(exportData, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = dataStr;
+    a.href = url;
     a.download = `level_export_${Date.now()}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
     
     console.log("Level Exported", exportData);
   }
@@ -1536,11 +1555,25 @@ export class EditorSystem {
     this._shipGhostGroup.userData.isShipSpawn = true;
     this._shipGhostGroup.visible = this._shipGhostVisible;
 
-    const spawnPos = this._shipSpawn?.position || (this._shipSpawn?.x !== undefined ? this._shipSpawn : null);
-    const spawnX = spawnPos?.x ?? 0;
-    const spawnY = spawnPos?.y ?? 0;
-    const spawnZ = spawnPos?.z ?? 0;
-    const spawnRot = this._shipSpawn?.rotation ?? 0;
+    let spawnX = 0;
+    let spawnY = 0;
+    let spawnZ = 0;
+    let spawnRot = 0;
+
+    if (this._hasDock && !this._shipSpawn) {
+      const s = profile.scale || 0.12;
+      const halfBeam = ((profile.grid?.x || 24) * 0.5) * s;
+      spawnX = -50.9 - halfBeam - 0.4;
+      spawnY = 0;
+      spawnZ = 10.5;
+      spawnRot = 0;
+    } else {
+      const spawnPos = this._shipSpawn?.position || (this._shipSpawn?.x !== undefined ? this._shipSpawn : null);
+      spawnX = spawnPos?.x ?? 0;
+      spawnY = spawnPos?.y ?? 0;
+      spawnZ = spawnPos?.z ?? 0;
+      spawnRot = this._shipSpawn?.rotation ?? 0;
+    }
 
     this._shipGhostGroup.position.set(spawnX, spawnY, spawnZ);
     this._shipGhostGroup.rotation.y = spawnRot;
@@ -1567,7 +1600,7 @@ export class EditorSystem {
     this._shipGhostGroup.add(arrowHelper);
 
     // Label sprite
-    const label = this._createLabelSprite('⛵ SHIP SPAWN', profile.isGagTruck ? '#ff4422' : '#00e5ff');
+    const label = this._createLabelSprite('SHIP SPAWN', profile.isGagTruck ? '#ff4422' : '#00e5ff');
     label.position.set(0, 7.5, 0);
     label.scale.set(16, 4, 1);
     this._shipGhostGroup.add(label);

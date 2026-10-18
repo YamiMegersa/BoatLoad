@@ -1,0 +1,23 @@
+{
+  "id": "sloop",
+  "name": "Standard Sloop",
+  "modelUrl": "assets/ships/sloop.glb",
+  "grid": {
+    "x": 24,
+    "y": 24,
+    "z": 48
+  },
+  "zones": {
+    "hull": [
+      { "xRange": [0, 23], "yRange": [0, 5], "zRange": [0, 47] }
+    ],
+    "sail": [
+      { "xRange": [0, 23], "yRange": [6, 6], "zRange": [0, 47] },
+      { "xRange": [0, 8], "yRange": [7, 23], "zRange": [0, 47] },
+      { "xRange": [12, 23], "yRange": [7, 23], "zRange": [0, 47] }
+    ],
+    "mast": [
+      { "xRange": [9, 11], "yRange": [7, 23], "zRange": [0, 47] }
+    ]
+  }
+}
