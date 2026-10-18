@@ -164,6 +164,8 @@ export class GameState {
 
     this._boundPointerDown = this._onPointerDown.bind(this);
     this._boundPointerMove = this._onPointerMove.bind(this);
+    this._boundPointerUp = this._onPointerUp.bind(this);
+    this._shipyardPointerGesture = null;
 
     // Patch keydown to handle single-press R and F
     const oldKeyDown = this._boundKeyDown;
@@ -453,6 +455,7 @@ export class GameState {
     this._time += delta;
     this._ocean.update(delta);
     if (this._weather) this._weather.update(delta);
+    if (this.currentPhase !== GamePhase.OBSTACLE) this._ocean.clearWake();
 
     switch (this.currentPhase) {
       case GamePhase.DOCK:
@@ -1236,6 +1239,8 @@ export class GameState {
     // Pointer event for clicking cells
     this._renderer.domElement.addEventListener('pointerdown', this._boundPointerDown);
     this._renderer.domElement.addEventListener('pointermove', this._boundPointerMove);
+    this._renderer.domElement.addEventListener('pointerup', this._boundPointerUp);
+    this._renderer.domElement.addEventListener('pointercancel', this._boundPointerUp);
 
     this._emitShipyardSummary = () => {
       if (!this._grid) return;
@@ -1323,6 +1328,9 @@ export class GameState {
     // Remove event listeners
     this._renderer.domElement.removeEventListener('pointerdown', this._boundPointerDown);
     this._renderer.domElement.removeEventListener('pointermove', this._boundPointerMove);
+    this._renderer.domElement.removeEventListener('pointerup', this._boundPointerUp);
+    this._renderer.domElement.removeEventListener('pointercancel', this._boundPointerUp);
+    this._shipyardPointerGesture = null;
     if (this._onCellRepaired) off('cellRepaired', this._onCellRepaired);
     if (this._onShipyardGridDirty) off('gridDirty', this._onShipyardGridDirty);
     this._onCellRepaired = null;
@@ -1426,12 +1434,25 @@ export class GameState {
     if (this.currentPhase !== GamePhase.SHIPYARD) return;
     if (event.button !== 0) return; // Only left-click places/erases blocks; right-click is reserved for camera orbiting
 
+    this._shipyardPointerGesture = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+    };
+  }
+
+  _onPointerUp(event) {
+    const gesture = this._shipyardPointerGesture;
+    if (!gesture || event.pointerId !== gesture.pointerId) return;
+    this._shipyardPointerGesture = null;
+    if (event.type === 'pointercancel' || gesture.moved || event.button !== 0) return;
+
     const rect = this._renderer.domElement.getBoundingClientRect();
     this._mouseNDC.set(
-      ((event.clientX - rect.left) / rect.width)  *  2 - 1,
-      -((event.clientY - rect.top)  / rect.height) *  2 + 1,
+      ((event.clientX - rect.left) / rect.width) * 2 - 1,
+      -((event.clientY - rect.top) / rect.height) * 2 + 1,
     );
-
     const result = this._raycaster.cast(this._mouseNDC, this._camera);
     if (result) {
       this._buildSystem.placeObject(result.cell.x, result.cell.y, result.cell.z, result.normal);
@@ -1440,6 +1461,11 @@ export class GameState {
 
   _onPointerMove(event) {
     if (this.currentPhase !== GamePhase.SHIPYARD) return;
+    const gesture = this._shipyardPointerGesture;
+    if (gesture && event.pointerId === gesture.pointerId &&
+        Math.hypot(event.clientX - gesture.startX, event.clientY - gesture.startY) > 8) {
+      gesture.moved = true;
+    }
 
     const rect = this._renderer.domElement.getBoundingClientRect();
     this._mouseNDC.set(
@@ -1731,6 +1757,9 @@ export class GameState {
     this._qteSystem?.update(delta);
     // Pass WindManager instead of static windDir
     this._playerShip?.update(delta, this._ocean, this._windManager);
+    if (this._playerShip) {
+      this._ocean.updateShipWake(this._playerShip.mesh.position, this._playerShip.wakeVelocity, delta);
+    }
     this._obstacleManager?.update(delta, this._playerShip, this._windManager, this._voxelTerrain);
     this._environmentManager?.update(delta, this._windManager, this._playerShip);
     this._sirenManager?.update(delta, this._playerShip);

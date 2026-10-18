@@ -1,5 +1,10 @@
 import * as THREE from 'three';
 
+const WAKE_SAMPLE_COUNT = 5;
+const WAKE_SAMPLE_INTERVAL = 0.12;
+const WAKE_SAMPLE_LIFETIME = WAKE_SAMPLE_COUNT * WAKE_SAMPLE_INTERVAL;
+const WAKE_MIN_SPEED = 0.75;
+
 export class Ocean {
   constructor() {
     this.mesh = null;
@@ -7,6 +12,16 @@ export class Ocean {
     this._waveScale = 1.0;
     this._waveSpeed = 1.0;
     this._enableBreakwater = false;
+    this._wakePositions = Array.from(
+      { length: WAKE_SAMPLE_COUNT },
+      () => new THREE.Vector4(0, 0, 0, WAKE_SAMPLE_LIFETIME + 1)
+    );
+    this._wakeDirections = Array.from(
+      { length: WAKE_SAMPLE_COUNT },
+      () => new THREE.Vector4(0, 0, 0, 0)
+    );
+    this._wakeSampleAccumulator = 0;
+    this._wakeSampleCount = 0;
   }
 
   init(scene) {
@@ -31,16 +46,47 @@ export class Ocean {
           uRadius: { value: 200.0 },
           uShallow: { value: new THREE.Color(seaColor) },
           uDeep: { value: new THREE.Color(seaDeepColor) },
-          uSunDir: { value: sunDir }
+          uSunDir: { value: sunDir },
+          uWakePositions: { value: this._wakePositions },
+          uWakeDirections: { value: this._wakeDirections },
+          uWakeCount: { value: this._wakeSampleCount }
         }
       ]),
       vertexShader: `
         #include <fog_pars_vertex>
         uniform float uTime, uWaveScale, uWaveSpeed;
         uniform bool uEnableBreakwater;
+        uniform vec4 uWakePositions[${WAKE_SAMPLE_COUNT}];
+        uniform vec4 uWakeDirections[${WAKE_SAMPLE_COUNT}];
+        uniform float uWakeCount;
         varying float vHeight;
+        varying float vWake;
         varying vec3 vNormalW;
         varying vec3 vWorldPos;
+
+        float getWake(vec2 p) {
+          float wake = 0.0;
+          for (int i = 0; i < ${WAKE_SAMPLE_COUNT}; i++) {
+            if (float(i) >= uWakeCount) break;
+            vec4 samplePosition = uWakePositions[i];
+            vec4 sampleDirection = uWakeDirections[i];
+
+            vec2 direction = normalize(sampleDirection.xy);
+            vec2 fromShip = p - samplePosition.xy;
+            float behind = -dot(fromShip, direction);
+            float wakeLength = 1.5 + samplePosition.z * 0.42;
+            if (behind <= 0.0 || behind >= wakeLength) continue;
+
+            float side = abs(fromShip.x * direction.y - fromShip.y * direction.x);
+            float width = 0.45 + behind * 0.08;
+            float across = 1.0 - smoothstep(width * 0.45, width * 1.4, side);
+            float along = smoothstep(0.1, 0.7, behind) * (1.0 - smoothstep(wakeLength * 0.72, wakeLength, behind));
+            float fade = 1.0 - smoothstep(${(WAKE_SAMPLE_LIFETIME * 0.55).toFixed(2)}, ${WAKE_SAMPLE_LIFETIME.toFixed(2)}, samplePosition.w);
+            float strength = across * along * fade * clamp(samplePosition.z / 12.0, 0.0, 1.0);
+            wake = max(wake, strength);
+          }
+          return wake;
+        }
 
         // Distance field to prevent waves clipping through the dock and island
         float getMask(vec2 p) {
@@ -60,7 +106,7 @@ export class Ocean {
           return smoothstep(0.0, 8.0, dist);
         }
 
-        float waveHeight(vec2 p) {
+        float baseWaveHeight(vec2 p) {
           float t = uTime * uWaveSpeed;
           float rawWave = (
             sin(p.x * 0.25 + t * 0.9) * 0.35
@@ -72,15 +118,18 @@ export class Ocean {
 
         void main() {
           vec3 p = position;
-          float h = waveHeight(p.xz);
+          float wake = getWake(p.xz);
+          float t = uTime * uWaveSpeed;
+          float h = baseWaveHeight(p.xz) + sin(p.x * 2.4 + p.z * 1.7 - t * 4.0) * wake * 0.12;
           p.y += h;
           
           vHeight = h;
+          vWake = wake;
           vWorldPos = p;
 
           float eps = 0.6;
-          float hX = waveHeight(p.xz + vec2(eps, 0.0));
-          float hZ = waveHeight(p.xz + vec2(0.0, eps));
+          float hX = baseWaveHeight(p.xz + vec2(eps, 0.0));
+          float hZ = baseWaveHeight(p.xz + vec2(0.0, eps));
           vec3 tangentX = normalize(vec3(eps, hX - h, 0.0));
           vec3 tangentZ = normalize(vec3(0.0, hZ - h, eps));
           vNormalW = normalize(cross(tangentZ, tangentX));
@@ -98,6 +147,7 @@ export class Ocean {
         uniform float uRadius;
         
         varying float vHeight;
+        varying float vWake;
         varying vec3 vNormalW;
         varying vec3 vWorldPos;
 
@@ -135,6 +185,9 @@ export class Ocean {
           
           vec3 foamColor = vec3(0.95, 0.98, 1.0);
           col = mix(col, foamColor, foamAmount * 0.8);
+          float wakeFoam = smoothstep(0.52, 0.9, noise(vWorldPos.xz * 2.8 - uTime * 0.7) + vWake * 0.65) * vWake;
+          col = mix(col, vec3(0.78, 0.9, 0.94), vWake * 0.34);
+          col = mix(col, foamColor, wakeFoam * 0.4);
 
           float dist = length(vWorldPos.xz);
           float fadeStart = uRadius + 20.0;
@@ -142,13 +195,16 @@ export class Ocean {
              col = mix(col, vec3(0.02, 0.05, 0.1), clamp((dist - fadeStart) / 20.0, 0.0, 0.8));
           }
           
-          gl_FragColor = vec4(col, 0.85); // 0.85 alpha for transparency so fish are visible
+          float alpha = mix(0.85, 0.94, vWake);
+          gl_FragColor = vec4(col, alpha); // Water stays translucent so fish remain visible
           
           #include <fog_fragment>
         }
       `
     });
 
+    oceanMat.uniforms.uWakePositions.value = this._wakePositions;
+    oceanMat.uniforms.uWakeDirections.value = this._wakeDirections;
     this.mesh = new THREE.Mesh(oceanGeo, oceanMat);
     this.mesh.position.y = -0.5; 
     scene.add(this.mesh);
@@ -174,6 +230,48 @@ export class Ocean {
     if (this.mesh) {
       this.mesh.material.uniforms.uTime.value = this._time;
     }
+    for (const position of this._wakePositions) {
+      position.w += delta;
+    }
+    while (
+      this._wakeSampleCount > 0 &&
+      this._wakePositions[this._wakeSampleCount - 1].w > WAKE_SAMPLE_LIFETIME
+    ) {
+      this._wakeSampleCount--;
+    }
+    if (this.mesh) this.mesh.material.uniforms.uWakeCount.value = this._wakeSampleCount;
+  }
+
+  updateShipWake(position, velocity, delta) {
+    if (!position || !velocity || delta <= 0) return;
+
+    const speed = Math.hypot(velocity.x, velocity.z);
+    if (speed < WAKE_MIN_SPEED) {
+      this._wakeSampleAccumulator = 0;
+      return;
+    }
+
+    this._wakeSampleAccumulator += delta;
+    if (this._wakeSampleAccumulator < WAKE_SAMPLE_INTERVAL - 1e-6) return;
+    this._wakeSampleAccumulator %= WAKE_SAMPLE_INTERVAL;
+
+    for (let i = WAKE_SAMPLE_COUNT - 1; i > 0; i--) {
+      this._wakePositions[i].copy(this._wakePositions[i - 1]);
+      this._wakeDirections[i].copy(this._wakeDirections[i - 1]);
+    }
+    this._wakePositions[0].set(position.x, position.z, speed, 0);
+    this._wakeDirections[0].set(velocity.x / speed, velocity.z / speed, 0, 0);
+    this._wakeSampleCount = Math.min(this._wakeSampleCount + 1, WAKE_SAMPLE_COUNT);
+    if (this.mesh) this.mesh.material.uniforms.uWakeCount.value = this._wakeSampleCount;
+  }
+
+  clearWake() {
+    for (const position of this._wakePositions) {
+      position.w = WAKE_SAMPLE_LIFETIME + 1;
+    }
+    this._wakeSampleAccumulator = 0;
+    this._wakeSampleCount = 0;
+    if (this.mesh) this.mesh.material.uniforms.uWakeCount.value = 0;
   }
 
   setWorldSize(radius) {
@@ -246,5 +344,6 @@ export class Ocean {
       this.mesh.material.dispose();
       this.mesh = null;
     }
+    this.clearWake();
   }
 }

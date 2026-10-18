@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { FishAnimator } from './environment/FishAnimator.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { getAssetUrl } from './utils/paths.js';
+import { createGLTFLoader } from './utils/createGLTFLoader.js';
 
 const canvas = document.querySelector('#canvas');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -40,7 +40,7 @@ let animators = [];
 
 Promise.all(
   fishUrls.map(url => new Promise((resolve, reject) => {
-    new GLTFLoader().load(url, resolve, undefined, reject);
+    createGLTFLoader().load(url, resolve, undefined, reject);
   }))
 ).then(gltfs => {
   const ui = document.getElementById('ui');

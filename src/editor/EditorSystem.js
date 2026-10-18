@@ -1,11 +1,11 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { emit, on, off } from '../core/EventBus.js';
 import { buildObstacle } from '../obstacle/ObstacleManager.js';
 import { EnvironmentManager } from '../environment/EnvironmentManager.js';
 import { VoxelTerrain } from './VoxelTerrain.js';
 import { getShipProfile, DEFAULT_SHIP_ID } from '../config/ShipRegistry.js';
 import { getAssetUrl } from '../utils/paths.js';
+import { createGLTFLoader } from '../utils/createGLTFLoader.js';
 
 export class EditorSystem {
   constructor() {
@@ -1606,7 +1606,7 @@ export class EditorSystem {
     this._shipGhostGroup.add(label);
 
     // Load ship model with translucent wireframe / ghost holographic material
-    const loader = new GLTFLoader();
+    const loader = createGLTFLoader();
     const modelUrl = getAssetUrl(profile.modelUrl || `assets/ships/${profile.id}.glb`);
     const targetGroup = this._shipGhostGroup;
     loader.load(modelUrl, (gltf) => {

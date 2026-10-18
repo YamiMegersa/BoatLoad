@@ -167,26 +167,31 @@ window.directorMode = directorMode;
 // Resize handler
 // ---------------------------------------------------------------------------
 
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
+function resizeRenderer() {
+  const width = window.visualViewport?.width || window.innerWidth;
+  const height = window.visualViewport?.height || window.innerHeight;
+  camera.aspect = width / height;
   camera.updateProjectionMatrix();
 
   if (directorMode.camera) {
-    directorMode.camera.aspect = window.innerWidth / window.innerHeight;
+    directorMode.camera.aspect = width / height;
     directorMode.camera.updateProjectionMatrix();
   }
 
   if (gameState.activeCamera && gameState.activeCamera !== camera && gameState.activeCamera !== directorMode.camera) {
-    gameState.activeCamera.aspect = window.innerWidth / window.innerHeight;
+    gameState.activeCamera.aspect = width / height;
     gameState.activeCamera.updateProjectionMatrix();
   }
 
-  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setSize(width, height);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
-  godRays.resize(window.innerWidth, window.innerHeight);
-  mainRT.setSize(window.innerWidth, window.innerHeight);
-  paperFilter.resize(window.innerWidth, window.innerHeight);
-});
+  godRays.resize(width, height);
+  mainRT.setSize(width, height);
+  paperFilter.resize(width, height);
+}
+window.addEventListener('resize', resizeRenderer);
+window.visualViewport?.addEventListener('resize', resizeRenderer);
+window.addEventListener('orientationchange', resizeRenderer);
 
 // ---------------------------------------------------------------------------
 // FPS counter
@@ -359,6 +364,35 @@ demoUI.innerHTML = `
   </div>
 `;
 document.getElementById('ui-root')?.appendChild(demoUI);
+
+const touchOnlySelectors = [
+  '#btn-editor',
+  '#director-launch-btn',
+  '#director-container',
+  '#director-letterbox-top',
+  '#director-letterbox-bottom',
+  '#director-grid-overlay',
+  '#director-toast',
+  '#editor-ui-container',
+];
+const touchQuery = window.matchMedia('(pointer: coarse)');
+const isTouchDevice = () => navigator.maxTouchPoints > 0 || touchQuery.matches;
+function applyTouchDeviceUI() {
+  const touchDevice = isTouchDevice();
+  document.documentElement.classList.toggle('touch-device', touchDevice);
+  if (touchDevice) {
+    for (const selector of touchOnlySelectors) {
+      document.querySelectorAll(selector).forEach(element => { element.hidden = true; });
+    }
+  }
+}
+applyTouchDeviceUI();
+touchQuery.addEventListener?.('change', applyTouchDeviceUI);
+window.addEventListener('touchstart', applyTouchDeviceUI, { once: true, passive: true });
+document.addEventListener('pointerdown', event => {
+  if (event.pointerType === 'touch') applyTouchDeviceUI();
+}, { passive: true });
+new MutationObserver(applyTouchDeviceUI).observe(document.body, { childList: true, subtree: true });
 
 function logEvent(msg) {
   if (DEBUG) console.info(`[BoatLoad] ${msg}`);
@@ -675,6 +709,15 @@ async function boot() {
         emit('uiUnmount', { screen: 'pause' });
       }
     }
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && !isPaused &&
+          gameState.currentPhase !== GamePhase.MAIN_MENU &&
+          gameState.currentPhase !== GamePhase.RESULTS &&
+          !directorMode.isActive) {
+        setPaused(true);
+      }
+    });
 
     function togglePause() {
       if (gameState.currentPhase === GamePhase.DOCK || gameState.currentPhase === GamePhase.OBSTACLE ||

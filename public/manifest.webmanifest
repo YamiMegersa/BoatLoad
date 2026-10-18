@@ -1,0 +1,20 @@
+{
+  "id": "./",
+  "name": "BoatLoad — Shipwreck & Sail",
+  "short_name": "BoatLoad",
+  "description": "Repair your vessel and sail through dangerous waters.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#222233",
+  "theme_color": "#222233",
+  "icons": [
+    {
+      "src": "./boatload-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

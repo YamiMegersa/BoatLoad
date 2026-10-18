@@ -7,7 +7,26 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
-    sourcemap: false
+    sourcemap: false,
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              name: 'vendor',
+              test: /node_modules[\\/]/,
+              priority: 1,
+              maxSize: 400_000
+            },
+            {
+              name: 'app',
+              test: /src[\\/]/,
+              maxSize: 400_000
+            }
+          ]
+        }
+      }
+    }
   },
   server: {
     fs: {

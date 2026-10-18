@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 import { getShipProfile, DEFAULT_SHIP_ID } from '../config/ShipRegistry.js';
 import { getAssetUrl } from '../utils/paths.js';
+import { createGLTFLoader } from '../utils/createGLTFLoader.js';
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
@@ -107,7 +107,7 @@ export class LevelConfig {
 
     // Preload fish if not cached
     if (!LevelConfig._cache.has('fishModels')) {
-      const loader = new GLTFLoader();
+      const loader = createGLTFLoader();
       const fishModels = await Promise.all(
         LevelConfig._fishUrls.map(url => new Promise((resolve, reject) => {
           loader.load(url, resolve, undefined, reject);
@@ -136,7 +136,7 @@ export class LevelConfig {
 
     // Preload pickups if not cached
     if (!LevelConfig._cache.has('pickupModels')) {
-      const loader = new GLTFLoader();
+      const loader = createGLTFLoader();
       const pickupModels = await Promise.all(
         LevelConfig._pickupUrls.map(url => new Promise((resolve, reject) => {
           loader.load(url, resolve, undefined, reject);
@@ -149,7 +149,7 @@ export class LevelConfig {
 
     // Preload seaweed if not cached
     if (!LevelConfig._cache.has('seaweedModels')) {
-      const loader = new GLTFLoader();
+      const loader = createGLTFLoader();
       const seaweedModels = await Promise.all(
         LevelConfig._seaweedUrls.map(url => new Promise((resolve, reject) => {
           loader.load(url, resolve, undefined, reject);
@@ -162,7 +162,7 @@ export class LevelConfig {
 
     // Preload waves if not cached
     if (!LevelConfig._cache.has('waveModels')) {
-      const loader = new GLTFLoader();
+      const loader = createGLTFLoader();
       const waveModels = await Promise.all(
         LevelConfig._waveUrls.map(url => new Promise((resolve, reject) => {
           loader.load(url, resolve, undefined, reject);
@@ -174,7 +174,7 @@ export class LevelConfig {
     const waveModels = LevelConfig._cache.get('waveModels');
 
     if (!LevelConfig._cache.has('islandModels')) {
-      const loader = new GLTFLoader();
+      const loader = createGLTFLoader();
       const islandModels = await Promise.all(
         LevelConfig._islandUrls.map(url => new Promise((resolve, reject) => {
           loader.load(url, resolve, undefined, reject);
@@ -193,7 +193,7 @@ export class LevelConfig {
     const islandModels = LevelConfig._cache.get('islandModels');
 
     if (!LevelConfig._cache.has('sirenModel')) {
-      const loader = new GLTFLoader();
+      const loader = createGLTFLoader();
       const sirenModel = await new Promise((resolve, reject) => {
         loader.load(LevelConfig._sirenUrl, resolve, undefined, reject);
       });
@@ -203,7 +203,7 @@ export class LevelConfig {
     const sirenModel = LevelConfig._cache.get('sirenModel');
 
     if (!LevelConfig._cache.has('krakenModel')) {
-      const loader = new GLTFLoader();
+      const loader = createGLTFLoader();
       const krakenModel = await new Promise((resolve, reject) => {
         loader.load(LevelConfig._krakenUrl, resolve, undefined, reject);
       });
@@ -290,7 +290,7 @@ export class LevelConfig {
   }
 
   static async _loadRockModels() {
-    const loader = new GLTFLoader();
+    const loader = createGLTFLoader();
     
     // Load all rocks concurrently
     const loadedGltfs = await Promise.all(

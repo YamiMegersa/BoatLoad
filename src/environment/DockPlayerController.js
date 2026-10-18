@@ -45,6 +45,13 @@ export class DockPlayerController {
       right: false,
       sprint: false
     };
+    this.joystickInput = new THREE.Vector2();
+    this._joystickPointerId = null;
+    this._lookPointerId = null;
+    this._lookLastPosition = null;
+    this._lookMoved = false;
+    this.isTouchDevice = navigator.maxTouchPoints > 0 ||
+      window.matchMedia?.('(pointer: coarse)').matches === true;
     this.walkSpeed = 6.0 * this.scale;
     this.sprintSpeed = 10.5 * this.scale;
     this.velocity = new THREE.Vector3();
@@ -125,20 +132,27 @@ export class DockPlayerController {
       backdrop-filter: blur(4px); transition: opacity 0.4s ease;
     `;
     this.instructions.innerHTML = `
-      <span><span class="pixel-icon icon-hand-select size-14"></span> <b>Click Canvas</b> to look</span>
-      <span>|</span>
-      <span><b>WASD</b> Walk</span>
-      <span>|</span>
-      <span><b>Shift</b> Sprint</span>
-      <span>|</span>
-      <span><b>Q</b> Emotes</span>
-      <span>|</span>
-      <span><b>Esc</b> Unlock Mouse</span>
+      ${this.isTouchDevice
+        ? '<span><b>Joystick</b> Walk</span><span>|</span><span><b>Drag</b> to look</span><span>|</span><span><b>Tap</b> to interact</span>'
+        : '<span><span class="pixel-icon icon-hand-select size-14"></span> <b>Click Canvas</b> to look</span><span>|</span><span><b>WASD</b> Walk</span><span>|</span><span><b>Shift</b> Sprint</span><span>|</span><span><b>Q</b> Emotes</span><span>|</span><span><b>Esc</b> Unlock Mouse</span>'}
     `;
     this.uiContainer.appendChild(this.instructions);
 
+    this.touchControls = document.createElement('div');
+    this.touchControls.id = 'dock-touch-controls';
+    this.touchControls.className = 'dock-touch-controls';
+    this.touchControls.innerHTML = `
+      <div class="dock-joystick-base" role="group" aria-label="Movement joystick">
+        <div class="dock-joystick-thumb"></div>
+      </div>
+      <button class="dock-touch-sprint" type="button" aria-pressed="false">Sprint</button>
+    `;
+    this.touchControls.hidden = !this.isTouchDevice;
+    this.uiContainer.appendChild(this.touchControls);
+
     const uiRoot = document.getElementById('ui-root') || document.body;
     uiRoot.appendChild(this.uiContainer);
+    this._bindTouchControls();
   }
 
   // ---------------------------------------------------------------------------
@@ -150,6 +164,8 @@ export class DockPlayerController {
     this._onKeyUp = this._onKeyUp.bind(this);
     this._onMouseMove = this._onMouseMove.bind(this);
     this._onPointerDown = this._onPointerDown.bind(this);
+    this._onTouchLookMove = this._onTouchLookMove.bind(this);
+    this._onTouchLookUp = this._onTouchLookUp.bind(this);
     this._onPointerLockChange = this._onPointerLockChange.bind(this);
     this._onWindowResize = this._onWindowResize.bind(this);
 
@@ -160,6 +176,62 @@ export class DockPlayerController {
     document.addEventListener('mousemove', this._onMouseMove);
     document.addEventListener('pointerlockchange', this._onPointerLockChange);
     this.domElement.addEventListener('pointerdown', this._onPointerDown);
+    this.domElement.addEventListener('pointermove', this._onTouchLookMove);
+    this.domElement.addEventListener('pointerup', this._onTouchLookUp);
+    this.domElement.addEventListener('pointercancel', this._onTouchLookUp);
+  }
+
+  _bindTouchControls() {
+    const joystick = this.touchControls.querySelector('.dock-joystick-base');
+    const thumb = this.touchControls.querySelector('.dock-joystick-thumb');
+    const sprint = this.touchControls.querySelector('.dock-touch-sprint');
+
+    const updateJoystick = (event) => {
+      const rect = joystick.getBoundingClientRect();
+      const radius = rect.width * 0.36;
+      const dx = event.clientX - (rect.left + rect.width / 2);
+      const dy = event.clientY - (rect.top + rect.height / 2);
+      const length = Math.hypot(dx, dy);
+      const scale = length > radius ? radius / length : 1;
+      const x = dx * scale;
+      const y = dy * scale;
+      this.joystickInput.set(x / radius, y / radius);
+      thumb.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
+    };
+
+    joystick.addEventListener('pointerdown', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this._joystickPointerId = event.pointerId;
+      joystick.setPointerCapture(event.pointerId);
+      updateJoystick(event);
+    });
+    joystick.addEventListener('pointermove', (event) => {
+      if (event.pointerId === this._joystickPointerId) updateJoystick(event);
+    });
+    const releaseJoystick = (event) => {
+      if (event.pointerId !== this._joystickPointerId) return;
+      this._joystickPointerId = null;
+      this.joystickInput.set(0, 0);
+      thumb.style.transform = 'translate(-50%, -50%)';
+    };
+    joystick.addEventListener('pointerup', releaseJoystick);
+    joystick.addEventListener('pointercancel', releaseJoystick);
+
+    sprint.addEventListener('pointerdown', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.keys.sprint = true;
+      sprint.setAttribute('aria-pressed', 'true');
+      sprint.setPointerCapture(event.pointerId);
+    });
+    const releaseSprint = () => {
+      this.keys.sprint = false;
+      sprint.setAttribute('aria-pressed', 'false');
+    };
+    sprint.addEventListener('pointerup', releaseSprint);
+    sprint.addEventListener('pointercancel', releaseSprint);
+    sprint.addEventListener('lostpointercapture', releaseSprint);
   }
 
   _unbindEvents() {
@@ -170,10 +242,15 @@ export class DockPlayerController {
     document.removeEventListener('mousemove', this._onMouseMove);
     document.removeEventListener('pointerlockchange', this._onPointerLockChange);
     this.domElement.removeEventListener('pointerdown', this._onPointerDown);
+    this.domElement.removeEventListener('pointermove', this._onTouchLookMove);
+    this.domElement.removeEventListener('pointerup', this._onTouchLookUp);
+    this.domElement.removeEventListener('pointercancel', this._onTouchLookUp);
   }
 
   _onWindowResize() {
-    this.camera.aspect = window.innerWidth / window.innerHeight;
+    const width = window.visualViewport?.width || window.innerWidth;
+    const height = window.visualViewport?.height || window.innerHeight;
+    this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
   }
 
@@ -277,6 +354,19 @@ export class DockPlayerController {
   }
 
   _onPointerDown(e) {
+    if (e.pointerType === 'touch' || this.isTouchDevice) {
+      e.preventDefault();
+      this.isTouchDevice = true;
+      this.touchControls.hidden = false;
+      this._lookPointerId = e.pointerId;
+      this._lookLastPosition = { x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY };
+      this._lookMoved = false;
+      this._updateMouseCoords(e);
+      this.domElement.setPointerCapture?.(e.pointerId);
+      this._updateInteractionRaycast();
+      return;
+    }
+
     // Left click
     if (e.button !== 0) return;
     if (this.emoteWheel && this.emoteWheel.isOpen) return;
@@ -315,6 +405,53 @@ export class DockPlayerController {
     if (!this.isLocked) {
       this.domElement.requestPointerLock();
     }
+  }
+
+  _updateMouseCoords(event) {
+    const rect = this.domElement.getBoundingClientRect();
+    this.mouseCoords.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    this.mouseCoords.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  }
+
+  _onTouchLookMove(event) {
+    if (event.pointerId !== this._lookPointerId || !this._lookLastPosition) return;
+    event.preventDefault();
+
+    const dx = event.clientX - this._lookLastPosition.x;
+    const dy = event.clientY - this._lookLastPosition.y;
+    if (Math.hypot(event.clientX - this._lookLastPosition.startX, event.clientY - this._lookLastPosition.startY) > 7) {
+      this._lookMoved = true;
+    }
+    if (this._lookMoved) {
+      const sensitivity = 0.004;
+      this.yawObject.rotation.y -= dx * sensitivity;
+      this.pitchObject.rotation.x = THREE.MathUtils.clamp(this.pitchObject.rotation.x - dy * sensitivity, -1.45, 1.45);
+    }
+    this._lookLastPosition.x = event.clientX;
+    this._lookLastPosition.y = event.clientY;
+    this._updateMouseCoords(event);
+    this._updateInteractionRaycast();
+  }
+
+  _onTouchLookUp(event) {
+    if (event.pointerId !== this._lookPointerId) return;
+    const shouldInteract = !this._lookMoved && event.type === 'pointerup';
+    this._lookPointerId = null;
+    this._lookLastPosition = null;
+    if (shouldInteract) {
+      this._updateMouseCoords(event);
+      this._updateInteractionRaycast();
+      this._interactWithHovered();
+    }
+  }
+
+  _interactWithHovered() {
+    if (this.hoveredGhost) this._interactWithGhost();
+    else if (this.hoveredBunny) this._interactWithBunny();
+    else if (this.hoveredDoor) this.toggleShop();
+    else if (this.hoveredLedger) this._interactWithLedger();
+    else if (this.hoveredShip) this._interactWithShip();
+    else if (this.hoveredShipyard) this._interactWithShipyard();
   }
 
   // ---------------------------------------------------------------------------
@@ -486,6 +623,8 @@ export class DockPlayerController {
     if (this.keys.backward) moveDir.z += 1;
     if (this.keys.left)     moveDir.x -= 1;
     if (this.keys.right)    moveDir.x += 1;
+    moveDir.x += this.joystickInput.x;
+    moveDir.z += this.joystickInput.y;
 
     if (moveDir.lengthSq() > 0) {
       moveDir.normalize();

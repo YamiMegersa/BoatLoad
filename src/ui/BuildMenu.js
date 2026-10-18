@@ -200,6 +200,12 @@ export class BuildMenu {
           </div>
         </div>
       </section>
+      <nav class="touch-build-controls" aria-label="Quick shipbuilding controls">
+        <button type="button" data-build-action="rotate">Rotate</button>
+        <button type="button" data-build-action="pitch">Upright</button>
+        <button type="button" data-build-action="mirror">Symmetry</button>
+        <button type="button" data-build-action="undo">Undo</button>
+      </nav>
     `;
 
     this._bindEvents();
@@ -232,6 +238,18 @@ export class BuildMenu {
 
     this._el.querySelector('#btn-ctrl-undo')?.addEventListener('click', () => {
       emit('undoBuild');
+    });
+
+    this._el.querySelectorAll('[data-build-action]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const events = {
+          rotate: 'rotateBrush',
+          pitch: 'togglePitch',
+          mirror: 'toggleMirror',
+          undo: 'undoBuild',
+        };
+        emit(events[button.dataset.buildAction]);
+      });
     });
 
     // Paper shader controls

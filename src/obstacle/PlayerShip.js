@@ -77,6 +77,7 @@ export class PlayerShip {
 
     // Pinball-like knockback velocity
     this.knockbackVelocity = new THREE.Vector3();
+    this.wakeVelocity = new THREE.Vector3();
     
     // Immunity
     this.immuneTime = 0;
@@ -267,7 +268,11 @@ export class PlayerShip {
   // -------------------------------------------------------------------------
 
   update(delta, ocean, windManager) {
-    if (this.sunk) return;
+    if (this.sunk) {
+      this.wakeVelocity.set(0, 0, 0);
+      return;
+    }
+    this.wakeVelocity.set(0, 0, 0);
     this._bailCooldown = Math.max(0, this._bailCooldown - delta);
 
     // Gag Truck: Immediately nose-dives and sinks!
@@ -424,6 +429,8 @@ export class PlayerShip {
     // Lateral movement based on where the ship is pointing (Yaw)
     const speedPenalty = Math.max(0.3, 1.0 - waterRatio);
     const forwardSpeed = this._isHalted ? 0 : (15.0 * speedPenalty * windSpeedMult * this.throttle);
+    const previousX = this.mesh.position.x;
+    const previousZ = this.mesh.position.z;
     
     this.mesh.position.x += shipDir.x * forwardSpeed * this.speedMultiplier * delta;
     this.mesh.position.z += shipDir.z * forwardSpeed * this.speedMultiplier * delta;
@@ -433,6 +440,13 @@ export class PlayerShip {
       this.mesh.position.addScaledVector(this.knockbackVelocity, delta);
       // Damping the knockback (friction)
       this.knockbackVelocity.lerp(new THREE.Vector3(), 5.0 * delta);
+    }
+    if (delta > 0) {
+      this.wakeVelocity.set(
+        (this.mesh.position.x - previousX) / delta,
+        0,
+        (this.mesh.position.z - previousZ) / delta
+      );
     }
 
     // Keep ship slightly contained before the hard kill radius if we wanted, but user asked for static radius then kill radius
