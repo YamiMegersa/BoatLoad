@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { StudioFlyControls } from './StudioFlyControls.js';
 import { ShipBuilder }    from '../shipyard/ShipBuilder.js';
 import { ChunkRenderer }  from '../shipyard/ChunkRenderer.js';
 import { VoxelGrid, CellState } from '../shipyard/VoxelGrid.js';
@@ -156,18 +157,8 @@ export class GameState {
 
     // Input tracking
     this._keys = {};
-    this._boundKeyDown = (e) => { this._keys[e.code] = true; };
-    this._boundKeyUp   = (e) => { this._keys[e.code] = false; };
-    window.addEventListener('keydown', this._boundKeyDown);
-    window.addEventListener('keyup', this._boundKeyUp);
-
-    this._boundPointerDown = this._onPointerDown.bind(this);
-    this._boundPointerMove = this._onPointerMove.bind(this);
-
-    // Patch keydown to handle single-press R and F
-    const oldKeyDown = this._boundKeyDown;
     this._boundKeyDown = (e) => {
-      oldKeyDown(e);
+      this._keys[e.code] = true;
       if (e.code === 'KeyR' && this.currentPhase === GamePhase.SHIPYARD) {
         emit('rotateBlueprint');
       }
@@ -179,6 +170,23 @@ export class GameState {
         }
       }
     };
+    this._boundKeyUp = (e) => {
+      this._keys[e.code] = false;
+    };
+    this._boundClearKeys = () => {
+      this._keys = {};
+    };
+
+    window.addEventListener('keydown', this._boundKeyDown);
+    window.addEventListener('keyup', this._boundKeyUp);
+    window.addEventListener('blur', this._boundClearKeys);
+    window.addEventListener('focus', this._boundClearKeys);
+    document.addEventListener('visibilitychange', this._boundClearKeys);
+
+    this._boundPointerDown = this._onPointerDown.bind(this);
+    this._boundPointerUp   = this._onPointerUp.bind(this);
+    this._boundPointerMove = this._onPointerMove.bind(this);
+    this._pointerDownPos   = null;
 
     on('toggleDenseFogUI', (d) => {
       if (this._environmentManager) {
@@ -370,6 +378,7 @@ export class GameState {
 
     this.currentPhase = newPhase;
     this.nextPhase = null;
+    this._keys = {};
     await this._onEnter(newPhase, opts);
     if (!skipLoading) emit('updateLoading', { progress: 0.88 });
 
@@ -1089,12 +1098,12 @@ export class GameState {
     const halfBeam = ((def?.grid?.x ?? 24) * 0.5) * s;
     const draft = (activeShipDef.waterlineY || shipProfile.waterlineY || 4) * s;
 
-    // Use docked mooring position if available, or compute West dock berth
+    // Compute West dock berth for the specific ship dimensions
     const pierX = -50.9;
     const pierZ = 10.5;
-    const mooredPos = this._dockMooredTargetPos 
-      ? this._dockMooredTargetPos.clone() 
-      : new THREE.Vector3(pierX - halfBeam - 0.4, -draft, pierZ);
+    const margin = Math.max(0.6, 0.1 * halfBeam);
+    const mooredPos = new THREE.Vector3(pierX - halfBeam - margin, -draft, pierZ);
+    this._dockMooredTargetPos = mooredPos.clone();
 
     const gx = def?.grid?.x ?? this._grid?.width ?? 24;
     const gy = def?.grid?.y ?? this._grid?.height ?? 24;
@@ -1174,11 +1183,11 @@ export class GameState {
     this._buildSystem = new BuildSystem();
     this._buildSystem.init(this._grid, this._scene, this._chunkRenderer.container, this._budgetManager);
 
-    // Orbit controls
-    this._orbitControls = new OrbitControls(this._camera, this._renderer.domElement);
-    this._orbitControls.enableDamping = true;
-    this._orbitControls.minDistance = 1.5;
-    this._orbitControls.maxDistance = 50.0;
+    // Studio Fly controls: WASD flies in camera space, right-drag freelooks, left-drag does nothing
+    this._shipyardFlyControls = new StudioFlyControls(this._camera, this._renderer.domElement, {
+      moveSpeed: 10.0,
+      lookSpeed: 0.003
+    });
 
     // Calculate boat center in world coordinates
     const shipWorldCenter = new THREE.Vector3(
@@ -1188,13 +1197,13 @@ export class GameState {
     );
 
     // Target the center of the ship and position camera nicely for viewing and repairing
-    this._orbitControls.target.copy(shipWorldCenter);
+    const scaleFactor = Math.max(1, s / 0.12);
     this._camera.position.set(
-      shipWorldCenter.x + 4.2,
-      shipWorldCenter.y + 2.4,
-      shipWorldCenter.z + 4.2
+      shipWorldCenter.x + 4.2 * scaleFactor,
+      shipWorldCenter.y + 2.4 * scaleFactor,
+      shipWorldCenter.z + 4.2 * scaleFactor
     );
-    this._orbitControls.update();
+    this._shipyardFlyControls.lookAt(shipWorldCenter);
 
     // PROTOTYPE DEBUG: Render a random fish directly next to the boat
     if (this._debugShark) {
@@ -1224,8 +1233,9 @@ export class GameState {
       );
     }
 
-    // Pointer event for clicking cells
+    // Pointer events for clicking cells
     this._renderer.domElement.addEventListener('pointerdown', this._boundPointerDown);
+    this._renderer.domElement.addEventListener('pointerup', this._boundPointerUp);
     this._renderer.domElement.addEventListener('pointermove', this._boundPointerMove);
 
     this._emitShipyardSummary = () => {
@@ -1273,35 +1283,8 @@ export class GameState {
       this._debugShark.position.y = this._debugSharkBaseY + this._debugSharkAnim.bobOffset;
     }
 
-    if (this._orbitControls) {
-      // WASD panning
-      const speed = 6 * delta;
-      
-      // Get camera's local forward/right vectors (ignoring Y to pan along the flat plane)
-      const forward = new THREE.Vector3();
-      this._camera.getWorldDirection(forward);
-      forward.y = 0;
-      forward.normalize();
-      
-      const right = new THREE.Vector3();
-      right.crossVectors(forward, this._camera.up).normalize();
-
-      const move = new THREE.Vector3();
-      if (this._keys['KeyW']) move.add(forward);
-      if (this._keys['KeyS']) move.sub(forward);
-      if (this._keys['KeyA']) move.sub(right);
-      if (this._keys['KeyD']) move.add(right);
-      
-      if (this._keys['KeyE'] || this._keys['Space']) move.y += 1;
-      if (this._keys['KeyQ'] || this._keys['ShiftLeft']) move.y -= 1;
-
-      if (move.lengthSq() > 0) {
-        move.normalize().multiplyScalar(speed);
-        this._camera.position.add(move);
-        this._orbitControls.target.add(move);
-      }
-
-      this._orbitControls.update();
+    if (this._shipyardFlyControls) {
+      this._shipyardFlyControls.update(delta);
     }
   }
 
@@ -1313,6 +1296,7 @@ export class GameState {
 
     // Remove event listeners
     this._renderer.domElement.removeEventListener('pointerdown', this._boundPointerDown);
+    this._renderer.domElement.removeEventListener('pointerup', this._boundPointerUp);
     this._renderer.domElement.removeEventListener('pointermove', this._boundPointerMove);
     if (this._onCellRepaired) off('cellRepaired', this._onCellRepaired);
     if (this._onShipyardGridDirty) off('gridDirty', this._onShipyardGridDirty);
@@ -1323,7 +1307,8 @@ export class GameState {
     // Dispose all Three.js objects except the ChunkRenderer and VoxelGrid
     this._raycaster?.dispose(this._scene);
     this._buildSystem?.reset();
-    this._orbitControls?.dispose();
+    this._shipyardFlyControls?.dispose();
+    this._shipyardFlyControls = null;
     
     if (this._chunkRenderer && this._chunkRenderer.container) {
       this._chunkRenderer.container.scale.set(1, 1, 1);
@@ -1415,7 +1400,22 @@ export class GameState {
   // Pointer handler — Shipyard phase only
   _onPointerDown(event) {
     if (this.currentPhase !== GamePhase.SHIPYARD) return;
-    if (event.button !== 0) return; // Only left-click places/erases blocks; right-click is reserved for camera orbiting
+    if (event.button === 0) {
+      this._pointerDownPos = { x: event.clientX, y: event.clientY };
+    }
+  }
+
+  _onPointerUp(event) {
+    if (this.currentPhase !== GamePhase.SHIPYARD) return;
+    if (event.button !== 0) return;
+    if (!this._pointerDownPos) return;
+
+    const dx = event.clientX - this._pointerDownPos.x;
+    const dy = event.clientY - this._pointerDownPos.y;
+    this._pointerDownPos = null;
+
+    // Distinguish click (< 5px) from camera drag/pan (>= 5px)
+    if (Math.hypot(dx, dy) >= 5) return;
 
     const rect = this._renderer.domElement.getBoundingClientRect();
     this._mouseNDC.set(
@@ -2169,6 +2169,10 @@ export class GameState {
   _updateEditor(delta) {
     if (this._editorSystem) {
       this._editorSystem.update(delta);
+    }
+
+    if (this._editorSystem?._destructionWorkshop?.isOpen) {
+      return;
     }
 
     if (this._orbitControls) {

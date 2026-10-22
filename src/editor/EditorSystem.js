@@ -6,6 +6,8 @@ import { EnvironmentManager } from '../environment/EnvironmentManager.js';
 import { VoxelTerrain } from './VoxelTerrain.js';
 import { getShipProfile, DEFAULT_SHIP_ID } from '../config/ShipRegistry.js';
 import { getAssetUrl } from '../utils/paths.js';
+import { BoatDestructionWorkshop } from './BoatDestructionWorkshop.js';
+import { EditorDamageUI } from '../ui/EditorDamageUI.js';
 
 export class EditorSystem {
   constructor() {
@@ -35,6 +37,10 @@ export class EditorSystem {
     
     // Config
     this._levelCfg = null;
+    this._customShipDamage = null;
+    this._destructionWorkshop = new BoatDestructionWorkshop();
+    this._damageUI = new EditorDamageUI();
+    this._savedEditorCameraPos = new THREE.Vector3();
     
     // Track explicit placed instances
     this._placedObstacles = [];
@@ -152,6 +158,7 @@ export class EditorSystem {
       const cfg = d.config;
       this._levelCfg = cfg;
       this._budget = cfg.budget !== undefined ? cfg.budget : 300;
+      this._customShipDamage = cfg.damage ? JSON.parse(JSON.stringify(cfg.damage)) : null;
 
       // Clear existing placed obstacles
       for (const obs of this._placedObstacles) {
@@ -407,9 +414,114 @@ export class EditorSystem {
         this._shipGhostGroup.visible = this._shipGhostVisible;
       }
     });
+
+    // Boat Destruction Workshop Events
+    on('editorOpenDamageWorkshop', async () => {
+      if (this._destructionWorkshop.isOpen) return;
+
+      const profile = getShipProfile(this._selectedShipId) || { name: 'Vessel' };
+      emit('showLoading', {
+        title: 'Entering Destruction Workshop',
+        message: `Mounting ${profile.name} in drydock & preparing demolition tools...`,
+        progress: 0.2
+      });
+
+      if (this._camera) this._savedEditorCameraPos.copy(this._camera.position);
+      if (this._editorGroup) this._editorGroup.visible = false;
+      if (window.gameState?._orbitControls) {
+        window.gameState._orbitControls.enabled = false;
+      }
+      emit('uiUnmount', { screen: 'editor' });
+
+      emit('updateLoading', { progress: 0.6 });
+
+      await this._destructionWorkshop.open({
+        scene: this._scene,
+        camera: this._camera,
+        renderer: this._renderer,
+        shipId: this._selectedShipId,
+        initialDamage: this._customShipDamage !== null ? this._customShipDamage : (this._levelCfg?.damage || null),
+        levelCfg: this.getPlayableConfig()
+      });
+
+      emit('updateLoading', { progress: 0.95 });
+
+      this._damageUI.mount(document.getElementById('ui-root') || document.body);
+
+      setTimeout(() => {
+        emit('hideLoading');
+      }, 350);
+    });
+
+    on('editorCloseDamageWorkshop', () => {
+      if (!this._destructionWorkshop.isOpen) return;
+
+      emit('showLoading', {
+        title: 'Returning to Level Editor',
+        message: 'Saving vessel damage & restoring editor state...',
+        progress: 0.3
+      });
+
+      const damage = this._destructionWorkshop.close();
+      this._customShipDamage = damage;
+      if (this._levelCfg) this._levelCfg.damage = damage;
+      this._damageUI.unmount();
+      if (this._editorGroup) this._editorGroup.visible = true;
+      if (window.gameState?._orbitControls) {
+        window.gameState._orbitControls.enabled = true;
+      }
+      if (this._camera && this._savedEditorCameraPos.lengthSq() > 0) {
+        this._camera.position.copy(this._savedEditorCameraPos);
+      }
+      emit('uiMount', { screen: 'editor', levelCfg: this.getPlayableConfig() });
+      this._updateShipGhost();
+      this._emitState();
+
+      emit('updateLoading', { progress: 0.95 });
+
+      setTimeout(() => {
+        emit('hideLoading');
+      }, 350);
+    });
+
+    on('workshopSelectBrush', ({ brush }) => this._destructionWorkshop?.setBrush(brush));
+    on('workshopSelectSize', ({ size }) => this._destructionWorkshop?.setBrushSize(size));
+    on('workshopToggleMirror', () => this._destructionWorkshop?.toggleMirror());
+    on('workshopToggleOutlines', () => this._destructionWorkshop?.toggleOutlines());
+    on('workshopUndo', () => this._destructionWorkshop?.undo());
+    on('workshopRedo', () => this._destructionWorkshop?.redo());
+    on('workshopResetPristine', () => this._destructionWorkshop?.resetPristine());
+    on('workshopImportBoat', async ({ levelJson }) => {
+      if (!levelJson) return;
+      const res = await this._destructionWorkshop.importBoatFromLevel(levelJson);
+      if (res && res.success) {
+        if (res.shipId && res.shipId !== this._selectedShipId) {
+          this._selectedShipId = res.shipId;
+          if (this._levelCfg) this._levelCfg.ship = res.shipId;
+        }
+        this._customShipDamage = this._destructionWorkshop.serializeDamage();
+        if (this._levelCfg) this._levelCfg.damage = this._customShipDamage;
+      }
+    });
+
+    on('editorImportBoatFromLevel', async ({ levelJson }) => {
+      if (!levelJson) return;
+      const targetShipId = levelJson.ship || this._selectedShipId || DEFAULT_SHIP_ID;
+      this._selectedShipId = targetShipId;
+      if (this._levelCfg) this._levelCfg.ship = targetShipId;
+      this._customShipDamage = levelJson.damage ? JSON.parse(JSON.stringify(levelJson.damage)) : [];
+      if (this._levelCfg) this._levelCfg.damage = this._customShipDamage;
+      this._updateShipGhost();
+      this._emitState();
+      emit('editorShipDamageUpdated', {
+        damageCount: this._customShipDamage.reduce((acc, curr) => acc + (curr.cells ? curr.cells.length : 0), 0)
+      });
+    });
   }
 
   _emitState() {
+    const damage = this._customShipDamage !== null ? this._customShipDamage : (this._levelCfg?.damage || []);
+    const damageCount = damage.reduce((acc, curr) => acc + (curr.cells ? curr.cells.length : 0), 0);
     emit('editorStateUpdated', {
       obstacleCount: this._placedObstacles.length,
       activeTool: this._activeTool,
@@ -420,7 +532,9 @@ export class EditorSystem {
       rotation: this._currentRotation,
       selectedShipId: this._selectedShipId,
       budget: this._budget,
-      biome: this._voxelTerrain ? this._voxelTerrain.biome : 'tropical'
+      biome: this._voxelTerrain ? this._voxelTerrain.biome : 'tropical',
+      damage,
+      damageCount
     });
   }
 
@@ -783,6 +897,7 @@ export class EditorSystem {
   }
 
   _onWheel(event) {
+    if (this._destructionWorkshop?.isOpen) return;
     if (this._activeTool === 'place' && this._activeType) {
       event.preventDefault();
       
@@ -799,6 +914,7 @@ export class EditorSystem {
   }
 
   _onKeyDown(event) {
+    if (this._destructionWorkshop?.isOpen) return;
     const isPlaceTool = this._activeTool === 'place' && this._activeType;
     const isTerrainTool = this._activeTool === 'terrain_raise' || this._activeTool === 'terrain_lower';
 
@@ -828,6 +944,7 @@ export class EditorSystem {
   }
 
   _onPointerMove(event) {
+    if (this._destructionWorkshop?.isOpen) return;
     const rect = this._renderer.domElement.getBoundingClientRect();
     this._mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     this._mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
@@ -892,6 +1009,7 @@ export class EditorSystem {
   }
 
   _onPointerUp(event) {
+    if (this._destructionWorkshop?.isOpen) return;
     if (event.button === 0) {
       this._isPointerDown = false;
       this._lastTerraformPoint = null;
@@ -933,6 +1051,7 @@ export class EditorSystem {
   }
 
   _onPointerDown(event) {
+    if (this._destructionWorkshop?.isOpen) return;
     // Left click only
     if (event.button !== 0) return;
     
@@ -1138,7 +1257,8 @@ export class EditorSystem {
       kraken: this._krakenConfig ? this._krakenConfig : null,
       endLocation: this._endLocation || this._levelCfg?.endLocation || { position: { x: 0, y: 0, z: -220 }, radius: 16 },
       shipSpawn: this._shipSpawn || (this._hasDock ? null : (this._levelCfg?.shipSpawn || { position: { x: 0, y: 0, z: 0 }, rotation: 0 })),
-      hasDock: this._hasDock !== undefined ? this._hasDock : (this._levelCfg?.hasDock !== false)
+      hasDock: this._hasDock !== undefined ? this._hasDock : (this._levelCfg?.hasDock !== false),
+      damage: this._customShipDamage !== null ? this._customShipDamage : (this._levelCfg?.damage || [])
     };
   }
 
@@ -1709,9 +1829,24 @@ export class EditorSystem {
     window.removeEventListener('pointerup', this._boundPointerUp);
     this._renderer?.domElement.removeEventListener('wheel', this._boundWheel);
     window.removeEventListener('keydown', this._boundKeyDown);
+
+    if (this._destructionWorkshop) {
+      this._destructionWorkshop.close();
+    }
+    if (window.gameState?._orbitControls) {
+      window.gameState._orbitControls.enabled = true;
+    }
+    if (this._damageUI) {
+      this._damageUI.dispose();
+    }
   }
 
   update(delta) {
+    if (this._destructionWorkshop && this._destructionWorkshop.isOpen) {
+      this._destructionWorkshop.update(delta);
+      return;
+    }
+
     if (this._previewMesh && this._previewMesh.particles) {
       this._previewMesh.particles.update(delta);
     }

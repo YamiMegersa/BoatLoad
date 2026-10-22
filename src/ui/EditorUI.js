@@ -20,6 +20,7 @@ export class EditorUI {
     this._heightY = 0.5;
     this._rotation = 0; // in radians
     this._obstacleCount = 0;
+    this._shipDamageCount = 0;
 
     // Bound handlers
     this._onStateUpdated = this._handleStateUpdated.bind(this);
@@ -36,6 +37,7 @@ export class EditorUI {
     const levelCfg = d?.levelCfg || {};
     this._selectedShipId = levelCfg.ship || DEFAULT_SHIP_ID;
     this._budget = levelCfg.budget !== undefined ? levelCfg.budget : 300;
+    this._shipDamageCount = (levelCfg.damage || []).reduce((acc, curr) => acc + (curr.cells ? curr.cells.length : 0), 0);
     const worldSize = levelCfg.worldSize || 200;
     const globalWindDir = levelCfg.globalWindDir || 0;
     const fogDensity = levelCfg.fogDensity !== undefined ? levelCfg.fogDensity : 0.006;
@@ -196,6 +198,10 @@ export class EditorUI {
                 <span class="dropdown-item-icon"><span class="pixel-icon icon-import-intray size-16"></span></span>
                 <span class="dropdown-item-text">Import Level JSON...</span>
                 <span class="dropdown-item-hotkey">Ctrl+O</span>
+              </button>
+              <button class="dropdown-item" id="btn-menu-import-boat">
+                <span class="dropdown-item-icon"><span class="pixel-icon icon-cargo-crate size-16"></span></span>
+                <span class="dropdown-item-text">Import Boat from Level...</span>
               </button>
               <div class="dropdown-divider"></div>
               <button class="dropdown-item text-danger" id="btn-menu-clear">
@@ -618,6 +624,27 @@ export class EditorUI {
                 <button class="mini-chip budget-chip" data-budget="500">$500</button>
                 <button class="mini-chip budget-chip" data-budget="1000">$1000</button>
               </div>
+            </div>
+          </div>
+
+          <div class="ribbon-divider"></div>
+
+          <!-- Vessel Damage / Destruction Workshop -->
+          <div class="ribbon-group" style="min-width: 215px;">
+            <span class="ribbon-group-label">Hull Damage &amp; Destruction</span>
+            <div class="ribbon-group-row">
+              <button class="shelf-btn ship-action-btn-damage" id="btn-open-damage-workshop" style="border-color: rgba(239, 68, 68, 0.4); background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(185, 28, 28, 0.3));" title="Open 3D Boat Destruction Workshop to carve holes, blast cannonball craters & add battle damage">
+                <span class="shelf-btn-icon"><span class="pixel-icon icon-delete-basket size-18"></span></span>
+                <span class="shelf-btn-text" style="color: #fca5a5;">Destruct Boat</span>
+              </button>
+              <button class="shelf-btn ship-action-btn-import" id="btn-ship-import-level-boat" style="border-color: rgba(56, 189, 248, 0.3);" title="Import boat & damage from an existing level JSON file">
+                <span class="shelf-btn-icon"><span class="pixel-icon icon-cargo-crate size-18"></span></span>
+                <span class="shelf-btn-text" style="color: #38bdf8;">Import Boat</span>
+              </button>
+              <input type="file" id="ship-pane-file-import" accept=".json" style="display: none;">
+            </div>
+            <div id="ship-damage-badge" style="font-size: 10px; color: #94a3b8; margin-top: 5px; display: flex; align-items: center; gap: 4px;">
+              <span>Damage: <strong id="ship-damage-count-text" style="color: #fca5a5;">${this._shipDamageCount || 0} breaches</strong></span>
             </div>
           </div>
 
@@ -1711,6 +1738,54 @@ export class EditorUI {
         emit('editorRequestPlay', { mode: 'dock' });
       };
     }
+
+    // Open Boat Destruction Workshop
+    const openDamageBtn = this._el.querySelector('#btn-open-damage-workshop');
+    if (openDamageBtn) {
+      openDamageBtn.onclick = () => {
+        emit('editorOpenDamageWorkshop');
+      };
+    }
+
+    // Import Boat From Level File
+    const shipImportBtn = this._el.querySelector('#btn-ship-import-level-boat');
+    const menuImportBoatBtn = this._el.querySelector('#btn-menu-import-boat');
+    const shipImportFile = this._el.querySelector('#ship-pane-file-import');
+
+    const handleImportBoatFile = (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const json = JSON.parse(event.target.result);
+          emit('editorImportBoatFromLevel', { levelJson: json });
+          this._showToast(`Imported boat from "${file.name}"!`);
+        } catch (err) {
+          console.error('Error importing boat from level JSON:', err);
+          alert('Failed to import boat: invalid level JSON.');
+        }
+        shipImportFile.value = '';
+      };
+      reader.readAsText(file);
+    };
+
+    if (shipImportFile) {
+      shipImportFile.onchange = handleImportBoatFile;
+    }
+
+    if (shipImportBtn && shipImportFile) {
+      shipImportBtn.onclick = () => {
+        shipImportFile.click();
+      };
+    }
+
+    if (menuImportBoatBtn && shipImportFile) {
+      menuImportBoatBtn.onclick = () => {
+        shipImportFile.click();
+      };
+    }
   }
 
   _selectShip(shipId, emitEvent = true) {
@@ -1778,6 +1853,14 @@ export class EditorUI {
       const budgetVal = this._el?.querySelector('#ship-budget-val');
       if (budgetSlider) budgetSlider.value = this._budget;
       if (budgetVal) budgetVal.innerText = `$${this._budget}`;
+    }
+
+    if (d.damageCount !== undefined) {
+      this._shipDamageCount = d.damageCount;
+      const damageText = this._el?.querySelector('#ship-damage-count-text');
+      if (damageText) {
+        damageText.textContent = `${this._shipDamageCount} ${this._shipDamageCount === 1 ? 'breach' : 'breaches'}`;
+      }
     }
 
     if (d.biome) {
