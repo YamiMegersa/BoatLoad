@@ -745,6 +745,7 @@ export class GameState {
     
     // Setup environment
     const stallGroup = this._dockStall.build();
+        stallGroup.visible = true; // undo draw-distance culling from a previous sailing run
     if (stallGroup.parent !== this._scene) {
       this._scene.add(stallGroup);
     }
@@ -1109,6 +1110,7 @@ export class GameState {
 
     // Setup island environment and breakwater
     const stallGroup = this._dockStall.build();
+        stallGroup.visible = true; // undo draw-distance culling from a previous sailing run
     if (stallGroup.parent !== this._scene) {
       this._scene.add(stallGroup);
     }
@@ -1500,6 +1502,7 @@ export class GameState {
 
     if (hasDock) {
       const stallGroup = this._dockStall.build();
+        stallGroup.visible = true; // undo draw-distance culling from a previous sailing run
       if (stallGroup.parent !== this._scene) {
         this._scene.add(stallGroup);
       }
@@ -1723,8 +1726,25 @@ export class GameState {
     // Pass WindManager instead of static windDir
     this._playerShip?.update(delta, this._ocean, this._windManager);
     this._obstacleManager?.update(delta, this._playerShip, this._windManager, this._voxelTerrain);
+    this._voxelTerrain?.updateCulling(this.activeCamera?.position || this._camera?.position);
     this._environmentManager?.update(delta, this._windManager, this._playerShip);
     this._sirenManager?.update(delta, this._playerShip);
+
+    // Cull the dock village/island only once it is fully beyond the draw distance
+    // (bounding radius ~45m accounts for the whole island + shipyard footprint).
+    if (this._dockStall?.group) {
+      const cam = this.activeCamera || this._camera;
+      if (cam) {
+        const far = cam.far || 400;
+        const d = cam.position.distanceTo(this._dockStall.group.position);
+        const wasVisible = this._dockStall.group.visible;
+        // hysteresis: hide at far+60, show again at far+30
+        const shouldShowDock = wasVisible ? (d - 45 <= far + 15) : (d - 45 <= far - 15);
+        if (wasVisible !== shouldShowDock) {
+          this._dockStall.group.visible = shouldShowDock;
+        }
+      }
+    }
 
     // Kraken boss — FSM + tentacles + cinematics
     if (this._krakenBoss) {
@@ -2064,6 +2084,7 @@ export class GameState {
 
     if (hasDock) {
       const stallGroup = this._dockStall.build();
+        stallGroup.visible = true; // undo draw-distance culling from a previous sailing run
       if (stallGroup.parent !== this._scene) {
         this._scene.add(stallGroup);
       }
@@ -2083,6 +2104,7 @@ export class GameState {
       this._hasDock = Boolean(hasDock);
       if (this._hasDock) {
         const stallGroup = this._dockStall.build();
+        stallGroup.visible = true; // undo draw-distance culling from a previous sailing run
         if (stallGroup.parent !== this._scene) {
           this._scene.add(stallGroup);
         }

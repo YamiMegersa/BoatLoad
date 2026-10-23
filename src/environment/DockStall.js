@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { VoxelLopBunny } from './VoxelLopBunny.js';
 import { DockNPC } from './DockNPC.js';
 import { GhostMerchant } from './GhostMerchant.js';
+import { mergeStaticMeshes } from '../utils/StaticMerge.js';
 
 // ---------------------------------------------------------------------------
 // Voxel Palette & Procedural Voxel Texture Generators
@@ -1343,6 +1344,25 @@ export class DockStall {
     this.shopCam.position.set(0, 2.85, -0.6);
     this.shopCam.rotation.set(0, 0, 0);
     shop.add(this.shopCam);
+
+    // Performance: merge hundreds of static voxel boxes into a few meshes per material.
+    const keep = new Set([
+      ...this.doorInteractables, ...this.bunnyInteractables, ...this.shipInteractables,
+      ...this.ledgerInteractables, ...this.shipyardInteractables, ...this.ghostMerchantInteractables
+    ]);
+    const stats = mergeStaticMeshes(this.group, {
+      keep,
+      buckets: [this.shopGroup],
+      excludeSubtrees: [
+        ...keep,
+        this.signPivot, this.ghostSignPivot, this.shopDoor, this.bookAura,
+        this.bunny?.group, this.dockNPC?.group, this.dockNPC?.mesh,
+        this.ghostMerchant?.group, ...this.gulls.map(g => g.mesh)
+      ]
+    });
+    if (typeof window !== 'undefined' && window.location?.search?.includes('debug')) {
+      console.log(`[DockStall] static merge: ${stats.before} -> ${stats.after} meshes`);
+    }
 
     return this.group;
   }

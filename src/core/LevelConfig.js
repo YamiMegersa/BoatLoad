@@ -22,7 +22,6 @@ export class LevelConfig {
     getAssetUrl('assets/obstacles/rocks/voxel_basic stone 3.glb'),
     getAssetUrl('assets/obstacles/rocks/voxel_Cliff.glb'),
     getAssetUrl('assets/obstacles/rocks/voxel_Desert Pillar.glb'),
-    getAssetUrl('assets/obstacles/rocks/voxel_Little Desert Town.glb'),
     getAssetUrl('assets/obstacles/rocks/voxel_Rock by Danni Bittman - 4TpBWdzKDf2.glb'),
     getAssetUrl('assets/obstacles/rocks/voxel_Rock by Quaternius - RtLRqYjfMs.glb'),
     getAssetUrl('assets/obstacles/rocks/voxel_Rock Large by Quaternius - d2VWOdthtR.glb'),

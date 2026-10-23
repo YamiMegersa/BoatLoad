@@ -118,6 +118,87 @@ window.gameState = gameState;
 window.godRays = godRays;
 window.exportToGLB = exportToGLB;
 
+window.inspectTriangles = () => {
+  const activeCam = directorMode.isActive ? directorMode.camera : (gameState.activeCamera || camera);
+  const items = [];
+  let totalTris = 0;
+  let totalVisibleTris = 0;
+  let meshCount = 0;
+  let visibleMeshCount = 0;
+
+  scene.traverse(obj => {
+    if (obj.isMesh && obj.geometry) {
+      meshCount++;
+      const geo = obj.geometry;
+      let tris = geo.index ? (geo.index.count / 3) : (geo.attributes.position ? geo.attributes.position.count / 3 : 0);
+      if (obj.isInstancedMesh) tris *= obj.count;
+      tris = Math.round(tris);
+      totalTris += tris;
+
+      const wp = new THREE.Vector3();
+      obj.getWorldPosition(wp);
+      const dist = activeCam ? Math.round(wp.distanceTo(activeCam.position)) : 0;
+
+      let isEffectivelyVisible = obj.visible;
+      let curr = obj.parent;
+      while (curr && isEffectivelyVisible) {
+        if (!curr.visible) {
+          isEffectivelyVisible = false;
+          break;
+        }
+        curr = curr.parent;
+      }
+
+      if (isEffectivelyVisible) {
+        visibleMeshCount++;
+        totalVisibleTris += tris;
+      }
+
+      items.push({
+        name: obj.name || (obj.parent && obj.parent !== scene ? obj.parent.name : null) || 'Mesh',
+        type: obj.isInstancedMesh ? 'InstancedMesh' : 'Mesh',
+        triangles: tris,
+        distanceM: dist,
+        visible: isEffectivelyVisible,
+      });
+    }
+  });
+
+  const visibleItems = items.filter(i => i.visible).sort((a, b) => b.triangles - a.triangles);
+  const culledItems = items.filter(i => !i.visible).sort((a, b) => b.triangles - a.triangles);
+
+  console.log(
+    `%c[Geometry Audit] ACTIVE GPU TRIS: ${totalVisibleTris.toLocaleString()} (${visibleMeshCount} meshes) | CULLED/DORMANT: ${(totalTris - totalVisibleTris).toLocaleString()} (${meshCount - visibleMeshCount} meshes) | Memory Total: ${totalTris.toLocaleString()}`,
+    'color: #38ef7d; font-weight: bold; font-size: 13px;'
+  );
+  console.log('%c>>> Top ACTIVE Meshes Rendered by GPU (visible: true):', 'color: #38bdf8; font-weight: bold;');
+  console.table(visibleItems.slice(0, 15));
+  console.log('%c>>> Top CULLED / Dormant Meshes in Memory (visible: false - GPU skipped):', 'color: #fbbf24; font-weight: bold;');
+  console.table(culledItems.slice(0, 10));
+
+  // Draw-call breakdown: visible meshes grouped by top-level scene child
+  const callMap = {};
+  scene.children.forEach(child => {
+    if (!child.visible) return;
+    let n = 0;
+    child.traverse(o => {
+      if (!o.isMesh && !o.isLine && !o.isPoints) return;
+      for (let p = o; p; p = p.parent) if (!p.visible) return;
+      n += Array.isArray(o.material) ? o.material.length : 1;
+    });
+    if (n > 0) callMap[child.name || child.type + ':' + child.uuid.slice(0, 4)] = n;
+  });
+  console.log('%c>>> Visible draw items per top-level object (x2-3 with shadows/god rays):', 'color: #f472b6; font-weight: bold;');
+  console.table(Object.entries(callMap).sort((a, b) => b[1] - a[1]).slice(0, 12).map(([name, items]) => ({ name, items })));
+  return { activeTris: totalVisibleTris, memoryTris: totalTris, visibleItems, culledItems, callMap };
+};
+
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'F3') {
+    window.inspectTriangles();
+  }
+});
+
 // Dev-only test helpers (?debug) — used by the iteration-2 test matrix to
 // reach hard-to-reach states quickly (sink, low water, day jumps).
 if (DEBUG) {
@@ -203,9 +284,11 @@ fpsCounter.style.cssText = `
   position: absolute; top: 10px; right: 10px; z-index: 100;
   background: rgba(0,0,0,0.8); color: #0f0; padding: 5px 10px;
   font-family: monospace; border-radius: 4px; font-size: 14px;
-  pointer-events: none;
+  pointer-events: auto; cursor: pointer; user-select: none;
   display: ${GameEnv.isDev() ? 'block' : 'none'};
 `;
+fpsCounter.title = 'Click or press F3 to print live triangle & geometry audit to console';
+fpsCounter.onclick = () => window.inspectTriangles?.();
 fpsCounter.innerText = 'FPS: 0';
 document.getElementById('ui-root')?.appendChild(fpsCounter);
 

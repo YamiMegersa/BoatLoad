@@ -838,37 +838,183 @@ export class VoxelTerrain {
     const indices = [];
     let offset = 0;
 
-    const voxelFaceChecks = [
-      { dir: [0, 1, 0], corners: [ [0,1,1], [1,1,1], [1,1,0], [0,1,0] ] },
-      { dir: [0, -1, 0], corners: [ [0,0,0], [1,0,0], [1,0,1], [0,0,1] ] },
-      { dir: [1, 0, 0], corners: [ [1,0,1], [1,0,0], [1,1,0], [1,1,1] ] },
-      { dir: [-1, 0, 0], corners: [ [0,0,0], [0,0,1], [0,1,1], [0,1,0] ] },
-      { dir: [0, 0, 1], corners: [ [0,0,1], [1,0,1], [1,1,1], [0,1,1] ] },
-      { dir: [0, 0, -1], corners: [ [1,0,0], [0,0,0], [0,1,0], [1,1,0] ] },
+    // 3 axes: Y (axis=1), X (axis=0), Z (axis=2)
+    const axes = [
+      {
+        axis: 1, // Y normal: top (+Y), bottom (-Y)
+        sizeD: CHUNK_HEIGHT,
+        sizeU: CHUNK_SIZE, // X
+        sizeV: CHUNK_SIZE, // Z
+        dirs: [
+          { sign: 1, normal: [0, 1, 0] },
+          { sign: -1, normal: [0, -1, 0] }
+        ],
+        getCoord: (d, u, v) => [u, d, v]
+      },
+      {
+        axis: 0, // X normal: (+X), (-X)
+        sizeD: CHUNK_SIZE,
+        sizeU: CHUNK_SIZE, // Z
+        sizeV: CHUNK_HEIGHT, // Y
+        dirs: [
+          { sign: 1, normal: [1, 0, 0] },
+          { sign: -1, normal: [-1, 0, 0] }
+        ],
+        getCoord: (d, u, v) => [d, v, u]
+      },
+      {
+        axis: 2, // Z normal: (+Z), (-Z)
+        sizeD: CHUNK_SIZE,
+        sizeU: CHUNK_SIZE, // X
+        sizeV: CHUNK_HEIGHT, // Y
+        dirs: [
+          { sign: 1, normal: [0, 0, 1] },
+          { sign: -1, normal: [0, 0, -1] }
+        ],
+        getCoord: (d, u, v) => [u, v, d]
+      }
     ];
 
-    for (let y = 0; y < CHUNK_HEIGHT; y++) {
-      for (let z = 0; z < CHUNK_SIZE; z++) {
-        for (let x = 0; x < CHUNK_SIZE; x++) {
-          const voxel = chunk[x + CHUNK_SIZE * (y + CHUNK_HEIGHT * z)];
-          if (voxel === BLOCK.AIR) continue;
+    for (const ax of axes) {
+      const { sizeD, sizeU, sizeV, dirs, getCoord } = ax;
+      const mask = new Int32Array(sizeU * sizeV);
 
-          const wx = cx * CHUNK_SIZE + x;
-          const wy = y;
-          const wz = cz * CHUNK_SIZE + z;
+      for (const { sign, normal } of dirs) {
+        for (let d = 0; d < sizeD; d++) {
+          let hasFaces = false;
+          for (let v = 0; v < sizeV; v++) {
+            for (let u = 0; u < sizeU; u++) {
+              const [lx, ly, lz] = getCoord(d, u, v);
+              const voxel = chunk[lx + CHUNK_SIZE * (ly + CHUNK_HEIGHT * lz)];
+              let faceVoxel = 0;
 
-          for (const face of voxelFaceChecks) {
-            const neighbor = this.getVoxel(wx + face.dir[0], wy + face.dir[1], wz + face.dir[2]);
-            if (neighbor === BLOCK.AIR) {
-              const { block, biome: voxelBiome } = decodeVoxel(voxel);
-              const c = this.getFaceVertexColor(block, wx, wy, wz, face.dir, voxelBiome);
-              for (const corner of face.corners) {
-                positions.push(wx + corner[0] - 0.5, wy + corner[1] - 0.5, wz + corner[2] - 0.5);
-                colors.push(c[0], c[1], c[2]);
-                normals.push(...face.dir);
+              if (voxel !== BLOCK.AIR) {
+                const wx = cx * CHUNK_SIZE + lx;
+                const wy = ly;
+                const wz = cz * CHUNK_SIZE + lz;
+                const neighbor = this.getVoxel(wx + normal[0], wy + normal[1], wz + normal[2]);
+                if (neighbor === BLOCK.AIR) {
+                  faceVoxel = voxel;
+                  hasFaces = true;
+                }
               }
-              indices.push(offset, offset+1, offset+2, offset, offset+2, offset+3);
+              mask[u + v * sizeU] = faceVoxel;
+            }
+          }
+
+          if (!hasFaces) continue;
+
+          // 2D Greedy Quad Merging
+          for (let v = 0; v < sizeV; v++) {
+            for (let u = 0; u < sizeU; ) {
+              const val = mask[u + v * sizeU];
+              if (val === 0) {
+                u++;
+                continue;
+              }
+
+              let width = 1;
+              while (u + width < sizeU && mask[(u + width) + v * sizeU] === val) {
+                width++;
+              }
+
+              let height = 1;
+              let canExpand = true;
+              while (v + height < sizeV && canExpand) {
+                for (let k = 0; k < width; k++) {
+                  if (mask[(u + k) + (v + height) * sizeU] !== val) {
+                    canExpand = false;
+                    break;
+                  }
+                }
+                if (canExpand) height++;
+              }
+
+              // Clear merged rectangle from mask
+              for (let dv = 0; dv < height; dv++) {
+                for (let du = 0; du < width; du++) {
+                  mask[(u + du) + (v + dv) * sizeU] = 0;
+                }
+              }
+
+              const { block, biome: voxelBiome } = decodeVoxel(val);
+
+              // Compute quad vertices
+              let corners;
+              if (ax.axis === 1) { // Y normal
+                const yPos = sign > 0 ? d + 1 : d;
+                if (sign > 0) {
+                  // Top (+Y)
+                  corners = [
+                    [u, yPos, v + height],
+                    [u + width, yPos, v + height],
+                    [u + width, yPos, v],
+                    [u, yPos, v]
+                  ];
+                } else {
+                  // Bottom (-Y)
+                  corners = [
+                    [u, yPos, v],
+                    [u + width, yPos, v],
+                    [u + width, yPos, v + height],
+                    [u, yPos, v + height]
+                  ];
+                }
+              } else if (ax.axis === 0) { // X normal (u = Z, v = Y)
+                const xPos = sign > 0 ? d + 1 : d;
+                if (sign > 0) {
+                  // +X
+                  corners = [
+                    [xPos, v, u + width],
+                    [xPos, v, u],
+                    [xPos, v + height, u],
+                    [xPos, v + height, u + width]
+                  ];
+                } else {
+                  // -X
+                  corners = [
+                    [xPos, v, u],
+                    [xPos, v, u + width],
+                    [xPos, v + height, u + width],
+                    [xPos, v + height, u]
+                  ];
+                }
+              } else { // Z normal (u = X, v = Y)
+                const zPos = sign > 0 ? d + 1 : d;
+                if (sign > 0) {
+                  // +Z
+                  corners = [
+                    [u, v, zPos],
+                    [u + width, v, zPos],
+                    [u + width, v + height, zPos],
+                    [u, v + height, zPos]
+                  ];
+                } else {
+                  // -Z
+                  corners = [
+                    [u + width, v, zPos],
+                    [u, v, zPos],
+                    [u, v + height, zPos],
+                    [u + width, v + height, zPos]
+                  ];
+                }
+              }
+
+              for (const c of corners) {
+                const wx = cx * CHUNK_SIZE + c[0] - 0.5;
+                const wy = c[1] - 0.5;
+                const wz = cz * CHUNK_SIZE + c[2] - 0.5;
+                positions.push(wx, wy, wz);
+                normals.push(...normal);
+
+                const color = this.getFaceVertexColor(block, wx, wy, wz, normal, voxelBiome);
+                colors.push(color[0], color[1], color[2]);
+              }
+
+              indices.push(offset, offset + 1, offset + 2, offset, offset + 2, offset + 3);
               offset += 4;
+
+              u += width;
             }
           }
         }
@@ -895,6 +1041,8 @@ export class VoxelTerrain {
     geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
     geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
     geometry.setIndex(indices);
+    geometry.computeBoundingSphere();
+    geometry.computeBoundingBox();
 
     const key = this.getChunkKey(cx, cz);
     let mesh = this.meshes.get(key);
@@ -907,6 +1055,26 @@ export class VoxelTerrain {
     mesh = new THREE.Mesh(geometry, this.material);
     this.meshes.set(key, mesh);
     this.meshGroup.add(mesh);
+  }
+
+  updateCulling(cameraPosition, maxDist = 180) {
+    if (!cameraPosition) return;
+    const maxDistSq = maxDist * maxDist;
+    const hystDistSq = (maxDist + 20) * (maxDist + 20);
+    for (const [key, mesh] of this.meshes.entries()) {
+      const [cx, cz] = key.split(',').map(Number);
+      const centerX = (cx + 0.5) * CHUNK_SIZE;
+      const centerZ = (cz + 0.5) * CHUNK_SIZE;
+      const dx = centerX - cameraPosition.x;
+      const dz = centerZ - cameraPosition.z;
+      const distSq = dx * dx + dz * dz;
+
+      if (mesh.visible && distSq > hystDistSq) {
+        mesh.visible = false;
+      } else if (!mesh.visible && distSq <= maxDistSq) {
+        mesh.visible = true;
+      }
+    }
   }
 
   updatePreview(worldX, worldZ, radius, type, targetYParam = null, shape = 'circle') {

@@ -10,8 +10,8 @@ export class Ocean {
   }
 
   init(scene) {
-    // 128x128 grid (16k vertices instead of 66k) provides smooth wave curves with 75% less vertex overhead
-    const oceanGeo = new THREE.PlaneGeometry(600, 600, 128, 128);
+    // 64x64 grid (8k triangles) provides smooth wave curvature with 75% less vertex overhead
+    const oceanGeo = new THREE.PlaneGeometry(600, 600, 64, 64);
     oceanGeo.rotateX(-Math.PI / 2);
 
     const seaColor = 0x4a6f78;
@@ -150,7 +150,10 @@ export class Ocean {
     });
 
     this.mesh = new THREE.Mesh(oceanGeo, oceanMat);
-    this.mesh.position.y = -0.5; 
+    this.mesh.name = 'OceanMesh';
+    this.mesh.position.y = -0.5;
+    this.mesh.userData.noGodRays = true;
+    this.mesh.userData.noOcclusion = true;
     scene.add(this.mesh);
   }
 
@@ -181,13 +184,16 @@ export class Ocean {
     
     // Scale size proportionally to radius, base is 600 size for 200 radius (3x)
     const size = Math.max(600, radius * 3.0);
-    const segments = Math.floor(size / (600 / 256));
+    const segments = 64; // 64x64 grid = 8,192 triangles (down from 131,072)
     
     const newGeo = new THREE.PlaneGeometry(size, size, segments, segments);
     newGeo.rotateX(-Math.PI / 2);
     
     this.mesh.geometry.dispose();
     this.mesh.geometry = newGeo;
+    this.mesh.name = 'OceanMesh';
+    this.mesh.userData.noGodRays = true;
+    this.mesh.userData.noOcclusion = true;
     
     if (this.mesh.material.uniforms.uRadius) {
       this.mesh.material.uniforms.uRadius.value = radius;

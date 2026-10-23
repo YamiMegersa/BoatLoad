@@ -602,17 +602,27 @@ export class GodRays {
 
     // Temporarily hide race markers and non-occluding objects so they do not block
     // the sun or produce god ray streaks/shadows in the occlusion mask.
+    const maxOcclusionDistSq = 140 * 140;
     this._hiddenForOcclusion.length = 0;
     scene.traverse(obj => {
-      if (
-        obj.visible &&
-        (obj.userData?.noGodRays ||
-         obj.userData?.noOcclusion ||
-         obj.userData?.isRaceMarker ||
-         obj.userData?.isWaypoint)
-      ) {
-        obj.visible = false;
-        this._hiddenForOcclusion.push(obj);
+      if (obj.visible) {
+        if (
+          obj.userData?.noGodRays ||
+          obj.userData?.noOcclusion ||
+          obj.userData?.isRaceMarker ||
+          obj.userData?.isWaypoint
+        ) {
+          obj.visible = false;
+          this._hiddenForOcclusion.push(obj);
+        } else if (obj.isMesh) {
+          const target = (obj.parent && obj.parent !== scene) ? obj.parent : obj;
+          const dx = target.position.x - camera.position.x;
+          const dz = target.position.z - camera.position.z;
+          if ((dx * dx + dz * dz) > maxOcclusionDistSq) {
+            obj.visible = false;
+            this._hiddenForOcclusion.push(obj);
+          }
+        }
       }
     });
 

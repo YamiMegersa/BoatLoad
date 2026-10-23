@@ -10,11 +10,11 @@ export class RainManager {
   }
 
   _init() {
-    // 3,500 instances with slightly thicker profile looks rich without 180,000-vertex GPU stall
-    const rainCount = 3500;
+    // 2,000 instances with open-ended 3-sided cylinders (6 tris each = 12k tris total instead of 42k)
+    const rainCount = 2000;
     
-    // Cylinder for rain streak to be omnidirectional
-    const cylGeometry = new THREE.CylinderGeometry(0.025, 0.025, 1.8, 3);
+    // Cylinder for rain streak to be omnidirectional, open-ended (no unneeded circular end caps)
+    const cylGeometry = new THREE.CylinderGeometry(0.025, 0.025, 1.8, 3, 1, true);
     
     const material = new THREE.ShaderMaterial({
       transparent: true,
@@ -78,6 +78,7 @@ export class RainManager {
       this.mesh.setMatrixAt(i, dummy.matrix);
     }
     
+    this.mesh.name = 'RainParticles';
     this.mesh.frustumCulled = false;
     this.mesh.visible = false; // Hidden when clear weather
     this.mesh.userData.noGodRays = true;

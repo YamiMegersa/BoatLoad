@@ -164,6 +164,15 @@ export class KrakenBoss {
     if (this._krakenMesh) {
       const heave = Math.sin(this._time * 1.2) * 0.4;
       this._krakenMesh.position.y = this._krakenPos.y + heave;
+
+      // Distance culling: hide 15.8k-triangle Kraken body when player is far away (>170m) unless in active fight
+      if (this._playerShip && this._playerShip.mesh) {
+        const dx = this._krakenPos.x - this._playerShip.mesh.position.x;
+        const dz = this._krakenPos.z - this._playerShip.mesh.position.z;
+        const distSq = dx * dx + dz * dz;
+        const inFight = this._state !== BossState.IDLE;
+        this._krakenMesh.visible = inFight || (distSq <= 170 * 170);
+      }
     }
 
     switch (this._state) {
@@ -604,7 +613,7 @@ export class KrakenBoss {
 
     // Position the whole thing
     this._krakenMesh.position.copy(this._krakenPos);
-    this._krakenMesh.frustumCulled = false;
+    this._krakenMesh.frustumCulled = true;
 
     this._scene.add(this._krakenMesh);
   }
