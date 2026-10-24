@@ -142,6 +142,7 @@ export class GhostMerchant {
 
     // 1. Upper Body InstancedMesh
     this.bodyMesh = new THREE.InstancedMesh(cubeGeo, ghostMat, bodyVoxels.length);
+    this.bodyMesh.name = 'GhostMerchantBody';
     bodyVoxels.forEach((v, idx) => {
       dummy.position.set(v.x, v.y, v.z);
       dummy.updateMatrix();
@@ -159,6 +160,7 @@ export class GhostMerchant {
     this.group.add(this.skirtGroup);
 
     this.skirtMesh = new THREE.InstancedMesh(cubeGeo, ghostMat, skirtVoxels.length);
+    this.skirtMesh.name = 'GhostMerchantSkirt';
     skirtVoxels.forEach((v, idx) => {
       dummy.position.set(v.x, v.y, v.z);
       dummy.updateMatrix();

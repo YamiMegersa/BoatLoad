@@ -534,6 +534,33 @@ export class ObstacleManager {
     for (const obs of this._obstacles) {
       if (!obs.active) continue;
 
+      // Distance culling with hysteresis: hide distant meshes to prevent GPU vertex overload
+      if (playerShip && playerShip.mesh) {
+        const dx = obs.mesh.position.x - playerShip.mesh.position.x;
+        const dz = obs.mesh.position.z - playerShip.mesh.position.z;
+        const distSq = dx * dx + dz * dz;
+
+        // Large landmarks (islands, sirens) stay visible out to the camera far plane
+        // (never less than 180m); smaller obstacles (rocks, barrels, seaweed, waves) cull at 135m.
+        const isLarge = (obs.type === 'island' || obs.type === 'siren');
+        const far = (typeof window !== 'undefined' && window.gameState?.activeCamera?.far) || 0;
+        const largeShow = Math.max(180, far - 20);
+        const largeHide = largeShow + 15;
+        const showDistSq = isLarge ? (largeShow * largeShow) : (135 * 135);
+        const hideDistSq = isLarge ? (largeHide * largeHide) : (150 * 150);
+
+        if (obs.mesh.visible && distSq > hideDistSq) {
+          obs.mesh.visible = false;
+        } else if (!obs.mesh.visible && distSq <= showDistSq) {
+          obs.mesh.visible = true;
+        }
+
+        // When far away and not visible, skip costly per-frame matrix & collision computations
+        if (!obs.mesh.visible && distSq > 900) { // 30m squared = 900
+          continue;
+        }
+      }
+
       // Only waves move, according to wind direction
       if (obs.type === 'wave_small' && windManager) {
         if (!this._tempWind) this._tempWind = new THREE.Vector3();

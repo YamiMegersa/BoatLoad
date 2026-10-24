@@ -139,11 +139,14 @@ export class SettingsManager {
       if (this._context.directorMode?.camera) cameras.push(this._context.directorMode.camera);
     }
 
+    const cutWithFog = Boolean(this.get('cutWithFog'));
+    const effectiveFar = cutWithFog ? Math.min(drawDist, Math.max(80, drawDist * 0.95 + 10)) : drawDist;
+
     const uniqueCameras = Array.from(new Set(cameras));
     for (const cam of uniqueCameras) {
       if (!cam || !cam.isPerspectiveCamera) continue;
       cam.fov = fov;
-      cam.far = drawDist;
+      cam.far = effectiveFar;
       cam.updateProjectionMatrix();
     }
   }
