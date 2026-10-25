@@ -27,6 +27,187 @@ export class DamageSystem {
    *
    * @param {import('./VoxelGrid.js').VoxelGrid} grid
    * @param {object} zones  shipDef.zones (name → [{ xRange, yRange, zRange }])
+  /**
+   * Check whether a damaged or missing cell is sealed against water and structural void.
+   * A breach is sealed if:
+   *  1. It is directly filled with an INTACT or REPAIRED block.
+   *  2. It is sealed by a backing patch from the interior (e.g. inner plank/plate/bulkhead).
+   *  3. It is sealed by an outer cladding plate from the exterior.
+   *  4. For keel holes, sealed by a floor plate above it.
+   *
+   * This removes the naive "block-for-block" requirement, allowing creative player patching.
+   */
+  static isBreachSealed(grid, cx, cy, cz, waterlineY = WATERLINE_Y) {
+    if (!grid.inBounds(cx, cy, cz)) return true;
+    const state = grid.getState(cx, cy, cz);
+    if (state === CellState.INTACT || state === CellState.REPAIRED) return true;
+    if (state === CellState.DAMAGED) return false;
+
+    // For MISSING cells, check if player patched it with a REPAIRED block
+    const isPlayerPatch = (x, y, z) => {
+      if (!grid.inBounds(x, y, z)) return false;
+      return grid.getState(x, y, z) === CellState.REPAIRED;
+    };
+
+    const midX = (grid.width - 1) * 0.5;
+    const midZ = (grid.depth - 1) * 0.5;
+
+    // Interior vs exterior neighbor directions
+    const inZ = cz + (cz < midZ ? 1 : (cz > midZ ? -1 : 0));
+    const outZ = cz + (cz < midZ ? -1 : (cz > midZ ? 1 : 0));
+    const inX = cx + (cx < midX ? 1 : (cx > midX ? -1 : 0));
+    const outX = cx + (cx < midX ? -1 : (cx > midX ? 1 : 0));
+
+    // Sealed if patched from inside (backing plate / bulkhead)
+    if (cz !== Math.round(midZ) && isPlayerPatch(cx, cy, inZ)) return true;
+    if (cx !== Math.round(midX) && isPlayerPatch(inX, cy, cz)) return true;
+
+    // Sealed if plated from outside (cladding)
+    if (cz !== Math.round(midZ) && isPlayerPatch(cx, cy, outZ)) return true;
+    if (cx !== Math.round(midX) && isPlayerPatch(outX, cy, cz)) return true;
+
+    // Keel / bottom seal: floor plate placed above keel cell
+    if (cy <= 1 && isPlayerPatch(cx, cy + 1, cz)) return true;
+
+    return false;
+  }
+
+  /**
+   * Scan the grid for all unsealed hull breaches at or below the waterline.
+   * Classifies each breach by sector (bow, stern, port, starboard, keel) and tier.
+   *
+   * @param {import('./VoxelGrid.js').VoxelGrid} grid
+   * @param {number} [waterlineY=WATERLINE_Y]
+   * @returns {Array<{ x:number, y:number, z:number, state:number, tier:number, sector:string, witcherSector:string }>}
+   */
+  static getActiveLeaks(grid, waterlineY = WATERLINE_Y) {
+    if (!grid) return [];
+    const leaks = [];
+    const midX = (grid.width - 1) * 0.5;
+    const midZ = (grid.depth - 1) * 0.5;
+
+    for (let z = 0; z < grid.depth; z++) {
+      for (let y = 0; y <= waterlineY; y++) {
+        for (let x = 0; x < grid.width; x++) {
+          const state = grid.getState(x, y, z);
+          if (state === CellState.MISSING || state === CellState.DAMAGED || state === CellState.FLOODED) {
+            if (!DamageSystem.isBreachSealed(grid, x, y, z, waterlineY)) {
+              let sector = 'keel';
+              const dz = z - midZ;
+              const dx = x - midX;
+              // Model space: rotated by 180° around Y (facing -Z in world)
+              // dx >= 0 corresponds to world -X (port)
+              // dx < 0 corresponds to world +X (starboard)
+              // dz > 0 corresponds to world -Z (bow)
+              // dz < 0 corresponds to world +Z (stern)
+              const isPort = dx >= 0;
+              let witcherSector = isPort ? 'mid_port' : 'mid_starboard';
+
+              if (y <= 1) {
+                sector = 'keel';
+                witcherSector = isPort ? 'mid_port' : 'mid_starboard';
+              } else {
+                if (Math.abs(dz) > Math.abs(dx) * 1.2) {
+                  sector = dz > 0 ? 'bow' : 'stern';
+                } else {
+                  sector = isPort ? 'port' : 'starboard';
+                }
+
+                if (dz > midZ * 0.2) {
+                  witcherSector = isPort ? 'bow_port' : 'bow_starboard';
+                } else if (dz < -midZ * 0.2) {
+                  witcherSector = isPort ? 'stern_port' : 'stern_starboard';
+                } else {
+                  witcherSector = isPort ? 'mid_port' : 'mid_starboard';
+                }
+              }
+
+              let adjacentMissing = 0;
+              const nbrs = [[x-1,y,z], [x+1,y,z], [x,y-1,z], [x,y+1,z], [x,y,z-1], [x,y,z+1]];
+              for (const [nx, ny, nz] of nbrs) {
+                if (grid.inBounds(nx, ny, nz) && grid.getState(nx, ny, nz) === CellState.MISSING) {
+                  adjacentMissing++;
+                }
+              }
+
+              let tier = 2;
+              if (state === CellState.DAMAGED) tier = 1;
+              else if (adjacentMissing >= 2) tier = 3;
+
+              leaks.push({ x, y, z, state, tier, sector, witcherSector });
+            }
+          }
+        }
+      }
+    }
+
+    return leaks;
+  }
+
+  /**
+   * Scan the grid for all unsealed hull breaches across the entire hull.
+   * @param {import('./VoxelGrid.js').VoxelGrid} grid
+   * @returns {Array<{ x:number, y:number, z:number, state:number, sector:string, witcherSector:string }>}
+   */
+  static getAllBreaches(grid) {
+    if (!grid) return [];
+    const breaches = [];
+    const midX = (grid.width - 1) * 0.5;
+    const midZ = (grid.depth - 1) * 0.5;
+
+    for (let z = 0; z < grid.depth; z++) {
+      for (let y = 0; y < grid.height; y++) {
+        for (let x = 0; x < grid.width; x++) {
+          const state = grid.getState(x, y, z);
+          if (state === CellState.MISSING || state === CellState.DAMAGED || state === CellState.FLOODED) {
+            if (!DamageSystem.isBreachSealed(grid, x, y, z)) {
+              const dz = z - midZ;
+              const dx = x - midX;
+              const isPort = dx >= 0;
+              let sector = 'keel';
+              let witcherSector = isPort ? 'mid_port' : 'mid_starboard';
+
+              if (y <= 1) {
+                sector = 'keel';
+                witcherSector = isPort ? 'mid_port' : 'mid_starboard';
+              } else {
+                if (Math.abs(dz) > Math.abs(dx) * 1.2) {
+                  sector = dz > 0 ? 'bow' : 'stern';
+                } else {
+                  sector = isPort ? 'port' : 'starboard';
+                }
+
+                if (dz > midZ * 0.2) {
+                  witcherSector = isPort ? 'bow_port' : 'bow_starboard';
+                } else if (dz < -midZ * 0.2) {
+                  witcherSector = isPort ? 'stern_port' : 'stern_starboard';
+                } else {
+                  witcherSector = isPort ? 'mid_port' : 'mid_starboard';
+                }
+              }
+
+              breaches.push({ x, y, z, state, sector, witcherSector });
+            }
+          }
+        }
+      }
+    }
+    return breaches;
+  }
+
+  /**
+   * Derive a repair docket from actual grid damage, grouped by zone.
+   *
+   * One item per zone containing damaged cells, with the tool implied by the
+   * zone and a count of the remaining cells. An item is mandatory when it
+   * includes hull cells at or below the waterline — those leak and can sink
+   * the ship, so they gate Set Sail.
+   *
+   * Used for BOTH the level's authored damage and a restored sunk-run wreck,
+   * so persistence needs no separate docket path.
+   *
+   * @param {import('./VoxelGrid.js').VoxelGrid} grid
+   * @param {object} zones  shipDef.zones (name → [{ xRange, yRange, zRange }])
    * @returns {Array<{ id: string, label: string, mandatory: boolean, zone: string,
    *                    tool: string, remaining: number, leaks: number }>}
    */
@@ -48,7 +229,9 @@ export class DamageSystem {
     const tasks = [];
     for (const [zone, cells] of damagedCells) {
       const authored = authoredTasks.find(task => task.zone === zone);
-      const leaks = zone === 'hull' ? cells.filter(cell => cell.y <= WATERLINE_Y).length : 0;
+      const leaks = zone === 'hull' 
+        ? cells.filter(cell => cell.y <= WATERLINE_Y && !DamageSystem.isBreachSealed(grid, cell.x, cell.y, cell.z)).length 
+        : 0;
       const count = cells.length;
       const fallbackLabel = `Repair ${zone} (${count} ${count === 1 ? 'damaged cell' : 'damaged cells'}${leaks ? `, ${leaks} leaking` : ''})`;
       tasks.push({
@@ -69,7 +252,7 @@ export class DamageSystem {
   }
 
   /**
-   * Refresh progress for stable docket tasks using their original cell targets.
+   * Refresh progress for stable docket tasks using nuanced watertight sealing checks.
    * @param {import('./VoxelGrid.js').VoxelGrid} grid
    * @param {Array<object>} tasks
    * @returns {Array<object>}
@@ -77,8 +260,7 @@ export class DamageSystem {
   static getDocketProgress(grid, tasks) {
     return tasks.map(task => {
       const remaining = task.targetCells.filter(({ x, y, z }) => {
-        const state = grid.getState(x, y, z);
-        return state === CellState.MISSING || state === CellState.DAMAGED || state === CellState.FLOODED;
+        return !DamageSystem.isBreachSealed(grid, x, y, z);
       }).length;
       return { ...task, remaining, completed: remaining === 0 };
     });

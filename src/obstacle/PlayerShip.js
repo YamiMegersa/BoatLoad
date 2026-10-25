@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { emit, on, off } from '../core/EventBus.js';
 import { OBB } from 'three/examples/jsm/math/OBB.js';
-import { MATERIAL_REGISTRY } from '../config/MaterialRegistry.js';
+import { MATERIAL_REGISTRY, getMaterialByColor } from '../config/MaterialRegistry.js';
 import { DEBUG } from '../utils/debug.js';
-import { WATERLINE_Y } from '../shipyard/VoxelGrid.js';
+import { CellState, WATERLINE_Y } from '../shipyard/VoxelGrid.js';
+import { DamageSystem } from '../shipyard/DamageSystem.js';
 
 // ---------------------------------------------------------------------------
 // Obstacle type definitions
@@ -54,11 +55,41 @@ export class PlayerShip {
     this._bailCooldown = 0;
     this._sirenDisorientationSources = new Set();
 
-    // Leak System
+    // Leak & Ingress System (Sea of Thieves hydrostatic model)
     this.waterLevel = 0;
     this.maxWaterLevel = stats.waterCapacity ?? profile.waterCapacity ?? 100;
-    this.waterlineY = stats.waterlineY ?? profile.waterlineY ?? 4; // Any hole below Y leaks water
+    this.waterlineY = stats.waterlineY ?? profile.waterlineY ?? 4;
     this.numLeaks = 0;
+    this.activeBreaches = [];
+    this.breachSectors = { bow: 0, stern: 0, port: 0, starboard: 0, keel: 0 };
+    // 6-compartment Witcher 3 damage & flooding tracking
+    this.compartmentDamage = {
+      bow_port: 0,
+      bow_starboard: 0,
+      mid_port: 0,
+      mid_starboard: 0,
+      stern_port: 0,
+      stern_starboard: 0,
+    };
+    this.compartmentFlooding = {
+      bow_port: 0,
+      bow_starboard: 0,
+      mid_port: 0,
+      mid_starboard: 0,
+      stern_port: 0,
+      stern_starboard: 0,
+    };
+    this.submergedLeaksCount = 0;
+    this.currentFlowRate = 0;
+    this.listRoll = 0;
+    this.trimPitch = 0;
+    this._tempVoxelPos = new THREE.Vector3();
+    this._tempWorldPos = new THREE.Vector3();
+
+    // Sinking Death Plunge
+    this.isSinkingDeath = false;
+    this.sinkDeathTimer = 0;
+    this.sinkDeathDuration = 3.8;
 
     // HP System
     this.hullHP = stats.hullHP ?? profile.health ?? 100;
@@ -201,7 +232,15 @@ export class PlayerShip {
         this.sunk = false;
         this.waterLevel = 0;
         this.hullHP = this.maxHullHP;
-        emit('playerWaterLevel', { level: this.waterLevel, max: this.maxWaterLevel });
+        for (const k in this.compartmentDamage) this.compartmentDamage[k] = 0;
+        for (const k in this.compartmentFlooding) this.compartmentFlooding[k] = 0;
+        emit('playerWaterLevel', {
+          level: this.waterLevel,
+          max: this.maxWaterLevel,
+          allSectors: { ...this.compartmentDamage },
+          compartmentDamage: { ...this.compartmentDamage },
+          sectors: { ...this.compartmentFlooding }
+        });
         emit('playerHealth', { hp: this.hullHP, max: this.maxHullHP });
         this.healDamage(9999); // patch all holes
       }
@@ -211,17 +250,44 @@ export class PlayerShip {
     // Initialise leaks from any unpatched holes left from the shipyard
     this._countLeaks();
     this._applyMaterialModifiers();
+
+    // Immediately emit initial status so HUD schematic renders accurate breach indicators
+    const initialAllSectors = { ...this.compartmentDamage, bow: 0, stern: 0, port: 0, starboard: 0, keel: 0 };
+    for (const b of (this.activeBreaches || [])) {
+      initialAllSectors[b.sector] = (initialAllSectors[b.sector] || 0) + 1;
+      if (b.witcherSector) {
+        initialAllSectors[b.witcherSector] = (initialAllSectors[b.witcherSector] || 0) + 1;
+      }
+    }
+    emit('playerWaterLevel', {
+      level: this.waterLevel,
+      max: this.maxWaterLevel,
+      flowRate: 0,
+      sectors: { ...this.compartmentFlooding, bow: 0, stern: 0, port: 0, starboard: 0, keel: 0 },
+      allSectors: initialAllSectors,
+      compartmentDamage: { ...this.compartmentDamage },
+      compartmentFlooding: { ...this.compartmentFlooding },
+      submergedCount: 0
+    });
+    emit('playerHealth', { hp: this.hullHP, max: this.maxHullHP });
+  }
+
+  _refreshBreaches() {
+    if (!this.grid) return;
+    this.activeBreaches = DamageSystem.getActiveLeaks(this.grid, this.waterlineY);
+    this.numLeaks = this.activeBreaches.length;
+
+    // Scan all unsealed hull breaches across the grid to keep compartmentDamage in sync
+    const allHullBreaches = DamageSystem.getAllBreaches(this.grid);
+    for (const b of allHullBreaches) {
+      if (b.witcherSector && this.compartmentDamage[b.witcherSector] !== undefined) {
+        this.compartmentDamage[b.witcherSector] = Math.max(1, this.compartmentDamage[b.witcherSector] || 0);
+      }
+    }
   }
 
   _countLeaks() {
-    if (!this.grid) return;
-    this.numLeaks = 0;
-    this.grid.forEach((x, y, z, state) => {
-      // 3 = CellState.MISSING
-      if (y <= this.waterlineY && state === 3) {
-        this.numLeaks++;
-      }
-    });
+    this._refreshBreaches();
   }
 
   _applyMaterialModifiers() {
@@ -269,6 +335,35 @@ export class PlayerShip {
   update(delta, ocean, windManager) {
     if (this.sunk) return;
     this._bailCooldown = Math.max(0, this._bailCooldown - delta);
+
+    // --- TERMINAL SINKING PLUNGE ANIMATION (3.8s Sea of Thieves death sequence) ---
+    if (this.isSinkingDeath) {
+      this.sinkDeathTimer += delta;
+      const progress = Math.min(1.0, this.sinkDeathTimer / this.sinkDeathDuration);
+      const eased = progress * progress * (3.0 - 2.0 * progress);
+
+      // Pitch plunges nose-first or stern-first depending on trim
+      const plungePitch = (this.trimPitch <= 0 ? -1.15 : 0.85) * eased;
+      const plungeRoll = (this.listRoll || 0.12) * 1.5 * eased;
+
+      this.mesh.rotation.order = 'YXZ';
+      this.mesh.rotation.x = this.pitch + plungePitch;
+      this.mesh.rotation.y = this.yaw;
+      this.mesh.rotation.z = this.roll + plungeRoll;
+
+      // Drop vessel down into ocean depths
+      this.mesh.position.y -= delta * 3.4;
+
+      if (Math.random() < 0.42) {
+        emit('spawnParticles', { type: 'splash', position: this.mesh.position.clone() });
+      }
+
+      if (this.sinkDeathTimer >= this.sinkDeathDuration && !this.sunk) {
+        this.sunk = true;
+        emit('playerSunk');
+      }
+      return;
+    }
 
     // Gag Truck: Immediately nose-dives and sinks!
     if (this.isGagTruck) {
@@ -330,12 +425,115 @@ export class PlayerShip {
       }
     }
 
-    // --- LEAK SYSTEM ---
-    if (this.numLeaks > 0 && !this.godMode) {
-      // e.g. 1.5 water units per second per hole
-      this.waterLevel += this.numLeaks * 1.5 * delta;
-      // Tell UI the water level rose
-      emit('playerWaterLevel', { level: this.waterLevel, max: this.maxWaterLevel });
+    // --- SEA OF THIEVES DYNAMIC WATER INGRESS ---
+    let totalFlowRate = 0;
+    const sectors = { bow: 0, stern: 0, port: 0, starboard: 0, keel: 0 };
+    const allSectors = { ...this.compartmentDamage, bow: 0, stern: 0, port: 0, starboard: 0, keel: 0 };
+    const floodingCompartments = {
+      bow_port: 0,
+      bow_starboard: 0,
+      mid_port: 0,
+      mid_starboard: 0,
+      stern_port: 0,
+      stern_starboard: 0
+    };
+    let submergedLeaks = 0;
+    let netPortWeight = 0;
+    let netBowWeight = 0;
+
+    if (this.activeBreaches.length > 0 && this.chunkRenderer?.container) {
+      this.chunkRenderer.container.updateMatrixWorld(true);
+
+      for (const breach of this.activeBreaches) {
+        allSectors[breach.sector] = (allSectors[breach.sector] || 0) + 1;
+        if (breach.witcherSector) {
+          allSectors[breach.witcherSector] = (allSectors[breach.witcherSector] || 0) + 1;
+        }
+
+        const localPos = this.grid.toWorldPos(breach.x, breach.y, breach.z);
+        const worldPos = this.chunkRenderer.container.localToWorld(this._tempWorldPos.copy(localPos));
+
+        const waveH = ocean ? ocean.getWaveInfo(worldPos.x, worldPos.z).height : 0;
+        const depth = waveH - worldPos.y;
+
+        if (depth > 0) {
+          // Hole is submerged underwater!
+          submergedLeaks++;
+          sectors[breach.sector] = (sectors[breach.sector] || 0) + 1;
+          if (breach.witcherSector) {
+            sectors[breach.witcherSector] = (sectors[breach.witcherSector] || 0) + 1;
+            floodingCompartments[breach.witcherSector] = (floodingCompartments[breach.witcherSector] || 0) + 1;
+          }
+
+          // Hydrostatic pressure flow rate
+          const basePressure = Math.sqrt(Math.max(0.08, depth));
+          const tierMult = breach.tier === 1 ? 0.35 : (breach.tier === 3 ? 2.3 : 1.0);
+          const backPressure = Math.max(0.15, 1.0 - (this.waterLevel / this.maxWaterLevel) * 0.75);
+          const holeFlow = basePressure * tierMult * backPressure * 3.2;
+
+          totalFlowRate += holeFlow;
+
+          if (breach.sector === 'port') netPortWeight += holeFlow;
+          else if (breach.sector === 'starboard') netPortWeight -= holeFlow;
+          else if (breach.sector === 'bow') netBowWeight += holeFlow;
+          else if (breach.sector === 'stern') netBowWeight -= holeFlow;
+
+          // Water fountain spray particles
+          if (Math.random() < 0.08) {
+            emit('spawnParticles', { type: 'splash', position: worldPos });
+          }
+        }
+      }
+
+      this.submergedLeaksCount = submergedLeaks;
+      this.breachSectors = sectors;
+      this.compartmentFlooding = floodingCompartments;
+      this.currentFlowRate = totalFlowRate;
+
+      if (totalFlowRate > 0 && !this.godMode) {
+        this.waterLevel = Math.min(this.maxWaterLevel, this.waterLevel + totalFlowRate * delta);
+
+        // Procedural creak when water exceeds 60%
+        if (this.waterLevel > this.maxWaterLevel * 0.6 && Math.random() < 0.02) {
+          emit('playSound', { sound: 'hull_groan' });
+        }
+      }
+
+      // Keep HUD breach schematic & water gauge continuously in sync
+      this._hudSyncTimer = (this._hudSyncTimer || 0) + delta;
+      if (this._hudSyncTimer >= 0.1 || totalFlowRate > 0) {
+        this._hudSyncTimer = 0;
+        emit('playerWaterLevel', {
+          level: this.waterLevel,
+          max: this.maxWaterLevel,
+          flowRate: totalFlowRate,
+          sectors: { ...floodingCompartments, ...sectors },
+          allSectors: { ...allSectors, ...this.compartmentDamage },
+          compartmentDamage: { ...this.compartmentDamage },
+          compartmentFlooding: { ...floodingCompartments },
+          submergedCount: submergedLeaks
+        });
+      }
+    } else {
+      this.submergedLeaksCount = 0;
+      this.currentFlowRate = 0;
+      this.breachSectors = { bow: 0, stern: 0, port: 0, starboard: 0, keel: 0 };
+      this.compartmentFlooding = floodingCompartments;
+
+      this._hudSyncTimer = (this._hudSyncTimer || 0) + delta;
+      if (this._hudSyncTimer >= 0.2) {
+        this._hudSyncTimer = 0;
+        emit('playerWaterLevel', {
+          level: this.waterLevel,
+          max: this.maxWaterLevel,
+          flowRate: 0,
+          sectors: { ...floodingCompartments, ...this.breachSectors },
+          allSectors: { ...this.compartmentDamage },
+          compartmentDamage: { ...this.compartmentDamage },
+          compartmentFlooding: { ...floodingCompartments },
+          submergedCount: 0
+        });
+      }
     }
 
     // Trigger sinking QTE
@@ -349,7 +547,13 @@ export class PlayerShip {
           const waterAtStart = this.waterLevel;
           const removed = waterAtStart * 0.5 * Math.max(0, Math.min(1, accuracy));
           this.waterLevel = Math.max(0, this.waterLevel - removed);
-          emit('playerWaterLevel', { level: this.waterLevel, max: this.maxWaterLevel });
+          emit('playerWaterLevel', {
+            level: this.waterLevel,
+            max: this.maxWaterLevel,
+            flowRate: totalFlowRate,
+            sectors: this.breachSectors,
+            submergedCount: this.submergedLeaksCount
+          });
           emit('waterBailed', { accuracy: Math.round(accuracy * 100), removed: Math.round(removed) });
           emit('spawnParticles', { type: 'splash', position: this.mesh.position });
         },
@@ -363,11 +567,23 @@ export class PlayerShip {
     }
 
     const waterRatio = Math.min(this.waterLevel / this.maxWaterLevel, 1.0);
+
+    // Asymmetric water mass physics: List (Roll) and Trim (Pitch)
+    const targetListRoll = THREE.MathUtils.clamp((netPortWeight) * 0.03 * (1 + waterRatio * 1.5), -0.22, 0.22);
+    const targetTrimPitch = THREE.MathUtils.clamp((-netBowWeight) * 0.03 * (1 + waterRatio * 1.5), -0.20, 0.20);
+    this.listRoll = THREE.MathUtils.damp(this.listRoll, targetListRoll, 2.5, delta);
+    this.trimPitch = THREE.MathUtils.damp(this.trimPitch, targetTrimPitch, 2.5, delta);
     
-    // Check for sinking
-    if (this.waterLevel >= this.maxWaterLevel && !this.sunk) {
-      this.sunk = true;
-      emit('playerSunk');
+    // Check for terminal sinking (Sea of Thieves: ship fills with water and begins death plunge)
+    if (this.waterLevel >= this.maxWaterLevel && !this.sunk && !this.isSinkingDeath) {
+      this.isSinkingDeath = true;
+      this.sinkDeathTimer = 0;
+      this._isHalted = true;
+      this.throttle = 0;
+      this.targetThrottle = 0;
+      emit('playSound', { sound: 'sinking_bell' });
+      emit('playSound', { sound: 'hull_groan' });
+      emit('playerSinkingStart');
     }
 
     // Heavy Debuffs based on water level
@@ -464,22 +680,23 @@ export class PlayerShip {
     this.pitch += this.pitchVelocity * delta;
     this.roll += this.rollVelocity * delta;
 
-    // Apply rotations
+    // Apply rotations with asymmetric water list & trim
     this.mesh.rotation.order = 'YXZ';
     this.mesh.rotation.y = this.yaw;
-    this.mesh.rotation.x = this.pitch + targetPitch;
-    this.mesh.rotation.z = this.roll + targetRoll;
+    this.mesh.rotation.x = this.pitch + targetPitch + this.trimPitch;
+    this.mesh.rotation.z = this.roll + targetRoll + this.listRoll;
 
     // Set Y based on wave height so the boat rides the waves, minus the sinking amount.
     // +0.2 adds a slight buffer to ensure corners of the flat boat bottom don't clip the curved wave.
-    this.mesh.position.y = waveHeight + 0.2 - (waterRatio * 1.5);
+    this.mesh.position.y = waveHeight + 0.2 - (waterRatio * 1.6);
 
-    // Update internal water plane
+    // Update internal water plane with dynamic sloshing tilt
     if (waterRatio > 0) {
       this.innerWater.visible = true;
-      // The boat walls are ~1.1 units high in world space.
-      // Fill the boat bathtub style as it sinks.
-      this.innerWater.position.y = 0.1 + (waterRatio * 1.0);
+      // Fill the boat bathtub style as it sinks, tilted by sloshing water mass
+      this.innerWater.position.y = 0.1 + (waterRatio * 1.05);
+      this.innerWater.rotation.z = -this.listRoll * 0.7;
+      this.innerWater.rotation.x = -this.trimPitch * 0.7;
     } else {
       this.innerWater.visible = false;
     }
@@ -495,50 +712,186 @@ export class PlayerShip {
   // -------------------------------------------------------------------------
 
   /**
-   * Physically blow holes in the voxel hull.
+   * Physically blow holes or cracks in the voxel hull using point of impact and material durability.
    * @param {number} amount
    * @param {string} [source]  Obstacle type that caused damage
+   * @param {{ nx?: number, nz?: number }} [contactNormal] Collision normal
    */
-  takeDamage(amount, source = 'unknown') {
-    if (this.sunk) return;
-    if (this.godMode) return;
+  takeDamage(amount, source = 'unknown', contactNormal = null) {
+    if (this.sunk || this.godMode || this.isSinkingDeath) return;
 
     this.hullHP = Math.max(0, this.hullHP - amount);
     emit('playerHealth', { hp: this.hullHP, max: this.maxHullHP });
 
-    if (this.hullHP <= 0 && !this.sunk) {
-      this.sunk = true;
-      emit('playerSunk');
+    // Determine impact sector and Witcher 3 compartment
+    let targetSector = 'bow';
+    let witcherSector = 'bow_port';
+    if (contactNormal && (contactNormal.nx !== undefined || contactNormal.nz !== undefined)) {
+      const nx = contactNormal.nx || 0;
+      const nz = contactNormal.nz || 0;
+      // Transform world normal to ship local space (ship heads to -Z, yaw rotates it)
+      const localNorm = new THREE.Vector3(nx, 0, nz)
+        .applyAxisAngle(new THREE.Vector3(0, 1, 0), -this.yaw)
+        .normalize();
+
+      // Contact point on ship is opposite to separation normal
+      const hitX = -localNorm.x;
+      const hitZ = -localNorm.z;
+
+      // In world space facing -Z:
+      // hitZ < -0.15: Bow (front)
+      // hitZ > 0.15: Stern (rear)
+      // Math.abs(hitZ) <= 0.15: Midship
+      // hitX >= 0: Starboard (right)
+      // hitX < 0: Port (left)
+      const isStbd = hitX >= 0;
+      if (hitZ < -0.15) {
+        targetSector = 'bow';
+        witcherSector = isStbd ? 'bow_starboard' : 'bow_port';
+      } else if (hitZ > 0.15) {
+        targetSector = 'stern';
+        witcherSector = isStbd ? 'stern_starboard' : 'stern_port';
+      } else {
+        targetSector = isStbd ? 'starboard' : 'port';
+        witcherSector = isStbd ? 'mid_starboard' : 'mid_port';
+      }
+    } else {
+      targetSector = 'bow';
+      witcherSector = Math.random() < 0.5 ? 'bow_starboard' : 'bow_port';
     }
 
+    // Immediately register damage to this compartment
+    this.compartmentDamage[witcherSector] = (this.compartmentDamage[witcherSector] || 0) + 1;
+
+    let breached = false;
+    let hitMatName = 'Timber';
+
     if (this.grid && this.chunkRenderer) {
-      // 10 damage = 1 hole. Wave = 5 (no hole usually, but 50% chance?)
-      let holesToMake = Math.floor(amount / 10);
-      if (Math.random() < (amount % 10) / 10) holesToMake++;
+      const midX = (this.grid.width - 1) * 0.5;
+      const midZ = (this.grid.depth - 1) * 0.5;
 
-      let holesMade = 0;
-      let attempts = 0;
-      
-      // Find random INTACT cells near the waterline and blow them out
-      while (holesMade < holesToMake && attempts < 100) {
-        attempts++;
-        const cx = Math.floor(Math.random() * this.grid.width);
-        const cy = Math.floor(Math.random() * (this.waterlineY + 2)); // Up to slightly above waterline
-        const cz = Math.floor(Math.random() * this.grid.depth);
+      const getVoxelCompartment = (vx, vy, vz) => {
+        const dz = vz - midZ;
+        const dx = vx - midX;
+        // In model space, dx >= 0 is port after Y=180 rotation
+        const isPort = dx >= 0;
+        if (dz > midZ * 0.2) return isPort ? 'bow_port' : 'bow_starboard';
+        if (dz < -midZ * 0.2) return isPort ? 'stern_port' : 'stern_starboard';
+        return isPort ? 'mid_port' : 'mid_starboard';
+      };
 
-        // 1 = CellState.INTACT
-        if (this.grid.getState(cx, cy, cz) === 1) {
-          // 3 = CellState.MISSING
-          this.grid.setState(cx, cy, cz, 3);
-          holesMade++;
+      // Find solid candidate voxels in the hit compartment near waterline
+      let candidates = [];
+      this.grid.forEach((x, y, z, state) => {
+        if ((state === CellState.INTACT || state === CellState.REPAIRED) && y <= this.waterlineY + 1) {
+          if (getVoxelCompartment(x, y, z) === witcherSector) {
+            candidates.push({ x, y, z });
+          }
+        }
+      });
+
+      // Fallback: any solid hull cells in this compartment
+      if (candidates.length === 0) {
+        this.grid.forEach((x, y, z, state) => {
+          if (state === CellState.INTACT || state === CellState.REPAIRED) {
+            if (getVoxelCompartment(x, y, z) === witcherSector) {
+              candidates.push({ x, y, z });
+            }
+          }
+        });
+      }
+
+      // Fallback: any solid hull cells near waterline
+      if (candidates.length === 0) {
+        this.grid.forEach((x, y, z, state) => {
+          if ((state === CellState.INTACT || state === CellState.REPAIRED) && y <= this.waterlineY + 1) {
+            candidates.push({ x, y, z });
+          }
+        });
+      }
+
+      if (candidates.length > 0) {
+        const hitCell = candidates[Math.floor(Math.random() * candidates.length)];
+        const colorHex = this.grid.getColor(hitCell.x, hitCell.y, hitCell.z);
+        const mat = getMaterialByColor(colorHex);
+        hitMatName = mat?.name || 'Timber';
+        const durability = mat?.durabilityHP || 100;
+        const effectiveDamage = amount / (durability / 100);
+
+        if (mat.id === 'copper_plate' && effectiveDamage < 14) {
+          // Reinforced copper plating deflects the blow!
+          this.compartmentDamage[witcherSector] = Math.max(0, (this.compartmentDamage[witcherSector] || 1) - 1);
+          emit('playSound', { sound: 'metal_clank' });
+          emit('showBanner', { label: `COPPER PLATING DEFLECTED ${source.toUpperCase()}!` });
+        } else if (mat.id === 'dark_ironwood' && effectiveDamage < 18) {
+          // Hardened ironwood holds, only sustains a hairline crack
+          this.grid.setState(hitCell.x, hitCell.y, hitCell.z, CellState.DAMAGED);
+          emit('playSound', { sound: 'wood_thud' });
+          breached = true;
+        } else if (mat.id === 'tar_canvas') {
+          // Tar canvas tears immediately
+          this.grid.setState(hitCell.x, hitCell.y, hitCell.z, CellState.MISSING);
+          emit('playSound', { sound: 'wood_crack' });
+          breached = true;
+        } else {
+          // Standard timber & heavy blows
+          if (effectiveDamage < 15) {
+            this.grid.setState(hitCell.x, hitCell.y, hitCell.z, CellState.DAMAGED);
+            emit('playSound', { sound: 'wood_crack' });
+          } else {
+            this.grid.setState(hitCell.x, hitCell.y, hitCell.z, CellState.MISSING);
+            if (effectiveDamage >= 30 && candidates.length > 1) {
+              const second = candidates.find(c => 
+                Math.abs(c.x - hitCell.x) <= 1 && Math.abs(c.y - hitCell.y) <= 1 && Math.abs(c.z - hitCell.z) <= 1 &&
+                !(c.x === hitCell.x && c.y === hitCell.y && c.z === hitCell.z)
+              );
+              if (second) {
+                this.grid.setState(second.x, second.y, second.z, CellState.MISSING);
+              }
+            }
+            emit('playSound', { sound: 'collision' });
+          }
+          breached = true;
+        }
+
+        if (breached) {
+          this._refreshBreaches();
+          this.chunkRenderer.sync(this.grid);
+        }
+      } else {
+        breached = true;
+      }
+    } else {
+      breached = true;
+    }
+
+    if (breached) {
+      const allSectors = { ...this.compartmentDamage, bow: 0, stern: 0, port: 0, starboard: 0, keel: 0 };
+      for (const b of (this.activeBreaches || [])) {
+        allSectors[b.sector] = (allSectors[b.sector] || 0) + 1;
+        if (b.witcherSector) {
+          allSectors[b.witcherSector] = (allSectors[b.witcherSector] || 0) + 1;
         }
       }
 
-      if (holesMade > 0) {
-        this._countLeaks();
-        this.chunkRenderer.sync(this.grid);
-        emit('playerDamaged', { source });
-      }
+      emit('playerDamaged', {
+        source,
+        sector: targetSector,
+        witcherSector,
+        material: hitMatName,
+        allSectors,
+        sectors: { ...this.compartmentFlooding, ...this.breachSectors }
+      });
+      emit('playerWaterLevel', {
+        level: this.waterLevel,
+        max: this.maxWaterLevel,
+        flowRate: this.currentFlowRate || 0,
+        sectors: { ...this.compartmentFlooding, ...this.breachSectors },
+        allSectors,
+        compartmentDamage: { ...this.compartmentDamage },
+        compartmentFlooding: { ...this.compartmentFlooding },
+        submergedCount: this.submergedLeaksCount || 0
+      });
     }
   }
 
@@ -571,35 +924,52 @@ export class PlayerShip {
     
     let holesPatched = 0;
     
-    // Find MISSING cells (state === 3). Prioritize those below the waterline first.
-    const missingCells = [];
+    // Find DAMAGED (2) and MISSING (3) cells. Prioritize those below the waterline first.
+    const damagedCells = [];
     this.grid.forEach((x, y, z, state) => {
-      if (state === 3) {
-        missingCells.push({ x, y, z, isLeak: y <= this.waterlineY });
+      if (state === CellState.MISSING || state === CellState.DAMAGED || state === CellState.FLOODED) {
+        damagedCells.push({ x, y, z, isLeak: y <= this.waterlineY });
       }
     });
     
     // Sort so leaks are repaired first
-    missingCells.sort((a, b) => {
+    damagedCells.sort((a, b) => {
       if (a.isLeak && !b.isLeak) return -1;
       if (!a.isLeak && b.isLeak) return 1;
       return 0;
     });
     
-    for (const cell of missingCells) {
+    for (const cell of damagedCells) {
       if (holesPatched >= amount) break;
-      
-      // 1 = CellState.INTACT
-      this.grid.setState(cell.x, cell.y, cell.z, 1);
+      this.grid.setState(cell.x, cell.y, cell.z, CellState.INTACT);
       holesPatched++;
     }
     
     if (holesPatched > 0) {
       this._countLeaks();
       this.chunkRenderer.sync(this.grid);
-      
-      // Optionally lower the water level slightly as a reward?
-      // this.waterLevel = Math.max(0, this.waterLevel - holesPatched * 5.0);
+
+      // Re-evaluate compartmentDamage from remaining breaches
+      for (const k in this.compartmentDamage) {
+        this.compartmentDamage[k] = 0;
+      }
+      const remainingBreaches = DamageSystem.getAllBreaches(this.grid);
+      for (const b of remainingBreaches) {
+        if (b.witcherSector && this.compartmentDamage[b.witcherSector] !== undefined) {
+          this.compartmentDamage[b.witcherSector]++;
+        }
+      }
+
+      emit('playerWaterLevel', {
+        level: this.waterLevel,
+        max: this.maxWaterLevel,
+        flowRate: this.currentFlowRate || 0,
+        sectors: { ...this.compartmentFlooding, ...this.breachSectors },
+        allSectors: { ...this.compartmentDamage },
+        compartmentDamage: { ...this.compartmentDamage },
+        compartmentFlooding: { ...this.compartmentFlooding },
+        submergedCount: this.submergedLeaksCount || 0
+      });
     }
   }
 

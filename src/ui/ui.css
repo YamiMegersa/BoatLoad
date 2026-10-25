@@ -713,152 +713,166 @@ body {
   box-shadow: none;
 }
 
-/* Status Cluster: Placed top-left, cleanly below Director Mode button (top: 14px, left: 14px) */
+/* Status Cluster: Top-left, below Director Mode button */
 #hud-status-cluster {
   position: fixed;
-  top: 62px;
-  left: 16px;
+  top: 56px;
+  left: 20px;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
+  align-items: center;
+  gap: 10px;
+  width: 80px;
   pointer-events: none;
   z-index: 120;
 }
 
-/* Horizontal pair for the two gauges */
-#hud-status-cluster {
-  display: flex;
-  flex-wrap: wrap;
-  width: 160px;
-  gap: 12px;
-}
-
-/* Circular Gauge Card */
-.hud-circle-gauge {
-  position: relative;
-  width: 66px;
-  height: 66px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.7));
-  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-.hud-circle-gauge:hover {
-  transform: scale(1.05);
-}
-
-.hud-circle-gauge.critical-hp {
-  animation: criticalHpPulse 1s infinite alternate;
-}
-
-.hud-circle-gauge.critical-water {
-  animation: criticalWaterPulse 1s infinite alternate;
-}
-
-@keyframes criticalHpPulse {
-  0% { filter: drop-shadow(0 4px 10px rgba(0,0,0,0.7)) drop-shadow(0 0 4px rgba(239, 68, 68, 0.3)); }
-  100% { filter: drop-shadow(0 4px 12px rgba(0,0,0,0.8)) drop-shadow(0 0 16px rgba(239, 68, 68, 0.95)); }
-}
-
-@keyframes criticalWaterPulse {
-  0% { filter: drop-shadow(0 4px 10px rgba(0,0,0,0.7)) drop-shadow(0 0 4px rgba(56, 189, 248, 0.3)); }
-  100% { filter: drop-shadow(0 4px 12px rgba(0,0,0,0.8)) drop-shadow(0 0 16px rgba(239, 68, 68, 0.9)); }
-}
-
-.hud-gauge-svg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  transform: rotate(-90deg); /* 12 o'clock start */
-}
-
-.hud-gauge-track {
-  fill: rgba(8, 14, 24, 0.82);
-  stroke: rgba(255, 255, 255, 0.12);
-  stroke-width: 5;
-}
-
-#hud-hp-gauge .hud-gauge-track {
-  stroke: rgba(239, 68, 68, 0.25);
-}
-
-#hud-water-gauge .hud-gauge-track {
-  stroke: rgba(56, 189, 248, 0.22);
-}
-
-.hud-gauge-fill {
-  fill: none;
-  stroke-width: 5.2;
-  stroke-linecap: round;
-  transition: stroke-dashoffset 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), stroke 0.3s ease;
-}
-
-.hud-gauge-fill.hp-fill {
-  stroke: #ef4444;
-  filter: drop-shadow(0 0 5px rgba(239, 68, 68, 0.8));
-}
-
-.hud-gauge-fill.water-ring {
-  stroke: #38bdf8;
-  filter: drop-shadow(0 0 5px rgba(56, 189, 248, 0.75));
-}
-
-.hud-gauge-content {
-  position: relative;
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  overflow: hidden;
+/* Witcher 3 Style Boat Damage Widget */
+.witcher-boat-widget {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  background: radial-gradient(circle at 40% 40%, rgba(18, 28, 45, 0.96), rgba(6, 10, 18, 0.98));
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.7);
+  user-select: none;
+  pointer-events: auto;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.85));
+  width: 80px;
 }
 
-/* Boat Sprites Inside Gauges */
-.hud-boat-icon {
-  width: 28px;
-  height: 28px;
-  display: block;
-  z-index: 2;
-  transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.85));
+.witcher-boat-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
 }
 
-.hud-gauge-val {
-  position: absolute;
-  bottom: 3px;
-  font-family: 'Cinzel', system-ui, sans-serif;
-  font-size: 9.5px;
-  font-weight: 800;
-  color: #ffffff;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 6px rgba(0, 0, 0, 0.9);
-  z-index: 3;
-  pointer-events: none;
-  line-height: 1;
-}
-
-.hud-gauge-badge {
-  position: absolute;
-  bottom: -7px;
-  background: rgba(13, 20, 32, 0.92);
-  border: 1px solid rgba(212, 175, 55, 0.45);
-  border-radius: 6px;
-  padding: 1px 5px;
-  font-family: 'Cinzel', serif;
-  font-size: 8px;
-  font-weight: 700;
+.witcher-boat-title {
+  font-family: 'Cinzel', 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: #f1e7d8;
   letter-spacing: 0.8px;
-  color: #f3d790;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
-  z-index: 4;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 6px rgba(0, 0, 0, 0.9);
+  line-height: 1.1;
+  margin-bottom: 2px;
+}
+
+.witcher-boat-divider {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 68px;
+  height: 6px;
+  margin-bottom: 4px;
+}
+
+.witcher-divider-line {
+  position: relative;
+  width: 100%;
+  height: 1.5px;
+  background: rgba(195, 190, 180, 0.45);
+  border-radius: 1px;
+  overflow: hidden;
+}
+
+.witcher-water-fill-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 0%;
+  background: #38bdf8;
+  box-shadow: 0 0 6px #38bdf8;
+  transition: width 0.3s ease, background 0.3s ease;
+}
+
+.witcher-divider-flame {
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 8px;
+  line-height: 1;
+  color: #eab308;
+  text-shadow: 0 0 6px rgba(234, 179, 8, 0.95), 0 0 10px rgba(245, 158, 11, 0.8);
+  pointer-events: none;
+  transition: color 0.3s ease;
+}
+
+.witcher-boat-body {
+  position: relative;
+  width: 52px;
+  height: 104px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.witcher-boat-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.85));
+}
+
+/* Witcher Segments */
+.witcher-seg {
+  fill: #1f2228;
+  transition: fill 0.25s ease, filter 0.25s ease;
+}
+
+/* Damaged / Cracked: Rich Witcher 3 Amber/Orange (exact match to screenshot) */
+.witcher-seg.seg-damaged {
+  fill: #c95d12 !important;
+  filter: drop-shadow(0 0 4px rgba(201, 93, 18, 0.8));
+}
+
+/* Flooding / Submerged: Pulsing Red/Cyan water breach */
+.witcher-seg.seg-flooding {
+  fill: #dc2626 !important;
+  filter: drop-shadow(0 0 6px #ef4444);
+  animation: witcherFloodPulse 0.5s infinite alternate;
+}
+
+@keyframes witcherFloodPulse {
+  0% { fill: #dc2626; filter: drop-shadow(0 0 4px #ef4444); }
+  100% { fill: #38bdf8; filter: drop-shadow(0 0 8px #38bdf8); }
+}
+
+/* Status Readout */
+.witcher-boat-status {
+  margin-top: 4px;
+  font-family: 'Cinzel', system-ui, sans-serif;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #cbd5e1;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95);
+  min-height: 14px;
+  text-align: center;
+  transition: all 0.25s ease;
+}
+
+.witcher-boat-status.status-flooding {
+  color: #38bdf8;
+  text-shadow: 0 0 8px rgba(56, 189, 248, 0.85);
+  animation: witcherStatusGlow 0.8s infinite alternate;
+}
+
+.witcher-boat-status.status-critical {
+  color: #f87171;
+  text-shadow: 0 0 8px rgba(239, 68, 68, 0.9);
+  animation: witcherCriticalGlow 0.4s infinite alternate;
+}
+
+@keyframes witcherStatusGlow {
+  0% { opacity: 0.85; }
+  100% { opacity: 1; }
+}
+
+@keyframes witcherCriticalGlow {
+  0% { transform: scale(0.97); }
+  100% { transform: scale(1.05); }
 }
 
 /* Rising Water Fill Mask */
@@ -900,24 +914,25 @@ body {
 
 /* Floating Nautical Info Pill: Day & Score */
 .hud-info-pill {
-  width: 144px;
+  width: 80px;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 5px;
   background: rgba(13, 23, 38, 0.88);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(212, 175, 55, 0.45);
-  border-radius: 14px;
-  padding: 4px 10px;
+  border-radius: 12px;
+  padding: 3px 6px;
   color: #f3d790;
   font-family: 'Cinzel', serif;
-  font-size: 11px;
+  font-size: 9.5px;
   font-weight: 700;
-  letter-spacing: 0.6px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
-  margin-top: 4px;
+  letter-spacing: 0.4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+  margin-top: 2px;
 }
 
 .hud-pill-day {

@@ -47,6 +47,29 @@ const SYNTH = Object.freeze({
     a._tone({ type: 'triangle', from: 1046, dur: 0.25, gain: 0.22, at: t + 0.02 });
     a._noise({ type: 'bandpass', from: 2400, to: 400, dur: 0.18, gain: 0.18, at: t });
   },
+  metal_clank: (a, t) => {
+    a._tone({ type: 'triangle', from: 1800, to: 1200, dur: 0.18, gain: 0.28, at: t });
+    a._tone({ type: 'sine', from: 2400, to: 1600, dur: 0.25, gain: 0.22, at: t + 0.02 });
+    a._noise({ type: 'bandpass', from: 4000, to: 1800, dur: 0.12, gain: 0.18, at: t });
+  },
+  wood_thud: (a, t) => {
+    a._tone({ type: 'triangle', from: 140, to: 55, dur: 0.28, gain: 0.32, at: t });
+    a._noise({ type: 'bandpass', from: 800, to: 120, dur: 0.22, gain: 0.25, at: t });
+  },
+  wood_crack: (a, t) => {
+    a._noise({ type: 'bandpass', from: 4500, to: 600, dur: 0.16, gain: 0.32, at: t });
+    a._tone({ type: 'sawtooth', from: 480, to: 160, dur: 0.18, gain: 0.22, at: t + 0.02 });
+  },
+  hull_groan: (a, t) => {
+    a._tone({ type: 'sawtooth', from: 95, to: 70, dur: 0.75, gain: 0.20, at: t });
+    a._tone({ type: 'triangle', from: 110, to: 85, dur: 0.85, gain: 0.18, at: t + 0.08 });
+    a._noise({ type: 'bandpass', from: 600, to: 250, dur: 0.65, gain: 0.15, at: t });
+  },
+  sinking_bell: (a, t) => {
+    a._tone({ type: 'sine', from: 587.33, dur: 1.4, gain: 0.30, at: t });
+    a._tone({ type: 'sine', from: 1174.66, dur: 1.0, gain: 0.18, at: t });
+    a._tone({ type: 'triangle', from: 440, dur: 1.6, gain: 0.22, at: t + 0.03 });
+  },
 });
 
 /**
