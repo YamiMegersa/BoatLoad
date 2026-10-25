@@ -53,7 +53,9 @@ export class HUD {
     on('uiMount',          d => { if (d.screen === 'obstacle') this.mount(d); });
     on('uiUnmount',        d => { if (d.screen === 'obstacle') this.unmount(); });
     on('playerHealth',     d => this._updateHP(d.hp, d.max));
-    on('playerWaterLevel', d => this._updateWater(d.level, d.max));
+    on('playerWaterLevel', d => this._updateWater(d.level, d.max, d));
+    this._onPlayerDamaged = d => this._handlePlayerDamaged(d);
+    on('playerDamaged',    this._onPlayerDamaged);
     on('qteStart',         d => this._showQTE(d));
     on('qteUpdate',        d => this._updateQTE(d));
     on('qteSuccess',       () => this._hideQTE());
@@ -125,48 +127,67 @@ export class HUD {
     this._el.innerHTML = `
       <!-- Floating Top-Left Nautical Status Cluster -->
       <div id="hud-status-cluster">
-        <!-- Circular Health Gauge (Red circle with capsizing boat sprite) -->
-        <div class="hud-circle-gauge" id="hud-hp-gauge" title="Hull Health">
-          <svg class="hud-gauge-svg" viewBox="0 0 64 64">
-            <circle class="hud-gauge-track" cx="32" cy="32" r="27" />
-            <circle class="hud-gauge-fill hp-fill" id="hud-hp-ring" cx="32" cy="32" r="27" stroke-dasharray="169.65" stroke-dashoffset="0" />
-          </svg>
-          <div class="hud-gauge-content">
-            <!-- Capsizing Boat Sprite -->
-            <svg class="hud-boat-icon" id="hud-capsizing-boat" viewBox="0 0 32 32">
-              <path class="boat-hull" d="M 4 21 C 7 26, 25 26, 28 21 L 26 18 L 6 18 Z" fill="#ef4444" stroke="#7f1d1d" stroke-width="1.2" />
-              <line class="boat-mast" x1="16" y1="5" x2="16" y2="18" stroke="#fecaca" stroke-width="1.6" stroke-linecap="round" />
-              <path class="boat-sail-main" d="M 16 6 L 25 16 L 16 16 Z" fill="#fee2e2" opacity="0.9" />
-              <path class="boat-sail-jib" d="M 14 8 L 7 17 L 14 17 Z" fill="#ffffff" opacity="0.75" />
-            </svg>
-            <span class="hud-gauge-val" id="hud-hp-val">100%</span>
-          </div>
-          <span class="hud-gauge-badge">HULL</span>
-        </div>
-
-        <!-- Circular Water Intake Gauge (Circle filling with water + upright boat sprite) -->
-        <div class="hud-circle-gauge" id="hud-water-gauge" title="Water Intake">
-          <svg class="hud-gauge-svg" viewBox="0 0 64 64">
-            <circle class="hud-gauge-track" cx="32" cy="32" r="27" />
-            <circle class="hud-gauge-fill water-ring" id="hud-water-ring" cx="32" cy="32" r="27" stroke-dasharray="169.65" stroke-dashoffset="169.65" />
-          </svg>
-          <div class="hud-gauge-content">
-            <!-- Rising Water Fill Background inside the circle -->
-            <div class="hud-water-mask">
-              <div class="hud-water-fill-level" id="hud-water-fill">
-                <div class="hud-water-wave"></div>
+        <!-- Witcher 3 Style Boat Damage & Water Ingress Widget -->
+        <div id="witcher-boat-widget" class="witcher-boat-widget" title="Boat Hull Damage & Water Ingress">
+          <div class="witcher-boat-header">
+            <div class="witcher-boat-title">Boat</div>
+            <div class="witcher-boat-divider">
+              <div class="witcher-divider-line">
+                <div class="witcher-water-fill-bar" id="witcher-water-bar"></div>
               </div>
+              <div class="witcher-divider-flame" id="witcher-divider-flame">▲</div>
             </div>
-            <!-- Upright Boat Sprite floating on water -->
-            <svg class="hud-boat-icon" id="hud-upright-boat" viewBox="0 0 32 32">
-              <path class="boat-hull" d="M 4 21 C 7 26, 25 26, 28 21 L 26 18 L 6 18 Z" fill="#38bdf8" stroke="#0369a1" stroke-width="1.2" />
-              <line class="boat-mast" x1="16" y1="5" x2="16" y2="18" stroke="#bae6fd" stroke-width="1.6" stroke-linecap="round" />
-              <path class="boat-sail-main" d="M 16 6 L 25 16 L 16 16 Z" fill="#e0f2fe" opacity="0.95" />
-              <path class="boat-sail-jib" d="M 14 8 L 7 17 L 14 17 Z" fill="#ffffff" opacity="0.8" />
-            </svg>
-            <span class="hud-gauge-val" id="hud-water-val">0%</span>
           </div>
-          <span class="hud-gauge-badge">WATER</span>
+
+          <div class="witcher-boat-body">
+            <svg class="witcher-boat-svg" viewBox="0 0 60 120">
+              <defs>
+                <clipPath id="witcher-hull-clip">
+                  <path d="M 30 8 C 12 25, 6 44, 6 61 C 6 78, 12 95, 30 112 C 48 95, 54 78, 54 61 C 54 44, 48 25, 30 8 Z" />
+                </clipPath>
+              </defs>
+
+              <!-- 6 Segmented Compartments -->
+              <!-- Bow Port (Front Left) -->
+              <path id="w-seg-bow-port" class="witcher-seg" d="M 30 8 C 20 22, 16 34, 14.5 44 L 30 44 Z" />
+              
+              <!-- Bow Starboard (Front Right - orange in Witcher 3!) -->
+              <path id="w-seg-bow-stbd" class="witcher-seg" d="M 30 8 L 30 44 L 45.5 44 C 44 34, 40 22, 30 8 Z" />
+              
+              <!-- Mid Port (Mid Left) -->
+              <path id="w-seg-mid-port" class="witcher-seg" d="M 30 44 L 14.5 44 C 7 51, 6 61, 7 70 C 8 74, 11 77, 14.5 78 L 30 78 Z" />
+              
+              <!-- Mid Starboard (Mid Right) -->
+              <path id="w-seg-mid-stbd" class="witcher-seg" d="M 30 44 L 30 78 L 45.5 78 C 49 77, 52 74, 53 70 C 54 61, 53 51, 45.5 44 Z" />
+              
+              <!-- Stern Port (Rear Left) -->
+              <path id="w-seg-stern-port" class="witcher-seg" d="M 30 78 L 14.5 78 C 16 88, 20 100, 30 112 Z" />
+              
+              <!-- Stern Starboard (Rear Right) -->
+              <path id="w-seg-stern-stbd" class="witcher-seg" d="M 30 78 L 30 112 C 40 100, 44 88, 45.5 78 Z" />
+
+              <!-- Rising Water Overlay (clipped to interior of hull) -->
+              <g clip-path="url(#witcher-hull-clip)">
+                <rect id="witcher-water-fill-rect" x="0" y="112" width="60" height="0" fill="rgba(56, 189, 248, 0.45)" />
+                <line id="witcher-water-line" x1="0" y1="112" x2="60" y2="112" stroke="#38bdf8" stroke-width="1.2" opacity="0" />
+              </g>
+
+              <!-- Inner Compartment Dividers -->
+              <line x1="30" y1="8" x2="30" y2="112" stroke="#121418" stroke-width="1.8" />
+              <line x1="14.5" y1="44" x2="45.5" y2="44" stroke="#121418" stroke-width="1.8" />
+              <line x1="14.5" y1="78" x2="45.5" y2="78" stroke="#121418" stroke-width="1.8" />
+
+              <!-- Outer Silver Hull Rim -->
+              <path d="M 30 8 C 12 25, 6 44, 6 61 C 6 78, 12 95, 30 112 C 48 95, 54 78, 54 61 C 54 44, 48 25, 30 8 Z" fill="none" stroke="#cfd0d8" stroke-width="2.4" stroke-linejoin="round" />
+              
+              <!-- Prow & Sternpost Extensions -->
+              <line x1="30" y1="3.5" x2="30" y2="8" stroke="#cfd0d8" stroke-width="2.4" stroke-linecap="round" />
+              <line x1="30" y1="112" x2="30" y2="116.5" stroke="#cfd0d8" stroke-width="2.4" stroke-linecap="round" />
+            </svg>
+          </div>
+
+          <!-- Subtle Status Readout (Inflow or Water %) -->
+          <div id="witcher-boat-status" class="witcher-boat-status"></div>
         </div>
 
         <!-- Clean floating info pill: Score & Day -->
@@ -290,16 +311,13 @@ export class HUD {
       document.head.appendChild(style);
     }
 
-    this._hpRing       = this._el.querySelector('#hud-hp-ring');
-    this._hpBoat       = this._el.querySelector('#hud-capsizing-boat');
-    this._hpVal        = this._el.querySelector('#hud-hp-val');
-    this._hpGauge      = this._el.querySelector('#hud-hp-gauge');
-
-    this._waterRing    = this._el.querySelector('#hud-water-ring');
-    this._waterFill    = this._el.querySelector('#hud-water-fill');
-    this._waterBoat    = this._el.querySelector('#hud-upright-boat');
-    this._waterVal     = this._el.querySelector('#hud-water-val');
-    this._waterGauge   = this._el.querySelector('#hud-water-gauge');
+    this._witcherWaterBar  = this._el.querySelector('#witcher-water-bar');
+    this._witcherWaterFill = this._el.querySelector('#witcher-water-fill-rect');
+    this._witcherWaterLine = this._el.querySelector('#witcher-water-line');
+    this._witcherStatus    = this._el.querySelector('#witcher-boat-status');
+    this._witcherFlame     = this._el.querySelector('#witcher-divider-flame');
+    this._hpVal            = this._el.querySelector('#hud-hp-val');
+    this._waterVal         = this._el.querySelector('#hud-water-val');
 
     this._qteEl        = this._el.querySelector('#hud-qte');
     this._qteMeter     = this._el.querySelector('#hud-qte-meter');
@@ -608,27 +626,123 @@ export class HUD {
     }
   }
 
-  _updateWater(level, maxLevel) {
-    const pct = Math.max(0, Math.min(100, (level / maxLevel) * 100));
-    const circ = 169.65;
-    if (this._waterRing) {
-      const offset = circ * (1 - pct / 100);
-      this._waterRing.style.strokeDashoffset = `${offset}`;
-      this._waterRing.style.stroke = pct > 75 ? '#ef4444' : pct > 50 ? '#f59e0b' : '#38bdf8';
+  _updateWater(level, maxLevel, d = null) {
+    const max = maxLevel || 100;
+    const current = Math.max(0, Math.min(max, level || 0));
+    const pct = Math.min(100, (current / max) * 100);
+
+    // 1. Rising Water inside Witcher 3 Boat Silhouette
+    if (this._witcherWaterFill) {
+      // SVG hull height extends from y=8 (bow) to y=112 (stern), total height = 104
+      const hVal = (pct / 100) * 104;
+      const yVal = 112 - hVal;
+      this._witcherWaterFill.setAttribute('y', `${yVal}`);
+      this._witcherWaterFill.setAttribute('height', `${hVal}`);
     }
-    if (this._waterFill) {
-      this._waterFill.style.height = `${pct}%`;
+    if (this._witcherWaterLine) {
+      const yVal = 112 - (pct / 100) * 104;
+      this._witcherWaterLine.setAttribute('y1', `${yVal}`);
+      this._witcherWaterLine.setAttribute('y2', `${yVal}`);
+      this._witcherWaterLine.style.opacity = pct > 1.5 ? '1' : '0';
     }
-    if (this._waterBoat) {
-      const sinkDepth = (pct / 100) * 7;
-      this._waterBoat.style.transform = `translateY(${sinkDepth}px)`;
+
+    // 2. Horizontal Water Bar under "Boat"
+    if (this._witcherWaterBar) {
+      this._witcherWaterBar.style.width = `${pct}%`;
+      this._witcherWaterBar.style.background = pct > 75 ? '#ef4444' : pct > 50 ? '#f59e0b' : '#38bdf8';
     }
-    if (this._waterVal) {
-      this._waterVal.textContent = `${Math.floor(pct)}%`;
+
+    // 3. Flame Pip & Status Readout
+    if (this._witcherFlame) {
+      this._witcherFlame.style.color = pct > 75 ? '#ef4444' : pct > 50 ? '#f97316' : '#eab308';
     }
-    if (this._waterGauge) {
-      this._waterGauge.classList.toggle('critical-water', pct > 75);
+    if (this._witcherStatus) {
+      const flowRate = d?.flowRate || 0;
+      if (pct >= 85) {
+        this._witcherStatus.textContent = 'SINKING!';
+        this._witcherStatus.className = 'witcher-boat-status status-critical';
+      } else if (flowRate > 0) {
+        this._witcherStatus.textContent = `+${flowRate.toFixed(1)} L/s`;
+        this._witcherStatus.className = 'witcher-boat-status status-flooding';
+      } else if (pct > 0) {
+        this._witcherStatus.textContent = `${Math.floor(pct)}% Water`;
+        this._witcherStatus.className = 'witcher-boat-status';
+      } else {
+        this._witcherStatus.textContent = '';
+        this._witcherStatus.className = 'witcher-boat-status';
+      }
     }
+
+    // 4. Update the 6 Witcher 3 Segmented Compartments
+    if (d) {
+      this._updateWitcherSegments(d);
+    }
+  }
+
+  _updateWitcherSegments(d = {}) {
+    const submerged = d.compartmentFlooding || d.sectors || {};
+    const total = d.compartmentDamage || d.allSectors || {};
+
+    const segMap = {
+      'bow-port': (submerged.bow_port || submerged['bow-port'] || 0),
+      'bow-stbd': (submerged.bow_starboard || submerged['bow-stbd'] || 0),
+      'mid-port': (submerged.mid_port || submerged['mid-port'] || submerged.port || 0),
+      'mid-stbd': (submerged.mid_starboard || submerged['mid-stbd'] || submerged.starboard || 0),
+      'stern-port': (submerged.stern_port || submerged['stern-port'] || 0),
+      'stern-stbd': (submerged.stern_starboard || submerged['stern-stbd'] || 0),
+    };
+
+    const totalMap = {
+      'bow-port': (total.bow_port || total['bow-port'] || 0),
+      'bow-stbd': (total.bow_starboard || total['bow-stbd'] || 0),
+      'mid-port': (total.mid_port || total['mid-port'] || total.port || (total.keel ? 1 : 0)),
+      'mid-stbd': (total.mid_starboard || total['mid-stbd'] || total.starboard || (total.keel ? 1 : 0)),
+      'stern-port': (total.stern_port || total['stern-port'] || 0),
+      'stern-stbd': (total.stern_starboard || total['stern-stbd'] || 0),
+    };
+
+    // Generic fallback if legacy single-key 'bow' was hit
+    if (total.bow && !totalMap['bow-port'] && !totalMap['bow-stbd']) {
+      totalMap['bow-stbd'] = total.bow;
+      if (submerged.bow) segMap['bow-stbd'] = submerged.bow;
+    }
+    // Generic fallback if legacy single-key 'stern' was hit
+    if (total.stern && !totalMap['stern-port'] && !totalMap['stern-stbd']) {
+      totalMap['stern-port'] = total.stern;
+      if (submerged.stern) segMap['stern-port'] = submerged.stern;
+    }
+
+    if (d.witcherSector) {
+      const wKey = d.witcherSector.replace('_', '-').replace('starboard', 'stbd');
+      if (totalMap[wKey] !== undefined) {
+        totalMap[wKey] = Math.max(1, totalMap[wKey] || 0);
+      }
+    }
+
+    const segIds = ['bow-port', 'bow-stbd', 'mid-port', 'mid-stbd', 'stern-port', 'stern-stbd'];
+    for (const key of segIds) {
+      const el = this._el?.querySelector(`#w-seg-${key}`);
+      if (!el) continue;
+      const isSubmerged = (segMap[key] || 0) > 0;
+      const isDamaged = (totalMap[key] || 0) > 0 || (this._persistedDamagedSectors?.has(key));
+
+      el.classList.remove('seg-damaged', 'seg-flooding');
+      if (isSubmerged) {
+        el.classList.add('seg-flooding');
+      } else if (isDamaged) {
+        el.classList.add('seg-damaged');
+      }
+    }
+  }
+
+  _handlePlayerDamaged(d = {}) {
+    // Banner popup removed per user request: "Remove that 'bow damaged' popup, it is unessecary"
+    if (d.witcherSector) {
+      if (!this._persistedDamagedSectors) this._persistedDamagedSectors = new Set();
+      const wKey = d.witcherSector.replace('_', '-').replace('starboard', 'stbd');
+      this._persistedDamagedSectors.add(wKey);
+    }
+    this._updateWitcherSegments(d);
   }
 
   _showQTE({ input, label, sweetSpot, theme }) {
@@ -887,6 +1001,7 @@ export class HUD {
     off('uiMount'); off('uiUnmount');
     off('playerHealth');
     off('playerWaterLevel');
+    off('playerDamaged', this._onPlayerDamaged);
     off('qteStart'); off('qteUpdate'); off('qteSuccess'); off('qteFail');
     off('scoreAdded', this._onScore);
     off('ammoChanged');

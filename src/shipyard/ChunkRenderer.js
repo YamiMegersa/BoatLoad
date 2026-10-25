@@ -58,6 +58,9 @@ export class ChunkRenderer {
     this._individualQueue = [];
 
     this._scene = null;
+    this._showMissingOutlines = true;
+    this._voxel3DTexture = null;
+    this._voxelUniforms = null;
   }
 
   /**
@@ -67,16 +70,20 @@ export class ChunkRenderer {
    * @param {import('./VoxelGrid.js').VoxelGrid} grid
    * @param {THREE.Scene} scene
    * @param {THREE.Object3D} [gltfScene]
+   * @param {object} [options]
+   * @param {boolean} [options.showMissingOutlines=true] Whether to draw red wireframe boxes on MISSING cells
    */
-  init(grid, scene, gltfScene = null) {
+  init(grid, scene, gltfScene = null, options = {}) {
     this._scene = scene;
     this._scene.add(this.container);
     this._grid = grid;
     this._gltfScene = gltfScene;
+    this._showMissingOutlines = options.showMissingOutlines !== undefined ? Boolean(options.showMissingOutlines) : true;
 
     if (this._gltfScene) {
       this.container.add(this._gltfScene);
       this._instancedMesh = null;
+      this._setupGltfVoxelCulling(grid);
     } else {
       const maxIntact = grid.width * grid.height * grid.depth;
       this._instancedMesh = new THREE.InstancedMesh(BOX_GEO, intactMaterial, maxIntact);
@@ -96,12 +103,50 @@ export class ChunkRenderer {
   }
 
   /**
+   * Update the container inverse world matrix uniform for GLTF voxel culling.
+   * Call whenever container transform changes.
+   */
+  updateTransform() {
+    if (this._voxelUniforms && this.container) {
+      this.container.updateMatrixWorld(true);
+      this._voxelUniforms.uContainerWorldInverse.value.copy(this.container.matrixWorld).invert();
+    }
+  }
+
+  /**
+   * Configure whether MISSING cells render red wireframe outline boxes.
+   * In destruction editing, disabling outlines ensures damaged cells are purely missing/transparent.
+   *
+   * @param {boolean} show
+   */
+  setShowMissingOutlines(show) {
+    this._showMissingOutlines = Boolean(show);
+    if (!this._showMissingOutlines) {
+      for (const [flatIdx, mesh] of this._individualMeshes.entries()) {
+        if (mesh.type === 'LineSegments') {
+          this._disposeIndividualMesh(mesh);
+          this._individualMeshes.delete(flatIdx);
+          const qIdx = this._individualQueue.indexOf(flatIdx);
+          if (qIdx !== -1) this._individualQueue.splice(qIdx, 1);
+        }
+      }
+    } else if (this._grid) {
+      this._fullRebuild(this._grid);
+    }
+  }
+
+  /**
    * Synchronise renderer state with any dirty cells in the grid.
    * Call this once per frame (or whenever EventBus fires 'gridDirty').
    *
    * @param {import('./VoxelGrid.js').VoxelGrid} grid
    */
   sync(grid) {
+    if (this._voxel3DTexture) {
+      this._voxel3DTexture.needsUpdate = true;
+      this.updateTransform();
+    }
+
     const dirty = grid.consumeDirty();
     if (dirty.size === 0) return;
 
@@ -143,6 +188,12 @@ export class ChunkRenderer {
       }
     }
     
+    if (this._voxel3DTexture) {
+      this._voxel3DTexture.dispose();
+      this._voxel3DTexture = null;
+    }
+    this._voxelUniforms = null;
+
     if (this._instancedMesh) {
       this._instancedMesh.dispose();
       this._instancedMesh = null;
@@ -163,6 +214,94 @@ export class ChunkRenderer {
   // -------------------------------------------------------------------------
   // Internal helpers
   // -------------------------------------------------------------------------
+
+  _setupGltfVoxelCulling(grid) {
+    if (!this._gltfScene || !grid) return;
+
+    if (this._voxel3DTexture) {
+      this._voxel3DTexture.dispose();
+      this._voxel3DTexture = null;
+    }
+
+    this._voxel3DTexture = new THREE.Data3DTexture(
+      grid.data,
+      grid.width,
+      grid.height,
+      grid.depth
+    );
+    this._voxel3DTexture.format = THREE.RedFormat;
+    this._voxel3DTexture.type = THREE.UnsignedByteType;
+    this._voxel3DTexture.minFilter = THREE.NearestFilter;
+    this._voxel3DTexture.magFilter = THREE.NearestFilter;
+    this._voxel3DTexture.wrapS = THREE.ClampToEdgeWrapping;
+    this._voxel3DTexture.wrapT = THREE.ClampToEdgeWrapping;
+    this._voxel3DTexture.wrapR = THREE.ClampToEdgeWrapping;
+    this._voxel3DTexture.unpackAlignment = 1;
+    this._voxel3DTexture.needsUpdate = true;
+
+    this._voxelUniforms = {
+      uContainerWorldInverse: { value: new THREE.Matrix4() },
+      uGridDims: { value: new THREE.Vector3(grid.width, grid.height, grid.depth) },
+      uVoxelGrid: { value: this._voxel3DTexture },
+    };
+
+    this.updateTransform();
+
+    this._gltfScene.traverse((child) => {
+      if (child.isMesh && child.material) {
+        const materials = Array.isArray(child.material) ? child.material : [child.material];
+        for (const mat of materials) {
+          mat.side = THREE.DoubleSide;
+
+          if (mat._hasVoxelCulling) continue;
+          mat._hasVoxelCulling = true;
+
+          const origOnBeforeCompile = mat.onBeforeCompile ? mat.onBeforeCompile.bind(mat) : null;
+
+          mat.onBeforeCompile = (shader, renderer) => {
+            if (origOnBeforeCompile) origOnBeforeCompile(shader, renderer);
+
+            shader.uniforms.uContainerWorldInverse = this._voxelUniforms.uContainerWorldInverse;
+            shader.uniforms.uGridDims = this._voxelUniforms.uGridDims;
+            shader.uniforms.uVoxelGrid = this._voxelUniforms.uVoxelGrid;
+
+            shader.vertexShader = 'varying vec3 vVoxelWorldPos;\n' + shader.vertexShader;
+            shader.vertexShader = shader.vertexShader.replace(
+              '#include <worldpos_vertex>',
+              '#include <worldpos_vertex>\n' +
+              'vVoxelWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;'
+            );
+
+            shader.fragmentShader =
+              'varying vec3 vVoxelWorldPos;\n' +
+              'uniform mat4 uContainerWorldInverse;\n' +
+              'uniform vec3 uGridDims;\n' +
+              'uniform sampler3D uVoxelGrid;\n' +
+              shader.fragmentShader;
+
+            shader.fragmentShader = shader.fragmentShader.replace(
+              '#include <clipping_planes_fragment>',
+              '#include <clipping_planes_fragment>\n' +
+              'vec3 vContainerPos = (uContainerWorldInverse * vec4(vVoxelWorldPos, 1.0)).xyz;\n' +
+              'if (vContainerPos.x >= 0.0 && vContainerPos.x < uGridDims.x &&\n' +
+              '    vContainerPos.y >= 0.0 && vContainerPos.y < uGridDims.y &&\n' +
+              '    vContainerPos.z >= 0.0 && vContainerPos.z < uGridDims.z) {\n' +
+              '  vec3 uvw = vContainerPos / uGridDims;\n' +
+              '  float rawVal = texture(uVoxelGrid, uvw).r;\n' +
+              '  float stateVal = floor(rawVal * 255.0 + 0.5);\n' +
+              '  if (stateVal == 2.0 || stateVal == 3.0 || stateVal == 5.0) {\n' +
+              '    discard;\n' +
+              '  }\n' +
+              '}\n'
+            );
+          };
+
+          mat.customProgramCacheKey = () => 'voxelCulling_v1';
+          mat.needsUpdate = true;
+        }
+      }
+    });
+  }
 
   _fullRebuild(grid) {
     for (const mesh of this._individualMeshes.values()) {
@@ -245,7 +384,11 @@ export class ChunkRenderer {
         break;
 
       case CellState.MISSING:
-        this._spawnIndividual(grid, x, y, z, flatIdx, missingMaterial, true);
+        if (this._showMissingOutlines) {
+          this._spawnIndividual(grid, x, y, z, flatIdx, missingMaterial, true);
+        } else {
+          this._removeIndividual(flatIdx);
+        }
         break;
 
       case CellState.DAMAGED:

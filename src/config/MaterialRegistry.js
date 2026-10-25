@@ -67,6 +67,14 @@ export function getMaterial(id) {
   return MATERIAL_REGISTRY[id] || MATERIAL_REGISTRY[DEFAULT_MATERIAL_ID];
 }
 
+export function getMaterialByColor(colorHex) {
+  if (colorHex === undefined || colorHex === null) return MATERIAL_REGISTRY[DEFAULT_MATERIAL_ID];
+  for (const mat of Object.values(MATERIAL_REGISTRY)) {
+    if (mat.color === colorHex) return mat;
+  }
+  return MATERIAL_REGISTRY[DEFAULT_MATERIAL_ID];
+}
+
 export const BRUSHES = {
   single:   { id: 'single',   label: 'Voxel Block',     size: [1, 1, 1], icon: '<span class="pixel-icon brush-voxel size-18"></span>' },
   plank:    { id: 'plank',    label: 'Plank (1x3)',     size: [1, 1, 3], icon: '<span class="pixel-icon brush-plank size-18"></span>' },

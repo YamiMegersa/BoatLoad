@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { StudioFlyControls } from './StudioFlyControls.js';
 import { ShipBuilder }    from '../shipyard/ShipBuilder.js';
 import { ChunkRenderer }  from '../shipyard/ChunkRenderer.js';
 import { VoxelGrid, CellState } from '../shipyard/VoxelGrid.js';
@@ -156,18 +157,8 @@ export class GameState {
 
     // Input tracking
     this._keys = {};
-    this._boundKeyDown = (e) => { this._keys[e.code] = true; };
-    this._boundKeyUp   = (e) => { this._keys[e.code] = false; };
-    window.addEventListener('keydown', this._boundKeyDown);
-    window.addEventListener('keyup', this._boundKeyUp);
-
-    this._boundPointerDown = this._onPointerDown.bind(this);
-    this._boundPointerMove = this._onPointerMove.bind(this);
-
-    // Patch keydown to handle single-press R and F
-    const oldKeyDown = this._boundKeyDown;
     this._boundKeyDown = (e) => {
-      oldKeyDown(e);
+      this._keys[e.code] = true;
       if (e.code === 'KeyR' && this.currentPhase === GamePhase.SHIPYARD) {
         emit('rotateBlueprint');
       }
@@ -179,6 +170,23 @@ export class GameState {
         }
       }
     };
+    this._boundKeyUp = (e) => {
+      this._keys[e.code] = false;
+    };
+    this._boundClearKeys = () => {
+      this._keys = {};
+    };
+
+    window.addEventListener('keydown', this._boundKeyDown);
+    window.addEventListener('keyup', this._boundKeyUp);
+    window.addEventListener('blur', this._boundClearKeys);
+    window.addEventListener('focus', this._boundClearKeys);
+    document.addEventListener('visibilitychange', this._boundClearKeys);
+
+    this._boundPointerDown = this._onPointerDown.bind(this);
+    this._boundPointerUp   = this._onPointerUp.bind(this);
+    this._boundPointerMove = this._onPointerMove.bind(this);
+    this._pointerDownPos   = null;
 
     on('toggleDenseFogUI', (d) => {
       if (this._environmentManager) {
@@ -370,6 +378,7 @@ export class GameState {
 
     this.currentPhase = newPhase;
     this.nextPhase = null;
+    this._keys = {};
     await this._onEnter(newPhase, opts);
     if (!skipLoading) emit('updateLoading', { progress: 0.88 });
 
@@ -1090,12 +1099,12 @@ export class GameState {
     const halfBeam = ((def?.grid?.x ?? 24) * 0.5) * s;
     const draft = (activeShipDef.waterlineY || shipProfile.waterlineY || 4) * s;
 
-    // Use docked mooring position if available, or compute West dock berth
+    // Compute West dock berth for the specific ship dimensions
     const pierX = -50.9;
     const pierZ = 10.5;
-    const mooredPos = this._dockMooredTargetPos 
-      ? this._dockMooredTargetPos.clone() 
-      : new THREE.Vector3(pierX - halfBeam - 0.4, -draft, pierZ);
+    const margin = Math.max(0.6, 0.1 * halfBeam);
+    const mooredPos = new THREE.Vector3(pierX - halfBeam - margin, -draft, pierZ);
+    this._dockMooredTargetPos = mooredPos.clone();
 
     const gx = def?.grid?.x ?? this._grid?.width ?? 24;
     const gy = def?.grid?.y ?? this._grid?.height ?? 24;
@@ -1176,11 +1185,11 @@ export class GameState {
     this._buildSystem = new BuildSystem();
     this._buildSystem.init(this._grid, this._scene, this._chunkRenderer.container, this._budgetManager);
 
-    // Orbit controls
-    this._orbitControls = new OrbitControls(this._camera, this._renderer.domElement);
-    this._orbitControls.enableDamping = true;
-    this._orbitControls.minDistance = 1.5;
-    this._orbitControls.maxDistance = 50.0;
+    // Studio Fly controls: WASD flies in camera space, right-drag freelooks, left-drag does nothing
+    this._shipyardFlyControls = new StudioFlyControls(this._camera, this._renderer.domElement, {
+      moveSpeed: 10.0,
+      lookSpeed: 0.003
+    });
 
     // Calculate boat center in world coordinates
     const shipWorldCenter = new THREE.Vector3(
@@ -1190,13 +1199,13 @@ export class GameState {
     );
 
     // Target the center of the ship and position camera nicely for viewing and repairing
-    this._orbitControls.target.copy(shipWorldCenter);
+    const scaleFactor = Math.max(1, s / 0.12);
     this._camera.position.set(
-      shipWorldCenter.x + 4.2,
-      shipWorldCenter.y + 2.4,
-      shipWorldCenter.z + 4.2
+      shipWorldCenter.x + 4.2 * scaleFactor,
+      shipWorldCenter.y + 2.4 * scaleFactor,
+      shipWorldCenter.z + 4.2 * scaleFactor
     );
-    this._orbitControls.update();
+    this._shipyardFlyControls.lookAt(shipWorldCenter);
 
     // PROTOTYPE DEBUG: Render a random fish directly next to the boat
     if (this._debugShark) {
@@ -1226,18 +1235,16 @@ export class GameState {
       );
     }
 
-    // Pointer event for clicking cells
+    // Pointer events for clicking cells
     this._renderer.domElement.addEventListener('pointerdown', this._boundPointerDown);
+    this._renderer.domElement.addEventListener('pointerup', this._boundPointerUp);
     this._renderer.domElement.addEventListener('pointermove', this._boundPointerMove);
 
     this._emitShipyardSummary = () => {
       if (!this._grid) return;
       const summary = DamageSystem.getSummary(this._grid);
-      let leaks = 0;
-      const waterlineY = 4;
-      this._grid.forEach((x, y, z, state) => {
-        if (y <= waterlineY && state === CellState.MISSING) leaks++;
-      });
+      const activeLeaks = DamageSystem.getActiveLeaks(this._grid, 4);
+      const leaks = activeLeaks.length;
       const profile = ShipRegistry.get(activeShipId);
       emit('shipyardSummaryUpdated', {
         ...summary,
@@ -1275,35 +1282,8 @@ export class GameState {
       this._debugShark.position.y = this._debugSharkBaseY + this._debugSharkAnim.bobOffset;
     }
 
-    if (this._orbitControls) {
-      // WASD panning
-      const speed = 6 * delta;
-      
-      // Get camera's local forward/right vectors (ignoring Y to pan along the flat plane)
-      const forward = new THREE.Vector3();
-      this._camera.getWorldDirection(forward);
-      forward.y = 0;
-      forward.normalize();
-      
-      const right = new THREE.Vector3();
-      right.crossVectors(forward, this._camera.up).normalize();
-
-      const move = new THREE.Vector3();
-      if (this._keys['KeyW']) move.add(forward);
-      if (this._keys['KeyS']) move.sub(forward);
-      if (this._keys['KeyA']) move.sub(right);
-      if (this._keys['KeyD']) move.add(right);
-      
-      if (this._keys['KeyE'] || this._keys['Space']) move.y += 1;
-      if (this._keys['KeyQ'] || this._keys['ShiftLeft']) move.y -= 1;
-
-      if (move.lengthSq() > 0) {
-        move.normalize().multiplyScalar(speed);
-        this._camera.position.add(move);
-        this._orbitControls.target.add(move);
-      }
-
-      this._orbitControls.update();
+    if (this._shipyardFlyControls) {
+      this._shipyardFlyControls.update(delta);
     }
   }
 
@@ -1315,6 +1295,7 @@ export class GameState {
 
     // Remove event listeners
     this._renderer.domElement.removeEventListener('pointerdown', this._boundPointerDown);
+    this._renderer.domElement.removeEventListener('pointerup', this._boundPointerUp);
     this._renderer.domElement.removeEventListener('pointermove', this._boundPointerMove);
     if (this._onCellRepaired) off('cellRepaired', this._onCellRepaired);
     if (this._onShipyardGridDirty) off('gridDirty', this._onShipyardGridDirty);
@@ -1325,7 +1306,8 @@ export class GameState {
     // Dispose all Three.js objects except the ChunkRenderer and VoxelGrid
     this._raycaster?.dispose(this._scene);
     this._buildSystem?.reset();
-    this._orbitControls?.dispose();
+    this._shipyardFlyControls?.dispose();
+    this._shipyardFlyControls = null;
     
     if (this._chunkRenderer && this._chunkRenderer.container) {
       this._chunkRenderer.container.scale.set(1, 1, 1);
@@ -1417,7 +1399,22 @@ export class GameState {
   // Pointer handler — Shipyard phase only
   _onPointerDown(event) {
     if (this.currentPhase !== GamePhase.SHIPYARD) return;
-    if (event.button !== 0) return; // Only left-click places/erases blocks; right-click is reserved for camera orbiting
+    if (event.button === 0) {
+      this._pointerDownPos = { x: event.clientX, y: event.clientY };
+    }
+  }
+
+  _onPointerUp(event) {
+    if (this.currentPhase !== GamePhase.SHIPYARD) return;
+    if (event.button !== 0) return;
+    if (!this._pointerDownPos) return;
+
+    const dx = event.clientX - this._pointerDownPos.x;
+    const dy = event.clientY - this._pointerDownPos.y;
+    this._pointerDownPos = null;
+
+    // Distinguish click (< 5px) from camera drag/pan (>= 5px)
+    if (Math.hypot(dx, dy) >= 5) return;
 
     const rect = this._renderer.domElement.getBoundingClientRect();
     this._mouseNDC.set(
@@ -1557,6 +1554,7 @@ export class GameState {
     this._camLookTarget = new THREE.Vector3(spawnX, spawnY, spawnZ);
     this._camOvershoot = 0;
     this._camOvershootVel = 0;
+    this._camArmDist = camDist;
     this._camVelocity = new THREE.Vector3();
 
     if (this._ocean) {
@@ -1649,8 +1647,13 @@ export class GameState {
       const p = this._playerShip.mesh.position;
       const baseCam = p.clone().add(shipDir.clone().multiplyScalar(-camDist));
       baseCam.y = p.y + camHeight;
+      if (this._ocean) {
+        const waveH = this._ocean.getWaveInfo(baseCam.x, baseCam.z).height;
+        baseCam.y = Math.max(baseCam.y, waveH + 0.85);
+      }
       this._camera.position.copy(baseCam);
       this._camLookTarget = p.clone();
+      this._camLookTarget.y += 0.9;
       this._camera.lookAt(this._camLookTarget);
     }
 
@@ -1777,6 +1780,38 @@ export class GameState {
       const p = this._playerShip.mesh.position;
       const shipYaw = this._playerShip.yaw;
       const shipYawVel = this._playerShip.yawVelocity;
+
+      // Check if ship is in sinking plunge or sunk state
+      const isSinking = Boolean(
+        this._playerShip.isSinkingDeath ||
+        this._playerShip.sunk ||
+        (this._playerShip.isGagTruck && this._playerShip.truckSinkTimer > 0)
+      );
+
+      // --- TOP-DOWN SINKING CAMERA ---
+      // When the ship sinks, never follow it below the ocean surface (which exposes single-sided backfaces).
+      // Instead, elevate into a bird's-eye top-down view looking down at the vessel slipping under the waves.
+      if (isSinking) {
+        const surfaceY = this._ocean ? this._ocean.getWaveInfo(p.x, p.z).height : 0;
+        const topDownCamPos = new THREE.Vector3(p.x, Math.max(24.0, surfaceY + 24.0), p.z + 2.5);
+        const topDownLookTarget = new THREE.Vector3(p.x, surfaceY, p.z);
+
+        if (!this.directorModeActive) {
+          this._camera.position.lerp(topDownCamPos, Math.min(1.0, 3.5 * delta));
+          if (!this._camLookTarget) this._camLookTarget = new THREE.Vector3();
+          this._camLookTarget.lerp(topDownLookTarget, Math.min(1.0, 5.0 * delta));
+          this._camera.lookAt(this._camLookTarget);
+        }
+
+        // Update Minimap
+        this._minimap?.update(
+          p,
+          this._playerShip.yaw,
+          this._obstacleManager?._obstacles || [],
+          this.windDir
+        );
+        return;
+      }
       
       const shipDir = new THREE.Vector3(-Math.sin(shipYaw), 0, -Math.cos(shipYaw));
       const rightDir = new THREE.Vector3(Math.cos(shipYaw), 0, -Math.sin(shipYaw));
@@ -1801,6 +1836,7 @@ export class GameState {
         this._wasCinematicActive = false;
         this._camOvershoot = 0;
         this._camOvershootVel = 0;
+        this._camArmDist = camDist;
         this._camera.position.copy(baseTarget);
         if (!this._camLookTarget) this._camLookTarget = new THREE.Vector3();
         this._camLookTarget.copy(p);
@@ -1828,23 +1864,113 @@ export class GameState {
       this._camOvershootVel += force * delta;
       this._camOvershoot += this._camOvershootVel * delta;
 
-      // 3. Final Target P3
+      // 3. Final Ideal Target P3
       const P3 = baseTarget.clone().add(rightDir.clone().multiplyScalar(this._camOvershoot));
+
+      // 4. Spring-Arm Occlusion Probe (Anti-clipping raycast)
+      // Focus/pivot point on the ship deck (slightly raised to clear hull floor)
+      const focusPoint = p.clone();
+      focusPoint.y += 1.8;
+
+      const armVector = P3.clone().sub(focusPoint);
+      const maxArmLength = armVector.length();
+      const armDir = armVector.clone().normalize();
+
+      if (this._camArmDist === undefined || isNaN(this._camArmDist)) {
+        this._camArmDist = maxArmLength;
+      }
+
+      if (!this._camRaycaster) {
+        this._camRaycaster = new THREE.Raycaster();
+      }
+      this._camRaycaster.set(focusPoint, armDir);
+      this._camRaycaster.far = maxArmLength;
+
+      // Collect candidate collidables near the camera arm
+      const candidates = [];
+      if (this._voxelTerrain?.meshGroup && this._voxelTerrain.meshGroup.children.length > 0) {
+        candidates.push(this._voxelTerrain.meshGroup);
+      }
+      if (this._dockStall?.group && this._dockStall.group.visible !== false) {
+        if (p.distanceTo(this._dockStall.group.position) < 75) {
+          candidates.push(this._dockStall.group);
+        }
+      }
+      if (this._obstacleManager?._obstacles) {
+        const obsList = this._obstacleManager._obstacles;
+        for (let i = 0; i < obsList.length; i++) {
+          const obs = obsList[i];
+          if (obs.active !== false && obs.mesh && (obs.type === 'rock' || obs.type === 'island')) {
+            const d = obs.mesh.position.distanceTo(focusPoint);
+            if (d < maxArmLength + 25) {
+              candidates.push(obs.mesh);
+            }
+          }
+        }
+      }
+
+      let closestHitDist = maxArmLength;
+      if (candidates.length > 0) {
+        const intersects = this._camRaycaster.intersectObjects(candidates, true);
+        for (let i = 0; i < intersects.length; i++) {
+          const hit = intersects[i];
+          // Filter transparent materials/effects
+          const mat = hit.object?.material;
+          if (mat && mat.transparent && mat.opacity < 0.4) {
+            continue;
+          }
+          if (hit.distance < closestHitDist) {
+            closestHitDist = hit.distance;
+          }
+        }
+      }
+
+      // Safe target distance: reserve 0.7m padding for near clip plane, minimum 2.8m from ship
+      const nearClipPadding = 0.7;
+      const minArmDist = 2.8;
+      const safeTargetDist = Math.max(minArmDist, Math.min(maxArmLength, closestHitDist - nearClipPadding));
+
+      // Asymmetric spring smoothing (fast push-in, smooth release)
+      if (safeTargetDist < this._camArmDist) {
+        this._camArmDist = THREE.MathUtils.lerp(this._camArmDist, safeTargetDist, Math.min(1.0, 20.0 * delta));
+        if (this._camArmDist > safeTargetDist + 0.25) {
+          this._camArmDist = safeTargetDist + 0.25;
+        }
+      } else {
+        this._camArmDist = THREE.MathUtils.lerp(this._camArmDist, safeTargetDist, Math.min(1.0, 4.0 * delta));
+      }
+
+      // Compute occluded camera target position
+      const targetCamPos = focusPoint.clone().add(armDir.clone().multiplyScalar(this._camArmDist));
+
+      // Camera elevation assist: smoothly elevate camera when compressed near a wall so view looks over obstacle
+      const compression = Math.max(0, 1.0 - (this._camArmDist / Math.max(0.001, maxArmLength)));
+      targetCamPos.y += compression * 1.6;
 
       // Brief vertical impulse on shark impact (60-80 ms, kept subtle for mobile)
       if (this._camImpulse > 0) {
         this._camImpulse = Math.max(0, this._camImpulse - delta);
-        P3.y += (this._camImpulse / 0.08) * 0.35;
+        targetCamPos.y += (this._camImpulse / 0.08) * 0.35;
       }
 
-      // 4. Move camera smoothly towards the spring-loaded target
-      // The spring logic in P3 provides the curved sweep and overshoot.
-      if (!this.directorModeActive) {
-        this._camera.position.lerp(P3, 5.0 * delta);
+      // 5. Anti-Submersion Water Surface Clamp: never allow camera lens below ocean waves
+      if (this._ocean) {
+        const waveH = this._ocean.getWaveInfo(targetCamPos.x, targetCamPos.z).height;
+        const minCamY = waveH + 0.85;
+        if (targetCamPos.y < minCamY) {
+          targetCamPos.y = minCamY;
+        }
+      }
 
-        // 6. Look Target (delayed)
+      // 6. Move camera smoothly towards target
+      if (!this.directorModeActive) {
+        this._camera.position.lerp(targetCamPos, Math.min(1.0, 7.5 * delta));
+
+        // Look Target (delayed)
         // Lerp look target so it sweeps across the hull slightly
-        this._camLookTarget.lerp(p, 8.0 * delta);
+        const targetLook = p.clone();
+        targetLook.y += 0.9;
+        this._camLookTarget.lerp(targetLook, Math.min(1.0, 8.0 * delta));
         this._camera.lookAt(this._camLookTarget);
       }
       
@@ -2191,6 +2317,10 @@ export class GameState {
   _updateEditor(delta) {
     if (this._editorSystem) {
       this._editorSystem.update(delta);
+    }
+
+    if (this._editorSystem?._destructionWorkshop?.isOpen) {
+      return;
     }
 
     if (this._orbitControls) {

@@ -8,27 +8,6 @@
   },
   "damage": [
     {
-      "zone": "hull",
-      "cells": [
-        [
-          2,
-          0,
-          2
-        ],
-        [
-          3,
-          0,
-          2
-        ],
-        [
-          2,
-          1,
-          2
-        ]
-      ],
-      "state": "MISSING"
-    },
-    {
       "zone": "sail",
       "cells": [
         [
@@ -52,13 +31,6 @@
     }
   ],
   "docket": [
-    {
-      "id": "hull_repair",
-      "zone": "hull",
-      "label": "Patch hull breach (3 cells)",
-      "tool": "hammer",
-      "mandatory": true
-    },
     {
       "id": "sail_repair",
       "zone": "sail",

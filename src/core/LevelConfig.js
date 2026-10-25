@@ -316,6 +316,7 @@ export class LevelConfig {
       modelUrl: profile.modelUrl,
       grid: profile.grid,
       scale: profile.scale,
+      waterlineY: profile.waterlineY,
       profile,
       zones: {
         hull: [{ xRange: [0, W - 1], yRange: [0, Math.floor(H * 0.45)], zRange: [0, D - 1] }],

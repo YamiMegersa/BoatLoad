@@ -484,7 +484,7 @@ export class ObstacleManager {
 
         // 1. Damage and impact sound only if not currently immune
         if (!isImmune) {
-          playerShip.takeDamage(50, 'island');
+          playerShip.takeDamage(50, 'island', { nx, nz });
           playerShip.setImmune(2.0);
           playerShip.bounceBack(nx * 10, nz * 10, 'rock');
           emit('obstacleHit', { type: 'island', damage: 50 });
@@ -708,7 +708,9 @@ export class ObstacleManager {
         obs.active = false;
         obs.mesh.visible = false;
         if (!ship.isImmune()) {
-          ship.takeDamage(obs.damage, 'barrel');
+          const dx = ship.mesh.position.x - obs.mesh.position.x;
+          const dz = ship.mesh.position.z - obs.mesh.position.z;
+          ship.takeDamage(obs.damage, 'barrel', { nx: dx, nz: dz });
           ship.setImmune(2.0);
           ship.bounceBack(0, 1, 'barrel');
           emit('obstacleHit', { type: 'barrel', damage: obs.damage });
@@ -725,7 +727,9 @@ export class ObstacleManager {
         obs.active = false;
         obs.mesh.visible = false;
         if (!ship.isImmune()) {
-          ship.takeDamage(obs.damage, 'wave_small');
+          const dx = ship.mesh.position.x - obs.mesh.position.x;
+          const dz = ship.mesh.position.z - obs.mesh.position.z;
+          ship.takeDamage(obs.damage, 'wave_small', { nx: dx, nz: dz });
           ship.setImmune(2.0);
           ship.bounceBack(0, 1, 'wave_small');
           emit('obstacleHit', { type: 'wave_small', damage: obs.damage });
@@ -855,7 +859,7 @@ export class ObstacleManager {
 
     // 1. DAMAGE & IMMUNITY (Only when NOT already immune)
     if (!isImmune) {
-      ship.takeDamage(obs.damage, obs.type);
+      ship.takeDamage(obs.damage, obs.type, { nx, nz });
       ship.setImmune(2.0); // 2 seconds of damage immunity
       ship.bounceBack(nx * 10, nz * 10, obs.type === 'siren' ? 'rock' : obs.type);
       emit('obstacleHit', { type: obs.type, damage: obs.damage });

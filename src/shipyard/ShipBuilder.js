@@ -183,7 +183,7 @@ export class ShipBuilder {
   // ---------------------------------------------------------------------------
 
   static _applyDamage(grid, levelCfg) {
-    if (!levelCfg?.damage) return;
+    if (!levelCfg?.damage || !Array.isArray(levelCfg.damage)) return;
     
     const stateMap = {
       MISSING:  CellState.MISSING,
@@ -191,41 +191,15 @@ export class ShipBuilder {
       FLOODED:  CellState.FLOODED,
     };
 
-    const fallbackCells = ShipBuilder._findExposedShipCells(grid);
-    let fallbackIdx = 0;
-
     for (const entry of levelCfg.damage) {
+      if (!entry.cells || !Array.isArray(entry.cells)) continue;
       const targetState = stateMap[entry.state] ?? CellState.DAMAGED;
       for (const [cx, cy, cz] of entry.cells) {
         if (grid.inBounds(cx, cy, cz) && grid.getState(cx, cy, cz) !== CellState.EMPTY) {
           grid.setState(cx, cy, cz, targetState);
-        } else if (fallbackIdx < fallbackCells.length) {
-          // If the hardcoded cell coordinate was in empty space outside this vessel,
-          // place the damage on an actual exposed hull cell so there are NEVER stray blocks outside the ship!
-          const actualCell = fallbackCells[fallbackIdx++];
-          grid.setState(actualCell.x, actualCell.y, actualCell.z, targetState);
         }
       }
     }
-  }
-
-  static _findExposedShipCells(grid) {
-    const candidates = [];
-    const midZ = Math.floor(grid.depth * 0.5);
-    const maxY = Math.max(3, Math.floor(grid.height * 0.45));
-
-    for (let z = 2; z < grid.depth - 2; z++) {
-      for (let y = 1; y <= maxY; y++) {
-        for (let x = 1; x < grid.width - 1; x++) {
-          if (grid.getState(x, y, z) === CellState.INTACT && grid.isExposed(x, y, z)) {
-            candidates.push({ x, y, z, distFromMid: Math.abs(z - midZ) });
-          }
-        }
-      }
-    }
-
-    candidates.sort((a, b) => a.distFromMid - b.distFromMid);
-    return candidates;
   }
 
   /**
