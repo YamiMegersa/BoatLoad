@@ -1,5 +1,10 @@
 import * as THREE from 'three';
 
+const _tangentX = new THREE.Vector3();
+const _tangentZ = new THREE.Vector3();
+const _defaultNormal = new THREE.Vector3();
+const _waveResult = { height: 0, normal: _defaultNormal };
+
 export class Ocean {
   constructor() {
     this.mesh = null;
@@ -203,8 +208,12 @@ export class Ocean {
   /**
    * Evaluates the wave formula at a given world coordinate.
    * Returns the exact height and the surface normal.
+   * @param {number} x
+   * @param {number} z
+   * @param {THREE.Vector3} [targetNormal] Optional vector to receive the normal
+   * @returns {{ height: number, normal: THREE.Vector3 }}
    */
-  getWaveInfo(x, z) {
+  getWaveInfo(x, z, targetNormal = null) {
     const t = this._time * this._waveSpeed;
     const rawWave = Math.sin(x * 0.25 + t * 0.9) * 0.35
             + Math.sin(z * 0.35 - t * 1.3) * 0.25
@@ -238,11 +247,14 @@ export class Ocean {
              + Math.sin((z + eps) * 0.35 - t * 1.3) * 0.25
              + Math.sin((x + z + eps) * 0.15 + t * 0.5) * 0.4) * mask;
 
-    const tangentX = new THREE.Vector3(eps, hX - h, 0).normalize();
-    const tangentZ = new THREE.Vector3(0, hZ - h, eps).normalize();
-    const normal = new THREE.Vector3().crossVectors(tangentZ, tangentX).normalize();
+    _tangentX.set(eps, hX - h, 0).normalize();
+    _tangentZ.set(0, hZ - h, eps).normalize();
+    const normal = targetNormal || _defaultNormal;
+    normal.crossVectors(_tangentZ, _tangentX).normalize();
     
-    return { height: h - 0.5, normal };
+    _waveResult.height = h - 0.5;
+    _waveResult.normal = normal;
+    return _waveResult;
   }
 
   dispose(scene) {

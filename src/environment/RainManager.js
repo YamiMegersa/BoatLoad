@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 
+const _defaultWindDir = new THREE.Vector3(0, 0, -1);
+const _fallDir = new THREE.Vector3();
+
 export class RainManager {
   constructor(scene) {
     this._scene = scene;
@@ -102,12 +105,12 @@ export class RainManager {
     this.mesh.material.uniforms.uTime.value = this._time;
       
       // Rain slants with the wind
-      const wDir = windDir || new THREE.Vector3(0, 0, -1);
-      const fallDir = new THREE.Vector3(wDir.x * 1.0, -1.0, wDir.z * 1.0).normalize();
-      this.mesh.material.uniforms.uWindDirection.value.copy(fallDir);
+      const wDir = windDir || _defaultWindDir;
+      _fallDir.set(wDir.x * 1.0, -1.0, wDir.z * 1.0).normalize();
+      this.mesh.material.uniforms.uWindDirection.value.copy(_fallDir);
       
       if (!this._displacement) this._displacement = new THREE.Vector3();
-      this._displacement.addScaledVector(fallDir, 55.0 * delta); // 55.0 fall speed
+      this._displacement.addScaledVector(_fallDir, 55.0 * delta); // 55.0 fall speed
       
       // Keep displacement bounded to prevent float precision issues over time
       const box = this.mesh.material.uniforms.uBoxSize.value;

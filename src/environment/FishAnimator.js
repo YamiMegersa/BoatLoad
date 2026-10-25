@@ -2,6 +2,8 @@ import * as THREE from 'three';
 
 const _q  = new THREE.Quaternion();
 const _UP = new THREE.Vector3(0, 1, 0);
+const _FORWARD = new THREE.Vector3(0, 0, 1);
+const _RIGHT = new THREE.Vector3(1, 0, 0);
 
 /**
  * FishAnimator
@@ -70,7 +72,6 @@ export class FishAnimator {
     // 2. Pectoral Fins (Bone, Bone.001)
     // Exaggerated fin flap: doubled from 0.15 to 0.3
     const finFlap = Math.sin(t * 4.5) * 0.3;
-    const _FORWARD = new THREE.Vector3(0, 0, 1);
     
     if (this.bones['Bone']) {
       // Wag up and down (roll axis)
@@ -87,7 +88,7 @@ export class FishAnimator {
     if (this.bones['Face']) {
       // Exaggerated jaw movement: increased amplitude
       const jawOpen = (Math.sin(t * 2.0) + 1) * 0.15; // 0 to 0.3
-      _q.setFromAxisAngle(new THREE.Vector3(1, 0, 0), jawOpen);
+      _q.setFromAxisAngle(_RIGHT, jawOpen);
       this.bones['Face'].quaternion.multiplyQuaternions(this.restQs['Face'], _q);
     }
 

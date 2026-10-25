@@ -103,7 +103,7 @@ export class BuildSystem {
       } else if (e.code === 'KeyT') {
         e.preventDefault();
         this._onTogglePitch();
-      } else if (e.code === 'KeyM') {
+      } else if (e.code === 'KeyM' && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
         e.preventDefault();
         this._onToggleMirror();
       } else if (e.code === 'KeyZ' && (e.ctrlKey || e.metaKey)) {

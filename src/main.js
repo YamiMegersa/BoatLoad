@@ -25,6 +25,7 @@ import { DirectorMode } from './director/DirectorMode.js';
 import { GameEnv } from './core/GameEnv.js';
 import { settingsManager } from './core/SettingsManager.js';
 import { autoPerformanceController } from './core/AutoPerformance.js';
+import { MeshBorderOverlay } from './rendering/MeshBorderOverlay.js';
 import './ui/ui.css';
 
 // ---------------------------------------------------------------------------
@@ -218,7 +219,7 @@ const unlockAudio = () => audio.unlock();
 window.addEventListener('pointerdown', unlockAudio, { once: true });
 window.addEventListener('keydown', unlockAudio, { once: true });
 window.addEventListener('keydown', (e) => {
-  if (e.code === 'KeyM') audio.toggleMute();
+  if (e.code === 'KeyM' && !e.ctrlKey && !e.metaKey && !e.shiftKey) audio.toggleMute();
 });
 
 const buildMenu = new BuildMenu();
@@ -243,6 +244,9 @@ const directorMode = new DirectorMode({
   paperFilter
 });
 window.directorMode = directorMode;
+
+const meshBorderOverlay = new MeshBorderOverlay(scene, camera);
+window.meshBorderOverlay = meshBorderOverlay;
 
 // ---------------------------------------------------------------------------
 // Resize handler
@@ -369,6 +373,8 @@ function tick() {
 
   const activeCam = directorMode.isActive ? directorMode.camera : (gameState.activeCamera || camera);
   godRays._camera = activeCam;
+  meshBorderOverlay.camera = activeCam;
+  meshBorderOverlay.update(delta, now);
 
   // Re-apply camera FOV and far clipping plane based on Settings
   settingsManager.applyCamera(activeCam);
@@ -439,6 +445,7 @@ demoUI.innerHTML = `
     <button id="btn-shipyard" style="flex:1; padding: 8px; cursor: pointer;">Shipyard</button>
     <button id="btn-obstacle" style="flex:1; padding: 8px; cursor: pointer;">Sailing</button>
     <button id="btn-editor" style="flex:1; padding: 8px; cursor: pointer; background: #474b6b; color: white; border: 1px solid #556;">Editor</button>
+    <button id="btn-mesh-borders" style="flex:1; padding: 8px; cursor: pointer; background: #059669; color: white; border: 1px solid #10b981;" title="Toggle Mesh Borders (Ctrl+Shift+M)">Borders</button>
   </div>
 `;
 document.getElementById('ui-root')?.appendChild(demoUI);
@@ -607,6 +614,10 @@ async function boot() {
       await syncLevel();
       gameState.transition(GamePhase.EDITOR, editorPayload());
     };
+    const btnBorders = document.getElementById('btn-mesh-borders');
+    if (btnBorders) {
+      btnBorders.onclick = () => meshBorderOverlay.toggle();
+    }
 
     // Listen for UI events
     on('phaseChanged',       d => logEvent(`[Phase] ${d.phase}`));

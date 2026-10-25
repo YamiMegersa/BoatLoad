@@ -177,9 +177,10 @@ export class EnvironmentManager {
 
     mesh.traverse(c => {
       if (c.isMesh || c.isSkinnedMesh) {
-        c.castShadow    = true;
-        c.receiveShadow = true;
-        c.frustumCulled = false; // prevent pop-in when bones push verts out of rest AABB
+        // Submerged fish underwater do not need shadow map rendering
+        c.castShadow    = false;
+        c.receiveShadow = false;
+        c.frustumCulled = true;
       }
     });
 
@@ -227,6 +228,15 @@ export class EnvironmentManager {
     const toRemove = [];
 
     for (const shark of this._sharks) {
+      // Distance culling: fish beyond 75m are completely hidden beneath water fog
+      if (shipPos) {
+        const dx = shark.mesh.position.x - shipPos.x;
+        const dz = shark.mesh.position.z - shipPos.z;
+        if (dx * dx + dz * dz > 75 * 75) {
+          continue;
+        }
+      }
+
       shark.animator.update(delta);
 
       // Handle QTE hit sequence

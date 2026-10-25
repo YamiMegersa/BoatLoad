@@ -389,14 +389,20 @@ export class PlayerShip {
     this.yaw += this.yawVelocity * delta;
     // No more clamping, free 360 degree rotation
     
+const _shipDir = new THREE.Vector3();
+const _windNorm = new THREE.Vector3();
+const _zeroVec = new THREE.Vector3(0, 0, 0);
+const _waveNormal = new THREE.Vector3(0, 1, 0);
+const _defaultWind = new THREE.Vector3(1, 0, -1).normalize();
+
     const pos = this.mesh.position;
     if (!this._tempWind) this._tempWind = new THREE.Vector3();
-    const localWind = windManager ? windManager.getWindAt(pos.x, pos.z, this._tempWind) : new THREE.Vector3(1, 0, -1).normalize();
+    const localWind = windManager ? windManager.getWindAt(pos.x, pos.z, this._tempWind) : _defaultWind;
 
-    // Calculate wind alignment speed modifier
-    const shipDir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.mesh.quaternion).normalize();
-    const windNorm = localWind.clone().normalize();
-    const windDot = shipDir.dot(windNorm); // 1.0 (with wind), -1.0 (against wind)
+    // Calculate wind alignment speed modifier without allocations
+    _shipDir.set(0, 0, -1).applyQuaternion(this.mesh.quaternion).normalize();
+    _windNorm.copy(localWind).normalize();
+    const windDot = _shipDir.dot(_windNorm); // 1.0 (with wind), -1.0 (against wind)
     
     // Map dot product [-1, 1] to speed multiplier [0.3, 1.0] (never negative)
     const windSpeedMult = 0.3 + ((windDot + 1) / 2) * 0.7;
@@ -425,33 +431,31 @@ export class PlayerShip {
     const speedPenalty = Math.max(0.3, 1.0 - waterRatio);
     const forwardSpeed = this._isHalted ? 0 : (15.0 * speedPenalty * windSpeedMult * this.throttle);
     
-    this.mesh.position.x += shipDir.x * forwardSpeed * this.speedMultiplier * delta;
-    this.mesh.position.z += shipDir.z * forwardSpeed * this.speedMultiplier * delta;
+    this.mesh.position.x += _shipDir.x * forwardSpeed * this.speedMultiplier * delta;
+    this.mesh.position.z += _shipDir.z * forwardSpeed * this.speedMultiplier * delta;
 
     // Apply pinball knockback
     if (this.knockbackVelocity.lengthSq() > 0.001) {
       this.mesh.position.addScaledVector(this.knockbackVelocity, delta);
-      // Damping the knockback (friction)
-      this.knockbackVelocity.lerp(new THREE.Vector3(), 5.0 * delta);
+      // Damping the knockback (friction) without allocations
+      this.knockbackVelocity.lerp(_zeroVec, 5.0 * delta);
     }
-
-    // Keep ship slightly contained before the hard kill radius if we wanted, but user asked for static radius then kill radius
-    // So we just let them sail freely until they hit 220 (handled above)
 
     // Sample the ocean wave height and normal at the ship's center
     let waveHeight = 0;
-    let waveNormal = new THREE.Vector3(0, 1, 0);
+    _waveNormal.set(0, 1, 0);
     if (ocean) {
-      const info = ocean.getWaveInfo(this.mesh.position.x, this.mesh.position.z);
+      const info = ocean.getWaveInfo(this.mesh.position.x, this.mesh.position.z, _waveNormal);
       waveHeight = info.height;
-      waveNormal = info.normal;
     }
 
     // Natural bobbing (Pitch and Roll) from wave normal
-    // waveNormal.z is the slope along the Z axis (forward), which translates to Pitch (X rotation)
-    // waveNormal.x is the slope along the X axis (sideways), which translates to Roll (Z rotation)
-    const targetPitch = Math.asin(-waveNormal.z) + Math.sin(time * 2.0) * 0.02;
-    const targetRoll = Math.asin(waveNormal.x) + Math.cos(time * 1.5) * 0.02;
+    // _waveNormal.z is the slope along the Z axis (forward), which translates to Pitch (X rotation)
+    // _waveNormal.x is the slope along the X axis (sideways), which translates to Roll (Z rotation)
+    const clampedZ = THREE.MathUtils.clamp(-_waveNormal.z, -1, 1);
+    const clampedX = THREE.MathUtils.clamp(_waveNormal.x, -1, 1);
+    const targetPitch = Math.asin(clampedZ) + Math.sin(time * 2.0) * 0.02;
+    const targetRoll = Math.asin(clampedX) + Math.cos(time * 1.5) * 0.02;
 
     // Apply spring physics for impact bobbing
     this.pitchVelocity *= 0.9; // damping

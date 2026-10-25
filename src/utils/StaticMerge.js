@@ -16,6 +16,15 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
  * @param {THREE.Object3D[]} [opts.buckets] containers (e.g. shop group) whose meshes merge into a mesh parented to that container
  * @returns {{before:number, after:number}}
  */
+function getMaterialKey(mat) {
+  if (!mat) return 'nomat';
+  if (mat.map) return `map_${mat.map.id || mat.uuid}`;
+  const c = mat.color ? mat.color.getHexString() : '';
+  const em = mat.emissive ? mat.emissive.getHexString() : '';
+  const op = mat.transparent ? mat.opacity : 1;
+  return `${mat.type}|${c}|${mat.roughness}|${mat.metalness}|${op}|${em}|${Boolean(mat.wireframe)}`;
+}
+
 export function mergeStaticMeshes(root, opts = {}) {
   const exclude = new Set((opts.excludeSubtrees || []).filter(Boolean));
   const keep = opts.keep || new Set();
@@ -39,7 +48,7 @@ export function mergeStaticMeshes(root, opts = {}) {
     return root;
   };
 
-  const groups = new Map(); // key -> { bucket, material, cast, receive, geos:[] , meshes:[] }
+  const groups = new Map(); // key -> { bucket, material, cast, receive, noWalk, meshes:[] }
   let before = 0;
 
   root.traverse((obj) => {
@@ -48,18 +57,24 @@ export function mergeStaticMeshes(root, opts = {}) {
     if (keep.has(obj) || isExcluded(obj)) return;
     if (!obj.visible || Array.isArray(obj.material) || !obj.material) return;
     if (obj.material.visible === false) return;
+
+    // Filter userData: keep interactive targets separate
     const ud = Object.keys(obj.userData || {});
-    const noWalk = ud.length === 1 && ud[0] === 'noWalk' && obj.userData.noWalk === true;
-    if (ud.length > 0 && !noWalk) return;
+    const isInteractive = ud.some(k => k === 'isNPC' || k === 'isBunny' || k === 'isGhostMerchant');
+    if (isInteractive) return;
+
     if (!obj.geometry || !obj.geometry.attributes.position) return;
 
-    const geo = obj.geometry;
-    const sig = Object.keys(geo.attributes).sort().join(',') + (geo.index ? '|i' : '|n');
+    const noWalk = Boolean(obj.userData?.noWalk);
+    const cast = (obj.material.transparent || obj.material.wireframe) ? false : Boolean(obj.castShadow);
+    const receive = Boolean(obj.receiveShadow);
+    const matKey = getMaterialKey(obj.material);
     const bucket = bucketOf(obj);
-    const key = `${bucket.uuid}|${obj.material.uuid}|${obj.castShadow ? 1 : 0}${obj.receiveShadow ? 1 : 0}|${noWalk ? 'nw' : 'w'}|${sig}`;
+
+    const key = `${bucket.uuid}|${matKey}|${cast ? 1 : 0}${receive ? 1 : 0}|${noWalk ? 'nw' : 'w'}`;
     let g = groups.get(key);
     if (!g) {
-      g = { bucket, material: obj.material, cast: obj.castShadow, receive: obj.receiveShadow, noWalk, geos: [], meshes: [] };
+      g = { bucket, material: obj.material, cast, receive, noWalk, meshes: [] };
       groups.set(key, g);
     }
     g.meshes.push(obj);
@@ -77,6 +92,11 @@ export function mergeStaticMeshes(root, opts = {}) {
     for (const m of g.meshes) {
       rel.multiplyMatrices(inv, m.matrixWorld);
       const cloned = m.geometry.clone();
+      if (!cloned.attributes.normal) cloned.computeVertexNormals();
+      if (!cloned.attributes.uv && cloned.attributes.position) {
+        const uvs = new Float32Array(cloned.attributes.position.count * 2);
+        cloned.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+      }
       cloned.applyMatrix4(rel);
       geos.push(cloned);
     }

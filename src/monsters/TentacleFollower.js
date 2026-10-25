@@ -1,5 +1,20 @@
 import * as THREE from 'three';
 import { emit } from '../core/EventBus.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+
+const _rotMatrix = new THREE.Matrix4();
+const _upVec = new THREE.Vector3(0, 1, 0);
+const _targetQ = new THREE.Quaternion();
+const _tipTarget = new THREE.Vector3();
+const _V = new THREE.Vector3();
+const _U = new THREE.Vector3();
+const _W = new THREE.Vector3();
+const _toShip = new THREE.Vector3();
+const _toShipDir = new THREE.Vector3();
+const _behindDir = new THREE.Vector3();
+const _rightDir = new THREE.Vector3();
+const _rawTargetFlank = new THREE.Vector3();
+const _lateralToShip = new THREE.Vector3();
 
 // ---------------------------------------------------------------------------
 // TentacleFollower — Kraken-Rooted Ocean Tentacle (Reaching from Kraken Origin)
@@ -49,6 +64,9 @@ export class TentacleFollower {
     this._segmentCount = segCount;
     this._segmentLen = config.segmentLen ?? 2.5;
 
+    // Pre-allocated spine points to eliminate per-frame allocations
+    this._pts = Array.from({ length: segCount }, () => new THREE.Vector3());
+
     // Kraken origin socket where the tentacle attaches to the octopus body
     this._krakenOrigin = config.krakenPos
       ? config.krakenPos.clone()
@@ -97,25 +115,39 @@ export class TentacleFollower {
       geo.rotateX(Math.PI / 2);
       geo.translate(0, 0, this._segmentLen / 2);
 
-      const mesh = new THREE.Mesh(geo, tentacleMat);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      mesh.frustumCulled = false;
+      let finalGeo = geo;
+      let meshMat = tentacleMat;
 
-      // Add dual sucker discs along the inner curve / underside
+      // Merge dual sucker discs along the inner curve into the segment's geometry
+      // This merges 3 separate meshes into 1 multi-material mesh per segment (104 -> 36 meshes total)
       if (i >= 2) {
         const sRadius = THREE.MathUtils.lerp(0.36, 0.08, t);
         const suckerGeo = new THREE.CylinderGeometry(sRadius * 0.8, sRadius, 0.10, 8);
         suckerGeo.rotateX(Math.PI / 2);
 
-        const leftSucker = new THREE.Mesh(suckerGeo, suckerMat);
-        leftSucker.position.set(-sRadius * 0.85, -rBot * 0.75, this._segmentLen * 0.5);
-        mesh.add(leftSucker);
+        const leftGeo = suckerGeo.clone();
+        leftGeo.translate(-sRadius * 0.85, -rBot * 0.75, this._segmentLen * 0.5);
 
-        const rightSucker = new THREE.Mesh(suckerGeo, suckerMat);
-        rightSucker.position.set(sRadius * 0.85, -rBot * 0.75, this._segmentLen * 0.5);
-        mesh.add(rightSucker);
+        const rightGeo = suckerGeo.clone();
+        rightGeo.translate(sRadius * 0.85, -rBot * 0.75, this._segmentLen * 0.5);
+        suckerGeo.dispose();
+
+        const merged = mergeGeometries([geo, leftGeo, rightGeo], true);
+        geo.dispose();
+        leftGeo.dispose();
+        rightGeo.dispose();
+
+        if (merged) {
+          finalGeo = merged;
+          meshMat = [tentacleMat, suckerMat];
+        }
       }
+
+      finalGeo.computeBoundingSphere();
+      const mesh = new THREE.Mesh(finalGeo, meshMat);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.frustumCulled = true;
 
       this._group.add(mesh);
       this._segments.push(mesh);
@@ -241,27 +273,24 @@ export class TentacleFollower {
     if (diff > Math.PI) diff -= Math.PI * 2;
     this._smoothedYaw += diff * (1.0 - Math.exp(-5.0 * delta));
 
-    // Direction vectors in world coordinates:
-    const behindDir = new THREE.Vector3(Math.sin(this._smoothedYaw), 0, Math.cos(this._smoothedYaw)).normalize();
-    const rightDir = new THREE.Vector3(Math.cos(this._smoothedYaw), 0, -Math.sin(this._smoothedYaw)).normalize();
+    // Direction vectors in world coordinates without allocations
+    _behindDir.set(Math.sin(this._smoothedYaw), 0, Math.cos(this._smoothedYaw)).normalize();
+    _rightDir.set(Math.cos(this._smoothedYaw), 0, -Math.sin(this._smoothedYaw)).normalize();
 
     // Approach relative to time remaining:
-    // Placed on the flank (starboard) alongside the boat so player view is 100% unobstructed:
-    // When timeRatio = 1.0 (start), distance is 18m behind and 8.2m to the side.
-    // When timeRatio = 0.0 (near end), distance is 2.5m behind and 6.2m to the side (pacing the boat!).
     const clampedRatio = Math.max(0, Math.min(1, timeRatio));
     const rearDist = 2.5 + 15.5 * clampedRatio;
     const sideDist = 6.2 + 2.0 * clampedRatio;
 
-    const rawTargetFlankPos = shipPos.clone()
-      .addScaledVector(behindDir, rearDist)
-      .addScaledVector(rightDir, sideDist);
+    _rawTargetFlank.copy(shipPos)
+      .addScaledVector(_behindDir, rearDist)
+      .addScaledVector(_rightDir, sideDist);
 
     if (!this._smoothedFlankPos) {
-      this._smoothedFlankPos = rawTargetFlankPos.clone();
+      this._smoothedFlankPos = _rawTargetFlank.clone();
     } else {
       // Exponential smoothing to track flank target with zero jitter
-      this._smoothedFlankPos.lerp(rawTargetFlankPos, 1.0 - Math.exp(-4.5 * delta));
+      this._smoothedFlankPos.lerp(_rawTargetFlank, 1.0 - Math.exp(-4.5 * delta));
     }
 
     // Advance reach progress from the Kraken origin across the water to the boat
@@ -288,9 +317,6 @@ export class TentacleFollower {
       playerShip.takeDamage(rockDamage, 'kraken_tentacle');
       playerShip.setImmune(2.0);
 
-      // Downward crushing impulse:
-      // The tentacle crashes down from above, driving the ship down into the waves
-      // and pitching/rolling it violently away from the strike origin
       const dx = shipPos.x - this._krakenOrigin.x;
       const dz = shipPos.z - this._krakenOrigin.z;
       const pushDist = Math.hypot(dx, dz) || 0.001;
@@ -300,8 +326,9 @@ export class TentacleFollower {
       // Heavy roll & pitch impulse (rocking violently in water)
       playerShip.bounceBack(dirX * 8.0, dirZ * 8.0, 'rock');
 
-      // Downward smash impulse: strong negative Y impulse + displacement
-      playerShip.applyKnockback(new THREE.Vector3(dirX * 25.0, -35.0, dirZ * 25.0));
+      // Downward smash impulse
+      _V.set(dirX * 25.0, -35.0, dirZ * 25.0);
+      playerShip.applyKnockback(_V);
 
       // Audio & feedback
       emit('obstacleHit', { type: 'rock', damage: rockDamage });
@@ -317,20 +344,20 @@ export class TentacleFollower {
     const shipPos = playerShip.mesh.position;
     const flankPos = this._smoothedFlankPos || shipPos;
 
-    // Vector from Kraken origin to the flank target
-    const V = new THREE.Vector3().subVectors(flankPos, this._krakenOrigin);
-    V.y = 0;
-    const totalDist = V.length() || 0.001;
-    const U = V.clone().normalize(); // Unit vector from Kraken to ship
-    const W = new THREE.Vector3(-U.z, 0, U.x); // Perpendicular lateral vector
+    // Vector from Kraken origin to the flank target without allocations
+    _V.subVectors(flankPos, this._krakenOrigin);
+    _V.y = 0;
+    const totalDist = _V.length() || 0.001;
+    _U.copy(_V).normalize(); // Unit vector from Kraken to ship
+    _W.set(-_U.z, 0, _U.x); // Perpendicular lateral vector
 
     // Vector from flank position to ship center
-    const toShip = new THREE.Vector3().subVectors(shipPos, flankPos);
-    toShip.y = 0;
-    const toShipDir = toShip.clone().normalize();
+    _toShip.subVectors(shipPos, flankPos);
+    _toShip.y = 0;
+    _toShipDir.copy(_toShip).normalize();
 
     const N = this._segmentCount;
-    const pts = [];
+    const pts = this._pts;
 
     // Terminal arch parameters
     let peakHeight = 6.2;
@@ -340,7 +367,6 @@ export class TentacleFollower {
     if (this._state === 'attacking') {
       if (attackTimer < 0.75) {
         // Phase 1 (0.0s - 0.75s): Dramatic rearing wind-up!
-        // Rears 15.5m high into the air, curling directly OVER the ship's main deck
         const t = attackTimer / 0.75;
         const ease = t * t * (3 - 2 * t);
         peakHeight = THREE.MathUtils.lerp(6.2, 15.5, ease);
@@ -348,12 +374,11 @@ export class TentacleFollower {
         overheadSweep = THREE.MathUtils.lerp(0.0, 1.0, ease);
       } else if (attackTimer < 1.10) {
         // Phase 2 (0.75s - 1.10s): Violent downward smash onto the ship!
-        // Accelerates with heavy gravity curve, crushing straight down onto the deck
         const t = (attackTimer - 0.75) / 0.35;
-        const slamEase = Math.pow(t, 2.5); // Fast downward acceleration
+        const slamEase = Math.pow(t, 2.5);
         peakHeight = THREE.MathUtils.lerp(15.5, 2.2, slamEase);
-        tipTargetY = THREE.MathUtils.lerp(9.5, 0.45, slamEase); // Slams down onto the deck!
-        overheadSweep = 1.0; // Directly over the ship
+        tipTargetY = THREE.MathUtils.lerp(9.5, 0.45, slamEase);
+        overheadSweep = 1.0;
       } else if (attackTimer < 1.65) {
         // Phase 3 (1.10s - 1.65s): Crushing press across the deck
         peakHeight = 2.0;
@@ -373,18 +398,17 @@ export class TentacleFollower {
     const archThreshold = 0.70;
 
     for (let i = 0; i < N; i++) {
-      const s = i / (N - 1); // 0 = Kraken body root, 1 = tip near ship
-      // Dynamic reach progress stretches tentacle outward from the Kraken origin
+      const s = i / (N - 1);
       const eff = s * this._reachProgress;
 
-      // Base interpolation between Kraken origin and the boat flank
-      const pt = new THREE.Vector3().lerpVectors(this._krakenOrigin, flankPos, eff);
+      // Base interpolation between Kraken origin and the boat flank into preallocated vector
+      const pt = pts[i];
+      pt.lerpVectors(this._krakenOrigin, flankPos, eff);
 
-      // Lateral serpentine waves through the open ocean:
-      // Pinned to 0 at Kraken root (s = 0) and at flank target (s = 1)
+      // Lateral serpentine waves through the open ocean
       const sinEnvelope = Math.sin(s * Math.PI);
       const lateralWave = Math.sin(eff * 10.0 - this._time * 2.2) * (sinEnvelope * Math.min(5.5, totalDist * 0.055));
-      pt.addScaledVector(W, lateralWave);
+      pt.addScaledVector(_W, lateralWave);
 
       // Sample ocean wave height at this segment's coordinate
       let waveH = 0;
@@ -394,33 +418,23 @@ export class TentacleFollower {
 
       let h = 0;
       if (s < archThreshold) {
-        // Ocean traversal from Kraken: swimming along the sea, undulating in natural crests
         const seaBreach = Math.sin(eff * 12.0 - this._time * 2.8) * 0.75 - 0.2;
         h = seaBreach;
       } else {
-        // Terminal section: sweeps overhead and slams down onto the ship deck!
-        const u = (s - archThreshold) / (1.0 - archThreshold); // 0 to 1
+        const u = (s - archThreshold) / (1.0 - archThreshold);
 
-        // Horizontal position:
-        // u = 0 starts at the breach point near the flank.
-        // As u increases to 1.0, it curves directly over the ship deck!
-        const lateralToShip = new THREE.Vector3().subVectors(shipPos, flankPos);
-        lateralToShip.y = 0;
-        pt.addScaledVector(lateralToShip, overheadSweep * Math.sin(u * Math.PI * 0.5));
+        _lateralToShip.subVectors(shipPos, flankPos);
+        _lateralToShip.y = 0;
+        pt.addScaledVector(_lateralToShip, overheadSweep * Math.sin(u * Math.PI * 0.5));
 
-        // In normal pacing mode: gentle inward reach toward gunwale
         if (this._state !== 'attacking') {
           const reachT = (u - 0.2) / 0.8;
           if (reachT > 0) {
             const reachDist = (reachT * reachT) * 3.8;
-            pt.addScaledVector(toShipDir, reachDist);
+            pt.addScaledVector(_toShipDir, reachDist);
           }
         }
 
-        // Vertical profile:
-        // u = 0: water surface
-        // u = 0.45: arch crest (up to 15.5m high during wind-up, 2.2m during slam)
-        // u = 1.0: tip (reaches 10m high during wind-up, slams down to 0.45m onto deck)
         if (u < 0.45) {
           h = peakHeight * Math.sin((u / 0.45) * Math.PI * 0.5);
         } else {
@@ -430,7 +444,6 @@ export class TentacleFollower {
       }
 
       pt.y = waveH + h;
-      pts.push(pt);
     }
 
     // Animate water splash rings
@@ -448,10 +461,7 @@ export class TentacleFollower {
       this._shipSplashRing.scale.set(pulsate, pulsate, 1.0);
     }
 
-    // Orient and scale each cylinder segment along the spine
-    const rotMatrix = new THREE.Matrix4();
-    const upVec = new THREE.Vector3(0, 1, 0);
-
+    // Orient and scale each cylinder segment along the spine without per-frame allocations
     for (let i = 0; i < N; i++) {
       const seg = this._segments[i];
       seg.position.copy(pts[i]);
@@ -461,23 +471,21 @@ export class TentacleFollower {
         const scaleZ = Math.max(0.01, segDist / this._segmentLen);
         seg.scale.set(1.0, 1.0, scaleZ);
 
-        rotMatrix.lookAt(pts[i + 1], pts[i], upVec);
-        const targetQ = new THREE.Quaternion().setFromRotationMatrix(rotMatrix);
+        _rotMatrix.lookAt(pts[i + 1], pts[i], _upVec);
+        _targetQ.setFromRotationMatrix(_rotMatrix);
         const slerpSpeed = (this._state === 'attacking' && attackTimer >= 0.75 && attackTimer < 1.10) ? 25.0 : 16.0;
-        seg.quaternion.slerp(targetQ, 1.0 - Math.exp(-slerpSpeed * delta));
+        seg.quaternion.slerp(_targetQ, 1.0 - Math.exp(-slerpSpeed * delta));
       } else {
         // Tip segment
         seg.scale.set(1.0, 1.0, 1.0);
-        let tipTarget;
         if (this._state === 'attacking' && attackTimer < 1.10) {
-          // Tip curls downward, pointing straight down into the ship deck!
-          tipTarget = new THREE.Vector3(pts[i].x, pts[i].y - 2.0, pts[i].z);
+          _tipTarget.set(pts[i].x, pts[i].y - 2.0, pts[i].z);
         } else {
-          tipTarget = new THREE.Vector3(shipPos.x, pts[i].y, shipPos.z);
+          _tipTarget.set(shipPos.x, pts[i].y, shipPos.z);
         }
-        rotMatrix.lookAt(tipTarget, pts[i], upVec);
-        const targetQ = new THREE.Quaternion().setFromRotationMatrix(rotMatrix);
-        seg.quaternion.slerp(targetQ, 1.0 - Math.exp(-14.0 * delta));
+        _rotMatrix.lookAt(_tipTarget, pts[i], _upVec);
+        _targetQ.setFromRotationMatrix(_rotMatrix);
+        seg.quaternion.slerp(_targetQ, 1.0 - Math.exp(-14.0 * delta));
       }
     }
   }

@@ -4,6 +4,8 @@ import { DockNPC } from './DockNPC.js';
 import { GhostMerchant } from './GhostMerchant.js';
 import { mergeStaticMeshes } from '../utils/StaticMerge.js';
 
+const _camPosScratch = new THREE.Vector3();
+
 // ---------------------------------------------------------------------------
 // Voxel Palette & Procedural Voxel Texture Generators
 // ---------------------------------------------------------------------------
@@ -182,27 +184,38 @@ function createDeadlyBusinessSignTexture() {
 /**
  * Creates a flat-shaded standard material matching VoxelArms / ChunkRenderer aesthetics.
  */
+const _voxelMatCache = new Map();
 function createVoxelMat(color, opts = {}) {
-  return new THREE.MeshStandardMaterial({
-    color,
-    roughness: opts.roughness ?? 0.85,
-    metalness: opts.metalness ?? 0.12,
-    flatShading: true,
-    map: opts.map ?? null,
-    transparent: opts.transparent ?? false,
-    opacity: opts.opacity ?? 1.0,
-    emissive: opts.emissive ?? 0x000000,
-    emissiveIntensity: opts.emissiveIntensity ?? 1.0,
-    wireframe: opts.wireframe ?? false
-  });
+  const mapId = opts.map ? (opts.map.id || opts.map.uuid) : 'nomap';
+  const key = `${color}_${opts.roughness ?? 0.85}_${opts.metalness ?? 0.12}_${opts.flatShading ?? true}_${mapId}_${opts.transparent ?? false}_${opts.opacity ?? 1.0}_${opts.emissive ?? 0}_${opts.emissiveIntensity ?? 1.0}_${opts.wireframe ?? false}`;
+  let mat = _voxelMatCache.get(key);
+  if (!mat) {
+    mat = new THREE.MeshStandardMaterial({
+      color,
+      roughness: opts.roughness ?? 0.85,
+      metalness: opts.metalness ?? 0.12,
+      flatShading: true,
+      map: opts.map ?? null,
+      transparent: opts.transparent ?? false,
+      opacity: opts.opacity ?? 1.0,
+      emissive: opts.emissive ?? 0x000000,
+      emissiveIntensity: opts.emissiveIntensity ?? 1.0,
+      wireframe: opts.wireframe ?? false
+    });
+    _voxelMatCache.set(key, mat);
+  }
+  return mat;
 }
 
 /**
  * Creates a single voxel box with shadow casting/receiving.
+ * Small decorative props (volume < 0.04m^3, maxDim < 0.28m) skip castShadow to prevent shadow map bloat.
  */
 function createVoxelBox(w, h, d, material, castShadow = true, receiveShadow = true) {
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
-  mesh.castShadow = castShadow;
+  const maxDim = Math.max(w, h, d);
+  const vol = w * h * d;
+  mesh.castShadow = (castShadow && vol >= 0.035 && maxDim >= 0.25);
   mesh.receiveShadow = receiveShadow;
   return mesh;
 }
@@ -750,7 +763,6 @@ export class DockStall {
       const vZ = -doorLeafW / 2 + 0.14 + vp * (doorLeafW - 0.28) / 4;
       const vRidge = createVoxelBox(0.14, doorLeafH - 0.1, 0.03, mats.woodMid);
       vRidge.position.set(0, doorLeafH / 2, vZ);
-      vRidge.userData = { isShopDoor: true };
       doorGroup.add(vRidge);
     }
 
@@ -759,14 +771,12 @@ export class DockStall {
       [0.35, doorLeafH * 0.5, doorLeafH - 0.35].forEach(ry => {
         const hRail = createVoxelBox(0.035, 0.18, doorLeafW - 0.08, mats.woodDark);
         hRail.position.set(ox, ry, 0);
-        hRail.userData = { isShopDoor: true };
         doorGroup.add(hRail);
       });
 
       const diagBrace = createVoxelBox(0.035, doorLeafH * 0.42, 0.15, mats.woodDark);
       diagBrace.position.set(ox, doorLeafH * 0.72, 0);
       diagBrace.rotation.x = 0.5;
-      diagBrace.userData = { isShopDoor: true };
       doorGroup.add(diagBrace);
     });
 
@@ -776,26 +786,22 @@ export class DockStall {
 
     const extPlate = createVoxelBox(0.03, 0.38, 0.1, mats.brass);
     extPlate.position.set(0.08, handleY, handleZ);
-    extPlate.userData = { isShopDoor: true };
     doorGroup.add(extPlate);
 
     const extHandle = createVoxelBox(0.08, 0.05, 0.24, mats.brassDark);
     extHandle.position.set(0.13, handleY, handleZ);
-    extHandle.userData = { isShopDoor: true };
     doorGroup.add(extHandle);
 
     const intPlate = createVoxelBox(0.03, 0.38, 0.1, mats.brass);
     intPlate.position.set(-0.08, handleY, handleZ);
-    intPlate.userData = { isShopDoor: true };
     doorGroup.add(intPlate);
 
     const intHandle = createVoxelBox(0.08, 0.05, 0.24, mats.brassDark);
     intHandle.position.set(-0.13, handleY, handleZ);
-    intHandle.userData = { isShopDoor: true };
     doorGroup.add(intHandle);
 
     this.shopDoor = doorLeaf;
-    this.doorInteractables = [doorLeaf, extHandle, extPlate, intHandle, intPlate];
+    this.doorInteractables = [doorLeaf];
 
     // Carved Chandlery Sign Plaque above door
     const doorSignBack = createVoxelBox(0.06, 0.32, 1.15, mats.woodTrim);
@@ -2626,8 +2632,6 @@ export class DockStall {
     const blueprint = createVoxelBox(1.4, 0.02, 0.95, mats.blueprint);
     blueprint.position.set(0, 1.04, 0);
     blueprint.rotation.x = -0.14;
-    blueprint.userData.isShipyardBench = true;
-    this.shipyardInteractables.push(blueprint);
     draftGroup.add(blueprint);
 
     // Cyan grid lines on blueprint
@@ -2635,7 +2639,6 @@ export class DockStall {
       const gridLine = createVoxelBox(1.2, 0.025, 0.04, mats.blueprintLine);
       gridLine.position.set(0, 1.05, -0.28 + g * 0.28);
       gridLine.rotation.x = -0.14;
-      gridLine.userData.isShipyardBench = true;
       draftGroup.add(gridLine);
     }
 
@@ -3256,6 +3259,8 @@ export class DockStall {
   }
 
   update(delta, time, playerCamera = null) {
+    if (this.group && this.group.visible === false) return;
+
     if (this.signPivot) {
       this.signPivot.rotation.z = Math.sin(time * (2 * Math.PI / 5)) * 0.045;
     }
@@ -3285,11 +3290,11 @@ export class DockStall {
     if (this.ghostMerchant) {
       let pPos = null;
       if (playerCamera) {
-        pPos = playerCamera.getWorldPosition(new THREE.Vector3());
+        pPos = playerCamera.getWorldPosition(_camPosScratch);
       } else if (window.gameState?.activeCamera) {
-        pPos = window.gameState.activeCamera.getWorldPosition(new THREE.Vector3());
+        pPos = window.gameState.activeCamera.getWorldPosition(_camPosScratch);
       } else if (this.shopCam) {
-        pPos = this.shopCam.getWorldPosition(new THREE.Vector3());
+        pPos = this.shopCam.getWorldPosition(_camPosScratch);
       }
       this.ghostMerchant.update(delta, time, pPos);
     }

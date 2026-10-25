@@ -40,8 +40,10 @@ const _mat = {
   barrel:    new THREE.MeshLambertMaterial({ color: 0x7a4f2a }),
   wave_small: new THREE.MeshPhongMaterial({ color: 0x474b6b, transparent: true, opacity: 0.7 }),
   seaweed:   new THREE.MeshLambertMaterial({ color: 0x2e6b3e, transparent: true, opacity: 0.5, side: THREE.DoubleSide }),
-  whirlpool: new THREE.MeshPhongMaterial({ color: 0x222233, transparent: true, opacity: 0.8, side: THREE.DoubleSide }),
 };
+
+const _shipBoxScratch = new THREE.Box3();
+const _invMatScratch = new THREE.Matrix4();
 
 /**
  * Build an ObstacleDesc from a type string and initial position.
@@ -534,11 +536,12 @@ export class ObstacleManager {
     for (const obs of this._obstacles) {
       if (!obs.active) continue;
 
+      let distSq = undefined;
       // Distance culling with hysteresis: hide distant meshes to prevent GPU vertex overload
       if (playerShip && playerShip.mesh) {
         const dx = obs.mesh.position.x - playerShip.mesh.position.x;
         const dz = obs.mesh.position.z - playerShip.mesh.position.z;
-        const distSq = dx * dx + dz * dz;
+        distSq = dx * dx + dz * dz;
 
         // Large landmarks (islands, sirens) stay visible out to the camera far plane
         // (never less than 180m); smaller obstacles (rocks, barrels, seaweed, waves) cull at 135m.
@@ -581,15 +584,21 @@ export class ObstacleManager {
         obs.particles.update(delta);
       }
 
-      // Update bounding volumes
-      obs.mesh.updateMatrixWorld(true);
-      obs.obb.copy(obs.baseOBB).applyMatrix4(obs.mesh.matrixWorld);
-      if (obs.sphere) obs.sphere.center.copy(obs.mesh.position);
+      // Update bounding volumes: only waves move dynamically; static obstacles are cached once
+      if (obs.type === 'wave_small' || !obs._matrixInitialized) {
+        obs.mesh.updateMatrixWorld(true);
+        obs.obb.copy(obs.baseOBB).applyMatrix4(obs.mesh.matrixWorld);
+        if (obs.sphere) obs.sphere.center.copy(obs.mesh.position);
+        if (obs.type !== 'wave_small') {
+          obs.mesh.matrixAutoUpdate = false;
+          obs._matrixInitialized = true;
+        }
+      }
 
-      this._triggerBarrelQTE(obs, playerShip);
+      this._triggerBarrelQTE(obs, playerShip, distSq);
 
       // Check collision
-      this._checkCollision(obs, playerShip, delta);
+      this._checkCollision(obs, playerShip, delta, distSq);
     }
   }
 
@@ -617,13 +626,26 @@ export class ObstacleManager {
    * @param {ObstacleDesc} obs
    * @param {import('./PlayerShip.js').PlayerShip} ship
    * @param {number} delta
+   * @param {number} [distSq]
    */
-  _checkCollision(obs, ship, delta) {
+  _checkCollision(obs, ship, delta, distSq) {
     // Ignore wind zones for collision
     if (obs.type === 'wind_zone') return;
 
     // Ignore dock obstacles when ship is moored, halted during countdown, or has departure immunity
     if (obs.isDockObstacle && (ship.isImmune() || ship._isHalted)) return;
+
+    // Broadphase proximity gating: skip costly OBB SAT and BVH if obstacle cannot possibly collide
+    if (distSq !== undefined) {
+      if (obs.type === 'island') {
+        if (distSq > 1600) return; // 40m radius
+      } else if (obs.type === 'whirlpool') {
+        const pullRadius = 12.0 * (obs.scale || 1.0);
+        if (distSq > pullRadius * pullRadius) return;
+      } else {
+        if (distSq > 400) return; // 20m radius for rocks, waves, barrels, seaweed, sirens
+      }
+    }
 
     // Whirlpool applies a continuous radial pull
     if (obs.type === 'whirlpool') {
@@ -726,9 +748,9 @@ export class ObstacleManager {
 
         if (hasBVH) {
           // Narrowphase Mesh BVH
-          const shipBox = new THREE.Box3().setFromObject(ship.mesh);
+          const shipBox = _shipBoxScratch.setFromObject(ship.mesh);
           let meshHit = false;
-          const invMat = new THREE.Matrix4();
+          const invMat = _invMatScratch;
           obs.mesh.traverse(child => {
             if (meshHit || !child.isMesh || !child.geometry?.boundsTree) return;
             invMat.copy(child.matrixWorld).invert();
@@ -746,13 +768,12 @@ export class ObstacleManager {
     }
   }
 
-  _triggerBarrelQTE(obs, ship) {
+  _triggerBarrelQTE(obs, ship, distSq) {
     if (obs.type !== 'barrel' || obs.qteTriggered || !this._qteSystem || !ship) return;
     // Days with a cannon (levelCfg.cannon) shoot barrels manually via the FIRE
     // prompt; the free proximity QTE remains the day-1 tutorial only.
     if (this._cannonCfg) return;
-    const distance = obs.mesh.position.distanceTo(ship.mesh.position);
-    if (distance > 10) return;
+    if (distSq !== undefined ? distSq > 100 : obs.mesh.position.distanceTo(ship.mesh.position) > 10) return;
 
     const accepted = this._qteSystem.trigger({
       source: 'barrel',

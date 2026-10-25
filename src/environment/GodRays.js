@@ -409,6 +409,15 @@ export class GodRays {
     this._tempV4 = new THREE.Vector4();
   }
 
+  static _sunDir = new THREE.Vector3();
+  static _virtualSunPos = new THREE.Vector3();
+  static _moonDir = new THREE.Vector3();
+  static _virtualMoonPos = new THREE.Vector3();
+  static _celestialDir = new THREE.Vector3();
+  static _cameraForward = new THREE.Vector3();
+  static _virtualCelestialPos = new THREE.Vector3();
+  static _scratchPos = new THREE.Vector3();
+
   resize(w, h) {
     const pr = this._renderer.getPixelRatio();
     const fw = Math.floor(w * pr);
@@ -473,17 +482,17 @@ export class GodRays {
 
       renderer.autoClear = false;
       if (sunLight && sunY > -5) {
-        const sunDir = sunLight.position.clone().normalize();
-        const virtualSunPos = camera.position.clone().add(sunDir.multiplyScalar(camera.far * 0.9));
-        this._sunBillboard.position.copy(virtualSunPos);
+        GodRays._sunDir.copy(sunLight.position).normalize();
+        GodRays._virtualSunPos.copy(camera.position).addScaledVector(GodRays._sunDir, camera.far * 0.9);
+        this._sunBillboard.position.copy(GodRays._virtualSunPos);
         this._sunBillboard.lookAt(camera.position);
         this._sunBillboard.material.uniforms.uColor.value.copy(sunLight.color);
         renderer.render(this._sunScene, camera);
       }
       if (moonLight && moonY > -5) {
-        const mDir = moonLight.position.clone().normalize();
-        const virtualMoonPos = camera.position.clone().add(mDir.multiplyScalar(camera.far * 0.9));
-        this._moonBillboard.position.copy(virtualMoonPos);
+        GodRays._moonDir.copy(moonLight.position).normalize();
+        GodRays._virtualMoonPos.copy(camera.position).addScaledVector(GodRays._moonDir, camera.far * 0.9);
+        this._moonBillboard.position.copy(GodRays._virtualMoonPos);
         this._moonBillboard.lookAt(camera.position);
 
         const moonAlt = THREE.MathUtils.clamp((moonY + 5) / 25, 0, 1);
@@ -505,22 +514,21 @@ export class GodRays {
     const celestialY = activeLight.position.y;
     const horizonFade = THREE.MathUtils.clamp((celestialY + 5) / 25, 0, 1);
 
-    const celestialDir = activeLight.position.clone().normalize();
+    GodRays._celestialDir.copy(activeLight.position).normalize();
 
     // Check angle towards camera
-    const cameraForward = new THREE.Vector3();
-    camera.getWorldDirection(cameraForward);
-    const celestialDot = cameraForward.dot(celestialDir);
+    camera.getWorldDirection(GodRays._cameraForward);
+    const celestialDot = GodRays._cameraForward.dot(GodRays._celestialDir);
     const angleFade = THREE.MathUtils.smoothstep(celestialDot, 0.08, 0.45);
     const finalStrength = horizonFade * angleFade;
 
-    const virtualCelestialPos = camera.position.clone().add(celestialDir.clone().multiplyScalar(camera.far * 0.9));
+    GodRays._virtualCelestialPos.copy(camera.position).addScaledVector(GodRays._celestialDir, camera.far * 0.9);
 
     // Project to screen space UV
     this._tempV4.set(
-      virtualCelestialPos.x,
-      virtualCelestialPos.y,
-      virtualCelestialPos.z,
+      GodRays._virtualCelestialPos.x,
+      GodRays._virtualCelestialPos.y,
+      GodRays._virtualCelestialPos.z,
       1.0
     );
     this._tempV4.applyMatrix4(camera.matrixWorldInverse);
@@ -539,9 +547,9 @@ export class GodRays {
 
     // 1a. If Sun is above horizon, render sun billboard
     if (sunLight && sunY > -5) {
-      const sunDir = sunLight.position.clone().normalize();
-      const virtualSunPos = camera.position.clone().add(sunDir.multiplyScalar(camera.far * 0.9));
-      this._sunBillboard.position.copy(virtualSunPos);
+      GodRays._sunDir.copy(sunLight.position).normalize();
+      GodRays._virtualSunPos.copy(camera.position).addScaledVector(GodRays._sunDir, camera.far * 0.9);
+      this._sunBillboard.position.copy(GodRays._virtualSunPos);
       this._sunBillboard.lookAt(camera.position);
       this._sunBillboard.material.uniforms.uColor.value.copy(sunLight.color);
       renderer.render(this._sunScene, camera);
@@ -549,9 +557,9 @@ export class GodRays {
 
     // 1b. If Moon is above horizon, render majestic moon billboard
     if (moonLight && moonY > -5) {
-      const mDir = moonLight.position.clone().normalize();
-      const virtualMoonPos = camera.position.clone().add(mDir.multiplyScalar(camera.far * 0.9));
-      this._moonBillboard.position.copy(virtualMoonPos);
+      GodRays._moonDir.copy(moonLight.position).normalize();
+      GodRays._virtualMoonPos.copy(camera.position).addScaledVector(GodRays._moonDir, camera.far * 0.9);
+      this._moonBillboard.position.copy(GodRays._virtualMoonPos);
       this._moonBillboard.lookAt(camera.position);
 
       const moonAlt = THREE.MathUtils.clamp((moonY + 5) / 25, 0, 1);
@@ -600,9 +608,15 @@ export class GodRays {
     renderer.autoClear = false;
     renderer.render(this._glowScene, this._orthoCamera);
 
+    // CRITICAL PERFORMANCE FIX: Disable shadow auto-update during the occlusion pass!
+    // The occlusion pass renders black silhouettes to an offscreen target and never needs shadow maps.
+    // Leaving this enabled was causing Three.js to re-render the entire shadow map a second time every frame!
+    const savedShadowAutoUpdate = renderer.shadowMap.autoUpdate;
+    renderer.shadowMap.autoUpdate = false;
+
     // Temporarily hide race markers and non-occluding objects so they do not block
     // the sun or produce god ray streaks/shadows in the occlusion mask.
-    const maxOcclusionDistSq = 140 * 140;
+    const maxOcclusionDistSq = 120 * 120;
     this._hiddenForOcclusion.length = 0;
     scene.traverse(obj => {
       if (obj.visible) {
@@ -610,15 +624,21 @@ export class GodRays {
           obj.userData?.noGodRays ||
           obj.userData?.noOcclusion ||
           obj.userData?.isRaceMarker ||
-          obj.userData?.isWaypoint
+          obj.userData?.isWaypoint ||
+          obj.name === 'OceanMesh' ||
+          obj.name === 'skyMesh'
         ) {
           obj.visible = false;
           this._hiddenForOcclusion.push(obj);
         } else if (obj.isMesh) {
-          const target = (obj.parent && obj.parent !== scene) ? obj.parent : obj;
-          const dx = target.position.x - camera.position.x;
-          const dz = target.position.z - camera.position.z;
+          obj.getWorldPosition(GodRays._scratchPos);
+          const dx = GodRays._scratchPos.x - camera.position.x;
+          const dz = GodRays._scratchPos.z - camera.position.z;
           if ((dx * dx + dz * dz) > maxOcclusionDistSq) {
+            obj.visible = false;
+            this._hiddenForOcclusion.push(obj);
+          } else if (GodRays._scratchPos.y < -1.0) {
+            // Underwater/sea bed objects can never occlude the celestial body in the sky
             obj.visible = false;
             this._hiddenForOcclusion.push(obj);
           }
@@ -629,6 +649,9 @@ export class GodRays {
     // 2. Render the scene as black silhouettes on top
     // They will draw black over the glow anywhere there is a solid object
     renderer.render(scene, camera);
+
+    // Restore shadow auto-update immediately
+    renderer.shadowMap.autoUpdate = savedShadowAutoUpdate;
 
     // Restore hidden objects immediately
     for (let i = 0; i < this._hiddenForOcclusion.length; i++) {

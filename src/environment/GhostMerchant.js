@@ -91,42 +91,214 @@ export class GhostMerchant {
       }
     }
 
-    // Separate surface voxels into upper body and lower skirt for flutter animation
-    const bodyVoxels = [];
-    const skirtVoxels = [];
+    // Helper to generate greedy-meshed buffer geometry with only exposed surface quads
+    const buildGreedyBufferGeometry = (isSkirtVal) => {
+      const positions = [];
+      const normals = [];
+      const indices = [];
+      let vertexOffset = 0;
 
-    for (let y = 0; y < H; y++) {
-      for (let z = 0; z < D; z++) {
-        for (let x = 0; x < W; x++) {
-          if (!grid[y][z][x]) continue;
+      const addQuad = (v0, v1, v2, v3, nx, ny, nz) => {
+        positions.push(...v0, ...v1, ...v2, ...v3);
+        for (let i = 0; i < 4; i++) normals.push(nx, ny, nz);
+        indices.push(
+          vertexOffset, vertexOffset + 1, vertexOffset + 2,
+          vertexOffset, vertexOffset + 2, vertexOffset + 3
+        );
+        vertexOffset += 4;
+      };
 
-          const exposed = (
-            x === 0 || !grid[y][z][x - 1] ||
-            x === W - 1 || !grid[y][z][x + 1] ||
-            y === 0 || !grid[y - 1][z][x] ||
-            y === H - 1 || !grid[y + 1][z][x] ||
-            z === 0 || !grid[y][z - 1][x] ||
-            z === D - 1 || !grid[y][z + 1][x]
-          );
+      const vs = voxelSize;
 
-          if (exposed) {
-            const pos = {
-              x: (x - halfW) * voxelSize,
-              y: (y - (H - 1) / 2) * voxelSize,
-              z: (z - halfD) * voxelSize
-            };
-            if (y <= 2) {
-              skirtVoxels.push(pos);
-            } else {
-              bodyVoxels.push(pos);
+      // 1. +Y and -Y
+      for (const dir of [1, -1]) {
+        for (let y = 0; y < H; y++) {
+          const mask = Array.from({ length: D }, () => Array(W).fill(false));
+          for (let z = 0; z < D; z++) {
+            for (let x = 0; x < W; x++) {
+              if (!grid[y][z][x]) continue;
+              if ((y <= 2) !== isSkirtVal) continue;
+              const adjY = y + dir;
+              const exposed = (adjY < 0 || adjY >= H || !grid[adjY][z][x]);
+              if (exposed) mask[z][x] = true;
+            }
+          }
+          for (let z = 0; z < D; z++) {
+            for (let x = 0; x < W; x++) {
+              if (!mask[z][x]) continue;
+              let w = 1;
+              while (x + w < W && mask[z][x + w]) w++;
+              let h = 1;
+              let canExpand = true;
+              while (z + h < D && canExpand) {
+                for (let k = 0; k < w; k++) {
+                  if (!mask[z + h][x + k]) { canExpand = false; break; }
+                }
+                if (canExpand) h++;
+              }
+              for (let dy = 0; dy < h; dy++) {
+                for (let dx = 0; dx < w; dx++) {
+                  mask[z + dy][x + dx] = false;
+                }
+              }
+              const xStart = (x - halfW - 0.5) * vs;
+              const xEnd = (x + w - halfW - 0.5) * vs;
+              const zStart = (z - halfD - 0.5) * vs;
+              const zEnd = (z + h - halfD - 0.5) * vs;
+              const yPos = (y - (H - 1) / 2 + (dir > 0 ? 0.5 : -0.5)) * vs;
+
+              if (dir > 0) {
+                addQuad(
+                  [xStart, yPos, zEnd],
+                  [xEnd, yPos, zEnd],
+                  [xEnd, yPos, zStart],
+                  [xStart, yPos, zStart],
+                  0, 1, 0
+                );
+              } else {
+                addQuad(
+                  [xStart, yPos, zStart],
+                  [xEnd, yPos, zStart],
+                  [xEnd, yPos, zEnd],
+                  [xStart, yPos, zEnd],
+                  0, -1, 0
+                );
+              }
             }
           }
         }
       }
-    }
+
+      // 2. +X and -X
+      for (const dir of [1, -1]) {
+        for (let x = 0; x < W; x++) {
+          const mask = Array.from({ length: H }, () => Array(D).fill(false));
+          for (let y = 0; y < H; y++) {
+            if ((y <= 2) !== isSkirtVal) continue;
+            for (let z = 0; z < D; z++) {
+              if (!grid[y][z][x]) continue;
+              const adjX = x + dir;
+              const exposed = (adjX < 0 || adjX >= W || !grid[y][z][adjX]);
+              if (exposed) mask[y][z] = true;
+            }
+          }
+          for (let y = 0; y < H; y++) {
+            for (let z = 0; z < D; z++) {
+              if (!mask[y][z]) continue;
+              let w = 1;
+              while (z + w < D && mask[y][z + w]) w++;
+              let h = 1;
+              let canExpand = true;
+              while (y + h < H && canExpand) {
+                for (let k = 0; k < w; k++) {
+                  if (!mask[y + h][z + k]) { canExpand = false; break; }
+                }
+                if (canExpand) h++;
+              }
+              for (let dy = 0; dy < h; dy++) {
+                for (let dz = 0; dz < w; dz++) {
+                  mask[y + dy][z + dz] = false;
+                }
+              }
+              const zStart = (z - halfD - 0.5) * vs;
+              const zEnd = (z + w - halfD - 0.5) * vs;
+              const yStart = (y - (H - 1) / 2 - 0.5) * vs;
+              const yEnd = (y + h - (H - 1) / 2 - 0.5) * vs;
+              const xPos = (x - halfW + (dir > 0 ? 0.5 : -0.5)) * vs;
+
+              if (dir > 0) {
+                addQuad(
+                  [xPos, yStart, zStart],
+                  [xPos, yStart, zEnd],
+                  [xPos, yEnd, zEnd],
+                  [xPos, yEnd, zStart],
+                  1, 0, 0
+                );
+              } else {
+                addQuad(
+                  [xPos, yStart, zEnd],
+                  [xPos, yStart, zStart],
+                  [xPos, yEnd, zStart],
+                  [xPos, yEnd, zEnd],
+                  -1, 0, 0
+                );
+              }
+            }
+          }
+        }
+      }
+
+      // 3. +Z and -Z
+      for (const dir of [1, -1]) {
+        for (let z = 0; z < D; z++) {
+          const mask = Array.from({ length: H }, () => Array(W).fill(false));
+          for (let y = 0; y < H; y++) {
+            if ((y <= 2) !== isSkirtVal) continue;
+            for (let x = 0; x < W; x++) {
+              if (!grid[y][z][x]) continue;
+              const adjZ = z + dir;
+              const exposed = (adjZ < 0 || adjZ >= D || !grid[y][adjZ][x]);
+              if (exposed) mask[y][x] = true;
+            }
+          }
+          for (let y = 0; y < H; y++) {
+            for (let x = 0; x < W; x++) {
+              if (!mask[y][x]) continue;
+              let w = 1;
+              while (x + w < W && mask[y][x + w]) w++;
+              let h = 1;
+              let canExpand = true;
+              while (y + h < H && canExpand) {
+                for (let k = 0; k < w; k++) {
+                  if (!mask[y + h][x + k]) { canExpand = false; break; }
+                }
+                if (canExpand) h++;
+              }
+              for (let dy = 0; dy < h; dy++) {
+                for (let dx = 0; dx < w; dx++) {
+                  mask[y + dy][x + dx] = false;
+                }
+              }
+              const xStart = (x - halfW - 0.5) * vs;
+              const xEnd = (x + w - halfW - 0.5) * vs;
+              const yStart = (y - (H - 1) / 2 - 0.5) * vs;
+              const yEnd = (y + h - (H - 1) / 2 - 0.5) * vs;
+              const zPos = (z - halfD + (dir > 0 ? 0.5 : -0.5)) * vs;
+
+              if (dir > 0) {
+                addQuad(
+                  [xStart, yStart, zPos],
+                  [xEnd, yStart, zPos],
+                  [xEnd, yEnd, zPos],
+                  [xStart, yEnd, zPos],
+                  0, 0, 1
+                );
+              } else {
+                addQuad(
+                  [xEnd, yStart, zPos],
+                  [xStart, yStart, zPos],
+                  [xStart, yEnd, zPos],
+                  [xEnd, yEnd, zPos],
+                  0, 0, -1
+                );
+              }
+            }
+          }
+        }
+      }
+
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+      geo.setIndex(indices);
+      geo.computeBoundingSphere();
+      return geo;
+    };
+
+    const bodyGeo = buildGreedyBufferGeometry(false);
+    const skirtGeo = buildGreedyBufferGeometry(true);
 
     // Spectral Inky Cyan Voxel Material
-    const cubeGeo = new THREE.BoxGeometry(voxelSize * 0.98, voxelSize * 0.98, voxelSize * 0.98);
     const ghostMat = new THREE.MeshStandardMaterial({
       color: 0x22d3ee,
       emissive: 0x0891b2,
@@ -138,35 +310,21 @@ export class GhostMerchant {
       opacity: 0.92
     });
 
-    const dummy = new THREE.Object3D();
-
-    // 1. Upper Body InstancedMesh
-    this.bodyMesh = new THREE.InstancedMesh(cubeGeo, ghostMat, bodyVoxels.length);
+    // 1. Upper Body Mesh (288 tris vs 4,944 tris previously)
+    this.bodyMesh = new THREE.Mesh(bodyGeo, ghostMat);
     this.bodyMesh.name = 'GhostMerchantBody';
-    bodyVoxels.forEach((v, idx) => {
-      dummy.position.set(v.x, v.y, v.z);
-      dummy.updateMatrix();
-      this.bodyMesh.setMatrixAt(idx, dummy.matrix);
-    });
-    this.bodyMesh.instanceMatrix.needsUpdate = true;
     this.bodyMesh.castShadow = true;
     this.bodyMesh.receiveShadow = true;
     this.bodyMesh.userData = { isGhostMerchant: true };
     this.group.add(this.bodyMesh);
     this.interactables.push(this.bodyMesh);
 
-    // 2. Skirt Group & InstancedMesh (for fluttering wave)
+    // 2. Skirt Group & Mesh (266 tris vs 2,016 tris previously)
     this.skirtGroup = new THREE.Group();
     this.group.add(this.skirtGroup);
 
-    this.skirtMesh = new THREE.InstancedMesh(cubeGeo, ghostMat, skirtVoxels.length);
+    this.skirtMesh = new THREE.Mesh(skirtGeo, ghostMat);
     this.skirtMesh.name = 'GhostMerchantSkirt';
-    skirtVoxels.forEach((v, idx) => {
-      dummy.position.set(v.x, v.y, v.z);
-      dummy.updateMatrix();
-      this.skirtMesh.setMatrixAt(idx, dummy.matrix);
-    });
-    this.skirtMesh.instanceMatrix.needsUpdate = true;
     this.skirtMesh.castShadow = true;
     this.skirtMesh.receiveShadow = true;
     this.skirtMesh.userData = { isGhostMerchant: true };

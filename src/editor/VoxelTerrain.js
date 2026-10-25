@@ -135,9 +135,8 @@ export class VoxelTerrain {
     this.scene = scene;
     this.chunks = new Map();
     this.meshes = new Map();
-    this.material = new THREE.MeshStandardMaterial({ 
+    this.material = new THREE.MeshLambertMaterial({ 
         vertexColors: true, 
-        roughness: 0.8, 
         flatShading: true 
     });
     
