@@ -14,6 +14,8 @@ import { LoadingScreenUI } from './ui/LoadingScreenUI.js';
 import { AnchorCountdownUI } from './ui/AnchorCountdownUI.js';
 import { ShopUI } from './ui/ShopUI.js';
 import { ResultsUI } from './ui/ResultsUI.js';
+import { CommunityHubUI } from './ui/CommunityHubUI.js';
+import { CommunityClient } from './community/CommunityClient.js';
 import { ParticleSystem } from './environment/ParticleSystem.js';
 import { DamageSystem } from './shipyard/DamageSystem.js';
 import { GodRays } from './environment/GodRays.js';
@@ -233,6 +235,7 @@ const loadingScreenUI = new LoadingScreenUI();
 const anchorCountdownUI = new AnchorCountdownUI();
 const shopUI = new ShopUI(gameState);
 const resultsUI = new ResultsUI(gameState);
+const communityHubUI = new CommunityHubUI();
 const particles = new ParticleSystem(scene);
 
 const directorMode = new DirectorMode({
@@ -620,14 +623,53 @@ async function boot() {
     }
 
     // Listen for UI events
-    on('phaseChanged',       d => logEvent(`[Phase] ${d.phase}`));
+    on('phaseChanged', (d) => {
+      logEvent(`[Phase] ${d.phase}`);
+      if (d?.phase === GamePhase.RESULTS && gameState._activeCommunityCourseCode) {
+        const timeElapsed = Math.round(performance.now() - gameState._communityVoyageStartTime);
+        CommunityClient.recordAttempt(gameState._activeCommunityCourseCode, {
+          cleared: true,
+          timeMs: timeElapsed
+        });
+        gameState._activeCommunityCourseCode = null;
+      }
+    });
     on('obstacleHit',        d => logEvent(`[Obstacle] hit by ${d.type} -${d.damage} HP`));
     on('playerDamaged',      () => logEvent(`[Collision] Hull breached!`));
     on('playerSunk',         () => logEvent('[SUNK] Game Over'));
     on('voyageLost', async () => {
+      if (gameState._activeCommunityCourseCode) {
+        CommunityClient.recordAttempt(gameState._activeCommunityCourseCode, {
+          cleared: false
+        });
+        gameState._activeCommunityCourseCode = null;
+      }
       setPaused(false);
       showNotice('Voyage lost — repair the wreck before setting sail again.', 6000);
       await gameState.transition(GamePhase.SHIPYARD, shipyardPayload());
+    });
+
+    on('communityPlayCourseRequested', async ({ course }) => {
+      emit('showLoading', { title: 'Community Voyage', message: `Setting sail on "${course.title}"...`, progress: 0.1 });
+      const activeShipId = course.shipType || DEFAULT_SHIP_ID;
+      const activeShipDef = LevelConfig.getShipDef(activeShipId);
+      const profile = ShipRegistry.get(activeShipId);
+
+      const level = await LevelConfig.load(1);
+      const customLevelCfg = course.levelData || level.levelCfg;
+
+      const hp = profile.hullHP;
+      gameState._activeCommunityCourseCode = course.courseCode;
+      gameState._communityVoyageStartTime = performance.now();
+
+      gameState.transition(GamePhase.OBSTACLE, {
+        shipDef: activeShipDef,
+        levelCfg: customLevelCfg,
+        shipStats: { hullHP: hp, profile },
+        rockModels: level.rockModels, fishModels: level.fishModels, pickupModels: level.pickupModels,
+        seaweedModels: level.seaweedModels, waveModels: level.waveModels, islandModels: level.islandModels,
+        sirenModel: level.sirenModel, krakenModel: level.krakenModel
+      });
     });
 
     on('levelSelected', async ({ day }) => {

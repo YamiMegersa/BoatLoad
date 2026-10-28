@@ -261,6 +261,9 @@ export class MainMenuUI {
             <button class="pirate-btn" id="btn-menu-editor" style="width: 100%;">
               <span class="pixel-icon icon-map-maker-scroll size-18"></span> Map Maker / Level Editor
             </button>
+            <button class="pirate-btn" id="btn-menu-community" style="width: 100%; border-color: #ffd700; color: #ffd700;">
+              <span class="pixel-icon icon-anchor size-18"></span> Community Courses (Course World)
+            </button>
           </div>
         </div>
 
@@ -477,6 +480,10 @@ export class MainMenuUI {
 
     bindBtn('#btn-menu-editor', () => {
       emit('requestPhaseChange', { phase: 'EDITOR' });
+    });
+
+    bindBtn('#btn-menu-community', () => {
+      emit('uiMount', { screen: 'community' });
     });
 
     // Env mode changed handler

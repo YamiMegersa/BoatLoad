@@ -1,10 +1,12 @@
 import { emit, on, off } from '../core/EventBus.js';
 import { LevelConfig } from '../core/LevelConfig.js';
 import { ShipRegistry, DEFAULT_SHIP_ID } from '../config/ShipRegistry.js';
+import { CoursePublishModal } from './CoursePublishModal.js';
 
 export class EditorUI {
   constructor() {
     this._el = null;
+    this._publishModal = new CoursePublishModal();
     this._activeTab = 'assets'; // 'assets', 'terrain', 'boss', 'ship', 'world', 'paper'
     this._activeCategory = 'rocks'; // 'rocks', 'islands', 'seaweed', 'waves', 'pickups', 'hazards'
     this._activeTool = 'select'; // 'select', 'delete', 'place', 'terrain_raise', 'terrain_lower'
@@ -317,6 +319,9 @@ export class EditorUI {
           </button>
           <button class="action-btn-sm" id="btn-quick-export" title="Export Level JSON">
             <span><span class="pixel-icon icon-save-floppy size-14"></span> Export</span>
+          </button>
+          <button class="action-btn-sm" id="btn-quick-publish" title="Publish Course to Community Harbor" style="border-color: #ffd700; color: #ffd700;">
+            <span><span class="pixel-icon icon-anchor size-14"></span> Publish</span>
           </button>
           <button class="action-btn-primary" id="btn-quick-play" title="Test &amp; Play Current Map">
             <span><span class="pixel-icon icon-play size-14"></span> Test Sail</span>
@@ -1043,6 +1048,11 @@ export class EditorUI {
     this._el.querySelector('#btn-quick-export')?.addEventListener('click', () => {
       emit('editorExport');
       this._showToast('Level exported as JSON file!');
+    });
+
+    this._el.querySelector('#btn-quick-publish')?.addEventListener('click', () => {
+      const cfg = window.gameState?._editorSystem?.getPlayableConfig?.() || this._levelCfg;
+      this._publishModal?.open(cfg);
     });
 
     this._el.querySelector('#btn-quick-exit')?.addEventListener('click', () => {
@@ -2020,6 +2030,7 @@ export class EditorUI {
     }
     off('editorStateUpdated', this._onStateUpdated);
     off('editorConfigLoaded', this._onConfigLoaded);
+    this._publishModal?.close();
     this._el?.remove();
     this._el = null;
   }
