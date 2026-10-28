@@ -97,6 +97,12 @@ const SYNTH = Object.freeze({
     a._tone({ type: 'sine', from: 1174.66, dur: 1.0, gain: 0.18, at: t });
     a._tone({ type: 'triangle', from: 440, dur: 1.6, gain: 0.22, at: t + 0.03 });
   },
+  crab_snap: (a, t) => {
+    a._tone({ type: 'triangle', from: 1750, to: 620, dur: 0.045, gain: 0.22, at: t });
+    a._noise({ type: 'bandpass', from: 3600, to: 1400, dur: 0.04, gain: 0.18, at: t });
+    a._tone({ type: 'triangle', from: 2100, to: 780, dur: 0.04, gain: 0.20, at: t + 0.055 });
+    a._noise({ type: 'bandpass', from: 4200, to: 1600, dur: 0.035, gain: 0.16, at: t + 0.055 });
+  },
 });
 
 /**
@@ -332,6 +338,18 @@ export class AudioManager {
     clips = null
   } = {}) {
     if (this._muted || this._sfxVolume <= 0) return;
+
+    // Synthesized Crab Clerk noises (rhythmic pincer clacks + bubbly crustacean chitters)
+    if (voice?.synthType === 'crab' || category === 'crab') {
+      const basePitch = voice?.pitch ?? pitch;
+      const variance = voice?.pitchVariance ?? pitchVariance;
+      const randomJitter = (Math.random() * 2 - 1) * variance;
+      const rate = Math.max(0.6, Math.min(2.2, basePitch + inflection + randomJitter));
+      this._ensureContext().then(() => {
+        this._playCrabVoiceBlip(rate, charCode, inflection);
+      }).catch(() => {});
+      return;
+    }
 
     const now = performance.now();
     const minInterruptMs = Math.min(450, this._voiceCurrentSliceMs * 0.75);
@@ -865,6 +883,68 @@ export class AudioManager {
 
     osc.start(t);
     osc.stop(t + dur + 0.02);
+  }
+
+  /**
+   * Synthesized Crab Clerk typewriter voice:
+   * Combines chitinous pincer clicks/clacks with rapid underwater bubble chitters.
+   */
+  _playCrabVoiceBlip(playbackRate = 1.15, charCode = 65, inflection = 0) {
+    const ctx = this._ctx;
+    if (!ctx || !this._master) return;
+    const t = ctx.currentTime;
+
+    // 1. Bubbly crustacean chirp (ascending water-bubble pop modulated by letter code)
+    const bubbleStart = (440 + ((charCode * 37) % 260)) * playbackRate;
+    const bubbleEnd = bubbleStart * (1.75 + inflection * 2.0);
+    const bubbleDur = 0.052;
+
+    const bubbleOsc = ctx.createOscillator();
+    bubbleOsc.type = 'sine';
+    bubbleOsc.frequency.setValueAtTime(bubbleStart, t);
+    bubbleOsc.frequency.exponentialRampToValueAtTime(Math.min(3200, bubbleEnd), t + bubbleDur);
+
+    const bubbleGain = ctx.createGain();
+    const peak = 0.17 * this._sfxVolume;
+    bubbleGain.gain.setValueAtTime(0.001, t);
+    bubbleGain.gain.linearRampToValueAtTime(peak, t + 0.008);
+    bubbleGain.gain.exponentialRampToValueAtTime(0.0001, t + bubbleDur);
+
+    bubbleOsc.connect(bubbleGain);
+    bubbleGain.connect(this._master);
+    bubbleOsc.start(t);
+    bubbleOsc.stop(t + bubbleDur + 0.01);
+
+    // 2. Crisp chitinous pincer click/clack
+    const clackFreq = (1450 + ((charCode * 71) % 650)) * playbackRate;
+    this._tone({
+      type: 'triangle',
+      from: clackFreq,
+      to: clackFreq * 0.38,
+      dur: 0.028,
+      gain: 0.16,
+      at: t
+    });
+    this._noise({
+      type: 'bandpass',
+      from: 3400,
+      to: 1300,
+      dur: 0.024,
+      gain: 0.13,
+      at: t
+    });
+
+    // Occasional double-pinch snap on vowels/even letters
+    if (charCode % 2 === 0) {
+      this._tone({
+        type: 'triangle',
+        from: clackFreq * 1.18,
+        to: clackFreq * 0.45,
+        dur: 0.022,
+        gain: 0.11,
+        at: t + 0.032
+      });
+    }
   }
 
   _playSynth(soundId, params = {}) {

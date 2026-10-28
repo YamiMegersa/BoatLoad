@@ -1,0 +1,34 @@
+{
+  "day": 0,
+  "hasDock": true,
+  "ship": "sloop",
+  "weather": "sunny",
+  "budget": 400,
+  "qte": { "windowScale": 1 },
+  "damage": [
+    { "zone": "sail", "cells": [[9,6,2]], "state": "DAMAGED" },
+    { "zone": "mast", "cells": [[10,7,2]], "state": "DAMAGED" }
+  ],
+  "docket": [
+    { "id": "sail_repair", "zone": "sail", "label": "Mend torn sail", "tool": "needle", "mandatory": true },
+    { "id": "mast_repair", "zone": "mast", "label": "Reinforce cracked mast", "tool": "rope", "mandatory": true }
+  ],
+  "obstacles": [
+    { "type": "rock", "lanePattern": "alternating", "count": 4 },
+    { "type": "seaweed", "lanePattern": "random", "count": 3 },
+    { "type": "wave_small", "lanePattern": "random", "count": 3 }
+  ],
+  "sirens": [],
+  "kraken": null,
+  "endLocation": {
+    "position": { "x": 0, "y": 0, "z": -220 },
+    "radius": 18
+  },
+  "rewardAbilities": [
+    "practiced_hand",
+    "seasoned_hull",
+    "sharp_eye"
+  ],
+  "tutorialPrompts": true
+}
+

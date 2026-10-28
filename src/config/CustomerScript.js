@@ -43,6 +43,40 @@ export const VOICE_CLIP_POOLS = {
 };
 
 export const CUSTOMER_SCRIPTS = {
+  0: {
+    day: 0,
+    customerName: 'Barnaby Claw, Esq.',
+    customerRole: 'Crab Clerk',
+    shipName: 'Port Rotgut Prologue',
+    spritePath: 'assets/npc/custom_npc.png',
+    complaintShort: `"7,000 doubloons by Sunday."`,
+    basePay: 0,
+    bio: 'Dawn. A hangover, a ring, and a legal scroll nailed to the post by a crab.',
+    voice: {
+      synthType: 'crab',
+      pitch: 1.22,
+      pitchVariance: 0.14,
+      charIntervalMs: 30,
+      syllableStep: 2
+    },
+    lines: [
+      `Divorce papers. Seven thousand doubloons by Sunday, or she takes the lot. Lovely wedding, by the way. You gave a speech. It was long.`,
+      {
+        name: 'You (Hungover Shipwright)',
+        portrait: '<span class="pixel-icon icon-portrait-captain size-48"></span>',
+        text: `I'm married?`,
+        voice: {
+          pitch: 0.96,
+          pitchVariance: 0.04,
+          charIntervalMs: 38,
+          sliceDuration: 0.9,
+          clips: ['BrandenMus', 'GeorgeMenem2']
+        }
+      },
+      `To a siren. At the Drowned Rat. You wept. She didn't.`,
+      `I've served the writ of divorce — it's nailed to the post on the island just after the dock meets land. Inspect it to read the terms of your impending ruin.`
+    ]
+  },
   1: {
     day: 1,
     customerName: 'Old Walt Gunnet',
@@ -223,6 +257,9 @@ export const CUSTOMER_SCRIPTS = {
  * @param {number} day
  */
 export function getCustomerForDay(day) {
-  return CUSTOMER_SCRIPTS[day] || CUSTOMER_SCRIPTS[1];
+  if (day !== undefined && day !== null && CUSTOMER_SCRIPTS[day]) {
+    return CUSTOMER_SCRIPTS[day];
+  }
+  return CUSTOMER_SCRIPTS[1];
 }
 

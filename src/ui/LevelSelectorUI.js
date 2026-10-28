@@ -3,6 +3,22 @@ import { CUSTOMER_SCRIPTS } from '../config/CustomerScript.js';
 
 const LEVELS = [
   {
+    day: 0,
+    name: `Day 0: ${CUSTOMER_SCRIPTS[0].shipName}`,
+    icon: '🦀',
+    meta: `${CUSTOMER_SCRIPTS[0].customerName} • Opening &amp; Tutorial`,
+    customer: `${CUSTOMER_SCRIPTS[0].customerName} (${CUSTOMER_SCRIPTS[0].customerRole})`,
+    vessel: CUSTOMER_SCRIPTS[0].shipName,
+    weather: '<span class="pixel-icon icon-sun-fair size-16"></span> Dawn Hangover &amp; Calm Tide',
+    budget: `<span class="pixel-icon icon-doubloon size-16"></span> -7,000 Doubloons (Divorce Debt)`,
+    hazard: 'None (Beach Wakeup &amp; Divorce Writ)',
+    dispatch: `${CUSTOMER_SCRIPTS[0].complaintShort} — "${CUSTOMER_SCRIPTS[0].lines[0]} ${CUSTOMER_SCRIPTS[0].lines[2]}"`,
+    docket: [
+      { icon: '🦀', text: '<strong>Speak with Barnaby Claw, Esq.</strong> in the shallow water off the beach' },
+      { icon: '<span class="pixel-icon icon-map-maker-scroll size-18"></span>', text: '<strong>Inspect the Writ of Divorce</strong> nailed to the post where the dock meets land' }
+    ]
+  },
+  {
     day: 1,
     name: `Day 1: ${CUSTOMER_SCRIPTS[1].shipName}`,
     icon: '<span class="pixel-icon icon-sloop size-20"></span>',
@@ -140,10 +156,10 @@ export class LevelSelectorUI {
     on('openLevelSelector', this._onOpen);
     on('closeLevelSelector', this._onClose);
     on('uiMount', d => {
-      if (d?.gameState?.day) {
-        this._selectedDay = d.gameState.day;
-      }
-    });
+        if (d?.gameState?.day !== undefined) {
+          this._selectedDay = d.gameState.day;
+        }
+      });
     on('uiUnmount', d => {
       if (d?.screen === 'dock') this.close();
     });
@@ -217,15 +233,15 @@ export class LevelSelectorUI {
   open(initialDay) {
     if (this._isOpen) return;
     this._isOpen = true;
-    if (initialDay && LEVELS.some(l => l.day === initialDay)) {
-      this._selectedDay = initialDay;
-    }
+      if (initialDay !== undefined && LEVELS.some(l => l.day === initialDay)) {
+        this._selectedDay = initialDay;
+      }
 
-    this._el = document.createElement('div');
-    this._el.id = 'level-selector-modal';
-    this._el.className = 'level-selector-backdrop';
+      this._el = document.createElement('div');
+      this._el.id = 'level-selector-modal';
+      this._el.className = 'level-selector-backdrop';
 
-    this._el.innerHTML = `
+      this._el.innerHTML = `
       <div class="level-book-wrapper">
         <div class="level-book">
           <!-- Close button resembling a wax seal / brass emblem -->
@@ -298,51 +314,51 @@ export class LevelSelectorUI {
       </div>
     `;
 
-    // Populate the right page dossier with current selection
-    this._updateDossier();
+      // Populate the right page dossier with current selection
+      this._updateDossier();
 
-    // Click on level cards
-    const cards = this._el.querySelectorAll('.level-card');
-    cards.forEach(card => {
-      card.addEventListener('click', () => {
-        const day = parseInt(card.dataset.level, 10);
-        if (day) this._selectDay(day);
+      // Click on level cards
+      const cards = this._el.querySelectorAll('.level-card');
+      cards.forEach(card => {
+        card.addEventListener('click', () => {
+          const day = parseInt(card.dataset.level, 10);
+          if (day) this._selectDay(day);
+        });
       });
-    });
 
-    // Click backdrop or close button to close
-    this._el.querySelector('#book-close-btn').addEventListener('click', () => this.close());
-    this._el.addEventListener('click', (e) => {
-      if (e.target === this._el) this.close();
-    });
+      // Click backdrop or close button to close
+      this._el.querySelector('#book-close-btn').addEventListener('click', () => this.close());
+      this._el.addEventListener('click', (e) => {
+        if (e.target === this._el) this.close();
+      });
 
-    // Embark selected level
-    const embarkBtn = this._el.querySelector('#btn-embark-voyage');
-    embarkBtn.addEventListener('click', () => {
+      // Embark selected level
+      const embarkBtn = this._el.querySelector('#btn-embark-voyage');
+      embarkBtn.addEventListener('click', () => {
+        emit('playSound', { sound: 'qte_success' });
+        const day = this._selectedDay || 1;
+        this.close();
+        emit('levelSelected', { day });
+      });
+
+      document.getElementById('ui-root')?.appendChild(this._el);
       emit('playSound', { sound: 'qte_success' });
-      const day = this._selectedDay || 1;
+
+      // Initialize dossier display for selected day
+      this._selectDay(this._selectedDay || 1);
+    }
+
+    close() {
+      if (!this._isOpen) return;
+      this._isOpen = false;
+      this._el?.remove();
+      this._el = null;
+    }
+
+    dispose() {
       this.close();
-      emit('levelSelected', { day });
-    });
-
-    document.getElementById('ui-root')?.appendChild(this._el);
-    emit('playSound', { sound: 'qte_success' });
-
-    // Initialize dossier display for selected day
-    this._selectDay(this._selectedDay || 1);
+      off('openLevelSelector', this._onOpen);
+      off('closeLevelSelector', this._onClose);
+    }
   }
-
-  close() {
-    if (!this._isOpen) return;
-    this._isOpen = false;
-    this._el?.remove();
-    this._el = null;
-  }
-
-  dispose() {
-    this.close();
-    off('openLevelSelector', this._onOpen);
-    off('closeLevelSelector', this._onClose);
-  }
-}
 
