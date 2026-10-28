@@ -73,6 +73,70 @@ const SYNTH = Object.freeze({
 });
 
 /**
+ * Compute dynamic acoustic parameters for the beckoning mermaid call based on
+ * proximity to the siren and the physical movement of the player's boat.
+ *
+ * @param {object} params
+ * @param {number} [params.intensity=0]      Pull intensity (0..1)
+ * @param {number} [params.dist]             Current distance from boat to mermaid
+ * @param {number} [params.radius]           Siren attraction/call radius
+ * @param {number} [params.boatSpeed=15]     Current boat speed in world units/s
+ * @param {number} [params.yawVelocity=0]    Current rotational turn speed (rad/s)
+ * @param {number} [params.approachDot=0]    Dot product of boat heading and vector to siren (-1..1)
+ * @param {number} [params.ambientVolume=0.8] Ambient audio volume setting (0..1)
+ * @param {number} [params.time=0]           Current audio context time (s)
+ * @returns {{ proximity: number, gain: number, playbackRate: number, filterFreq: number }}
+ */
+export function computeMermaidCallParams({
+  intensity = 0,
+  dist = null,
+  radius = null,
+  boatSpeed = 15,
+  yawVelocity = 0,
+  approachDot = 0,
+  ambientVolume = 0.8,
+  time = 0,
+} = {}) {
+  // 1. Proximity ratio (0 at outer boundary, 1 right at the mermaid)
+  const k = (dist !== null && radius && radius > 0)
+    ? Math.max(0, Math.min(1, 1 - dist / radius))
+    : Math.max(0, Math.min(1, intensity));
+
+  // 2. Distance-attenuated volume: soft whisper far away, swelling as approached,
+  //    plus dynamic volume modulation based on boat movement speed.
+  const distanceCurve = 0.04 + 0.96 * Math.pow(k, 1.35);
+  const speedRatio = Math.max(0, Math.min(1.5, (boatSpeed ?? 15) / 15.0));
+  const motionVolumeMod = 1.0 + (speedRatio - 0.5) * 0.14;
+  const gain = Math.max(0, Math.min(1.2, distanceCurve * motionVolumeMod * ambientVolume));
+
+  // 3. Dynamic pitch & speed (playbackRate) driven by boat movement:
+  //    - Boat forward speed shifts speed/pitch up when surging, down when slowed
+  //    - Approach vector (Doppler): moving toward mermaid raises pitch, fleeing lowers it
+  //    - Helm turn rate (yawVelocity): fighting the steering adds hypnotic pitch warble
+  //    - Proximity lift: subtle pitch intensification very close to the reef
+  const speedDelta = (speedRatio - 0.5) * 0.08;
+  const dopplerDelta = Math.max(-1, Math.min(1, approachDot ?? 0)) * 0.045;
+  const yawStrain = Math.max(0, Math.min(1, Math.abs(yawVelocity ?? 0) / 2.0));
+  const flutterDelta = yawStrain * 0.035 * Math.sin((time ?? 0) * 6.0 * Math.PI);
+  const proximityDelta = (k - 0.3) * 0.03;
+
+  const playbackRate = Math.max(
+    0.75,
+    Math.min(1.35, 1.0 + speedDelta + dopplerDelta + flutterDelta + proximityDelta)
+  );
+
+  // 4. Acoustic low-pass filter: muffled across distant water, crystal clear up close
+  const filterFreq = 700 + 17300 * Math.pow(k, 1.2);
+
+  return {
+    proximity: k,
+    gain,
+    playbackRate,
+    filterFreq,
+  };
+}
+
+/**
  * AudioManager — Web Audio wrapper with a procedural synth fallback.
  *
  * Sound effects are triggered via EventBus 'playSound' events so callers
@@ -82,18 +146,10 @@ const SYNTH = Object.freeze({
  *   1. A real file at /src/assets/audio/{id}.mp3 — fetched once and cached.
  *   2. A procedural synth voice from SYNTH — no assets needed.
  *
- * A missing mp3 is remembered in a negative cache and never requested again,
- * so the synth path runs instantly with no request spam and no console noise.
- * Real files dropped into /src/assets/audio/ later automatically win over the
- * synth on the next page load.
- *
- * The AudioContext starts suspended (browser autoplay policy); main.js calls
- * unlock() on the first user gesture. Everything routes through one master
- * GainNode so mute is a single setTargetAtTime.
- *
- * Also owns the siren ambience: a detuned-saw drone driven by the
- * 'sirenPulling { intensity }' events, with a watchdog that stops the wail if
- * updates stop arriving (siren released, phase change, sink, pause).
+ * Also owns the dynamic beckoning mermaid call loop: a seamlessly looping
+ * Web Audio buffer source ('mermaid_call.mp3') driven by 'sirenPulling'
+ * telemetry events, with distance-attenuated volume and dynamic pitch/speed
+ * modulation based on boat movement, stopping only when the player escapes.
  */
 export class AudioManager {
   constructor() {
@@ -107,12 +163,14 @@ export class AudioManager {
     this._sfxVolume = 0.8;
     this._ambientVolume = 0.8;
 
-    // Siren ambience state
-    this._sirenOsc = null;
-    this._sirenOsc2 = null;
-    this._sirenLfo = null;
-    this._sirenLfoDepth = null;
+    // Siren / Mermaid call ambience state
+    this._sirenBuffer = null;
+    this._sirenBufferLoading = null;
+    this._sirenSource = null;
+    this._sirenFilter = null;
     this._sirenGain = null;
+    this._sirenActive = false;
+    this._lastSirenTelemetry = null;
     this._sirenWatchdog = null;
     this._lastSirenPull = 0;
 
@@ -137,6 +195,7 @@ export class AudioManager {
   async unlock() {
     try {
       await this._ensureContext();
+      this._preloadSirenBuffer();
     } catch {
       // Audio unsupported — the game must run on silently.
     }
@@ -308,84 +367,168 @@ export class AudioManager {
   }
 
   // -------------------------------------------------------------------------
-  // Siren ambience
+  // Beckoning Mermaid Call Ambience
   // -------------------------------------------------------------------------
 
   /**
-   * Scale the siren drone with the pull intensity emitted every frame by
-   * SirenManager while the song has a hold on the ship.
+   * Asynchronously fetch and decode 'mermaid_call.mp3' into this._sirenBuffer.
    */
-  _updateSiren({ intensity = 0 } = {}) {
+  async _preloadSirenBuffer() {
+    if (this._sirenBuffer) return this._sirenBuffer;
+    if (this._buffers.has('mermaid_call')) {
+      this._sirenBuffer = this._buffers.get('mermaid_call');
+      return this._sirenBuffer;
+    }
+    if (this._sirenBufferLoading) return this._sirenBufferLoading;
+    if (!this._ctx) return null;
+
+    this._sirenBufferLoading = this._loadFile('mermaid_call')
+      .then((buf) => {
+        this._sirenBuffer = buf;
+        this._sirenBufferLoading = null;
+        // If the ship is actively inside a siren's call zone when loading finishes, start playback
+        if (this._sirenActive && !this._sirenSource && this._lastSirenTelemetry) {
+          this._updateSiren(this._lastSirenTelemetry);
+        }
+        return buf;
+      })
+      .catch(() => {
+        this._sirenBufferLoading = null;
+        return null;
+      });
+
+    return this._sirenBufferLoading;
+  }
+
+  /**
+   * Dynamically modulate the looping beckoning mermaid call based on proximity
+   * to the siren and the physical movement (speed, heading, turning) of the boat.
+   * Continues looping indefinitely while inside the siren's call and stops only
+   * when the player manages to escape.
+   */
+  _updateSiren(telemetry = {}) {
+    const {
+      intensity = 0,
+      audibleIntensity = null,
+      dist = null,
+      radius = null,
+      boatSpeed = 15,
+      yawVelocity = 0,
+      approachDot = 0,
+      escaped = false,
+    } = telemetry;
+
+    const effectiveAudible = audibleIntensity !== null ? audibleIntensity : intensity;
     this._lastSirenPull = performance.now();
-    if (intensity <= 0.01) {
+
+    if (escaped || effectiveAudible <= 0.005) {
+      this._sirenActive = false;
+      this._lastSirenTelemetry = null;
       this._stopSiren();
       return;
     }
-    if (!this._ctx || !this._master) return; // no gesture yet — stays silent
-    if (!this._sirenOsc) this._startSirenLoop();
+
+    this._sirenActive = true;
+    this._lastSirenTelemetry = telemetry;
+
+    if (!this._ctx || !this._master) return; // Waiting for user gesture unlock
+
+    if (!this._sirenBuffer) {
+      this._preloadSirenBuffer();
+      return;
+    }
+
+    if (!this._sirenSource) {
+      this._startSirenLoop();
+    }
 
     const t = this._ctx.currentTime;
-    const k = Math.min(1, intensity);
-    this._sirenGain.gain.setTargetAtTime((0.02 + 0.09 * k) * this._ambientVolume, t, 0.15);
-    this._sirenLfo.frequency.setTargetAtTime(0.7 + 1.8 * k, t, 0.2);
-    this._sirenLfoDepth.gain.setTargetAtTime(15 + 45 * k, t, 0.2);
+    const params = computeMermaidCallParams({
+      intensity: effectiveAudible,
+      dist,
+      radius,
+      boatSpeed,
+      yawVelocity,
+      approachDot,
+      ambientVolume: this._ambientVolume,
+      time: t,
+    });
+
+    if (this._sirenGain?.gain) {
+      this._sirenGain.gain.setTargetAtTime(params.gain, t, 0.12);
+    }
+    if (this._sirenSource?.playbackRate) {
+      this._sirenSource.playbackRate.setTargetAtTime(params.playbackRate, t, 0.1);
+    }
+    if (this._sirenFilter?.frequency) {
+      this._sirenFilter.frequency.setTargetAtTime(params.filterFreq, t, 0.15);
+    }
   }
 
   _startSirenLoop() {
+    if (!this._ctx || !this._master || !this._sirenBuffer) return;
+
     const ctx = this._ctx;
     const t = ctx.currentTime;
 
     this._sirenGain = ctx.createGain();
-    this._sirenGain.gain.value = 0;
+    this._sirenGain.gain.value = 0.0001;
+
+    this._sirenFilter = ctx.createBiquadFilter();
+    this._sirenFilter.type = 'lowpass';
+    this._sirenFilter.frequency.value = 1200;
+
+    this._sirenSource = ctx.createBufferSource();
+    this._sirenSource.buffer = this._sirenBuffer;
+    this._sirenSource.loop = true; // Never ends until the player escapes!
+    this._sirenSource.playbackRate.value = 1.0;
+
+    this._sirenSource.connect(this._sirenFilter);
+    this._sirenFilter.connect(this._sirenGain);
     this._sirenGain.connect(this._master);
 
-    // Detuned saw pair through a vibrato LFO — a haunting two-voice drone.
-    this._sirenOsc = ctx.createOscillator();
-    this._sirenOsc.type = 'sawtooth';
-    this._sirenOsc.frequency.value = 392; // G4
-    this._sirenOsc2 = ctx.createOscillator();
-    this._sirenOsc2.type = 'sawtooth';
-    this._sirenOsc2.frequency.value = 399;
+    this._sirenSource.start(t);
 
-    this._sirenLfo = ctx.createOscillator();
-    this._sirenLfo.frequency.value = 1;
-    this._sirenLfoDepth = ctx.createGain();
-    this._sirenLfoDepth.gain.value = 25;
-    this._sirenLfo.connect(this._sirenLfoDepth);
-    this._sirenLfoDepth.connect(this._sirenOsc.frequency);
-    this._sirenLfoDepth.connect(this._sirenOsc2.frequency);
-
-    this._sirenOsc.connect(this._sirenGain);
-    this._sirenOsc2.connect(this._sirenGain);
-    this._sirenOsc.start(t);
-    this._sirenOsc2.start(t);
-    this._sirenLfo.start(t);
-
-    // Watchdog: stop the wail if no sirenPulling arrives for ~300 ms
-    // (release, sink, pause, or phase exit) — it can never be left wailing.
+    // Watchdog: stop the call if no sirenPulling telemetry arrives for ~350 ms
+    // (escape, sink, pause, or phase exit) — ensures it never gets stuck playing.
+    if (this._sirenWatchdog) clearInterval(this._sirenWatchdog);
     this._sirenWatchdog = setInterval(() => {
-      if (performance.now() - this._lastSirenPull > 300) this._stopSiren();
+      if (performance.now() - this._lastSirenPull > 350) this._stopSiren();
     }, 150);
   }
 
   _stopSiren() {
-    if (!this._sirenOsc) return;
-    clearInterval(this._sirenWatchdog);
-    this._sirenWatchdog = null;
+    this._sirenActive = false;
+    this._lastSirenTelemetry = null;
 
-    const gain = this._sirenGain;
-    const t = this._ctx.currentTime;
-    gain.gain.setTargetAtTime(0, t, 0.12);
-    const stopAt = t + 0.5;
-    for (const o of [this._sirenOsc, this._sirenOsc2, this._sirenLfo]) {
-      try { o.stop(stopAt); } catch { /* already stopped */ }
+    if (this._sirenWatchdog) {
+      clearInterval(this._sirenWatchdog);
+      this._sirenWatchdog = null;
     }
-    setTimeout(() => { try { gain.disconnect(); } catch { /* noop */ } }, 800);
 
-    this._sirenOsc = null;
-    this._sirenOsc2 = null;
-    this._sirenLfo = null;
-    this._sirenLfoDepth = null;
+    if (!this._sirenSource) return;
+
+    const source = this._sirenSource;
+    const filter = this._sirenFilter;
+    const gain = this._sirenGain;
+
+    this._sirenSource = null;
+    this._sirenFilter = null;
     this._sirenGain = null;
+
+    if (this._ctx && gain?.gain) {
+      const t = this._ctx.currentTime;
+      gain.gain.setTargetAtTime(0, t, 0.15);
+      const stopAt = t + 0.6;
+      try { source.stop(stopAt); } catch { /* already stopped */ }
+    } else {
+      try { source.stop(); } catch { /* already stopped */ }
+    }
+
+    setTimeout(() => {
+      try { source.disconnect(); } catch { /* noop */ }
+      try { filter?.disconnect(); } catch { /* noop */ }
+      try { gain?.disconnect(); } catch { /* noop */ }
+    }, 800);
   }
 }
