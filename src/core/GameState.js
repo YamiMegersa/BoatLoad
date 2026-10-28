@@ -653,6 +653,10 @@ export class GameState {
   // -------------------------------------------------------------------------
 
   async _onEnter(phase, opts) {
+    if (phase !== GamePhase.OBSTACLE) {
+      emit('setMusicState', { state: 'calm', fade: 2.0 });
+    }
+
     switch (phase) {
       case GamePhase.MAIN_MENU:
         await this._enterMainMenu(opts);
@@ -1544,6 +1548,15 @@ export class GameState {
   async _enterObstacle({ shipDef, levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel }) {
     this._levelCfg = levelCfg;
     this._obstacleOpts = { levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels };
+
+    // Ambient music system: play intense sailing music on Kraken or Storm levels; calm music on peaceful voyages
+    const hasKraken = Boolean(levelCfg?.kraken);
+    const isStorm = Boolean(
+      levelCfg?.isStormy ||
+      levelCfg?.weather === 'stormy' ||
+      levelCfg?.weather === 'gale'
+    );
+    emit('setMusicState', { state: (hasKraken || isStorm) ? 'sailing' : 'calm', fade: 2.5 });
 
     if (this._dockMooredGroup) {
       if (this._chunkRenderer && this._chunkRenderer.container) {
