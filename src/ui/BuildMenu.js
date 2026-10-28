@@ -1,5 +1,6 @@
 import { emit, on, off } from '../core/EventBus.js';
 import { GameEnv } from '../core/GameEnv.js';
+import { ClearCheckManager } from '../community/ClearCheckManager.js';
 import {
   MATERIAL_REGISTRY,
   DEFAULT_MATERIAL_ID,
@@ -82,8 +83,8 @@ export class BuildMenu {
         <div class="shipyard-brand">
           <span class="shipyard-brand-icon"><span class="pixel-icon icon-hammer size-18"></span></span>
           <div class="shipyard-brand-text">
-            <span class="shipyard-brand-title">DRYDOCK SHIPWRIGHT</span>
-            <span class="shipyard-brand-sub">Ship Repair &amp; Engineering</span>
+            <span class="shipyard-brand-title" id="shipyard-brand-title">DRYDOCK SHIPWRIGHT</span>
+            <span class="shipyard-brand-sub" id="shipyard-brand-sub">Ship Repair &amp; Engineering</span>
           </div>
         </div>
 
@@ -134,8 +135,11 @@ export class BuildMenu {
           <button id="btn-shipyard-dock" class="action-btn-sm" title="Return to island dock promenade">
             <span><span class="pixel-icon icon-anchor size-16"></span> Island Dock</span>
           </button>
+          <button id="btn-shipyard-abort" class="action-btn-sm" title="Cancel clear check and return to Level Editor" style="display: none; background: #261616; border-color: #8c3b3b; color: #ff9b9b;">
+            <span><span class="pixel-icon icon-close-cross size-16"></span> Back to Editor</span>
+          </button>
           <button id="btn-shipyard-sail" class="action-btn-primary" title="Depart drydock and begin sailing!">
-            <span><span class="pixel-icon icon-sloop size-16"></span> Set Sail When Ready!</span>
+            <span id="btn-shipyard-sail-text"><span class="pixel-icon icon-sloop size-16"></span> Set Sail When Ready!</span>
           </button>
         </div>
       </header>
@@ -214,7 +218,20 @@ export class BuildMenu {
     });
 
     this._el.querySelector('#btn-shipyard-dock')?.addEventListener('click', () => {
+      if (window.gameState?._isClearCheckRepair) {
+        console.warn('[ClearCheck] Cannot navigate to dock during clear check repair.');
+        return;
+      }
       emit('requestPhaseChange', { phase: 'DOCK' });
+    });
+
+    this._el.querySelector('#btn-shipyard-abort')?.addEventListener('click', () => {
+      if (window.gameState) {
+        window.gameState._isClearCheckRepair = false;
+        window.gameState._isEditorPlay = false;
+      }
+      ClearCheckManager.completeActiveCheck(false, 'Verification cancelled in shipyard.');
+      emit('requestPhaseChange', { phase: 'EDITOR' });
     });
 
     // Control buttons
@@ -252,10 +269,37 @@ export class BuildMenu {
 
   mount(parent) {
     parent.appendChild(this._el);
+    this._applyModeLayout();
     this._updateHUD();
     this._renderMaterialTiles();
     this._renderBrushTiles();
     this._updateToolButtons();
+  }
+
+  _applyModeLayout() {
+    const isClearCheck = Boolean(window.gameState?._isClearCheckRepair);
+    const dockBtn = this._el.querySelector('#btn-shipyard-dock');
+    const abortBtn = this._el.querySelector('#btn-shipyard-abort');
+    const brandTitle = this._el.querySelector('#shipyard-brand-title');
+    const brandSub = this._el.querySelector('#shipyard-brand-sub');
+    const sailText = this._el.querySelector('#btn-shipyard-sail-text');
+    const sailBtn = this._el.querySelector('#btn-shipyard-sail');
+
+    if (isClearCheck) {
+      if (dockBtn) dockBtn.style.display = 'none';
+      if (abortBtn) abortBtn.style.display = 'inline-flex';
+      if (brandTitle) brandTitle.textContent = 'CLEAR CHECK: HULL REPAIR';
+      if (brandSub) brandSub.textContent = 'Repair Vessel Within Budget Before Sail Verification';
+      if (sailText) sailText.innerHTML = '<span class="pixel-icon icon-sloop size-16"></span> Verify Voyage (Set Sail)';
+      if (sailBtn) sailBtn.title = 'Test-sail this repaired vessel through the course to prove beatability!';
+    } else {
+      if (dockBtn) dockBtn.style.display = 'inline-flex';
+      if (abortBtn) abortBtn.style.display = 'none';
+      if (brandTitle) brandTitle.textContent = 'DRYDOCK SHIPWRIGHT';
+      if (brandSub) brandSub.textContent = 'Ship Repair & Engineering';
+      if (sailText) sailText.innerHTML = '<span class="pixel-icon icon-sloop size-16"></span> Set Sail When Ready!';
+      if (sailBtn) sailBtn.title = 'Depart drydock and begin sailing!';
+    }
   }
 
   unmount() {

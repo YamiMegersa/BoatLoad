@@ -1,10 +1,13 @@
 import { emit, on, off } from '../core/EventBus.js';
 import { LevelConfig } from '../core/LevelConfig.js';
 import { ShipRegistry, DEFAULT_SHIP_ID } from '../config/ShipRegistry.js';
+import { CoursePublishModal } from './CoursePublishModal.js';
+import { AlertModal } from './AlertModal.js';
 
 export class EditorUI {
   constructor() {
     this._el = null;
+    this._publishModal = new CoursePublishModal();
     this._activeTab = 'assets'; // 'assets', 'terrain', 'boss', 'ship', 'world', 'paper'
     this._activeCategory = 'rocks'; // 'rocks', 'islands', 'seaweed', 'waves', 'pickups', 'hazards'
     this._activeTool = 'select'; // 'select', 'delete', 'place', 'terrain_raise', 'terrain_lower'
@@ -185,8 +188,8 @@ export class EditorUI {
             <button class="menu-dropdown-btn" data-menu="file">File <span class="arrow-down">▾</span></button>
             <div class="menu-dropdown-content" id="menu-file">
               <button class="dropdown-item" id="btn-menu-play">
-                <span class="dropdown-item-icon"><span class="pixel-icon icon-play size-16"></span></span>
-                <span class="dropdown-item-text">Play Level</span>
+                <span class="dropdown-item-icon"><span class="pixel-icon icon-hammer size-16"></span></span>
+                <span class="dropdown-item-text">Repair &amp; Sail (Test)</span>
                 <span class="dropdown-item-hotkey">F5</span>
               </button>
               <button class="dropdown-item" id="btn-menu-export">
@@ -318,8 +321,11 @@ export class EditorUI {
           <button class="action-btn-sm" id="btn-quick-export" title="Export Level JSON">
             <span><span class="pixel-icon icon-save-floppy size-14"></span> Export</span>
           </button>
-          <button class="action-btn-primary" id="btn-quick-play" title="Test &amp; Play Current Map">
-            <span><span class="pixel-icon icon-play size-14"></span> Test Sail</span>
+          <button class="action-btn-sm" id="btn-quick-publish" title="Publish Course to Community Harbor" style="border-color: #ffd700; color: #ffd700;">
+            <span><span class="pixel-icon icon-anchor size-14"></span> Publish</span>
+          </button>
+          <button class="action-btn-primary" id="btn-quick-play" title="Repair vessel in shipyard with budget and verify sail">
+            <span><span class="pixel-icon icon-hammer size-14"></span> Repair &amp; Sail</span>
           </button>
           <button class="action-btn-exit" id="btn-quick-exit" title="Exit to Main Menu">
             <span><span class="pixel-icon icon-close-cross size-14"></span></span>
@@ -651,15 +657,11 @@ export class EditorUI {
           <div class="ribbon-divider"></div>
 
           <div class="ribbon-group">
-            <span class="ribbon-group-label">Test Sail Vessel</span>
+            <span class="ribbon-group-label">Repair &amp; Sail</span>
             <div class="ribbon-group-row">
-              <button class="shelf-btn ship-action-btn-sail" id="btn-ship-test-sail" title="Sail this vessel immediately on the map">
-                <span class="shelf-btn-icon"><span class="pixel-icon icon-sloop size-18"></span></span>
-                <span class="shelf-btn-text">Test Sail</span>
-              </button>
-              <button class="shelf-btn ship-action-btn-dock" id="btn-ship-test-dock" title="Test this vessel moored in the dock and shipyard">
-                <span class="shelf-btn-icon"><span class="pixel-icon icon-anchor size-18"></span></span>
-                <span class="shelf-btn-text">Test in Dock</span>
+              <button class="shelf-btn ship-action-btn-sail" id="btn-ship-test-sail" title="Outfit &amp; repair vessel with allocated budget before test sailing">
+                <span class="shelf-btn-icon"><span class="pixel-icon icon-hammer size-18"></span></span>
+                <span class="shelf-btn-text">Repair &amp; Sail</span>
               </button>
             </div>
           </div>
@@ -916,6 +918,13 @@ export class EditorUI {
     // Listen to EditorSystem events
     on('editorStateUpdated', this._onStateUpdated);
     on('editorConfigLoaded', this._onConfigLoaded);
+
+    if (d?.openPublish) {
+      setTimeout(() => {
+        const cfg = window.gameState?._editorSystem?.getPlayableConfig?.() || this._levelCfg || levelCfg;
+        this._publishModal?.open(cfg);
+      }, 150);
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -1022,9 +1031,16 @@ export class EditorUI {
       this._showToast('Level exported as JSON file!');
     });
 
-    this._el.querySelector('#btn-menu-clear')?.addEventListener('click', () => {
+    this._el.querySelector('#btn-menu-clear')?.addEventListener('click', async () => {
       closeAllDropdowns();
-      if (confirm('Clear all placed obstacles and hazards from the current map?')) {
+      const confirmed = await AlertModal.confirm({
+        title: 'Clear Placed Objects',
+        message: 'Clear all placed obstacles and hazards from the current map?',
+        icon: 'icon-chisel-eraser',
+        confirmText: 'Clear All',
+        cancelText: 'Keep Objects'
+      });
+      if (confirmed) {
         emit('editorClearAll');
         this._showToast('Cleared all placed obstacles.');
       }
@@ -1043,6 +1059,11 @@ export class EditorUI {
     this._el.querySelector('#btn-quick-export')?.addEventListener('click', () => {
       emit('editorExport');
       this._showToast('Level exported as JSON file!');
+    });
+
+    this._el.querySelector('#btn-quick-publish')?.addEventListener('click', () => {
+      const cfg = window.gameState?._editorSystem?.getPlayableConfig?.() || this._levelCfg;
+      this._publishModal?.open(cfg);
     });
 
     this._el.querySelector('#btn-quick-exit')?.addEventListener('click', () => {
@@ -1673,7 +1694,11 @@ export class EditorUI {
             this._showToast(`Loaded map from "${file.name}"!`);
           } catch (err) {
             console.error('Error parsing level JSON:', err);
-            alert('Failed to load level JSON: invalid file structure.');
+            AlertModal.show({
+              title: 'Import Failed',
+              message: 'Failed to load level JSON: invalid file structure.',
+              icon: 'icon-powder-keg'
+            });
           }
           fileInput.value = '';
         };
@@ -1728,14 +1753,7 @@ export class EditorUI {
     const testSailBtn = this._el.querySelector('#btn-ship-test-sail');
     if (testSailBtn) {
       testSailBtn.onclick = () => {
-        emit('editorRequestPlay', { mode: 'sail' });
-      };
-    }
-
-    const testDockBtn = this._el.querySelector('#btn-ship-test-dock');
-    if (testDockBtn) {
-      testDockBtn.onclick = () => {
-        emit('editorRequestPlay', { mode: 'dock' });
+        emit('editorRequestPlay', { mode: 'repair', isClearCheck: true });
       };
     }
 
@@ -1764,7 +1782,11 @@ export class EditorUI {
           this._showToast(`Imported boat from "${file.name}"!`);
         } catch (err) {
           console.error('Error importing boat from level JSON:', err);
-          alert('Failed to import boat: invalid level JSON.');
+          AlertModal.show({
+            title: 'Import Failed',
+            message: 'Failed to import boat: invalid level JSON.',
+            icon: 'icon-powder-keg'
+          });
         }
         shipImportFile.value = '';
       };
@@ -2020,6 +2042,7 @@ export class EditorUI {
     }
     off('editorStateUpdated', this._onStateUpdated);
     off('editorConfigLoaded', this._onConfigLoaded);
+    this._publishModal?.close();
     this._el?.remove();
     this._el = null;
   }
