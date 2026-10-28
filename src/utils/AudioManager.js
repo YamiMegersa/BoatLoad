@@ -1,5 +1,6 @@
 import { on } from '../core/EventBus.js';
 import { getAssetUrl } from './paths.js';
+import { MusicManager } from './MusicManager.js';
 
 /**
  * Procedural synth voices, one per known sound id.
@@ -106,6 +107,14 @@ export class AudioManager {
     this._masterVolume = 0.8;
     this._sfxVolume = 0.8;
     this._ambientVolume = 0.8;
+    this._musicVolume = 0.7;
+
+    // Music Manager (dual-channel crossfader)
+    this._musicManager = new MusicManager({
+      volume: this._musicVolume,
+      masterVolume: this._masterVolume,
+      muted: this._muted
+    });
 
     // Siren ambience state
     this._sirenOsc = null;
@@ -124,6 +133,7 @@ export class AudioManager {
     on('setAudioMute', ({ muted }) => this.setMuted(muted));
     on('setSfxVolume', ({ volume }) => this.setSfxVolume(volume));
     on('setAmbientVolume', ({ volume }) => this.setAmbientVolume(volume));
+    on('setMusicVolume', ({ volume }) => this.setMusicVolume(volume));
   }
 
   // -------------------------------------------------------------------------
@@ -137,6 +147,7 @@ export class AudioManager {
   async unlock() {
     try {
       await this._ensureContext();
+      this._musicManager?.unlock();
     } catch {
       // Audio unsupported — the game must run on silently.
     }
@@ -150,6 +161,7 @@ export class AudioManager {
     if (this._ctx && this._master) {
       this._master.gain.setTargetAtTime(this._muted ? 0 : this._masterVolume, this._ctx.currentTime, 0.02);
     }
+    this._musicManager?.setMasterVolume(this._masterVolume);
   }
 
   /**
@@ -160,6 +172,7 @@ export class AudioManager {
     if (this._ctx && this._master) {
       this._master.gain.setTargetAtTime(this._muted ? 0 : this._masterVolume, this._ctx.currentTime, 0.02);
     }
+    this._musicManager?.setMuted(this._muted);
     return this._muted;
   }
 
@@ -175,6 +188,18 @@ export class AudioManager {
    */
   setAmbientVolume(val) {
     this._ambientVolume = Math.max(0, Math.min(1, Number(val) || 0));
+  }
+
+  /**
+   * Set music volume (0.0 to 1.0).
+   */
+  setMusicVolume(val) {
+    this._musicVolume = Math.max(0, Math.min(1, Number(val) || 0));
+    this._musicManager?.setVolume(this._musicVolume);
+  }
+
+  get musicManager() {
+    return this._musicManager;
   }
 
   /**
@@ -220,11 +245,13 @@ export class AudioManager {
       this._master = this._ctx.createGain();
       this._master.gain.value = this._muted ? 0 : this._masterVolume;
       this._master.connect(this._ctx.destination);
+      this._musicManager?.setContext(this._ctx, this._master);
     }
     // Resume if suspended (browser auto-suspend policy)
     if (this._ctx.state === 'suspended') {
       await this._ctx.resume();
     }
+    this._musicManager?.unlock();
   }
 
   async _loadFile(soundId) {
