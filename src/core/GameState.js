@@ -878,6 +878,9 @@ export class GameState {
     
     // Setup environment
     const stallGroup = this._dockStall.build();
+    if (this._dockStall.dockNPC && initialCustomer?.spritePath) {
+      this._dockStall.dockNPC.setSprite(initialCustomer.spritePath);
+    }
         stallGroup.visible = true; // undo draw-distance culling from a previous sailing run
     if (stallGroup.parent !== this._scene) {
       this._scene.add(stallGroup);
@@ -919,7 +922,9 @@ export class GameState {
       this._shipDocked = false;
 
       // Start 2D humanoid sprite walk animation from island to counter for the selected day's customer
+      const customer = getCustomerForDay(this.day);
       if (this._dockStall && this._dockStall.dockNPC) {
+        this._dockStall.dockNPC.setSprite(customer.spritePath);
         this._dockStall.dockNPC.startWalkToCounter(() => {
           this._triggerShipArrivalAndDialogue();
         });
@@ -945,9 +950,10 @@ export class GameState {
         }
 
         const customer = getCustomerForDay(this.day);
+        const spritePath = customer.spritePath || 'assets/npc/custom_npc.png';
         emit('showDialogue', {
           dialogue: {
-            portrait: `<img src="${getAssetUrl('assets/npc/custom_npc.png')}" alt="${customer.customerName}" />`,
+            portrait: `<img src="${getAssetUrl(spritePath)}" alt="${customer.customerName}" />`,
             name: `${customer.customerName} (${customer.customerRole})`,
             lines: customer.lines,
             voice: customer.voice
@@ -987,6 +993,7 @@ export class GameState {
       this._shipDocked = false;
       this._shipArriving = false;
       if (this._dockStall && this._dockStall.dockNPC) {
+        this._dockStall.dockNPC.setSprite(customer.spritePath);
         this._dockStall.dockNPC.reset();
       }
 

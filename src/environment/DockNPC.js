@@ -16,14 +16,16 @@ export class DockNPC {
     this.group.name = 'DockNPC';
     this.group.visible = false;
 
-    // Load custom NPC texture
-    const loader = new THREE.TextureLoader();
-    this.texture = loader.load(getAssetUrl('assets/npc/custom_npc.png'));
-    this.texture.colorSpace = THREE.SRGBColorSpace;
+    // Load custom NPC texture (cached per path)
+    this._loader = new THREE.TextureLoader();
+    this._textureCache = new Map();
+    this.baseAspect = 734 / 998;
+    this.baseScaleX = 1.0;
+    this.baseScaleY = 1.0;
 
     // Cutout proportions (734 x 998)
     this.height = 3.3;
-    this.width = this.height * (734 / 998);
+    this.width = this.height * this.baseAspect;
 
     // Plane geometry with bottom pivot at feet, raised slightly so torso & hands clear counter
     this.baseElevation = 0.35;
@@ -31,7 +33,6 @@ export class DockNPC {
     geo.translate(0, this.height / 2 + this.baseElevation, 0);
 
     const mat = new THREE.MeshBasicMaterial({
-      map: this.texture,
       transparent: true,
       alphaTest: 0.05,
       side: THREE.DoubleSide
@@ -41,6 +42,8 @@ export class DockNPC {
     this.mesh.castShadow = true;
     this.mesh.userData = { isNPC: true };
     this.group.add(this.mesh);
+
+    this.setSprite('assets/npc/luc.png');
 
     // Soft oval contact shadow on the dock timber beneath feet
     const shadowGeo = new THREE.CircleGeometry(0.55, 24);
@@ -78,6 +81,47 @@ export class DockNPC {
     if (this.parentGroup) {
       this.parentGroup.add(this.group);
     }
+  }
+
+  /**
+   * Switch the NPC sprite texture for the active day's customer and adjust aspect ratio.
+   * @param {string} spritePath Relative asset path (e.g. 'assets/npc/luc.png')
+   */
+  setSprite(spritePath = 'assets/npc/custom_npc.png') {
+    const url = getAssetUrl(spritePath);
+    const applyTex = (tex) => {
+      this.texture = tex;
+      if (this.mesh && this.mesh.material) {
+        this.mesh.material.map = tex;
+        this.mesh.material.needsUpdate = true;
+      }
+      const img = tex.image;
+      if (img && img.width && img.height) {
+        const aspect = img.width / img.height;
+        // Full-body narrow cutouts (e.g. caelum.png aspect ~0.34) get a slight height boost
+        // so their head and upper body stand comfortably above the counter window
+        this.baseScaleY = aspect < 0.45 ? 1.18 : (aspect < 0.6 ? 1.06 : 1.0);
+        this.baseScaleX = this.baseScaleY * (aspect / this.baseAspect);
+      } else {
+        this.baseScaleX = 1.0;
+        this.baseScaleY = 1.0;
+      }
+      if (this.mesh) {
+        this.mesh.scale.set(this.baseScaleX, this.baseScaleY, 1.0);
+      }
+    };
+
+    if (this._textureCache.has(url)) {
+      applyTex(this._textureCache.get(url));
+      return;
+    }
+
+    const tex = this._loader.load(url, (loadedTex) => {
+      applyTex(loadedTex);
+    });
+    tex.colorSpace = THREE.SRGBColorSpace;
+    this._textureCache.set(url, tex);
+    applyTex(tex);
   }
 
   /**
@@ -154,7 +198,7 @@ export class DockNPC {
 
       this.mesh.position.y = bob;
       this.mesh.rotation.z = sway;
-      this.mesh.scale.set(1.0, squish, 1.0);
+      this.mesh.scale.set(this.baseScaleX, this.baseScaleY * squish, 1.0);
       this.shadow.scale.setScalar(1.0 + bob * 0.4);
 
       if (t >= 1.0) {
@@ -176,13 +220,13 @@ export class DockNPC {
       const hopY = Math.sin((1 - hopT) * Math.PI) * 0.22;
       this.mesh.position.y = hopY;
       this.mesh.rotation.z = 0;
-      this.mesh.scale.set(1.0, 1.0, 1.0);
+      this.mesh.scale.set(this.baseScaleX, this.baseScaleY, 1.0);
     } else if (this.hasArrived) {
       // Idle breathing stance in front of counter
       const breathe = Math.sin(this.idleTimer * 2.2) * 0.035;
       this.mesh.position.y = Math.max(0, breathe);
       this.mesh.rotation.z = 0;
-      this.mesh.scale.set(1.0 + breathe * 0.15, 1.0 - breathe * 0.15, 1.0);
+      this.mesh.scale.set(this.baseScaleX * (1.0 + breathe * 0.15), this.baseScaleY * (1.0 - breathe * 0.15), 1.0);
       this.shadow.scale.setScalar(1.0);
     }
   }
