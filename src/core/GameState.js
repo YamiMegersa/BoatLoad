@@ -33,6 +33,7 @@ import { LevelConfig }        from './LevelConfig.js';
 import { ClearCheckManager }   from '../community/ClearCheckManager.js';
 import { ShipRegistry, DEFAULT_SHIP_ID } from '../config/ShipRegistry.js';
 import { ShopRegistry, ItemType } from '../config/ShopRegistry.js';
+import { getCustomerForDay } from '../config/CustomerScript.js';
 import { getAssetUrl } from '../utils/paths.js';
 import { emit, on, off, clear } from './EventBus.js';
 
@@ -95,9 +96,9 @@ export class GameState {
     // Active customer contract & sailing damage baseline
     this.currentContract = {
       day: 1,
-      baseBudget: 200,
+      baseBudget: 400,
       bargainBonus: 0,
-      agreedBudget: 200,
+      agreedBudget: 400,
       spentOnRepairs: 0
     };
     this._sailInitialIntactCount = null;
@@ -278,9 +279,11 @@ export class GameState {
   }
 
   initContract(day, baseBudget) {
-    const b = typeof baseBudget === 'number' && !isNaN(baseBudget) ? baseBudget : 200;
+    const targetDay = day || this.day || 1;
+    const defaultBudget = getCustomerForDay(targetDay).basePay;
+    const b = typeof baseBudget === 'number' && !isNaN(baseBudget) ? baseBudget : defaultBudget;
     this.currentContract = {
-      day: day || this.day || 1,
+      day: targetDay,
       baseBudget: b,
       bargainBonus: 0,
       agreedBudget: b,
@@ -359,7 +362,8 @@ export class GameState {
     const isSunk = Boolean(opts.failed || opts.isSunk);
 
     // 1. Customer Repair Contract Accounting
-    const baseBudget = this.currentContract?.baseBudget ?? (this._levelCfg?.budget !== undefined ? this._levelCfg.budget : 200);
+    const defaultDayBudget = getCustomerForDay(day).basePay;
+    const baseBudget = this.currentContract?.baseBudget ?? (this._levelCfg?.budget !== undefined ? this._levelCfg.budget : defaultDayBudget);
     const bargainBonus = this.currentContract?.bargainBonus ?? 0;
     const agreedBudget = baseBudget + bargainBonus;
     const repairSpent = this.currentContract?.spentOnRepairs ?? (this._budgetManager?.spent ?? 0);
@@ -779,6 +783,9 @@ export class GameState {
       this._dockShipArrived = false;
       this._lastDockLevel = activeShipId;
       this._lastDockDay = this.day;
+      if (this._dockStall && this._dockStall.dockNPC) {
+        this._dockStall.dockNPC.reset();
+      }
     }
 
     // Build or update ship model if needed so it displays moored in the dock
@@ -860,9 +867,10 @@ export class GameState {
 
     // Check if repairs are required
     const integrity = this._grid ? DamageSystem.getSummary(this._grid).integrityPct : 100;
+    const initialCustomer = getCustomerForDay(this.day);
     if (this._dockStall) {
       this._dockStall.shipNeedsRepair = integrity < 100;
-      this._dockStall.activeShipProfile = shipProfile;
+      this._dockStall.activeShipProfile = { ...shipProfile, name: initialCustomer?.shipName || shipProfile?.name };
     }
     // Set up fixed cinematic camera
     this._camera.position.set(0, 5, 20);
@@ -910,8 +918,8 @@ export class GameState {
       this._dockShipArrived = false;
       this._shipDocked = false;
 
-      // Start 2D humanoid sprite walk animation from island to counter if not already at counter
-      if (this._dockStall && this._dockStall.dockNPC && !this._dockStall.dockNPC.hasArrived) {
+      // Start 2D humanoid sprite walk animation from island to counter for the selected day's customer
+      if (this._dockStall && this._dockStall.dockNPC) {
         this._dockStall.dockNPC.startWalkToCounter(() => {
           this._triggerShipArrivalAndDialogue();
         });
@@ -936,16 +944,12 @@ export class GameState {
           this._dockStall.shipInteractables = [this._dockMooredGroup];
         }
 
-        const shipName = this._mooredShipProfile?.name || shipProfile?.name || 'Vessel';
+        const customer = getCustomerForDay(this.day);
         emit('showDialogue', {
           dialogue: {
-            portrait: `<img src="${getAssetUrl('assets/npc/custom_npc.png')}" alt="Captain Barlow" />`,
-            name: 'Captain Barlow',
-            lines: [
-              `Ahoy there shipwright! We ran into treacherous hazards offshore on Day ${this.day}!`,
-              `Look out your shop window—my crew is navigating the ${shipName} to the pier now!`,
-              `Head out and board her at the dock to repair her hull before we set sail again!`
-            ]
+            portrait: `<img src="${getAssetUrl('assets/npc/custom_npc.png')}" alt="${customer.customerName}" />`,
+            name: `${customer.customerName} (${customer.customerRole})`,
+            lines: customer.lines
           }
         });
       }
@@ -953,9 +957,10 @@ export class GameState {
 
     this._onLevelSelected = async (data) => {
       const day = data?.day || 1;
+      const customer = getCustomerForDay(day);
       emit('showLoading', {
-        title: `Summoning Day ${day}`,
-        message: `Preparing vessel & harbor conditions...`,
+        title: `Day ${day}: ${customer.shipName}`,
+        message: `Summoning ${customer.customerName} & preparing harbor conditions...`,
         progress: 0.15
       });
       this.day = day;
@@ -964,7 +969,7 @@ export class GameState {
       const level = await LevelConfig.load(day);
       this._levelCfg = level.levelCfg;
       this._shipDef = level.shipDef;
-      this.initContract(day, this._levelCfg?.budget !== undefined ? this._levelCfg.budget : 200);
+      this.initContract(day, this._levelCfg?.budget !== undefined ? this._levelCfg.budget : customer.basePay);
       emit('updateLoading', { progress: 0.45 });
 
       // 2. Identify active ship & profile (Day 3 specifies 'sloop')
@@ -976,10 +981,13 @@ export class GameState {
       this._lastDockLevel = activeShipId;
       this._lastDockDay = this.day;
 
-      // 3. Reset ship arrival state so cutscene replays
+      // 3. Reset ship and NPC arrival state so cutscene replays for the selected day
       this._dockShipArrived = false;
       this._shipDocked = false;
       this._shipArriving = false;
+      if (this._dockStall && this._dockStall.dockNPC) {
+        this._dockStall.dockNPC.reset();
+      }
 
       // 4. Rebuild the ship voxel grid and models for the selected day
       const { grid, zones, def, gltfScene } = await ShipBuilder.build(activeShipDef, this._levelCfg);
@@ -1039,7 +1047,7 @@ export class GameState {
       const integrity = this._grid ? DamageSystem.getSummary(this._grid).integrityPct : 100;
       if (this._dockStall) {
         this._dockStall.shipNeedsRepair = integrity < 100;
-        this._dockStall.activeShipProfile = shipProfile;
+        this._dockStall.activeShipProfile = { ...shipProfile, name: customer?.shipName || shipProfile?.name };
         this._dockStall.shipInteractables = [];
       }
 
@@ -1293,7 +1301,11 @@ export class GameState {
     this._raycaster.build(this._grid, this._scene, this._chunkRenderer.container);
 
     // Budget manager for level repairs
-    const levelBudget = this.currentContract?.agreedBudget ?? (this._levelCfg?.budget !== undefined ? this._levelCfg.budget : 300);
+    if (!this.currentContract || this.currentContract.day !== this.day) {
+      const defaultBudget = this._levelCfg?.budget !== undefined ? this._levelCfg.budget : getCustomerForDay(this.day).basePay;
+      this.initContract(this.day, defaultBudget);
+    }
+    const levelBudget = this.currentContract?.agreedBudget ?? (this._levelCfg?.budget !== undefined ? this._levelCfg.budget : getCustomerForDay(this.day).basePay);
     if (!this._budgetManager) {
       this._budgetManager = new BudgetManager(levelBudget);
     } else {
@@ -1365,10 +1377,11 @@ export class GameState {
       const activeLeaks = DamageSystem.getActiveLeaks(this._grid, 4);
       const leaks = activeLeaks.length;
       const profile = ShipRegistry.get(activeShipId);
+      const customer = getCustomerForDay(this.day);
       emit('shipyardSummaryUpdated', {
         ...summary,
         leaks,
-        shipName: profile?.name || activeShipDef?.name || 'Vessel',
+        shipName: customer?.shipName || profile?.name || activeShipDef?.name || 'Vessel',
         shipIcon: profile?.icon || '<span class="pixel-icon icon-sloop size-20"></span>'
       });
     };

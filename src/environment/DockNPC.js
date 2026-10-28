@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { getAssetUrl } from '../utils/paths.js';
 
 /**
  * DockNPC — 2D Humanoid Sprite that walks from the island to the shop counter.
@@ -17,7 +18,7 @@ export class DockNPC {
 
     // Load custom NPC texture
     const loader = new THREE.TextureLoader();
-    this.texture = loader.load('/assets/npc/custom_npc.png');
+    this.texture = loader.load(getAssetUrl('assets/npc/custom_npc.png'));
     this.texture.colorSpace = THREE.SRGBColorSpace;
 
     // Cutout proportions (734 x 998)
@@ -80,6 +81,19 @@ export class DockNPC {
   }
 
   /**
+   * Reset NPC to initial hidden state at the start of the island trail.
+   */
+  reset() {
+    this.onArrivedCallback = null;
+    this.group.visible = false;
+    this.isWalking = false;
+    this.hasArrived = false;
+    this.walkTimer = 0;
+    this.arriveHopTimer = 0;
+    this.group.position.copy(this.waypoints[0]);
+  }
+
+  /**
    * Start walking from island towards the counter window.
    * @param {() => void} onArrived Callback when NPC reaches the counter
    */
@@ -89,6 +103,7 @@ export class DockNPC {
     this.isWalking = true;
     this.hasArrived = false;
     this.walkTimer = 0;
+    this.arriveHopTimer = 0;
     this.group.position.copy(this.waypoints[0]);
   }
 

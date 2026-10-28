@@ -3,7 +3,7 @@
   "hasDock": true,
   "ship": "sloop",
   "weather": "gale",
-  "budget": 600,
+  "budget": 1300,
   "damage": [
     { "zone": "sail", "cells": [[9,6,2]],                  "state": "DAMAGED" },
     { "zone": "mast", "cells": [[10,7,2]],                 "state": "DAMAGED" }
