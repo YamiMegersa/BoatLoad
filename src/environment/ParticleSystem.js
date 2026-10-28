@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { on, off } from '../core/EventBus.js';
 
 export function harpoonFlightDuration(distance) {
-  return THREE.MathUtils.clamp(distance / 42, 0.35, 0.6);
+  return THREE.MathUtils.clamp(distance / 85, 0.16, 0.32);
 }
 
 /**
@@ -11,7 +11,7 @@ export function harpoonFlightDuration(distance) {
 export function interpolateHarpoonFlight(start, end, t, arcHeight = null, out = new THREE.Vector3()) {
   const clampedT = THREE.MathUtils.clamp(t, 0, 1);
   const dist = start.distanceTo(end);
-  const lift = arcHeight !== null ? arcHeight : THREE.MathUtils.clamp(dist * 0.095, 0.85, 2.6);
+  const lift = arcHeight !== null ? arcHeight : THREE.MathUtils.clamp(dist * 0.04, 0.35, 1.1);
   out.lerpVectors(start, end, clampedT);
   out.y += 4 * clampedT * (1 - clampedT) * lift;
   return out;
@@ -31,17 +31,16 @@ export class ParticleSystem {
     this._geoBloodSplash = new THREE.BoxGeometry(0.3, 0.3, 0.3);
     this._matBloodSplash = new THREE.MeshLambertMaterial({ color: 0xaa0000, transparent: true, opacity: 0.9 });
 
-    // Harpoon projectile geometries:
+    // Harpoon projectile geometries (proportional ~1.85m vessel harpoon):
     // Note: THREE.Group.lookAt(target) aligns local +Z toward target.
-    // We place the spearhead penetration point at z = 0, tip at z = +0.55, and shaft extending back to z = -4.25.
-    this._geoHarpoon = new THREE.CylinderGeometry(0.13, 0.16, 3.8, 8);
+    // We place the spearhead penetration point at z = 0, tip at z = +0.28, and shaft extending back to z = -1.76.
+    this._geoHarpoon = new THREE.CylinderGeometry(0.055, 0.068, 1.55, 8);
     this._geoHarpoon.rotateX(Math.PI / 2); // aligned along Z axis
-    this._geoHarpoonCollar = new THREE.CylinderGeometry(0.19, 0.17, 0.42, 8);
+    this._geoHarpoonCollar = new THREE.CylinderGeometry(0.082, 0.075, 0.18, 8);
     this._geoHarpoonCollar.rotateX(Math.PI / 2);
-    this._geoHarpoonHead = new THREE.ConeGeometry(0.36, 1.05, 4);
+    this._geoHarpoonHead = new THREE.ConeGeometry(0.15, 0.46, 4);
     this._geoHarpoonHead.rotateX(Math.PI / 2); // cone apex points toward +Z (flight direction)
-    this._geoHarpoonBarb = new THREE.BoxGeometry(0.68, 0.09, 0.28);
-    this._geoHarpoonRing = new THREE.TorusGeometry(0.18, 0.045, 6, 12);
+    this._geoHarpoonBarb = new THREE.BoxGeometry(0.28, 0.045, 0.14);
 
     this._matHarpoon = new THREE.MeshLambertMaterial({ color: 0x7a4c28 });
     this._matHarpoonCollar = new THREE.MeshLambertMaterial({
@@ -226,41 +225,38 @@ export class ParticleSystem {
     // Tip-aligned harpoon assembly:
     // Local +Z is forward (the lookAt direction); z = 0 is the penetration point on impact.
     const head = new THREE.Mesh(this._geoHarpoonHead, this._matHarpoonHead);
-    head.position.z = 0.08;
+    head.position.z = 0.05;
 
     const leftBarb = new THREE.Mesh(this._geoHarpoonBarb, this._matHarpoonHead);
-    leftBarb.position.set(-0.24, 0, -0.18);
+    leftBarb.position.set(-0.10, 0, -0.07);
     leftBarb.rotation.y = 0.46;
 
     const rightBarb = new THREE.Mesh(this._geoHarpoonBarb, this._matHarpoonHead);
-    rightBarb.position.set(0.24, 0, -0.18);
+    rightBarb.position.set(0.10, 0, -0.07);
     rightBarb.rotation.y = -0.46;
 
     const collar = new THREE.Mesh(this._geoHarpoonCollar, this._matHarpoonCollar);
-    collar.position.z = -0.45;
+    collar.position.z = -0.18;
 
     const shaft = new THREE.Mesh(this._geoHarpoon, this._matHarpoon);
-    shaft.position.z = -2.35;
-
-    const tailRing = new THREE.Mesh(this._geoHarpoonRing, this._matHarpoonCollar);
-    tailRing.position.z = -4.28;
+    shaft.position.z = -0.98;
 
     const flash = new THREE.Mesh(this._geoCannonball, this._matHarpoonFlash);
-    flash.position.z = 0.2;
-    flash.scale.setScalar(2.1);
+    flash.position.z = 0.12;
+    flash.scale.setScalar(0.95);
 
-    group.add(shaft, head, leftBarb, rightBarb, flash, collar, tailRing);
+    group.add(shaft, head, leftBarb, rightBarb, flash, collar);
     group.position.copy(start);
 
     const distance = start.distanceTo(end);
     const duration = harpoonFlightDuration(distance);
-    const arcHeight = THREE.MathUtils.clamp(distance * 0.095, 0.85, 2.6);
+    const arcHeight = THREE.MathUtils.clamp(distance * 0.04, 0.35, 1.1);
     const velocity = end.clone().sub(start).multiplyScalar(1 / duration);
 
     const initialAim = interpolateHarpoonFlight(start, end, 0.08, arcHeight);
     group.lookAt(initialAim);
 
-    const tailWorld = new THREE.Vector3(0, 0, -4.28).applyMatrix4(group.matrixWorld);
+    const tailWorld = new THREE.Vector3(0, 0, -1.76).applyMatrix4(group.matrixWorld);
     const tetherGeometry = new THREE.BufferGeometry().setFromPoints([start, tailWorld]);
     const tetherMaterial = new THREE.LineBasicMaterial({
       color: 0xd8c396,
@@ -317,7 +313,7 @@ export class ParticleSystem {
       }
     }
     p.mesh.updateMatrixWorld(true);
-    const tailPos = new THREE.Vector3(0, 0, -4.28).applyMatrix4(p.mesh.matrixWorld);
+    const tailPos = new THREE.Vector3(0, 0, -1.76).applyMatrix4(p.mesh.matrixWorld);
     p.tether.geometry.setFromPoints([p.start, tailPos]);
     p.tether.geometry.attributes.position.needsUpdate = true;
   }
@@ -584,7 +580,6 @@ export class ParticleSystem {
     this._geoHarpoonCollar.dispose();
     this._geoHarpoonHead.dispose();
     this._geoHarpoonBarb.dispose();
-    this._geoHarpoonRing.dispose();
     this._matHarpoon.dispose();
     this._matHarpoonCollar.dispose();
     this._matHarpoonHead.dispose();

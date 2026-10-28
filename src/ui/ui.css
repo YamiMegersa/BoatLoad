@@ -6384,36 +6384,215 @@ body {
   }
 }
 
-@media (max-width: 600px) {
-  .qte-timing-station {
-    top: max(180px, calc(env(safe-area-inset-top) + 150px));
-    right: max(10px, env(safe-area-inset-right));
-    width: 168px;
-    padding: 5px;
+@media (max-width: 768px),
+(max-height: 540px) {
+
+  /* Scale peripheral HUD elements on mobile so the level & ship stay front-and-center */
+  #minimap {
+    top: max(8px, env(safe-area-inset-top));
+    right: max(8px, env(safe-area-inset-right));
+    transform: scale(0.54);
+    transform-origin: top right;
   }
 
-  .qte-dial {
-    width: 124px;
+  #hud-status-cluster {
+    top: max(42px, calc(env(safe-area-inset-top) + 36px));
+    left: max(8px, env(safe-area-inset-left));
+    transform: scale(0.78);
+    transform-origin: top left;
+  }
+
+  #hud-btn-pause {
+    top: max(8px, env(safe-area-inset-top)) !important;
+    left: max(82px, calc(env(safe-area-inset-left) + 74px)) !important;
+    transform: scale(0.84);
+    transform-origin: top left;
+  }
+
+  #hud-goal-distance {
+    top: max(8px, env(safe-area-inset-top)) !important;
+    font-size: 11px !important;
+    padding: 3px 9px !important;
+  }
+
+  #hud-wheel-container {
+    bottom: max(48px, calc(env(safe-area-inset-bottom) + 42px));
+    right: max(8px, env(safe-area-inset-right));
+  }
+
+  #hud-wheel {
+    width: clamp(104px, 27vw, 126px);
+    height: clamp(104px, 27vw, 126px);
+  }
+
+  #hud-pedestal {
+    width: clamp(138px, 35vw, 168px);
+    height: clamp(148px, 38vw, 182px);
+  }
+
+  .dark-souls-boss-bar {
+    bottom: max(6px, env(safe-area-inset-bottom));
+    width: calc(100vw - 20px);
+    max-width: 350px;
+    gap: 2px;
+  }
+
+  .boss-title {
+    font-size: 10px;
+    letter-spacing: 2px;
+  }
+
+  .boss-meta-row {
+    font-size: 8.5px;
+  }
+
+  #hud-mobile-harpoon {
+    left: max(12px, env(safe-area-inset-left));
+    bottom: max(172px, calc(env(safe-area-inset-bottom) + 166px));
+  }
+
+  #btn-mobile-harpoon {
+    width: 68px;
     height: 68px;
   }
 
+  .harpoon-text {
+    font-size: 9px;
+  }
+
+  /* Compact Mobile Static QTE Instruments — zero overlap, maximum viewport visibility */
+  .qte-station {
+    font-size: 9.5px;
+    box-shadow: 2px 2px 0 #3e2415, 0 4px 10px rgba(0, 0, 0, 0.5);
+  }
+
+  .qte-station.is-idle {
+    opacity: 0.36;
+  }
+
+  .qte-station-header {
+    padding: 2px 5px;
+    gap: 4px;
+  }
+
+  .qte-station-header .qte-label {
+    font-size: 9.5px;
+  }
+
+  .qte-state-pill,
+  .qte-progress {
+    font-size: 8.5px;
+    padding: 1px 4px;
+  }
+
+  .qte-station-footer {
+    padding: 2px 5px 1px;
+    min-height: 14px;
+  }
+
+  .qte-station-hint {
+    font-size: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .qte-result {
+    font-size: 9.5px;
+    min-height: 12px;
+  }
+
+  /* 1. Timing Chronometer: docked on top-right below the 108px scaled minimap */
+  .qte-timing-station {
+    top: max(122px, calc(env(safe-area-inset-top) + 114px));
+    right: max(8px, env(safe-area-inset-right));
+    width: 132px;
+    padding: 4px;
+    gap: 2px;
+  }
+
+  .qte-timing-station.is-active {
+    width: 144px;
+  }
+
+  .qte-dial {
+    width: 96px;
+    height: 50px;
+    margin: 1px 0;
+  }
+
+  .qte-needle {
+    bottom: 6px;
+    width: 3px;
+    height: 33px;
+  }
+
+  /* 2. Siren Ward: horizontal 8-pip gauge on left edge below Boat Status Cluster */
+  .qte-siren-station {
+    top: max(194px, calc(env(safe-area-inset-top) + 186px));
+    left: max(8px, env(safe-area-inset-left));
+    bottom: auto;
+    width: 118px;
+    height: auto;
+    padding: 4px 5px;
+    gap: 3px;
+  }
+
+  .qte-siren-header,
+  .qte-siren-footer {
+    flex-direction: row;
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .qte-siren-title {
+    font-size: 9.5px;
+  }
+
+  .qte-siren-hint {
+    font-size: 8px;
+  }
+
+  .qte-pips {
+    flex-direction: row;
+    height: 13px;
+    gap: 2px;
+    padding: 2px;
+  }
+
+  .qte-pips i {
+    flex: 1;
+    width: auto;
+    height: 100%;
+  }
+
+  /* 3. Bilge Pump: docked at bottom-left above Kraken boss bar; expands when active */
   .qte-bail-station {
-    bottom: max(16px, env(safe-area-inset-bottom));
-    left: max(10px, env(safe-area-inset-left));
-    width: 156px;
-    height: 184px;
+    bottom: max(48px, calc(env(safe-area-inset-bottom) + 42px));
+    left: max(8px, env(safe-area-inset-left));
+    width: 124px;
+    height: auto;
+    padding: 4px;
+    gap: 3px;
+  }
+
+  .qte-bail-station.touch-subdued {
+    opacity: 0.36;
   }
 
   .qte-bail-well {
-    width: 118px;
-    height: 118px;
+    width: 68px;
+    height: 68px;
+    transition: width 160ms ease, height 160ms ease;
   }
 
-  .qte-siren-station {
-    bottom: max(16px, env(safe-area-inset-bottom));
-    left: max(174px, calc(env(safe-area-inset-left) + 164px));
-    width: 62px;
-    height: 184px;
+  .qte-bail-station.is-active {
+    width: 146px;
+  }
+
+  .qte-bail-station.is-active .qte-bail-well {
+    width: 118px;
+    height: 118px;
   }
 }
 

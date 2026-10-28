@@ -71,6 +71,7 @@ export class QTEStationController {
         label: null,
         sweetSpot: [0.4, 0.6],
         result: null,
+        points: 0,
         queuedType: null,
         queuedLabel: null,
         seq: 0,
@@ -130,6 +131,7 @@ export class QTEStationController {
     entry.source = event.source ?? event?.metadata?.source ?? null;
     entry.label = event.label ?? event.type;
     entry.result = null;
+    entry.points = 0;
     if (entry.queuedType === event.type) {
       entry.queuedType = null;
       entry.queuedLabel = null;
@@ -165,6 +167,7 @@ export class QTEStationController {
     entry.source = event.source ?? event?.metadata?.source ?? null;
     entry.label = event.label ?? event.type;
     entry.result = null;
+    entry.points = 0;
     return station;
   }
 
@@ -183,6 +186,7 @@ export class QTEStationController {
     entry.seq += 1;
     entry.state = 'resolving';
     entry.result = result;
+    entry.points = Number.isFinite(event?.points) ? event.points : 0;
     this._active = null;
     return station;
   }
@@ -211,6 +215,7 @@ export class QTEStationController {
       entry.source = null;
       entry.label = null;
       entry.result = null;
+      entry.points = 0;
       entry.queuedType = null;
       entry.queuedLabel = null;
     }

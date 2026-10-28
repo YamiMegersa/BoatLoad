@@ -434,6 +434,14 @@ export class HUD {
       e.stopPropagation();
       if (this._activeQTEInput === 'mash') emit('qteInput', { kind: 'tap' });
     });
+    // Allow tapping the Bilge station header/footer on mobile/touch as the 50% bail assist equivalent of [SPACE]
+    this._stations.bail.addEventListener('pointerdown', (e) => {
+      if (this._activeQTEInput !== 'draw') return;
+      if (e.target === this._bailCanvas) return;
+      e.preventDefault();
+      e.stopPropagation();
+      emit('qteInput', { kind: 'bailAssist' });
+    });
 
     this._bailCanvas?.addEventListener('pointerdown', event => {
       if (this._activeQTEInput !== 'draw') return;
@@ -681,17 +689,17 @@ export class HUD {
     this._bonusBoxEl = null;
   }
 
-  _onScoreAdded({ points = 0, label = '', isPerfect = false }) {
+  _onScoreAdded({ points = 0, isPerfect = false }) {
     this._score += points;
     if (this._scoreEl) {
       this._scoreEl.textContent = this._score;
     }
 
-    // Spawn floating bonus text banner
-    if (this._bonusBoxEl) {
+    // Spawn floating "+[Number]" bonus text banner
+    if (this._bonusBoxEl && points > 0) {
       const floatEl = document.createElement('div');
       floatEl.className = 'floating-bonus-text' + (isPerfect ? ' perfect' : '');
-      floatEl.textContent = `+${points} ${label}`;
+      floatEl.textContent = `+${points}`;
       this._bonusBoxEl.appendChild(floatEl);
       setTimeout(() => floatEl.remove(), 1200);
     }
@@ -879,28 +887,32 @@ export class HUD {
         const defaultColor = entry.type === 'SHOOT' ? '#ff9800' : '#00bcd4';
         el.style.setProperty('--qte-theme', theme?.color ?? defaultColor);
         if (iconEl) iconEl.innerHTML = theme?.icon ?? defaultIcon;
-        if (labelEl) labelEl.textContent = entry.label || (entry.type === 'SHOOT' ? 'CANNON FIRE' : 'HARPOON LOCK');
-        if (pillEl) pillEl.textContent = entry.queuedType ? 'LOCKED +1' : 'LOCKED';
-        if (hintEl) hintEl.textContent = '[SPACE] / TAP STRIKE ZONE';
+        if (labelEl) labelEl.textContent = entry.label || (entry.type === 'SHOOT' ? 'CANNON' : 'HARPOON');
+        if (pillEl) pillEl.textContent = entry.queuedType ? 'LOCK+1' : 'LOCKED';
+        if (hintEl) hintEl.textContent = 'TAP / [SPACE] IN ZONE';
         if (resultEl) resultEl.textContent = '';
       } else if (entry.state === 'queued') {
         const queuedIcon = entry.type === 'SHOOT' ? CANNON_TIMING_ICON : DEFAULT_TIMING_ICON;
         if (iconEl) iconEl.innerHTML = theme?.icon ?? queuedIcon;
         if (labelEl) labelEl.textContent = entry.label || 'INCOMING';
         if (pillEl) pillEl.textContent = 'QUEUED';
-        if (hintEl) hintEl.textContent = 'STANDBY FOR LOCK...';
+        if (hintEl) hintEl.textContent = 'LOCKING TARGET...';
         if (resultEl) resultEl.textContent = '';
         el.style.setProperty('--qte-needle', '-90deg');
       } else if (entry.state === 'resolving') {
         if (pillEl) pillEl.textContent = entry.result || '';
-        if (resultEl) resultEl.textContent = entry.result ? `${entry.result}!` : '';
+        if (resultEl) {
+          resultEl.textContent = entry.points > 0
+            ? `+${entry.points}`
+            : (entry.result ? `${entry.result}!` : '');
+        }
       } else {
         el.style.setProperty('--qte-theme', '#d7b35a');
         el.style.setProperty('--qte-needle', '-90deg');
         if (iconEl) iconEl.innerHTML = DEFAULT_TIMING_ICON;
-        if (labelEl) labelEl.textContent = 'DECK ORDNANCE';
+        if (labelEl) labelEl.textContent = 'ORDNANCE';
         if (pillEl) pillEl.textContent = 'READY';
-        if (hintEl) hintEl.textContent = 'STANDBY · [SPACE]';
+        if (hintEl) hintEl.textContent = 'STANDBY · TAP / [SPACE]';
         if (resultEl) resultEl.textContent = '';
         if (timerFill) timerFill.style.width = '100%';
       }
@@ -910,9 +922,9 @@ export class HUD {
       const hintEl = el.querySelector('.qte-station-hint');
 
       if (entry.state === 'active') {
-        if (labelEl) labelEl.textContent = entry.label || 'BAIL WATER!';
+        if (labelEl) labelEl.textContent = entry.label || 'BAIL!';
         if (progressEl) progressEl.textContent = '0%';
-        if (hintEl) hintEl.textContent = 'TRACE CIRCLE · [SPACE] 50%';
+        if (hintEl) hintEl.textContent = 'TRACE RING · TAP BAR 50%';
         if (resultEl) resultEl.textContent = '';
       } else if (entry.state === 'queued') {
         if (labelEl) labelEl.textContent = 'BILGE PUMP';
@@ -925,7 +937,7 @@ export class HUD {
       } else {
         if (labelEl) labelEl.textContent = 'BILGE PUMP';
         if (progressEl) progressEl.textContent = 'DRY';
-        if (hintEl) hintEl.textContent = 'STANDBY · [SPACE] 50%';
+        if (hintEl) hintEl.textContent = 'STANDBY · TRACE / [SPACE]';
         if (resultEl) resultEl.textContent = '';
         if (timerFill) timerFill.style.width = '100%';
       }
@@ -935,7 +947,7 @@ export class HUD {
 
       if (entry.state === 'active') {
         if (titleEl) titleEl.textContent = 'RESIST!';
-        if (hintEl) hintEl.textContent = 'MASH [SPACE]';
+        if (hintEl) hintEl.textContent = 'TAP / [SPACE]';
         if (resultEl) resultEl.textContent = '';
       } else if (entry.state === 'queued') {
         if (titleEl) titleEl.textContent = 'SIREN';
@@ -1126,15 +1138,8 @@ export class HUD {
     context.stroke();
   }
 
-  /** Short "SHARK HARPOONED +points" confirmation at the top of the screen. */
-  _showSharkConfirm({ points = 0 } = {}) {
-    if (!this._bonusBoxEl) return;
-    const el = document.createElement('div');
-    el.className = 'shark-confirm-text';
-    el.textContent = `SHARK HARPOONED +${points}`;
-    this._bonusBoxEl.appendChild(el);
-    setTimeout(() => el.remove(), 1000);
-  }
+  /** No duplicate text banner needed since _onScoreAdded already shows "+[Number]". */
+  _showSharkConfirm() {}
 
   /** Non-blocking banner around the top of the screen (auto-hides after ~2 s). */
   _showBanner({ label = '' } = {}) {

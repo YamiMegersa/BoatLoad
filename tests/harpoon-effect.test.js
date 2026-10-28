@@ -8,15 +8,15 @@ import {
 } from '../src/environment/ParticleSystem.js';
 
 test('harpoon flight duration remains readable at close range', () => {
-  assert.equal(harpoonFlightDuration(2), 0.35);
+  assert.equal(harpoonFlightDuration(2), 0.16);
 });
 
 test('harpoon flight duration scales with ordinary target distance', () => {
-  assert.equal(harpoonFlightDuration(18), 18 / 42);
+  assert.equal(harpoonFlightDuration(18), 18 / 85);
 });
 
 test('harpoon flight duration is capped for distant targets', () => {
-  assert.equal(harpoonFlightDuration(100), 0.6);
+  assert.equal(harpoonFlightDuration(100), 0.32);
 });
 
 test('interpolateHarpoonFlight follows a parabolic ballistic arc and hits exact endpoints', () => {

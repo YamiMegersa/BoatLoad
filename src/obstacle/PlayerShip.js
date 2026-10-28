@@ -1429,6 +1429,7 @@ export class PlayerShip {
     const lanternMount = this._getBowLanternMountPosition();
     // Seat the swivel harpoon pedestal on the foredeck just aft of the bow lantern
     group.position.set(0, Math.max(1.18, lanternMount.y - 0.16), lanternMount.z + 0.54);
+    group.scale.setScalar(0.82);
 
     const ironMat = new THREE.MeshStandardMaterial({
       color: 0x2b3138,

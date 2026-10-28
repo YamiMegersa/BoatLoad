@@ -6,7 +6,7 @@ globalThis.window ??= {
   removeEventListener() { },
 };
 
-const { QTESystem } = await import('../src/obstacle/QTESystem.js');
+const { QTESystem, QTE_SOURCES, computePoints } = await import('../src/obstacle/QTESystem.js');
 const { clear, emit, on, off } = await import('../src/core/EventBus.js');
 
 test('QTE deduplication is per instance when an instance ID is provided', () => {
@@ -41,4 +41,13 @@ test('QTEs without an instance ID retain source-level duplicate protection', () 
 
   system.dispose();
   clear();
+});
+
+test('shark QTE awards extra doubloons capped at 25', () => {
+  const good = computePoints(QTE_SOURCES.shark, false, 1);
+  const perfect = computePoints(QTE_SOURCES.shark, true, 5);
+  assert.ok(good.points > 0 && good.points <= 25);
+  assert.ok(perfect.points > 0 && perfect.points <= 25);
+  assert.equal(good.points, 15);
+  assert.equal(perfect.points, 25);
 });

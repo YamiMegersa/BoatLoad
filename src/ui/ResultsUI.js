@@ -28,8 +28,10 @@ export class ResultsUI {
     const day = data.day || this.gameState.day || 1;
     const baseReward = data.baseReward || (150 + day * 75);
     const multiplier = data.multiplier || this.gameState.getPedestalMultiplier();
-    const totalAwarded = data.bonusCoins || Math.round(baseReward * multiplier);
-    const bonusFromPedestal = Math.max(0, totalAwarded - baseReward);
+    const sharkBonus = data.sharkBonus ?? Math.max(0, Math.round(this.gameState.score || 0));
+    const pedestalTotal = Math.round(baseReward * multiplier);
+    const bonusFromPedestal = Math.max(0, pedestalTotal - baseReward);
+    const totalAwarded = data.bonusCoins ?? (pedestalTotal + sharkBonus);
     const pedestalItem = ShopRegistry.getItem(this.gameState.equippedItems?.pedestal);
     const pedestalName = pedestalItem?.name || 'Weathered Oak Binnacle';
 
@@ -59,6 +61,14 @@ export class ResultsUI {
               <span class="ledger-subtext">${pedestalName}</span>
             </div>
             <span class="ledger-val highlight-gold">+${bonusFromPedestal} <span class="pixel-icon icon-doubloon size-16"></span></span>
+          </div>
+
+          <div class="ledger-row highlight">
+            <div class="ledger-mult-desc">
+              <span class="ledger-label">Shark Harpoon Bounty</span>
+              <span class="ledger-subtext">Successful Shark Attacks</span>
+            </div>
+            <span class="ledger-val highlight-gold">+${sharkBonus} <span class="pixel-icon icon-doubloon size-16"></span></span>
           </div>
 
           <div class="ledger-divider"></div>

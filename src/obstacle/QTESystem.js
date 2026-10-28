@@ -8,9 +8,9 @@ export const QTEType = Object.freeze({
 });
 
 export const QTE_SOURCES = Object.freeze({
-  // Shark harpoon hits are the only scored QTE (round-2 requirement);
+  // Shark harpoon hits grant extra doubloons (up to 25);
   // every other source resolves gameplay but awards no points.
-  shark: { type: QTEType.HARPOON, reward: 50, perfectReward: 75, streakBonus: false },
+  shark: { type: QTEType.HARPOON, reward: 15, perfectReward: 25, streakBonus: false },
   barrel: { type: QTEType.SHOOT, reward: 0, perfectReward: 0, streakBonus: false },
   siren: { type: QTEType.SIREN, reward: 0, perfectReward: 0, streakBonus: false },
   bail: { type: QTEType.BAIL, reward: 0, perfectReward: 0, streakBonus: false },

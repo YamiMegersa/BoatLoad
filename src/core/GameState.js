@@ -311,9 +311,11 @@ export class GameState {
     const day = this.day || 1;
     const baseReward = 150 + day * 75;
     const multiplier = this.getPedestalMultiplier();
-    const totalAwarded = Math.round(baseReward * multiplier);
+    const sharkBonus = Math.max(0, Math.round(this.score || 0));
+    const pedestalTotal = Math.round(baseReward * multiplier);
+    const totalAwarded = pedestalTotal + sharkBonus;
 
-    // Deposit earned doubloons
+    // Deposit earned doubloons (base voyage + pedestal bonus + shark harpoon doubloons)
     this.addCoins(totalAwarded);
 
     emit('uiMount', {
@@ -322,6 +324,7 @@ export class GameState {
         day,
         baseReward,
         multiplier,
+        sharkBonus,
         bonusCoins: totalAwarded
       }
     });

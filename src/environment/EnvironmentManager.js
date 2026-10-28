@@ -91,22 +91,12 @@ export class EnvironmentManager {
     // Rotate so the raked leading edge faces local +Z (swimming direction)
     this._telegraphGeometry.rotateY(-Math.PI / 2);
 
-    this._telegraphWakeGeometry = new THREE.RingGeometry(0.95, 1.55, 24);
-    this._telegraphOuterWakeGeo = new THREE.RingGeometry(1.75, 2.25, 24);
-
     this._telegraphMaterial = new THREE.MeshStandardMaterial({
       color: 0x243847,
       emissive: 0x102534,
       emissiveIntensity: 0.65,
       roughness: 0.35,
       metalness: 0.25,
-    });
-    this._telegraphWakeMaterial = new THREE.MeshBasicMaterial({
-      color: 0x9beeff,
-      transparent: true,
-      opacity: 0.75,
-      depthWrite: false,
-      side: THREE.DoubleSide,
     });
     this._ambientLight = scene.children.find(c => c.isAmbientLight || c.isHemisphereLight);
     this._sunLight = scene.getObjectByName('sunLight') || scene.children.find(c => c.isDirectionalLight && c.name !== 'moonLight');
@@ -410,21 +400,8 @@ export class EnvironmentManager {
               if (typeof playerShip.takeDamage === 'function') {
                 playerShip.takeDamage(15, 'shark');
               }
-              const launch = playerShip.triggerHarpoonFireAnimation?.()
-                ?? playerShip.getHarpoonLaunchTransform?.()
-                ?? { origin: playerShip.mesh.position.clone() };
               const surfaceTarget = shark.mesh.position.clone();
               surfaceTarget.y = this._surfaceY(surfaceTarget) + 0.15;
-              const missEnd = launch.origin.clone().lerp(surfaceTarget, 0.72);
-              missEnd.x += 2.2;
-              missEnd.y = this._surfaceY(missEnd);
-              emit('spawnParticles', {
-                type: 'harpoon',
-                start: launch.origin,
-                end: missEnd,
-                isMiss: true,
-                getOrigin: () => (playerShip.getHarpoonLaunchTransform?.()?.origin ?? launch.origin),
-              });
               emit('spawnParticles', { type: 'massiveSplash', position: surfaceTarget });
               emit('playSound', { sound: 'collision' });
             }
@@ -498,19 +475,8 @@ export class EnvironmentManager {
     const fin = new THREE.Mesh(this._telegraphGeometry, this._telegraphMaterial);
     fin.position.y = 0.58;
 
-    const wakeInner = new THREE.Mesh(this._telegraphWakeGeometry, this._telegraphWakeMaterial);
-    wakeInner.rotation.x = -Math.PI / 2;
-    wakeInner.position.y = 0.04;
-
-    const wakeOuter = new THREE.Mesh(
-      this._telegraphOuterWakeGeo || this._telegraphWakeGeometry,
-      this._telegraphWakeMaterial
-    );
-    wakeOuter.rotation.x = -Math.PI / 2;
-    wakeOuter.position.y = 0.03;
-
-    group.add(fin, wakeInner, wakeOuter);
-    group.userData = { fin, wakeInner, wakeOuter };
+    group.add(fin);
+    group.userData = { fin };
     group.visible = false;
     this._scene.add(group);
     return group;
@@ -524,17 +490,6 @@ export class EnvironmentManager {
     shark.telegraph.position.copy(shark.mesh.position);
     shark.telegraph.position.y = this._surfaceY(shark.mesh.position);
     shark.telegraph.rotation.y = shark.mesh.rotation.y;
-
-    const t = this._elapsedTime || 0;
-    const { wakeInner, wakeOuter } = shark.telegraph.userData || {};
-    if (wakeInner) {
-      const pulse1 = 0.92 + Math.sin(t * 6.0) * 0.14;
-      wakeInner.scale.setScalar(pulse1);
-    }
-    if (wakeOuter) {
-      const pulse2 = 0.95 + Math.cos(t * 4.5) * 0.18;
-      wakeOuter.scale.setScalar(pulse2);
-    }
   }
 
   _resolveHarpoonImpact(shark) {
@@ -776,10 +731,7 @@ export class EnvironmentManager {
     }
     this._sharks = [];
     this._telegraphGeometry?.dispose();
-    this._telegraphWakeGeometry?.dispose();
-    this._telegraphOuterWakeGeo?.dispose();
     this._telegraphMaterial?.dispose();
-    this._telegraphWakeMaterial?.dispose();
 
     if (this._windParticles) {
       this._windParticles.dispose();
