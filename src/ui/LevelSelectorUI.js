@@ -172,7 +172,7 @@ export class LevelSelectorUI {
     const values = dossierRight.querySelectorAll('.dossier-value');
     if (values[0]) values[0].textContent = lvl.vessel;
     if (values[1]) values[1].innerHTML = lvl.weather;
-    if (values[2]) values[2].innerHTML = lvl.budget;
+    if (values[2]) values[2].innerHTML = `${lvl.budget} <span class="dossier-bargain-tag" style="font-size:10px; color:#94a3b8; font-style:italic; margin-left:6px;">[Base Contract]</span>`;
     if (values[3]) values[3].textContent = lvl.hazard;
 
     const dispatchBody = dossierRight.querySelector('.dispatch-body');
@@ -321,53 +321,7 @@ export class LevelSelectorUI {
     emit('playSound', { sound: 'qte_success' });
 
     // Initialize dossier display for selected day
-    this._selectLevel(this._selectedDay || 1);
-  }
-
-  _selectLevel(day) {
-    if (!LEVEL_DOSSIERS[day]) return;
-    this._selectedDay = day;
-
-    if (!this._el) return;
-
-    // Update active card selected state
-    this._el.querySelectorAll('.level-card').forEach(card => {
-      const cardDay = parseInt(card.dataset.level, 10);
-      if (cardDay === day) {
-        card.classList.add('selected');
-      } else {
-        card.classList.remove('selected');
-      }
-    });
-
-    // Update right page dossier
-    const data = LEVEL_DOSSIERS[day];
-    const stampEl = this._el.querySelector('#dossier-stamp');
-    const titleEl = this._el.querySelector('#dossier-title');
-    const vesselEl = this._el.querySelector('#dossier-vessel');
-    const weatherEl = this._el.querySelector('#dossier-weather');
-    const budgetEl = this._el.querySelector('#dossier-budget');
-    const hazardEl = this._el.querySelector('#dossier-hazard');
-    const dispatchEl = this._el.querySelector('#dossier-dispatch-text');
-    const docketEl = this._el.querySelector('#dossier-docket-list');
-    const embarkTitleEl = this._el.querySelector('#embark-title');
-    const embarkSubEl = this._el.querySelector('#embark-sub');
-
-    if (stampEl) stampEl.innerText = data.stamp;
-    if (titleEl) titleEl.innerText = data.title;
-    if (vesselEl) vesselEl.innerText = data.vessel;
-    if (weatherEl) weatherEl.innerHTML = data.weather;
-    if (budgetEl) budgetEl.innerText = data.budget;
-    if (hazardEl) hazardEl.innerText = data.hazard;
-    if (dispatchEl) dispatchEl.innerText = `"${data.dispatch}"`;
-    if (embarkTitleEl) embarkTitleEl.innerText = data.embarkTitle;
-    if (embarkSubEl) embarkSubEl.innerText = data.embarkSub;
-
-    if (docketEl) {
-      docketEl.innerHTML = data.docket.map(item => `
-        <li><span class="docket-icon">${item.icon}</span> ${item.text}</li>
-      `).join('');
-    }
+    this._selectDay(this._selectedDay || 1);
   }
 
   close() {

@@ -85,11 +85,21 @@ export class GameState {
     this.shipId        = 'sloop';
     this.abilityInventory = [];
 
-    // Economy and Shop System
+    // Economy and Shop System (Unified Doubloons)
     this.coins = 350;
     this.inventory = ['wheel_default', 'pedestal_lvl0', 'lantern_lvl1'];
     this.equippedItems = ShopRegistry.getDefaultEquipped();
     this._loadEconomy();
+
+    // Active customer contract & sailing damage baseline
+    this.currentContract = {
+      day: 1,
+      baseBudget: 200,
+      bargainBonus: 0,
+      agreedBudget: 200,
+      spentOnRepairs: 0
+    };
+    this._sailInitialIntactCount = null;
 
     // Phase-specific instances (null when not active)
     this._grid          = null;
@@ -238,26 +248,50 @@ export class GameState {
     }
   }
 
-  addCoins(amount) {
-    if (typeof amount !== 'number' || isNaN(amount) || amount <= 0) return;
+  applyPayout(amount) {
+    if (typeof amount !== 'number' || isNaN(amount)) return;
     this.coins += Math.round(amount);
     this._saveEconomy();
     emit('economyUpdated', { coins: this.coins, inventory: this.inventory, equipped: this.equippedItems });
   }
 
+  addCoins(amount) {
+    if (typeof amount !== 'number' || isNaN(amount) || amount <= 0) return;
+    this.applyPayout(amount);
+  }
+
   spendCoins(amount) {
     if (typeof amount !== 'number' || isNaN(amount) || amount <= 0) return false;
-    if (this.coins < amount) return false;
+    if (this.coins < amount || this.coins < 0) return false;
     this.coins -= Math.round(amount);
     this._saveEconomy();
     emit('economyUpdated', { coins: this.coins, inventory: this.inventory, equipped: this.equippedItems });
     return true;
   }
 
+  initContract(day, baseBudget) {
+    const b = typeof baseBudget === 'number' && !isNaN(baseBudget) ? baseBudget : 200;
+    this.currentContract = {
+      day: day || this.day || 1,
+      baseBudget: b,
+      bargainBonus: 0,
+      agreedBudget: b,
+      spentOnRepairs: 0
+    };
+    emit('contractUpdated', { contract: this.currentContract });
+  }
+
+  setBargainBonus(bonus) {
+    if (!this.currentContract) return;
+    this.currentContract.bargainBonus = Math.max(0, Math.round(bonus));
+    this.currentContract.agreedBudget = this.currentContract.baseBudget + this.currentContract.bargainBonus;
+    emit('contractUpdated', { contract: this.currentContract });
+  }
+
   buyItem(itemId) {
     const item = ShopRegistry.getItem(itemId);
     if (!item) return false;
-    if (this.coins < item.cost) {
+    if (this.coins < item.cost || this.coins < 0) {
       emit('playSound', { sound: 'qte_fail' });
       return false;
     }
@@ -312,24 +346,74 @@ export class GameState {
 
   async _enterResults(opts = {}) {
     const day = this.day || 1;
-    const baseReward = 150 + day * 75;
-    const multiplier = this.getPedestalMultiplier();
-    const totalAwarded = Math.round(baseReward * multiplier);
+    const isPassed = opts.passed !== false && !opts.isSunk;
+    const isSunk = !!opts.isSunk;
 
-    // Deposit earned doubloons
-    this.addCoins(totalAwarded);
+    // 1. Customer Repair Contract Accounting
+    const baseBudget = this.currentContract?.baseBudget ?? (this._levelCfg?.budget !== undefined ? this._levelCfg.budget : 200);
+    const bargainBonus = this.currentContract?.bargainBonus ?? 0;
+    const agreedBudget = baseBudget + bargainBonus;
+    const repairSpent = this.currentContract?.spentOnRepairs ?? (this._budgetManager?.spent ?? 0);
+    const leftoverProfit = agreedBudget - repairSpent;
+
+    // 2. Sailing Rewards & Bonuses
+    const baseReward = isPassed ? (150 + day * 75) : 0;
+    const multiplier = isPassed ? this.getPedestalMultiplier() : 1.0;
+    const sailingBonus = Math.round(baseReward * multiplier);
+    const pedestalBonus = Math.max(0, sailingBonus - baseReward);
+
+    // 3. Incurred Voyage Damage Penalty
+    let damageDiff = 0;
+    if (this._grid) {
+      const currentIntact = DamageSystem.getSummary(this._grid).intact;
+      if (this._sailInitialIntactCount !== null && this._sailInitialIntactCount !== undefined) {
+        damageDiff = Math.max(0, this._sailInitialIntactCount - currentIntact);
+      }
+    }
+    const VOXEL_DAMAGE_RATE = 8;
+    const voxelDamageCost = damageDiff * VOXEL_DAMAGE_RATE;
+    const totalDamageIncurred = voxelDamageCost;
+
+    // 4. Net Settlement Payout (can be negative into debt)
+    const netPayout = leftoverProfit + sailingBonus - totalDamageIncurred;
+    const previousCoins = this.coins;
+    this.applyPayout(netPayout);
 
     emit('uiMount', {
       screen: 'results',
       data: {
         day,
-        baseReward,
-        multiplier,
-        bonusCoins: totalAwarded
+        isPassed,
+        isSunk,
+        contract: {
+          baseBudget,
+          bargainBonus,
+          agreedBudget,
+          repairSpent,
+          leftoverProfit
+        },
+        sailing: {
+          baseReward,
+          multiplier,
+          pedestalBonus,
+          sailingBonus
+        },
+        damage: {
+          damagedVoxels: damageDiff,
+          voxelDamageCost,
+          totalDamageIncurred
+        },
+        netPayout,
+        previousCoins,
+        currentCoins: this.coins
       }
     });
 
-    emit('playSound', { sound: 'success' });
+    if (isPassed) {
+      emit('playSound', { sound: 'success' });
+    } else {
+      emit('playSound', { sound: 'qte_fail' });
+    }
   }
 
   _exitResults() {
@@ -851,6 +935,7 @@ export class GameState {
       const level = await LevelConfig.load(day);
       this._levelCfg = level.levelCfg;
       this._shipDef = level.shipDef;
+      this.initContract(day, this._levelCfg?.budget !== undefined ? this._levelCfg.budget : 200);
       emit('updateLoading', { progress: 0.45 });
 
       // 2. Identify active ship & profile (Day 3 specifies 'sloop')
@@ -1177,7 +1262,7 @@ export class GameState {
     this._raycaster.build(this._grid, this._scene, this._chunkRenderer.container);
 
     // Budget manager for level repairs
-    const levelBudget = this._levelCfg?.budget !== undefined ? this._levelCfg.budget : 300;
+    const levelBudget = this.currentContract?.agreedBudget ?? (this._levelCfg?.budget !== undefined ? this._levelCfg.budget : 300);
     if (!this._budgetManager) {
       this._budgetManager = new BudgetManager(levelBudget);
     } else {
@@ -1320,6 +1405,10 @@ export class GameState {
       this._scene.remove(this._debugShark);
       this._debugShark     = null;
       this._debugSharkAnim = null;
+    }
+
+    if (this._budgetManager && this.currentContract) {
+      this.currentContract.spentOnRepairs = this._budgetManager.spent;
     }
 
     this._zones         = null;
@@ -1586,6 +1675,12 @@ export class GameState {
       this._sailSnapshot = this._grid.snapshot();
     }
 
+    // Record starting intact voxel count for voyage damage penalty calculation
+    if (this._grid) {
+      const summary = DamageSystem.getSummary(this._grid);
+      this._sailInitialIntactCount = summary.intact;
+    }
+
     const qteTuning = { ...(levelCfg?.qte ?? {}) };
     if (levelCfg?.tutorialPrompts) qteTuning.windowScale = (qteTuning.windowScale ?? 1) * 1.25;
     this._qteSystem = new QTESystem(qteTuning, levelCfg?.rewardAbilities);
@@ -1706,10 +1801,10 @@ export class GameState {
     this._onSharkHit = () => { this._camImpulse = 0.08; };
     on('sharkHitConfirmed', this._onSharkHit);
 
-    // When player sinks, capture the wreck (so its damage persists into the
-    // shipyard) and transition to results.
+    // When player sinks, do not carry over the wreck snapshot so the run
+    // resets with the original level budget as if they did not sail at all.
     this._onPlayerSunk = () => {
-      this._sinkSnapshot = this._grid?.snapshot() ?? null;
+      this._sinkSnapshot = null;
       emit('voyageLost');
     };
     on('playerSunk', this._onPlayerSunk);

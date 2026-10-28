@@ -116,15 +116,15 @@ export class BuildMenu {
             </div>
           </div>
 
-          <!-- Repair Funds -->
-          <div class="hud-stat-box hud-budget-box" title="Funds available for hull timber and plates">
+          <!-- Repair Funds & Customer Contract -->
+          <div class="hud-stat-box hud-budget-box" title="Customer repair contract funds & est. profit margin">
             <div class="hud-budget-top">
-              <span class="hud-stat-label">REPAIR FUNDS</span>
-              <span class="hud-budget-spent" id="hud-spent-val">Spent: $0</span>
+              <span class="hud-stat-label">REPAIR CONTRACT</span>
+              <span class="hud-budget-spent" id="hud-spent-val">Spent: 0 <span class="pixel-icon icon-doubloon size-12"></span></span>
             </div>
             <div class="hud-stat-value-row">
-              <span class="hud-stat-number gold-text" id="hud-remaining-val">$300</span>
-              <span class="hud-budget-total" id="hud-total-val">/ $300</span>
+              <span class="hud-stat-number gold-text" id="hud-remaining-val">+300 <span class="pixel-icon icon-doubloon size-14"></span></span>
+              <span class="hud-budget-total" id="hud-total-val">Profit (Budget: 300)</span>
             </div>
           </div>
         </div>
@@ -273,7 +273,7 @@ export class BuildMenu {
       const tile = document.createElement('button');
       tile.className = `shelf-btn material-shelf-btn ${isSelected ? 'tool-active' : ''}`;
       tile.dataset.materialId = id;
-      tile.title = `${mat.name} ($${mat.unitCost})\n${mat.durabilityHP} HP • ${mat.description}`;
+      tile.title = `${mat.name} (${mat.unitCost} Doubloons)\n${mat.durabilityHP} HP • ${mat.description}`;
 
       const hexStr = '#' + mat.color.toString(16).padStart(6, '0');
 
@@ -282,7 +282,7 @@ export class BuildMenu {
           <span class="swatch-key">${index}</span>
         </div>
         <span class="shelf-btn-text">${mat.name}</span>
-        <span class="material-cost-tag">$${mat.unitCost}</span>
+        <span class="material-cost-tag"><span class="pixel-icon icon-doubloon size-10"></span> ${mat.unitCost}</span>
       `;
 
       tile.addEventListener('click', () => {
@@ -372,26 +372,48 @@ export class BuildMenu {
       }
     }
 
-    // 4. Budget
+    // 4. Budget & Profit Margin
     const remaining = this._budgetData.remaining ?? 300;
     const total = this._budgetData.total ?? 300;
     const spent = this._budgetData.spent ?? 0;
+    const profit = this._budgetData.leftoverProfit ?? (total - spent);
 
     const remainingVal = this._el.querySelector('#hud-remaining-val');
     const totalVal = this._el.querySelector('#hud-total-val');
     const spentVal = this._el.querySelector('#hud-spent-val');
+    const budgetBox = this._el.querySelector('.hud-budget-box');
+
+    if (budgetBox) {
+      if (profit < 0) {
+        budgetBox.classList.add('over-budget');
+      } else {
+        budgetBox.classList.remove('over-budget');
+      }
+    }
 
     if (remainingVal) {
-      remainingVal.textContent = total === Infinity ? 'Unlimited' : `$${remaining}`;
-      if (remaining <= 20) remainingVal.style.color = '#ef4444';
-      else if (remaining <= 60) remainingVal.style.color = '#f59e0b';
-      else remainingVal.style.color = '#fbbf24';
+      if (total === Infinity) {
+        remainingVal.textContent = 'Unlimited';
+        remainingVal.style.color = '#fbbf24';
+      } else {
+        const sign = profit >= 0 ? '+' : '';
+        remainingVal.innerHTML = `${sign}${profit} <span class="pixel-icon icon-doubloon size-14"></span>`;
+        if (profit < 0) remainingVal.style.color = '#ef4444';
+        else if (profit <= 25) remainingVal.style.color = '#f59e0b';
+        else remainingVal.style.color = '#fbbf24';
+      }
     }
     if (totalVal) {
-      totalVal.textContent = total === Infinity ? '' : `/ $${total}`;
+      if (total === Infinity) {
+        totalVal.textContent = '';
+      } else if (profit < 0) {
+        totalVal.textContent = `DEFICIT (From Purse)`;
+      } else {
+        totalVal.textContent = `Profit (Budget: ${total})`;
+      }
     }
     if (spentVal) {
-      spentVal.textContent = `Spent: $${spent}`;
+      spentVal.innerHTML = `Spent: ${spent} <span class="pixel-icon icon-doubloon size-12"></span>`;
     }
   }
 }

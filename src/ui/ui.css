@@ -201,6 +201,17 @@ body {
   color: #94a3b8;
 }
 
+.shipyard-top-bar .hud-budget-box.over-budget {
+  background: rgba(239, 68, 68, 0.18) !important;
+  border-color: #ef4444 #7f1d1d #450a0a #b91c1c !important;
+  box-shadow: inset 1px 1px 0 rgba(239, 68, 68, 0.4), 0 0 10px rgba(239, 68, 68, 0.35) !important;
+}
+
+.shipyard-top-bar .hud-budget-box.over-budget .hud-stat-label,
+.shipyard-top-bar .hud-budget-box.over-budget .hud-budget-total {
+  color: #fca5a5 !important;
+}
+
 @keyframes leakPulse {
   0% { border-color: rgba(239, 68, 68, 0.4); box-shadow: 0 0 0 rgba(239, 68, 68, 0); }
   100% { border-color: rgba(239, 68, 68, 1.0); box-shadow: 0 0 12px rgba(239, 68, 68, 0.5); }
@@ -5456,6 +5467,75 @@ body {
   font-size: 15px;
   font-weight: 700;
   color: #ffd700;
+}
+
+.ledger-section-title {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #38bdf8;
+  margin-top: 8px;
+  margin-bottom: 2px;
+  font-family: 'Cinzel', serif, Georgia;
+}
+
+.ledger-divider.thick {
+  height: 3px;
+  background: #3b506d;
+}
+
+.text-penalty {
+  color: #f87171 !important;
+}
+
+.total-debt {
+  color: #ef4444 !important;
+  font-size: 18px !important;
+  text-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+  font-weight: 800;
+}
+
+.debt-negative {
+  color: #ef4444 !important;
+  text-shadow: 0 0 6px rgba(239, 68, 68, 0.4);
+}
+
+.debt-tag {
+  color: #ef4444;
+  font-size: 11px;
+  font-weight: 800;
+  margin-left: 4px;
+}
+
+.title-wreck {
+  color: #ef4444 !important;
+  text-shadow: 0 0 10px rgba(239, 68, 68, 0.5) !important;
+}
+
+.crest-wreck {
+  border-color: #ef4444 !important;
+  background: #2a1215 !important;
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.4) !important;
+}
+
+.action-priority {
+  animation: pulsePriority 2s infinite ease-in-out;
+  border-color: #ffd700 !important;
+}
+
+@keyframes pulsePriority {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 6px rgba(234, 179, 8, 0.4); }
+  50% { transform: scale(1.02); box-shadow: 0 0 12px rgba(234, 179, 8, 0.7); }
+}
+
+.shop-wallet-pill.debt {
+  border-color: #ef4444 !important;
+  background: #2a1215 !important;
+}
+
+.shop-wallet-coins.debt {
+  color: #ef4444 !important;
+  text-shadow: 0 0 8px rgba(239, 68, 68, 0.5) !important;
 }
 
 .ledger-wallet-row {

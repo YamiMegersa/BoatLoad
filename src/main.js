@@ -489,6 +489,11 @@ on('buildError', (d) => {
   showNotice(`<span class="pixel-icon icon-powder-keg size-16"></span> ${d.message}`);
 });
 
+on('budgetExceeded', (d) => {
+  logEvent(`[Shipyard] Budget exceeded by ${d.deficit} Doubloons`);
+  showNotice(`<span class="pixel-icon icon-doubloon size-16"></span> ⚠️ OVER BUDGET: Exceeded customer budget by ${d.deficit} Doubloons! Extra repairs will come from your purse.`, 6000);
+});
+
 // ---------------------------------------------------------------------------
 // Boot
 // ---------------------------------------------------------------------------
@@ -626,8 +631,12 @@ async function boot() {
     on('playerSunk',         () => logEvent('[SUNK] Game Over'));
     on('voyageLost', async () => {
       setPaused(false);
-      showNotice('Voyage lost — repair the wreck before setting sail again.', 6000);
-      await gameState.transition(GamePhase.SHIPYARD, shipyardPayload());
+      showNotice('<span class="pixel-icon icon-skull size-16"></span> Vessel sunk! Resetting vessel and contract with original budget...', 5000);
+      gameState._sinkSnapshot = null;
+      gameState._grid = null;
+      const baseBudget = gameState._levelCfg?.budget !== undefined ? gameState._levelCfg.budget : (level.levelCfg?.budget !== undefined ? level.levelCfg.budget : 200);
+      gameState.initContract(gameState.day, baseBudget);
+      await gameState.transition(GamePhase.SHIPYARD, { ...shipyardPayload(), forceNew: true });
     });
 
     on('levelSelected', async ({ day }) => {
