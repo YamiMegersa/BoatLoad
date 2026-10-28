@@ -61,7 +61,7 @@ body {
 
 .shipyard-brand-icon {
   font-size: 18px;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.6));
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
 }
 
 .shipyard-brand-text {
@@ -202,8 +202,15 @@ body {
 }
 
 @keyframes leakPulse {
-  0% { border-color: rgba(239, 68, 68, 0.4); box-shadow: 0 0 0 rgba(239, 68, 68, 0); }
-  100% { border-color: rgba(239, 68, 68, 1.0); box-shadow: 0 0 12px rgba(239, 68, 68, 0.5); }
+  0% {
+    border-color: rgba(239, 68, 68, 0.4);
+    box-shadow: 0 0 0 rgba(239, 68, 68, 0);
+  }
+
+  100% {
+    border-color: rgba(239, 68, 68, 1.0);
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.5);
+  }
 }
 
 .warning-pulse {
@@ -257,7 +264,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
 }
 
 .swatch-key {
@@ -304,11 +311,9 @@ body {
   overflow-y: auto;
   box-sizing: border-box;
   background-color: var(--panel-paper);
-  background-image: repeating-linear-gradient(
-    0deg,
-    transparent 0 7px,
-    rgba(74, 43, 26, 0.035) 7px 8px
-  );
+  background-image: repeating-linear-gradient(0deg,
+      transparent 0 7px,
+      rgba(74, 43, 26, 0.035) 7px 8px);
   color: var(--panel-text);
   padding: 12px;
   border: 4px solid var(--panel-edge);
@@ -551,6 +556,7 @@ body {
   flex: 1;
   line-height: 1.4;
 }
+
 #dlg-next {
   align-self: flex-end;
   background: #3a5a3a;
@@ -835,8 +841,15 @@ body {
 }
 
 @keyframes witcherFloodPulse {
-  0% { fill: #dc2626; filter: drop-shadow(0 0 4px #ef4444); }
-  100% { fill: #38bdf8; filter: drop-shadow(0 0 8px #38bdf8); }
+  0% {
+    fill: #dc2626;
+    filter: drop-shadow(0 0 4px #ef4444);
+  }
+
+  100% {
+    fill: #38bdf8;
+    filter: drop-shadow(0 0 8px #38bdf8);
+  }
 }
 
 /* Status Readout */
@@ -866,13 +879,23 @@ body {
 }
 
 @keyframes witcherStatusGlow {
-  0% { opacity: 0.85; }
-  100% { opacity: 1; }
+  0% {
+    opacity: 0.85;
+  }
+
+  100% {
+    opacity: 1;
+  }
 }
 
 @keyframes witcherCriticalGlow {
-  0% { transform: scale(0.97); }
-  100% { transform: scale(1.05); }
+  0% {
+    transform: scale(0.97);
+  }
+
+  100% {
+    transform: scale(1.05);
+  }
 }
 
 /* Rising Water Fill Mask */
@@ -908,8 +931,13 @@ body {
 }
 
 @keyframes waterWaveRippling {
-  0% { transform: translateY(0) scaleY(0.8); }
-  100% { transform: translateY(1.5px) scaleY(1.3); }
+  0% {
+    transform: translateY(0) scaleY(0.8);
+  }
+
+  100% {
+    transform: translateY(1.5px) scaleY(1.3);
+  }
 }
 
 /* Floating Nautical Info Pill: Day & Score */
@@ -971,8 +999,15 @@ body {
 }
 
 @keyframes bossBarFadeIn {
-  from { opacity: 0; transform: translate(-50%, 15px); }
-  to { opacity: 1; transform: translate(-50%, 0); }
+  from {
+    opacity: 0;
+    transform: translate(-50%, 15px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
 }
 
 .boss-decorations {
@@ -1079,14 +1114,17 @@ body {
     opacity: 0;
     transform: translate(-50%, 0) scale(0.7);
   }
+
   20% {
     opacity: 1;
     transform: translate(-50%, -20px) scale(1.15);
   }
+
   80% {
     opacity: 1;
     transform: translate(-50%, -55px) scale(1);
   }
+
   100% {
     opacity: 0;
     transform: translate(-50%, -85px) scale(0.9);
@@ -1114,14 +1152,17 @@ body {
     opacity: 0;
     transform: translate(-50%, 12px) scale(0.8);
   }
+
   15% {
     opacity: 1;
     transform: translate(-50%, 0) scale(1.1);
   }
+
   65% {
     opacity: 1;
     transform: translate(-50%, 0) scale(1);
   }
+
   100% {
     opacity: 0;
     transform: translate(-50%, -16px) scale(1);
@@ -1167,12 +1208,11 @@ body {
 
 /* Siren pull: the wheel & pedestal take on a violet glow scaled by pull intensity */
 #hud-wheel-container.siren-pull #hud-wheel {
-  filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.5))
-          drop-shadow(0 0 calc(8px + var(--siren-pull, 0) * 22px) rgba(255, 102, 204, 0.9));
+  filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 calc(8px + var(--siren-pull, 0) * 22px) rgba(255, 102, 204, 0.9));
 }
+
 #hud-wheel-container.siren-pull #hud-pedestal {
-  filter: drop-shadow(0 14px 28px rgba(0, 0, 0, 0.85))
-          drop-shadow(0 0 calc(8px + var(--siren-pull, 0) * 20px) rgba(255, 102, 204, 0.8));
+  filter: drop-shadow(0 14px 28px rgba(0, 0, 0, 0.85)) drop-shadow(0 0 calc(8px + var(--siren-pull, 0) * 20px) rgba(255, 102, 204, 0.8));
 }
 
 @media (max-width: 768px) {
@@ -1180,15 +1220,18 @@ body {
     bottom: 15px;
     right: 15px;
   }
+
   #hud-wheel {
     width: clamp(150px, 42vw, 220px);
     height: clamp(150px, 42vw, 220px);
   }
+
   #hud-pedestal {
     width: clamp(200px, 58vw, 300px);
     height: clamp(220px, 64vw, 340px);
     transform: translate(-50%, -42%);
   }
+
   #hud-score {
     top: 15px;
     right: 100px;
@@ -1243,8 +1286,15 @@ body {
 }
 
 @keyframes harpoonPulse {
-  0% { transform: scale(1); box-shadow: 0 0 15px rgba(229, 57, 53, 0.6); }
-  100% { transform: scale(1.08); box-shadow: 0 0 28px rgba(255, 235, 59, 0.95); }
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 15px rgba(229, 57, 53, 0.6);
+  }
+
+  100% {
+    transform: scale(1.08);
+    box-shadow: 0 0 28px rgba(255, 235, 59, 0.95);
+  }
 }
 
 /* Siren pull edge cues */
@@ -1300,160 +1350,6 @@ body {
   opacity: 0;
 }
 
-/* Interactive QTE Reticle Prompt */
-#hud-qte {
-  position: fixed;
-  top: 70%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  z-index: 150;
-  pointer-events: auto;
-  cursor: pointer;
-  user-select: none;
-  touch-action: manipulation;
-  padding: 16px 24px;
-  border-radius: 0;
-  background: #17242b;
-  border: 4px solid #d7b35a;
-  box-shadow: 4px 4px 0 #4a2b1a, 8px 8px 0 rgba(7, 12, 16, 0.55);
-  backdrop-filter: none;
-  transition: opacity 100ms steps(3, end);
-}
-
-/* Rapid fade-out on success/failure so the prompt clears the hit reaction */
-#hud-qte.qte-hiding {
-  opacity: 0;
-  transform: translate(-50%, -50%) scale(0.85);
-  pointer-events: none;
-}
-
-#hud-qte:hover {
-  transform: translate(-50%, -50%) scale(1.05);
-  box-shadow: 0 0 35px rgba(255, 152, 0, 0.9);
-}
-
-#hud-qte:active {
-  transform: translate(-50%, -50%) scale(0.96);
-}
-
-#hud-qte-action {
-  font-size: 22px;
-  font-weight: 900;
-  color: var(--qte-theme, #ff9800);
-  text-transform: uppercase;
-  letter-spacing: 2px;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
-  margin-bottom: 4px;
-}
-
-#hud-qte-key {
-  font-size: 20px;
-  font-weight: bold;
-  color: #ffffff;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
-  margin-bottom: 8px;
-}
-
-#hud-qte-ring {
-  width: 84px;
-  height: 84px;
-}
-
-#hud-qte-ring .track {
-  fill: none;
-  stroke: rgba(0, 0, 0, 0.6);
-  stroke-width: 4;
-}
-
-#hud-qte-ring .fill {
-  fill: none;
-  stroke: #ff9800;
-  stroke-width: 5;
-  stroke-dasharray: 100 100;
-  stroke-dashoffset: 0;
-  transform: rotate(-90deg);
-  transform-origin: 50% 50%;
-}
-
-#hud-qte-meter {
-  position: relative;
-  width: min(260px, 70vw);
-  height: 16px;
-  margin-top: 8px;
-  overflow: hidden;
-  border: 2px solid #f5dfaa;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.75);
-}
-
-#hud-qte-meter .qte-sweet-spot {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  background: #4caf50;
-}
-
-#hud-qte-meter .qte-indicator {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 3px;
-  background: #fff;
-  box-shadow: 0 0 6px #fff;
-}
-
-#hud-qte-meter.mash .qte-sweet-spot {
-  display: none;
-}
-
-#hud-qte-meter.mash .qte-indicator {
-  width: 0;
-  background: linear-gradient(90deg, #ff9800, #ffeb3b);
-  box-shadow: none;
-  transition: width 80ms ease-out;
-}
-
-#hud-qte-meter.alternate .qte-sweet-spot {
-  display: none;
-}
-
-#hud-qte-meter.alternate .qte-indicator {
-  width: 0;
-  background: linear-gradient(90deg, #d36cff, #ff66cc);
-  box-shadow: none;
-  transition: width 80ms ease-out;
-}
-
-#hud-qte-alternate {
-  width: min(300px, 80vw);
-  gap: 12px;
-  margin-top: 10px;
-}
-
-#hud-qte-alternate button {
-  flex: 1;
-  min-height: 60px;
-  border: 2px solid #ffb5e6;
-  border-radius: 8px;
-  background: #6b285f;
-  color: #fff;
-  font-weight: 900;
-  touch-action: manipulation;
-}
-
-#hud-qte-progress {
-  min-height: 18px;
-  margin-top: 4px;
-  color: #fff;
-  font-weight: 800;
-  font-size: 14px;
-}
-
 #hud-qte-debug {
   color: #fff;
   font-size: 12px;
@@ -1471,18 +1367,6 @@ body {
 }
 
 @media (max-width: 600px) {
-  #hud-qte {
-    top: 29vh;
-    right: 10px;
-    width: min(280px, calc(100vw - 20px));
-    padding: 10px 12px;
-  }
-
-  #hud-qte-key {
-    font-size: 15px;
-    text-align: center;
-  }
-
   #hud-mobile-harpoon {
     left: 20px;
     bottom: max(20px, env(safe-area-inset-bottom));
@@ -1519,8 +1403,15 @@ body {
 }
 
 @keyframes pauseFadeIn {
-  from { opacity: 0; transform: scale(0.98); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .pause-modal-card {
@@ -1798,12 +1689,12 @@ body {
   box-shadow: 0 0 20px rgba(56, 189, 248, 0.25);
 }
 
-.setting-item.auto-perf-card.active .switch-wrap input:checked + .switch-slider {
+.setting-item.auto-perf-card.active .switch-wrap input:checked+.switch-slider {
   background-color: #0284c7;
   border-color: #38bdf8;
 }
 
-.setting-item.auto-perf-card.active .switch-wrap input:checked + .switch-slider:before {
+.setting-item.auto-perf-card.active .switch-wrap input:checked+.switch-slider:before {
   background-color: #ffffff;
 }
 
@@ -1831,8 +1722,17 @@ body {
 }
 
 @keyframes autoPerfDot {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.4; transform: scale(0.85); }
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.4;
+    transform: scale(0.85);
+  }
 }
 
 .preset-chip.active {
@@ -1971,12 +1871,12 @@ body {
   border-radius: 0;
 }
 
-.switch-wrap input:checked + .switch-slider {
+.switch-wrap input:checked+.switch-slider {
   background-color: #3b280a;
   border-color: #ffd700;
 }
 
-.switch-wrap input:checked + .switch-slider:before {
+.switch-wrap input:checked+.switch-slider:before {
   transform: translateX(18px);
   background-color: #ffd700;
 }
@@ -2227,8 +2127,15 @@ body {
 }
 
 @keyframes dropdownFade {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .dropdown-item {
@@ -2965,12 +2872,12 @@ body {
   transition: all 0.2s;
 }
 
-.editor-toggle-switch input:checked + .toggle-slider {
+.editor-toggle-switch input:checked+.toggle-slider {
   background: #3b280a;
   border-color: #ffd700;
 }
 
-.editor-toggle-switch input:checked + .toggle-slider::before {
+.editor-toggle-switch input:checked+.toggle-slider::before {
   transform: translateX(15px);
   background: #ffd700;
 }
@@ -3149,8 +3056,13 @@ body {
 }
 
 @keyframes modalFade {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .editor-modal-card {
@@ -3305,8 +3217,15 @@ body {
 }
 
 @keyframes toastSlideUp {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .toast-icon {
@@ -3331,19 +3250,41 @@ body {
 }
 
 @keyframes menuFadeIn {
-  from { opacity: 0; transform: scale(0.96); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 @keyframes seaBob {
-  0% { transform: translateY(0px) rotate(0deg); }
-  50% { transform: translateY(-7px) rotate(0.4deg); }
-  100% { transform: translateY(0px) rotate(0deg); }
+  0% {
+    transform: translateY(0px) rotate(0deg);
+  }
+
+  50% {
+    transform: translateY(-7px) rotate(0.4deg);
+  }
+
+  100% {
+    transform: translateY(0px) rotate(0deg);
+  }
 }
 
 @keyframes crestShine {
-  0%, 100% { filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.35)); }
-  50% { filter: drop-shadow(0 0 22px rgba(255, 225, 80, 0.75)); }
+
+  0%,
+  100% {
+    filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.35));
+  }
+
+  50% {
+    filter: drop-shadow(0 0 22px rgba(255, 225, 80, 0.75));
+  }
 }
 
 .main-menu-plaque {
@@ -3354,7 +3295,7 @@ body {
   background: linear-gradient(180deg, rgba(32, 20, 14, 0.94) 0%, rgba(20, 12, 8, 0.97) 100%);
   border: 3px solid #c59b27;
   border-radius: 16px;
-  box-shadow: 
+  box-shadow:
     0 0 0 2px #3c1e0b,
     0 20px 50px rgba(0, 0, 0, 0.85),
     inset 0 0 40px rgba(0, 0, 0, 0.8),
@@ -3371,13 +3312,11 @@ body {
   position: absolute;
   inset: 0;
   border-radius: 13px;
-  background-image: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 42px,
-    rgba(0, 0, 0, 0.35) 43px,
-    rgba(255, 255, 255, 0.03) 44px
-  );
+  background-image: repeating-linear-gradient(0deg,
+      transparent,
+      transparent 42px,
+      rgba(0, 0, 0, 0.35) 43px,
+      rgba(255, 255, 255, 0.03) 44px);
   pointer-events: none;
   opacity: 0.6;
 }
@@ -3389,23 +3328,31 @@ body {
   height: 22px;
   pointer-events: none;
 }
+
 .plaque-corner.top-left {
-  top: 8px; left: 8px;
+  top: 8px;
+  left: 8px;
   border-top: 3px solid #e5a729;
   border-left: 3px solid #e5a729;
 }
+
 .plaque-corner.top-right {
-  top: 8px; right: 8px;
+  top: 8px;
+  right: 8px;
   border-top: 3px solid #e5a729;
   border-right: 3px solid #e5a729;
 }
+
 .plaque-corner.bottom-left {
-  bottom: 8px; left: 8px;
+  bottom: 8px;
+  left: 8px;
   border-bottom: 3px solid #e5a729;
   border-left: 3px solid #e5a729;
 }
+
 .plaque-corner.bottom-right {
-  bottom: 8px; right: 8px;
+  bottom: 8px;
+  right: 8px;
   border-bottom: 3px solid #e5a729;
   border-right: 3px solid #e5a729;
 }
@@ -3417,12 +3364,28 @@ body {
   height: 8px;
   background: radial-gradient(circle at 35% 35%, #ffe680, #c59b27 60%, #4a3008);
   border-radius: 50%;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.8), inset 0 0 1px rgba(0,0,0,0.8);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), inset 0 0 1px rgba(0, 0, 0, 0.8);
 }
-.rivet.tl { top: 18px; left: 18px; }
-.rivet.tr { top: 18px; right: 18px; }
-.rivet.bl { bottom: 18px; left: 18px; }
-.rivet.br { bottom: 18px; right: 18px; }
+
+.rivet.tl {
+  top: 18px;
+  left: 18px;
+}
+
+.rivet.tr {
+  top: 18px;
+  right: 18px;
+}
+
+.rivet.bl {
+  bottom: 18px;
+  left: 18px;
+}
+
+.rivet.br {
+  bottom: 18px;
+  right: 18px;
+}
 
 /* Crest Header */
 .main-menu-crest {
@@ -3517,8 +3480,10 @@ body {
 .pirate-btn::before {
   content: '';
   position: absolute;
-  top: 0; left: -100%;
-  width: 100%; height: 100%;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
   background: linear-gradient(90deg, transparent, rgba(255, 230, 140, 0.25), transparent);
   transition: all 0.5s ease;
 }
@@ -3685,7 +3650,8 @@ body {
   text-shadow: 0 1px 2px #000;
 }
 
-.codex-section p, .codex-section ul {
+.codex-section p,
+.codex-section ul {
   font-size: 14.5px;
   line-height: 1.6;
   margin: 4px 0;
@@ -3788,177 +3754,14 @@ body {
   touch-action: manipulation;
 }
 
-#hud #hud-qte {
-  --qte-ink: #17242b;
-  --qte-wood: #4a2b1a;
-  --qte-paper: #ead9ad;
-  --qte-text: #f6edcf;
-  --qte-brass: #d7b35a;
-  --qte-success: #55a85b;
-  top: clamp(170px, 28vh, 290px);
-  right: max(18px, env(safe-area-inset-right));
-  left: auto;
-  transform: none;
-  width: min(310px, calc(100vw - 36px - env(safe-area-inset-left) - env(safe-area-inset-right)));
-  max-height: calc(100dvh - 190px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-  overflow-y: auto;
-  box-sizing: border-box;
-  padding: 12px;
-  border: 4px solid var(--qte-brass);
-  border-radius: 0;
-  outline: 2px solid var(--qte-wood);
-  outline-offset: -7px;
-  background-color: var(--qte-ink);
-  background-image: repeating-linear-gradient(
-    0deg,
-    transparent 0 7px,
-    rgba(255, 255, 255, 0.025) 7px 8px
-  );
-  color: var(--qte-text);
-  box-shadow: 4px 4px 0 var(--qte-wood), 8px 8px 0 rgba(7, 12, 16, 0.55);
-  backdrop-filter: none;
-  cursor: default;
-  transition: opacity 100ms steps(3, end), transform 100ms steps(3, end);
-  scrollbar-color: var(--qte-wood) transparent;
-  scrollbar-width: thin;
-}
-
-#hud #hud-qte:hover,
-#hud #hud-qte:active {
-  transform: none;
-  box-shadow: 4px 4px 0 var(--qte-wood), 8px 8px 0 rgba(7, 12, 16, 0.55);
-}
-
-#hud #hud-qte.qte-hiding {
-  transform: translateX(8px);
-}
-
-#hud #hud-qte-action {
-  align-self: stretch;
-  margin: 0 0 8px;
-  padding: 6px 8px;
-  border: 2px solid var(--qte-brass);
-  background: var(--qte-wood);
-  color: var(--qte-theme, var(--qte-brass));
-  font: 800 16px/1.2 ui-monospace, "Courier New", monospace;
-  letter-spacing: 0.07em;
-  text-align: center;
-  text-shadow: none;
-}
-
-#hud #hud-qte-key {
-  width: fit-content;
-  max-width: 100%;
-  box-sizing: border-box;
-  margin: 0 auto 8px;
-  padding: 5px 8px;
-  border: 2px solid var(--qte-brass);
-  background: var(--qte-paper);
-  color: var(--qte-ink);
-  font: 700 12px/1.3 ui-monospace, "Courier New", monospace;
-  text-align: center;
-  text-shadow: none;
-}
-
-#hud #hud-qte-ring {
-  width: 48px;
-  height: 48px;
-  margin: 2px 0;
-}
-
-#hud #hud-qte-ring .track {
-  stroke: rgba(234, 217, 173, 0.35);
-}
-
-#hud #hud-qte-ring .fill {
-  stroke: var(--qte-theme, var(--qte-brass));
-  stroke-linecap: square;
-}
-
-#hud #hud-qte-meter {
-  height: 14px;
-  border: 2px solid var(--qte-paper);
-  border-radius: 0;
-  background: #080f13;
-}
-
-#hud #hud-qte-meter .qte-sweet-spot {
-  background: repeating-linear-gradient(90deg, #55a85b 0 5px, #367c43 5px 7px);
-}
-
-#hud #hud-qte-meter .qte-indicator {
-  width: 4px;
-  background: #fff6d9;
-  box-shadow: 1px 0 0 var(--qte-ink), -1px 0 0 var(--qte-ink);
-}
-
-#hud #hud-qte-progress {
-  color: var(--qte-text);
-  font: 700 12px/1.3 ui-monospace, "Courier New", monospace;
-  text-align: center;
-}
-
-#hud #hud-qte-meter.mash .qte-indicator,
-#hud #hud-qte-meter.alternate .qte-indicator {
-  background: repeating-linear-gradient(90deg, var(--qte-brass) 0 4px, #966d31 4px 6px);
-}
-
-#hud-qte-draw-wrap {
-  flex-direction: column;
-  align-items: center;
-  gap: 7px;
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 2px dashed rgba(215, 179, 90, 0.7);
-}
-
-#hud-qte-draw {
-  width: min(176px, 52vw);
-  height: min(176px, 52vw);
-  box-sizing: border-box;
-  border: 3px solid var(--qte-brass);
-  border-radius: 0;
-  background-color: #0b171d;
-  background-image:
-    linear-gradient(rgba(215, 179, 90, 0.12) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(215, 179, 90, 0.12) 1px, transparent 1px);
-  background-size: 16px 16px;
-  touch-action: none;
-  cursor: crosshair;
-}
-
-.hud-qte-draw-help {
-  color: var(--qte-text);
-  font: 12px/1.4 Georgia, "Times New Roman", serif;
-  text-align: center;
-}
-
 @media (max-width: 600px) {
-  #hud #hud-qte {
-    top: max(84px, calc(env(safe-area-inset-top) + 64px));
-    right: max(12px, env(safe-area-inset-right));
-    width: min(280px, calc(100vw - 24px - env(safe-area-inset-left) - env(safe-area-inset-right)));
-    max-height: calc(100dvh - 128px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-    padding: 10px;
-  }
-
-  #hud #hud-qte-key {
-    font-size: 11px;
-  }
-
-  #hud-qte-draw {
-    width: min(136px, 44vw);
-    height: min(136px, 44vw);
-  }
-
   #hud #hud-fire-btn {
     bottom: max(18px, env(safe-area-inset-bottom));
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  #hud #hud-qte,
-  #hud #hud-qte *,
+
   #docket-sheet *,
   #docket-sheet #sail-btn {
     scroll-behavior: auto;
@@ -4139,8 +3942,13 @@ body {
 }
 
 @keyframes levelFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .level-book-wrapper {
@@ -4154,8 +3962,15 @@ body {
 }
 
 @keyframes bookScaleIn {
-  from { transform: scale(0.92) translateY(20px); opacity: 0; }
-  to { transform: scale(1) translateY(0); opacity: 1; }
+  from {
+    transform: scale(0.92) translateY(20px);
+    opacity: 0;
+  }
+
+  to {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
 }
 
 /* Leather-bound Book Exterior & Interior */
@@ -4194,7 +4009,7 @@ body {
   align-items: center;
   justify-content: center;
   z-index: 20;
-  box-shadow: 0 3px 8px rgba(0,0,0,0.5);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.5);
   transition: all 0.2s ease;
 }
 
@@ -4212,7 +4027,7 @@ body {
   left: 50%;
   width: 32px;
   transform: translateX(-50%);
-  background: linear-gradient(to right, rgba(0,0,0,0.18), rgba(0,0,0,0.02) 40%, rgba(0,0,0,0.02) 60%, rgba(0,0,0,0.18));
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0.02) 40%, rgba(0, 0, 0, 0.02) 60%, rgba(0, 0, 0, 0.18));
   pointer-events: none;
   z-index: 5;
 }
@@ -4225,7 +4040,7 @@ body {
   width: 22px;
   height: 180px;
   background: linear-gradient(to right, #911d1d, #b52929 50%, #751414);
-  box-shadow: 2px 4px 8px rgba(0,0,0,0.35);
+  box-shadow: 2px 4px 8px rgba(0, 0, 0, 0.35);
   z-index: 6;
   pointer-events: none;
   clip-path: polygon(0 0, 100% 0, 100% 85%, 50% 100%, 0 85%);
@@ -4337,7 +4152,7 @@ body {
 .level-badge.available {
   background: #2e6b35;
   color: #fff;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .level-badge.locked {
@@ -4541,7 +4356,7 @@ body {
   font-size: 15px;
   font-weight: 800;
   letter-spacing: 1px;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
 }
 
 .embark-sub {
@@ -4608,12 +4423,17 @@ body {
   margin-bottom: 6px;
   display: inline-block;
   animation: compassPulse 4s ease-in-out infinite alternate;
-  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.6));
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.6));
 }
 
 @keyframes compassPulse {
-  0% { transform: scale(0.96) rotate(-8deg); }
-  100% { transform: scale(1.04) rotate(8deg); }
+  0% {
+    transform: scale(0.96) rotate(-8deg);
+  }
+
+  100% {
+    transform: scale(1.04) rotate(8deg);
+  }
 }
 
 .nautical-loading-title {
@@ -4685,8 +4505,13 @@ body {
 }
 
 @keyframes waveSlide {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-50%);
+  }
 }
 
 /* Channel where ship sails */
@@ -4719,9 +4544,17 @@ body {
 }
 
 @keyframes shipBobbing {
-  0% { transform: translateY(0px) rotate(-3.5deg); }
-  50% { transform: translateY(-3.5px) rotate(1deg); }
-  100% { transform: translateY(1px) rotate(4deg); }
+  0% {
+    transform: translateY(0px) rotate(-3.5deg);
+  }
+
+  50% {
+    transform: translateY(-3.5px) rotate(1deg);
+  }
+
+  100% {
+    transform: translateY(1px) rotate(4deg);
+  }
 }
 
 /* Bow Foam Spray */
@@ -4738,8 +4571,15 @@ body {
 }
 
 @keyframes foamBubbling {
-  0% { transform: scale(0.7) translateY(0); opacity: 0.5; }
-  100% { transform: scale(1.25) translateY(-2px); opacity: 1.0; }
+  0% {
+    transform: scale(0.7) translateY(0);
+    opacity: 0.5;
+  }
+
+  100% {
+    transform: scale(1.25) translateY(-2px);
+    opacity: 1.0;
+  }
 }
 
 .nautical-loading-status-row {
@@ -4757,7 +4597,7 @@ body {
   font-style: italic;
   font-family: 'IM Fell English', serif;
   font-size: 14.5px;
-  text-shadow: 0 1px 3px rgba(0,0,0,0.7);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
 }
 
 .nautical-status-pct {
@@ -4785,8 +4625,13 @@ body {
 }
 
 @keyframes countdownFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .anchor-countdown-overlay.fade-out {
@@ -4809,8 +4654,15 @@ body {
 }
 
 @keyframes anchorBoxEntrance {
-  0% { transform: scale(0.7) translateY(30px); opacity: 0; }
-  100% { transform: scale(1) translateY(0); opacity: 1; }
+  0% {
+    transform: scale(0.7) translateY(30px);
+    opacity: 0;
+  }
+
+  100% {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
 }
 
 .anchor-winch-header {
@@ -4870,9 +4722,17 @@ body {
 }
 
 @keyframes anchorNumberPop {
-  0% { transform: scale(1.6); }
-  60% { transform: scale(0.92); }
-  100% { transform: scale(1); }
+  0% {
+    transform: scale(1.6);
+  }
+
+  60% {
+    transform: scale(0.92);
+  }
+
+  100% {
+    transform: scale(1);
+  }
 }
 
 .anchor-countdown-status {
@@ -4881,7 +4741,7 @@ body {
   font-weight: 700;
   color: #f5eedb;
   letter-spacing: 1.5px;
-  text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
 }
 
 .anchor-countdown-skip {
@@ -5569,192 +5429,1038 @@ body {
   height: 20px;
 }
 
-.pixel-icon.size-14 { width: 14px; height: 14px; }
-.pixel-icon.size-16 { width: 16px; height: 16px; }
-.pixel-icon.size-18 { width: 18px; height: 18px; }
-.pixel-icon.size-20 { width: 20px; height: 20px; }
-.pixel-icon.size-22 { width: 22px; height: 22px; }
-.pixel-icon.size-24 { width: 24px; height: 24px; }
-.pixel-icon.size-28 { width: 28px; height: 28px; }
-.pixel-icon.size-32 { width: 32px; height: 32px; }
-.pixel-icon.size-40 { width: 40px; height: 40px; }
-.pixel-icon.size-48 { width: 48px; height: 48px; }
-.pixel-icon.size-64 { width: 64px; height: 64px; }
+.pixel-icon.size-14 {
+  width: 14px;
+  height: 14px;
+}
+
+.pixel-icon.size-16 {
+  width: 16px;
+  height: 16px;
+}
+
+.pixel-icon.size-18 {
+  width: 18px;
+  height: 18px;
+}
+
+.pixel-icon.size-20 {
+  width: 20px;
+  height: 20px;
+}
+
+.pixel-icon.size-22 {
+  width: 22px;
+  height: 22px;
+}
+
+.pixel-icon.size-24 {
+  width: 24px;
+  height: 24px;
+}
+
+.pixel-icon.size-28 {
+  width: 28px;
+  height: 28px;
+}
+
+.pixel-icon.size-32 {
+  width: 32px;
+  height: 32px;
+}
+
+.pixel-icon.size-40 {
+  width: 40px;
+  height: 40px;
+}
+
+.pixel-icon.size-48 {
+  width: 48px;
+  height: 48px;
+}
+
+.pixel-icon.size-64 {
+  width: 64px;
+  height: 64px;
+}
 
 /* 1. Maritime, Ships & Navigation Icons */
-.icon-anchor              { background-image: url('/assets/ui/icons/icon_anchor_24.png'); }
-.icon-sloop               { background-image: url('/assets/ui/icons/icon_sloop_24.png'); }
-.icon-frigate             { background-image: url('/assets/ui/icons/icon_frigate_24.png'); }
-.icon-dreadnought         { background-image: url('/assets/ui/icons/icon_dreadnought_24.png'); }
-.icon-skiff               { background-image: url('/assets/ui/icons/icon_skiff_24.png'); }
-.icon-gag-truck           { background-image: url('/assets/ui/icons/icon_gag_truck_24.png'); }
+.icon-anchor {
+  background-image: url('/assets/ui/icons/icon_anchor_24.png');
+}
+
+.icon-sloop {
+  background-image: url('/assets/ui/icons/icon_sloop_24.png');
+}
+
+.icon-frigate {
+  background-image: url('/assets/ui/icons/icon_frigate_24.png');
+}
+
+.icon-dreadnought {
+  background-image: url('/assets/ui/icons/icon_dreadnought_24.png');
+}
+
+.icon-skiff {
+  background-image: url('/assets/ui/icons/icon_skiff_24.png');
+}
+
+.icon-gag-truck {
+  background-image: url('/assets/ui/icons/icon_gag_truck_24.png');
+}
+
 .icon-helm-wheel,
-.icon-wheel               { background-image: url('/assets/ui/icons/icon_helm_wheel_24.png'); }
-.icon-compass             { background-image: url('/assets/ui/icons/icon_compass_24.png'); }
+.icon-wheel {
+  background-image: url('/assets/ui/icons/icon_helm_wheel_24.png');
+}
+
+.icon-compass {
+  background-image: url('/assets/ui/icons/icon_compass_24.png');
+}
+
 .icon-ocean-wave,
-.icon-wave                { background-image: url('/assets/ui/icons/icon_ocean_wave_20.png'); }
+.icon-wave {
+  background-image: url('/assets/ui/icons/icon_ocean_wave_20.png');
+}
+
 .icon-island-atoll,
-.icon-island              { background-image: url('/assets/ui/icons/icon_island_atoll_24.png'); }
-.icon-harbor-flag         { background-image: url('/assets/ui/icons/icon_harbor_flag_20.png'); }
+.icon-island {
+  background-image: url('/assets/ui/icons/icon_island_atoll_24.png');
+}
+
+.icon-harbor-flag {
+  background-image: url('/assets/ui/icons/icon_harbor_flag_20.png');
+}
+
 .icon-nautical-star,
-.icon-star                { background-image: url('/assets/ui/icons/icon_nautical_star_16.png'); }
+.icon-star {
+  background-image: url('/assets/ui/icons/icon_nautical_star_16.png');
+}
+
 .icon-optics-lens,
-.icon-magnify             { background-image: url('/assets/ui/icons/icon_optics_lens_20.png'); }
+.icon-magnify {
+  background-image: url('/assets/ui/icons/icon_optics_lens_20.png');
+}
+
 .icon-treasure-map,
-.icon-map                 { background-image: url('/assets/ui/icons/icon_treasure_map_20.png'); }
-.icon-waypoint-flag       { background-image: url('/assets/ui/icons/icon_waypoint_flag_16.png'); }
+.icon-map {
+  background-image: url('/assets/ui/icons/icon_treasure_map_20.png');
+}
+
+.icon-waypoint-flag {
+  background-image: url('/assets/ui/icons/icon_waypoint_flag_16.png');
+}
+
 .icon-fullscreen-expand,
-.icon-fullscreen          { background-image: url('/assets/ui/icons/icon_fullscreen_expand_20.png'); }
+.icon-fullscreen {
+  background-image: url('/assets/ui/icons/icon_fullscreen_expand_20.png');
+}
 
 /* 2. Tools, Construction & Cargo Icons */
-.icon-hammer              { background-image: url('/assets/ui/icons/icon_hammer_20.png'); }
+.icon-hammer {
+  background-image: url('/assets/ui/icons/icon_hammer_20.png');
+}
+
 .icon-sail-needle,
-.icon-needle              { background-image: url('/assets/ui/icons/icon_sail_needle_20.png'); }
+.icon-needle {
+  background-image: url('/assets/ui/icons/icon_sail_needle_20.png');
+}
+
 .icon-rope-knot,
-.icon-knot                { background-image: url('/assets/ui/icons/icon_rope_knot_20.png'); }
+.icon-knot {
+  background-image: url('/assets/ui/icons/icon_rope_knot_20.png');
+}
+
 .icon-doubloon,
-.icon-coin                { background-image: url('/assets/ui/icons/icon_doubloon_20.png'); }
+.icon-coin {
+  background-image: url('/assets/ui/icons/icon_doubloon_20.png');
+}
+
 .icon-oak-log,
-.icon-log                 { background-image: url('/assets/ui/icons/icon_oak_log_24.png'); }
-.icon-ironwood            { background-image: url('/assets/ui/icons/icon_ironwood_24.png'); }
+.icon-log {
+  background-image: url('/assets/ui/icons/icon_oak_log_24.png');
+}
+
+.icon-ironwood {
+  background-image: url('/assets/ui/icons/icon_ironwood_24.png');
+}
+
 .icon-pine-plank,
-.icon-plank               { background-image: url('/assets/ui/icons/icon_pine_plank_24.png'); }
-.icon-tar-caulk           { background-image: url('/assets/ui/icons/icon_tar_caulk_24.png'); }
+.icon-plank {
+  background-image: url('/assets/ui/icons/icon_pine_plank_24.png');
+}
+
+.icon-tar-caulk {
+  background-image: url('/assets/ui/icons/icon_tar_caulk_24.png');
+}
+
 .icon-chisel-eraser,
-.icon-chisel              { background-image: url('/assets/ui/icons/icon_chisel_eraser_20.png'); }
-.icon-calipers            { background-image: url('/assets/ui/icons/icon_calipers_20.png'); }
-.icon-mirror              { background-image: url('/assets/ui/icons/icon_mirror_20.png'); }
+.icon-chisel {
+  background-image: url('/assets/ui/icons/icon_chisel_eraser_20.png');
+}
+
+.icon-calipers {
+  background-image: url('/assets/ui/icons/icon_calipers_20.png');
+}
+
+.icon-mirror {
+  background-image: url('/assets/ui/icons/icon_mirror_20.png');
+}
+
 .icon-rotate-arrow,
-.icon-rotate              { background-image: url('/assets/ui/icons/icon_rotate_arrow_20.png'); }
-.icon-pickaxe             { background-image: url('/assets/ui/icons/icon_pickaxe_20.png'); }
+.icon-rotate {
+  background-image: url('/assets/ui/icons/icon_rotate_arrow_20.png');
+}
+
+.icon-pickaxe {
+  background-image: url('/assets/ui/icons/icon_pickaxe_20.png');
+}
+
 .icon-cargo-crate,
-.icon-crate               { background-image: url('/assets/ui/icons/icon_cargo_crate_20.png'); }
+.icon-crate {
+  background-image: url('/assets/ui/icons/icon_cargo_crate_20.png');
+}
+
 .icon-powder-keg,
-.icon-keg                 { background-image: url('/assets/ui/icons/icon_powder_keg_20.png'); }
-.icon-reef-rock           { background-image: url('/assets/ui/icons/icon_reef_rock_20.png'); }
+.icon-keg {
+  background-image: url('/assets/ui/icons/icon_powder_keg_20.png');
+}
+
+.icon-reef-rock {
+  background-image: url('/assets/ui/icons/icon_reef_rock_20.png');
+}
 
 /* 3. Combat, Monsters & Hazard Icons */
 .icon-kraken-head,
-.icon-kraken              { background-image: url('/assets/ui/icons/icon_kraken_head_24.png'); }
-.icon-tentacle            { background-image: url('/assets/ui/icons/icon_tentacle_24.png'); }
-.icon-siren               { background-image: url('/assets/ui/icons/icon_siren_24.png'); }
-.icon-cutlasses           { background-image: url('/assets/ui/icons/icon_cutlasses_20.png'); }
-.icon-harpoon             { background-image: url('/assets/ui/icons/icon_harpoon_24.png'); }
+.icon-kraken {
+  background-image: url('/assets/ui/icons/icon_kraken_head_24.png');
+}
+
+.icon-tentacle {
+  background-image: url('/assets/ui/icons/icon_tentacle_24.png');
+}
+
+.icon-siren {
+  background-image: url('/assets/ui/icons/icon_siren_24.png');
+}
+
+.icon-cutlasses {
+  background-image: url('/assets/ui/icons/icon_cutlasses_20.png');
+}
+
+.icon-harpoon {
+  background-image: url('/assets/ui/icons/icon_harpoon_24.png');
+}
+
 .icon-swivel-cannon,
-.icon-cannon              { background-image: url('/assets/ui/icons/icon_swivel_cannon_20.png'); }
-.icon-cannon-flash        { background-image: url('/assets/ui/icons/icon_cannon_flash_20.png'); }
-.icon-explosion-burst     { background-image: url('/assets/ui/icons/icon_explosion_burst_24.png'); }
+.icon-cannon {
+  background-image: url('/assets/ui/icons/icon_swivel_cannon_20.png');
+}
+
+.icon-cannon-flash {
+  background-image: url('/assets/ui/icons/icon_cannon_flash_20.png');
+}
+
+.icon-explosion-burst {
+  background-image: url('/assets/ui/icons/icon_explosion_burst_24.png');
+}
+
 .icon-target-crosshair,
-.icon-target              { background-image: url('/assets/ui/icons/icon_target_crosshair_24.png'); }
+.icon-target {
+  background-image: url('/assets/ui/icons/icon_target_crosshair_24.png');
+}
+
 .icon-bailer-bucket,
-.icon-bucket              { background-image: url('/assets/ui/icons/icon_bailer_bucket_24.png'); }
-.icon-siren-note          { background-image: url('/assets/ui/icons/icon_siren_note_20.png'); }
-.icon-maelstrom           { background-image: url('/assets/ui/icons/icon_maelstrom_24.png'); }
+.icon-bucket {
+  background-image: url('/assets/ui/icons/icon_bailer_bucket_24.png');
+}
+
+.icon-siren-note {
+  background-image: url('/assets/ui/icons/icon_siren_note_20.png');
+}
+
+.icon-maelstrom {
+  background-image: url('/assets/ui/icons/icon_maelstrom_24.png');
+}
+
 .icon-phantom-ghost,
-.icon-ghost               { background-image: url('/assets/ui/icons/icon_phantom_ghost_24.png'); }
-.icon-seaweed-kelp        { background-image: url('/assets/ui/icons/icon_seaweed_kelp_20.png'); }
-.icon-defiant-finger      { background-image: url('/assets/ui/icons/icon_defiant_finger_28.png'); }
-.icon-smoke-pipe          { background-image: url('/assets/ui/icons/icon_smoke_pipe_28.png'); }
+.icon-ghost {
+  background-image: url('/assets/ui/icons/icon_phantom_ghost_24.png');
+}
+
+.icon-seaweed-kelp {
+  background-image: url('/assets/ui/icons/icon_seaweed_kelp_20.png');
+}
+
+.icon-defiant-finger {
+  background-image: url('/assets/ui/icons/icon_defiant_finger_28.png');
+}
+
+.icon-smoke-pipe {
+  background-image: url('/assets/ui/icons/icon_smoke_pipe_28.png');
+}
 
 /* 4. Weather, Sky & Atmosphere Icons */
 .icon-sun-fair,
-.icon-sun                 { background-image: url('/assets/ui/icons/icon_sun_fair_20.png'); }
+.icon-sun {
+  background-image: url('/assets/ui/icons/icon_sun_fair_20.png');
+}
+
 .icon-dawn-sunrise,
-.icon-sunrise             { background-image: url('/assets/ui/icons/icon_dawn_sunrise_20.png'); }
+.icon-sunrise {
+  background-image: url('/assets/ui/icons/icon_dawn_sunrise_20.png');
+}
+
 .icon-dusk-sunset,
-.icon-sunset              { background-image: url('/assets/ui/icons/icon_dusk_sunset_20.png'); }
+.icon-sunset {
+  background-image: url('/assets/ui/icons/icon_dusk_sunset_20.png');
+}
+
 .icon-night-moon,
-.icon-moon                { background-image: url('/assets/ui/icons/icon_night_moon_20.png'); }
+.icon-moon {
+  background-image: url('/assets/ui/icons/icon_night_moon_20.png');
+}
+
 .icon-rain-squall,
-.icon-rain                { background-image: url('/assets/ui/icons/icon_rain_squall_20.png'); }
+.icon-rain {
+  background-image: url('/assets/ui/icons/icon_rain_squall_20.png');
+}
+
 .icon-storm-lightning,
-.icon-storm               { background-image: url('/assets/ui/icons/icon_storm_lightning_20.png'); }
+.icon-storm {
+  background-image: url('/assets/ui/icons/icon_storm_lightning_20.png');
+}
+
 .icon-lightning-spark,
-.icon-lightning           { background-image: url('/assets/ui/icons/icon_lightning_spark_20.png'); }
+.icon-lightning {
+  background-image: url('/assets/ui/icons/icon_lightning_spark_20.png');
+}
+
 .icon-hurricane-gale,
-.icon-hurricane           { background-image: url('/assets/ui/icons/icon_hurricane_gale_20.png'); }
+.icon-hurricane {
+  background-image: url('/assets/ui/icons/icon_hurricane_gale_20.png');
+}
+
 .icon-sea-fog,
-.icon-fog                 { background-image: url('/assets/ui/icons/icon_sea_fog_20.png'); }
+.icon-fog {
+  background-image: url('/assets/ui/icons/icon_sea_fog_20.png');
+}
+
 .icon-wind-gust,
-.icon-wind                { background-image: url('/assets/ui/icons/icon_wind_gust_20.png'); }
-.icon-god-rays            { background-image: url('/assets/ui/icons/icon_god_rays_16.png'); }
+.icon-wind {
+  background-image: url('/assets/ui/icons/icon_wind_gust_20.png');
+}
+
+.icon-god-rays {
+  background-image: url('/assets/ui/icons/icon_god_rays_16.png');
+}
+
 .icon-ship-lantern,
-.icon-lantern             { background-image: url('/assets/ui/icons/icon_ship_lantern_24.png'); }
-.icon-helm-pedestal       { background-image: url('/assets/ui/icons/icon_helm_pedestal_24.png'); }
-.icon-plunder-sack        { background-image: url('/assets/ui/icons/icon_plunder_sack_20.png'); }
-.icon-clap-hands          { background-image: url('/assets/ui/icons/icon_clap_hands_28.png'); }
-.icon-easter-bunny        { background-image: url('/assets/ui/icons/icon_easter_bunny_16.png'); }
+.icon-lantern {
+  background-image: url('/assets/ui/icons/icon_ship_lantern_24.png');
+}
+
+.icon-helm-pedestal {
+  background-image: url('/assets/ui/icons/icon_helm_pedestal_24.png');
+}
+
+.icon-plunder-sack {
+  background-image: url('/assets/ui/icons/icon_plunder_sack_20.png');
+}
+
+.icon-clap-hands {
+  background-image: url('/assets/ui/icons/icon_clap_hands_28.png');
+}
+
+.icon-easter-bunny {
+  background-image: url('/assets/ui/icons/icon_easter_bunny_16.png');
+}
 
 /* 5. UI Controls & Navigation Icons */
 .icon-settings-cog,
-.icon-cog                 { background-image: url('/assets/ui/icons/icon_settings_cog_20.png'); }
+.icon-cog {
+  background-image: url('/assets/ui/icons/icon_settings_cog_20.png');
+}
+
 .icon-closed-logbook,
-.icon-book                { background-image: url('/assets/ui/icons/icon_closed_logbook_20.png'); }
+.icon-book {
+  background-image: url('/assets/ui/icons/icon_closed_logbook_20.png');
+}
+
 .icon-map-maker-scroll,
-.icon-scroll              { background-image: url('/assets/ui/icons/icon_map_maker_scroll_20.png'); }
-.icon-director-clapper    { background-image: url('/assets/ui/icons/icon_director_clapper_20.png'); }
-.icon-cinema-camera       { background-image: url('/assets/ui/icons/icon_cinema_camera_20.png'); }
-.icon-film-reel           { background-image: url('/assets/ui/icons/icon_film_reel_20.png'); }
-.icon-display-monitor     { background-image: url('/assets/ui/icons/icon_display_monitor_20.png'); }
-.icon-audio-horn          { background-image: url('/assets/ui/icons/icon_audio_horn_20.png'); }
+.icon-scroll {
+  background-image: url('/assets/ui/icons/icon_map_maker_scroll_20.png');
+}
+
+.icon-director-clapper {
+  background-image: url('/assets/ui/icons/icon_director_clapper_20.png');
+}
+
+.icon-cinema-camera {
+  background-image: url('/assets/ui/icons/icon_cinema_camera_20.png');
+}
+
+.icon-film-reel {
+  background-image: url('/assets/ui/icons/icon_film_reel_20.png');
+}
+
+.icon-display-monitor {
+  background-image: url('/assets/ui/icons/icon_display_monitor_20.png');
+}
+
+.icon-audio-horn {
+  background-image: url('/assets/ui/icons/icon_audio_horn_20.png');
+}
+
 .icon-save-floppy,
-.icon-floppy              { background-image: url('/assets/ui/icons/icon_save_floppy_20.png'); }
-.icon-import-intray       { background-image: url('/assets/ui/icons/icon_import_intray_20.png'); }
+.icon-floppy {
+  background-image: url('/assets/ui/icons/icon_save_floppy_20.png');
+}
+
+.icon-import-intray {
+  background-image: url('/assets/ui/icons/icon_import_intray_20.png');
+}
+
 .icon-cabin-door-exit,
-.icon-door                { background-image: url('/assets/ui/icons/icon_cabin_door_exit_20.png'); }
-.icon-hand-select         { background-image: url('/assets/ui/icons/icon_hand_select_20.png'); }
-.icon-delete-basket       { background-image: url('/assets/ui/icons/icon_delete_basket_20.png'); }
+.icon-door {
+  background-image: url('/assets/ui/icons/icon_cabin_door_exit_20.png');
+}
+
+.icon-hand-select {
+  background-image: url('/assets/ui/icons/icon_hand_select_20.png');
+}
+
+.icon-delete-basket {
+  background-image: url('/assets/ui/icons/icon_delete_basket_20.png');
+}
+
 .icon-hide-ui-eye,
-.icon-eye                 { background-image: url('/assets/ui/icons/icon_hide_ui_eye_20.png'); }
+.icon-eye {
+  background-image: url('/assets/ui/icons/icon_hide_ui_eye_20.png');
+}
+
 .icon-quill-author,
-.icon-quill               { background-image: url('/assets/ui/icons/icon_quill_author_20.png'); }
+.icon-quill {
+  background-image: url('/assets/ui/icons/icon_quill_author_20.png');
+}
+
 .icon-artist-palette,
-.icon-palette             { background-image: url('/assets/ui/icons/icon_artist_palette_20.png'); }
+.icon-palette {
+  background-image: url('/assets/ui/icons/icon_artist_palette_20.png');
+}
 
 /* 6. Badges, Biomes & System Icons */
 .icon-confirm-check,
-.icon-check               { background-image: url('/assets/ui/icons/icon_confirm_check_16.png'); }
+.icon-check {
+  background-image: url('/assets/ui/icons/icon_confirm_check_16.png');
+}
+
 .icon-cancel-cross,
-.icon-cancel              { background-image: url('/assets/ui/icons/icon_cancel_cross_16.png'); }
+.icon-cancel {
+  background-image: url('/assets/ui/icons/icon_cancel_cross_16.png');
+}
+
 .icon-close-cross,
-.icon-close               { background-image: url('/assets/ui/icons/icon_close_cross_16.png'); }
+.icon-close {
+  background-image: url('/assets/ui/icons/icon_close_cross_16.png');
+}
+
 .icon-lock-padlock,
-.icon-lock                { background-image: url('/assets/ui/icons/icon_lock_padlock_16.png'); }
-.icon-idea-bulb           { background-image: url('/assets/ui/icons/icon_idea_bulb_16.png'); }
+.icon-lock {
+  background-image: url('/assets/ui/icons/icon_lock_padlock_16.png');
+}
+
+.icon-idea-bulb {
+  background-image: url('/assets/ui/icons/icon_idea_bulb_16.png');
+}
+
 .icon-plus-add,
-.icon-plus                { background-image: url('/assets/ui/icons/icon_plus_add_16.png'); }
-.icon-arrow-right         { background-image: url('/assets/ui/icons/icon_arrow_right_16.png'); }
+.icon-plus {
+  background-image: url('/assets/ui/icons/icon_plus_add_16.png');
+}
+
+.icon-arrow-right {
+  background-image: url('/assets/ui/icons/icon_arrow_right_16.png');
+}
+
 .icon-play-step,
-.icon-play                { background-image: url('/assets/ui/icons/icon_play_step_16.png'); }
+.icon-play {
+  background-image: url('/assets/ui/icons/icon_play_step_16.png');
+}
 
-.chip-biome-tropical      { background-image: url('/assets/ui/icons/chip_biome_tropical_20.png'); }
-.chip-biome-volcanic      { background-image: url('/assets/ui/icons/chip_biome_volcanic_20.png'); }
-.chip-biome-autumn        { background-image: url('/assets/ui/icons/chip_biome_autumn_20.png'); }
-.chip-biome-desert        { background-image: url('/assets/ui/icons/chip_biome_desert_20.png'); }
-.chip-biome-nordic        { background-image: url('/assets/ui/icons/chip_biome_nordic_20.png'); }
+.chip-biome-tropical {
+  background-image: url('/assets/ui/icons/chip_biome_tropical_20.png');
+}
 
-.icon-brush-circle        { background-image: url('/assets/ui/icons/icon_brush_circle_16.png'); }
-.icon-brush-square        { background-image: url('/assets/ui/icons/icon_brush_square_16.png'); }
-.icon-portrait-captain    { background-image: url('/assets/ui/icons/portrait_captain_48.png'); }
+.chip-biome-volcanic {
+  background-image: url('/assets/ui/icons/chip_biome_volcanic_20.png');
+}
+
+.chip-biome-autumn {
+  background-image: url('/assets/ui/icons/chip_biome_autumn_20.png');
+}
+
+.chip-biome-desert {
+  background-image: url('/assets/ui/icons/chip_biome_desert_20.png');
+}
+
+.chip-biome-nordic {
+  background-image: url('/assets/ui/icons/chip_biome_nordic_20.png');
+}
+
+.icon-brush-circle {
+  background-image: url('/assets/ui/icons/icon_brush_circle_16.png');
+}
+
+.icon-brush-square {
+  background-image: url('/assets/ui/icons/icon_brush_square_16.png');
+}
+
+.icon-portrait-captain {
+  background-image: url('/assets/ui/icons/portrait_captain_48.png');
+}
 
 /* 7. HUD & Shipbuilding Material Badges */
-.hud-gold-coin            { background-image: url('/assets/ui/hud/badge_gold_coin_hud.png'); }
-.hud-day-pill-dot         { background-image: url('/assets/ui/hud/badge_day_pill_dot.png'); }
-.hud-leak-drop            { background-image: url('/assets/ui/hud/leak_water_drop_badge.png'); }
-.hud-compass-arrow        { background-image: url('/assets/ui/hud/compass_rose_arrow.png'); }
-.hud-buoy                 { background-image: url('/assets/ui/hud/water_floating_buoy.png'); }
-.hud-qte-needle           { background-image: url('/assets/ui/hud/qte_needle_hand.png'); }
+.hud-gold-coin {
+  background-image: url('/assets/ui/hud/badge_gold_coin_hud.png');
+}
 
-.hud-sloop-hp-100         { background-image: url('/assets/ui/hud/sloop_hp_100.png'); }
-.hud-sloop-hp-75          { background-image: url('/assets/ui/hud/sloop_hp_75.png'); }
-.hud-sloop-hp-40          { background-image: url('/assets/ui/hud/sloop_hp_40.png'); }
-.hud-sloop-hp-10          { background-image: url('/assets/ui/hud/sloop_hp_10.png'); }
+.hud-day-pill-dot {
+  background-image: url('/assets/ui/hud/badge_day_pill_dot.png');
+}
 
-.brush-voxel              { background-image: url('/assets/ui/hud/brush_single_voxel.png'); }
-.brush-plank              { background-image: url('/assets/ui/hud/brush_plank_1x3.png'); }
-.brush-beam               { background-image: url('/assets/ui/hud/brush_beam_1x5.png'); }
-.brush-plate              { background-image: url('/assets/ui/hud/brush_plate_2x2.png'); }
-.brush-bulkhead           { background-image: url('/assets/ui/hud/brush_bulkhead_3x3.png'); }
+.hud-leak-drop {
+  background-image: url('/assets/ui/hud/leak_water_drop_badge.png');
+}
+
+.hud-compass-arrow {
+  background-image: url('/assets/ui/hud/compass_rose_arrow.png');
+}
+
+.hud-buoy {
+  background-image: url('/assets/ui/hud/water_floating_buoy.png');
+}
+
+.hud-qte-needle {
+  background-image: url('/assets/ui/hud/qte_needle_hand.png');
+}
+
+/* Static QTE stations.  These are anchored instruments, never centre-screen cards. */
+#hud {
+  --qte-station-z: 145;
+}
+
+/* ==========================================================================
+   Permanent Static QTE Nautical HUD Instruments (Timing, Bilge, Siren Ward)
+   ========================================================================== */
+
+.qte-station {
+  --qte-ink: #132028;
+  --qte-wood: #3e2415;
+  --qte-brass: #d7b35a;
+  --qte-paper: #ead9ad;
+  --qte-theme: #00bcd4;
+  position: fixed;
+  z-index: var(--qte-station-z, 150);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  color: #f6edcf;
+  background-color: rgba(19, 32, 40, 0.92);
+  background-image: repeating-linear-gradient(0deg,
+      transparent 0 6px,
+      rgba(255, 255, 255, 0.022) 6px 7px);
+  border: 2px solid rgba(215, 179, 90, 0.65);
+  outline: 1px solid rgba(62, 36, 21, 0.85);
+  outline-offset: -4px;
+  box-shadow: 3px 3px 0 #3e2415, 0 6px 16px rgba(0, 0, 0, 0.55);
+  font: 700 11px/1.25 ui-monospace, "Courier New", monospace;
+  pointer-events: none;
+  user-select: none;
+  transition: opacity 180ms ease, border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+/* 1. Idle State — always visible on the HUD as a quiet nautical bridge instrument */
+.qte-station.is-idle {
+  opacity: 0.42;
+  filter: saturate(0.75);
+  pointer-events: none;
+}
+
+/* 2. Queued State — pre-warms with a brass pulse while waiting in line */
+.qte-station.is-queued {
+  opacity: 0.84;
+  border-color: #ffd56b;
+  box-shadow: 3px 3px 0 #3e2415, 0 0 14px rgba(255, 213, 107, 0.45);
+  animation: qteQueuedPulse 0.9s ease-in-out infinite alternate;
+}
+
+/* 3. Active State — full illumination & interactive touch fallback */
+.qte-station.is-active {
+  opacity: 1;
+  filter: saturate(1.05);
+  pointer-events: auto;
+  border-color: var(--qte-theme, #d7b35a);
+  box-shadow:
+    3px 3px 0 #3e2415,
+    0 0 22px rgba(215, 179, 90, 0.45),
+    inset 0 0 14px rgba(215, 179, 90, 0.14);
+}
+
+/* 4. Resolving State — brief result stamp before returning to idle */
+.qte-station.is-resolving {
+  opacity: 0.96;
+  pointer-events: none;
+}
+
+.qte-station.is-resolving.result-perfect {
+  border-color: #ffd700;
+  box-shadow: 3px 3px 0 #3e2415, 0 0 24px rgba(255, 215, 0, 0.75);
+}
+
+.qte-station.is-resolving.result-good {
+  border-color: #4ade80;
+  box-shadow: 3px 3px 0 #3e2415, 0 0 20px rgba(74, 222, 128, 0.65);
+}
+
+.qte-station.is-resolving.result-miss {
+  border-color: #f87171;
+  box-shadow: 3px 3px 0 #3e2415, 0 0 20px rgba(248, 113, 113, 0.65);
+}
+
+/* Shared Station Header, Timer & Footer */
+.qte-station-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 7px;
+  box-sizing: border-box;
+  background: rgba(62, 36, 21, 0.78);
+  border-bottom: 1px solid rgba(215, 179, 90, 0.5);
+  letter-spacing: 0.06em;
+}
+
+.qte-station-header .qte-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.qte-station-header .qte-label {
+  flex: 1;
+  color: #f6edcf;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qte-state-pill,
+.qte-progress {
+  padding: 1px 5px;
+  border: 1px solid rgba(215, 179, 90, 0.6);
+  background: rgba(9, 16, 21, 0.85);
+  color: var(--qte-theme, #ead9ad);
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+.qte-timer-track {
+  width: 100%;
+  height: 4px;
+  background: rgba(8, 14, 18, 0.85);
+  border-top: 1px solid rgba(215, 179, 90, 0.35);
+  border-bottom: 1px solid rgba(215, 179, 90, 0.35);
+  overflow: hidden;
+}
+
+.qte-timer-fill {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, var(--qte-theme, #d7b35a), #ffe082);
+  transition: width 50ms linear;
+}
+
+.qte-station-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 7px 2px;
+  box-sizing: border-box;
+  min-height: 18px;
+}
+
+.qte-station-hint {
+  color: #d9c89e;
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+}
+
+.qte-result {
+  min-height: 14px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #ffd700;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+
+.qte-station.result-good .qte-result {
+  color: #4ade80;
+}
+
+.qte-station.result-miss .qte-result {
+  color: #f87171;
+}
+
+/* --------------------------------------------------------------------------
+   Station 1: Starboard Chronometer Gauge (HARPOON & SHOOT)
+   Docked at top-right immediately to the left of #minimap (200x200 at right:20px),
+   completely clear of #hud-wheel-container and #qte-station-siren.
+   -------------------------------------------------------------------------- */
+.qte-timing-station {
+  top: max(20px, env(safe-area-inset-top));
+  right: max(234px, calc(env(safe-area-inset-right) + 214px));
+  width: 192px;
+  padding: 6px;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.qte-timing-station.in-sweet-spot {
+  box-shadow:
+    3px 3px 0 #3e2415,
+    0 0 26px rgba(74, 222, 128, 0.7),
+    inset 0 0 16px rgba(74, 222, 128, 0.22);
+}
+
+.qte-dial {
+  position: relative;
+  width: 140px;
+  height: 74px;
+  margin: 2px 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.qte-dial-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.qte-dial-track-bg {
+  fill: rgba(9, 17, 22, 0.75);
+  stroke: rgba(234, 217, 173, 0.45);
+  stroke-width: 7;
+  stroke-linecap: butt;
+}
+
+.qte-dial-tick {
+  stroke: rgba(234, 217, 173, 0.65);
+  stroke-width: 1.6;
+}
+
+.qte-sweet-arc {
+  fill: none;
+  stroke: var(--qte-theme, #00bcd4);
+  stroke-width: 8;
+  stroke-linecap: butt;
+  opacity: 0.42;
+  transition: opacity 150ms ease, stroke 150ms ease;
+}
+
+.qte-timing-station.is-active .qte-sweet-arc {
+  opacity: 0.92;
+  filter: drop-shadow(0 0 4px var(--qte-theme, #00bcd4));
+}
+
+.qte-perfect-arc {
+  fill: none;
+  stroke: #ffd700;
+  stroke-width: 9;
+  stroke-linecap: butt;
+  opacity: 0.45;
+}
+
+.qte-timing-station.is-active .qte-perfect-arc {
+  opacity: 1;
+  filter: drop-shadow(0 0 5px rgba(255, 215, 0, 0.9));
+}
+
+.qte-dial-hub {
+  fill: #d7b35a;
+  stroke: #3e2415;
+  stroke-width: 2;
+}
+
+.qte-needle {
+  position: absolute;
+  bottom: 9px;
+  left: 50%;
+  width: 4px;
+  height: 48px;
+  transform-origin: 50% 100%;
+  transform: translateX(-50%) rotate(var(--qte-needle, -90deg));
+  pointer-events: none;
+  background: linear-gradient(180deg, #ffffff 0%, #ffe082 40%, #d7b35a 100%);
+  border: 1px solid #23140b;
+  border-radius: 2px 2px 0 0;
+  box-shadow: 0 0 6px rgba(255, 246, 217, 0.7);
+}
+
+/* --------------------------------------------------------------------------
+   Station 2: Port Bilge Pump Well (BAIL)
+   Docked at bottom-left below #hud-status-cluster
+   -------------------------------------------------------------------------- */
+.qte-bail-station {
+  left: max(20px, env(safe-area-inset-left));
+  bottom: max(22px, env(safe-area-inset-bottom));
+  width: 176px;
+  height: 202px;
+  padding: 6px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  --qte-theme: #38bdf8;
+}
+
+.qte-bail-station.touch-subdued {
+  opacity: 0.14;
+  pointer-events: none;
+}
+
+.qte-bail-well {
+  position: relative;
+  width: 136px;
+  height: 136px;
+  border-radius: 50%;
+  border: 3px solid #d7b35a;
+  box-shadow: inset 0 0 16px rgba(0, 0, 0, 0.85), 0 2px 6px rgba(0, 0, 0, 0.6);
+  background: radial-gradient(circle at center, #0e222d 0%, #071218 75%, #040a0e 100%);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.qte-bail-station.is-active .qte-bail-well {
+  border-color: #75d9ec;
+  box-shadow:
+    inset 0 0 18px rgba(56, 189, 248, 0.25),
+    0 0 14px rgba(117, 217, 236, 0.45);
+}
+
+#qte-station-bail #hud-qte-draw {
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.qte-bail-center-icon {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0.45;
+  transition: opacity 150ms ease;
+}
+
+.qte-bail-station.is-active .qte-bail-center-icon {
+  opacity: 0.2;
+}
+
+/* --------------------------------------------------------------------------
+   Station 3: Gunwale Siren Ward Rail (SIREN)
+   Docked cleanly beside #qte-station-bail at bottom-left (never overlapping
+   #qte-station-timing or #hud-wheel-container on the right edge)
+   -------------------------------------------------------------------------- */
+.qte-siren-station {
+  left: max(208px, calc(env(safe-area-inset-left) + 188px));
+  bottom: max(22px, env(safe-area-inset-bottom));
+  width: 76px;
+  height: 202px;
+  padding: 6px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+  --qte-theme: #e066ff;
+  cursor: pointer;
+}
+
+.qte-siren-station.is-idle {
+  opacity: 0.38;
+}
+
+.qte-siren-station.is-active.side-left {
+  border-left-color: #ff66cc;
+  box-shadow: -4px 0 14px rgba(255, 102, 204, 0.55), 3px 3px 0 #3e2415;
+}
+
+.qte-siren-station.is-active.side-right {
+  border-right-color: #ff66cc;
+  box-shadow: 4px 0 14px rgba(255, 102, 204, 0.55), 3px 3px 0 #3e2415;
+}
+
+.qte-siren-header,
+.qte-siren-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  text-align: center;
+}
+
+.qte-siren-title {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #ffd9f8;
+}
+
+.qte-siren-hint {
+  font-size: 9px;
+  font-weight: 800;
+  color: #f3d5ee;
+  letter-spacing: 0.04em;
+}
+
+.qte-pips {
+  display: flex;
+  flex-direction: column-reverse;
+  width: 100%;
+  gap: 4px;
+  padding: 4px 3px;
+  box-sizing: border-box;
+  background: rgba(8, 13, 18, 0.8);
+  border: 1px solid rgba(215, 179, 90, 0.45);
+}
+
+.qte-pips i {
+  display: block;
+  width: 100%;
+  height: 9px;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 185, 242, 0.45);
+  background: rgba(36, 18, 42, 0.65);
+  transition: background 70ms ease, box-shadow 70ms ease;
+}
+
+.qte-pips i.filled {
+  background: linear-gradient(90deg, #ff66cc, #75d9ec);
+  border-color: #ffffff;
+  box-shadow: 0 0 8px rgba(255, 102, 204, 0.85);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+@keyframes qteQueuedPulse {
+  from {
+    box-shadow: 3px 3px 0 #3e2415, 0 0 6px rgba(255, 213, 107, 0.25);
+  }
+
+  to {
+    box-shadow: 3px 3px 0 #3e2415, 0 0 18px rgba(255, 213, 107, 0.7);
+  }
+}
+
+@media (max-width: 600px) {
+  .qte-timing-station {
+    top: max(180px, calc(env(safe-area-inset-top) + 150px));
+    right: max(10px, env(safe-area-inset-right));
+    width: 168px;
+    padding: 5px;
+  }
+
+  .qte-dial {
+    width: 124px;
+    height: 68px;
+  }
+
+  .qte-bail-station {
+    bottom: max(16px, env(safe-area-inset-bottom));
+    left: max(10px, env(safe-area-inset-left));
+    width: 156px;
+    height: 184px;
+  }
+
+  .qte-bail-well {
+    width: 118px;
+    height: 118px;
+  }
+
+  .qte-siren-station {
+    bottom: max(16px, env(safe-area-inset-bottom));
+    left: max(174px, calc(env(safe-area-inset-left) + 164px));
+    width: 62px;
+    height: 184px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .qte-station,
+  .qte-station * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.hud-sloop-hp-100 {
+  background-image: url('/assets/ui/hud/sloop_hp_100.png');
+}
+
+.hud-sloop-hp-75 {
+  background-image: url('/assets/ui/hud/sloop_hp_75.png');
+}
+
+.hud-sloop-hp-40 {
+  background-image: url('/assets/ui/hud/sloop_hp_40.png');
+}
+
+.hud-sloop-hp-10 {
+  background-image: url('/assets/ui/hud/sloop_hp_10.png');
+}
+
+.brush-voxel {
+  background-image: url('/assets/ui/hud/brush_single_voxel.png');
+}
+
+.brush-plank {
+  background-image: url('/assets/ui/hud/brush_plank_1x3.png');
+}
+
+.brush-beam {
+  background-image: url('/assets/ui/hud/brush_beam_1x5.png');
+}
+
+.brush-plate {
+  background-image: url('/assets/ui/hud/brush_plate_2x2.png');
+}
+
+.brush-bulkhead {
+  background-image: url('/assets/ui/hud/brush_bulkhead_3x3.png');
+}
 
 /* ==========================================================================
    Pixel-Art 9-Slice Modal Frames & Backing Panels
@@ -5780,7 +6486,3 @@ body {
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8), 0 0 20px rgba(212, 175, 55, 0.25) !important;
   padding: 24px 36px 44px 36px !important;
 }
-
-
-
-
