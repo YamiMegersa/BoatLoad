@@ -244,6 +244,10 @@ export class MainMenuUI {
             <span class="pixel-icon icon-helm-wheel size-20"></span> Play / Select Level
           </button>
 
+          <button class="pirate-btn" id="btn-menu-community" style="border-color: #ffd700; color: #ffd700;">
+            <span class="pixel-icon icon-anchor size-18"></span> Community Courses (Course World)
+          </button>
+
           <button class="pirate-btn" id="btn-menu-codex">
             <span class="pixel-icon icon-closed-logbook size-20"></span> Captain's Codex
           </button>
@@ -260,9 +264,6 @@ export class MainMenuUI {
             </div>
             <button class="pirate-btn" id="btn-menu-editor" style="width: 100%;">
               <span class="pixel-icon icon-map-maker-scroll size-18"></span> Map Maker / Level Editor
-            </button>
-            <button class="pirate-btn" id="btn-menu-community" style="width: 100%; border-color: #ffd700; color: #ffd700;">
-              <span class="pixel-icon icon-anchor size-18"></span> Community Courses (Course World)
             </button>
           </div>
         </div>

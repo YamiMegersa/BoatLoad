@@ -24,11 +24,13 @@ export class ClearCheckManager {
 
     // Load persisted local proofs
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        for (const [k, v] of Object.entries(parsed)) {
-          this._proofCache.set(k, v);
+      if (typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          for (const [k, v] of Object.entries(parsed)) {
+            this._proofCache.set(k, v);
+          }
         }
       }
     } catch (e) {
@@ -37,7 +39,10 @@ export class ClearCheckManager {
 
     // Listen for gameplay victory in Obstacle phase
     on('phaseChanged', (d) => {
-      if (d?.phase === 'RESULTS' && this._activeCheck) {
+      if (d?.phase === 'OBSTACLE' && this._activeCheck) {
+        this._activeCheck.sailStartTime = performance.now();
+      }
+      if ((d?.phase === 'RESULTS' || d?.phase === 'EDITOR') && this._activeCheck) {
         this._completeActiveCheck(true);
       }
     });
@@ -69,14 +74,15 @@ export class ClearCheckManager {
       checksum,
       levelData: cleanLevel,
       startTime: performance.now(),
+      sailStartTime: null,
       completed: false
     };
 
-    console.log(`[ClearCheck] Started verification run for course hash: ${checksum.slice(0, 8)}...`);
+    console.log(`[ClearCheck] Started verification run for course hash: ${checksum.slice(0, 8)}... (routing to Shipyard repair first)`);
 
-    // Emit event requesting GameState to launch into OBSTACLE phase with clearCheck flag
+    // Emit event requesting GameState to route to SHIPYARD repair phase first with clearCheck flag
     emit('editorRequestPlay', {
-      mode: 'sail',
+      mode: 'repair',
       isClearCheck: true,
       clearCheckHash: checksum
     });
@@ -107,6 +113,13 @@ export class ClearCheckManager {
   }
 
   /**
+   * Public completion handler to mark an active check complete.
+   */
+  static completeActiveCheck(success, failureReason = '') {
+    return this._completeActiveCheck(success, failureReason);
+  }
+
+  /**
    * Internal completion handler when a sailing voyage finishes.
    */
   static _completeActiveCheck(success, failureReason = '') {
@@ -120,7 +133,7 @@ export class ClearCheckManager {
       return;
     }
 
-    const elapsedMs = Math.round(performance.now() - check.startTime);
+    const elapsedMs = Math.round(performance.now() - (check.sailStartTime || check.startTime));
     const proof = {
       checksum: check.checksum,
       clearTimeMs: elapsedMs,
@@ -137,11 +150,13 @@ export class ClearCheckManager {
 
   static _persistProofs() {
     try {
-      const obj = {};
-      for (const [k, v] of this._proofCache.entries()) {
-        obj[k] = v;
+      if (typeof localStorage !== 'undefined') {
+        const obj = {};
+        for (const [k, v] of this._proofCache.entries()) {
+          obj[k] = v;
+        }
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
       }
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
     } catch (e) {
       console.warn('Could not persist clear check proofs', e);
     }

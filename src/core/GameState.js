@@ -30,6 +30,7 @@ import { DockPlayerController } from '../environment/DockPlayerController.js';
 import { WeatherSystem }      from '../environment/WeatherSystem.js';
 import { DEBUG }              from '../utils/debug.js';
 import { LevelConfig }        from './LevelConfig.js';
+import { ClearCheckManager }   from '../community/ClearCheckManager.js';
 import { ShipRegistry, DEFAULT_SHIP_ID } from '../config/ShipRegistry.js';
 import { ShopRegistry, ItemType } from '../config/ShopRegistry.js';
 import { getAssetUrl } from '../utils/paths.js';
@@ -151,6 +152,7 @@ export class GameState {
     // End Location (Harbor Goal) state
     this._endLocation = null;
     this._endLocationVisual = null;
+    this._isEditorPlay = false;
 
     // Global wind direction (e.g., blowing towards North-East)
     this.windDir = new THREE.Vector3(1, 0, -1).normalize();
@@ -158,6 +160,9 @@ export class GameState {
     // Input tracking
     this._keys = {};
     this._boundKeyDown = (e) => {
+      if (e.target?.tagName === 'INPUT' || e.target?.tagName === 'TEXTAREA' || e.target?.tagName === 'SELECT' || e.target?.isContentEditable) {
+        return;
+      }
       this._keys[e.code] = true;
       if (e.code === 'KeyR' && this.currentPhase === GamePhase.SHIPYARD) {
         emit('rotateBlueprint');
@@ -171,6 +176,9 @@ export class GameState {
       }
     };
     this._boundKeyUp = (e) => {
+      if (e.target?.tagName === 'INPUT' || e.target?.tagName === 'TEXTAREA' || e.target?.tagName === 'SELECT' || e.target?.isContentEditable) {
+        return;
+      }
       this._keys[e.code] = false;
     };
     this._boundClearKeys = () => {
@@ -1071,8 +1079,10 @@ export class GameState {
   // SHIPYARD
   // =========================================================================
 
-  async _enterShipyard({ shipDef, levelCfg, fishModels, forceNew = false } = {}) {
+  async _enterShipyard({ shipDef, levelCfg, fishModels, forceNew = false, isEditorPlay = false, isClearCheck = false } = {}) {
     this._levelCfg = levelCfg || this._levelCfg;
+    this._isEditorPlay = isEditorPlay || this._isEditorPlay || false;
+    this._isClearCheckRepair = Boolean(isClearCheck);
     if (this._ocean) {
       this._ocean.setWorldSize(this._levelCfg?.worldSize || 200);
     }
@@ -1272,7 +1282,7 @@ export class GameState {
     };
     on('gridDirty', this._onShipyardGridDirty);
 
-    emit('uiMount', { screen: 'shipyard' });
+    emit('uiMount', { screen: 'shipyard', isClearCheck: this._isClearCheckRepair, isEditorPlay: this._isEditorPlay });
     this._emitShipyardSummary();
   }
 
@@ -1288,6 +1298,10 @@ export class GameState {
   }
 
   _exitShipyard() {
+    if (this.nextPhase !== GamePhase.OBSTACLE) {
+      this._isClearCheckRepair = false;
+    }
+
     if (this.nextPhase !== GamePhase.DOCK && this.nextPhase !== GamePhase.OBSTACLE) {
       this._scene.remove(this._dockStall.group);
       this._ocean.breakwaterEnabled = false;
@@ -1449,9 +1463,12 @@ export class GameState {
   // OBSTACLE
   // =========================================================================
 
-  async _enterObstacle({ shipDef, levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel }) {
+  async _enterObstacle({ shipDef, levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel, isEditorPlay }) {
     this._levelCfg = levelCfg;
-    this._obstacleOpts = { levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels };
+    this._obstacleOpts = { shipDef, levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel, isEditorPlay };
+    if (isEditorPlay !== undefined) {
+      this._isEditorPlay = Boolean(isEditorPlay);
+    }
 
     if (this._dockMooredGroup) {
       if (this._chunkRenderer && this._chunkRenderer.container) {
@@ -2003,6 +2020,26 @@ export class GameState {
 
       if (dist <= (this._endLocation.radius || 16)) {
         emit('playSound', { sound: 'qte_success' });
+        if (this._isEditorPlay || this._obstacleOpts?.isEditorPlay) {
+          ClearCheckManager.completeActiveCheck(true);
+          const returnLevelCfg = this._obstacleOpts?.levelCfg || this._levelCfg;
+          const editorOpts = {
+            levelCfg: returnLevelCfg,
+            rockModels: this._obstacleOpts?.rockModels || [],
+            pickupModels: this._obstacleOpts?.pickupModels || [],
+            seaweedModels: this._obstacleOpts?.seaweedModels || [],
+            waveModels: this._obstacleOpts?.waveModels || [],
+            islandModels: this._obstacleOpts?.islandModels || [],
+            sirenModel: this._obstacleOpts?.sirenModel || null,
+            krakenModel: this._obstacleOpts?.krakenModel || null,
+            openPublish: true
+          };
+          this._isEditorPlay = false;
+          this._isClearCheckRepair = false;
+          emit('showLoading', { title: 'Safe Harbor Reached!', message: 'Course verified! Opening dispatch harbor...', progress: 0.2 });
+          this.transition(GamePhase.EDITOR, editorOpts);
+          return;
+        }
         this.transition(GamePhase.RESULTS, { passed: true });
         return;
       }
@@ -2202,10 +2239,10 @@ export class GameState {
   // EDITOR
   // =========================================================================
 
-  _enterEditor({ levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel }) {
-    this._levelCfg = levelCfg;
+  _enterEditor({ levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel, openPublish }) {
+    this._levelCfg = levelCfg || LevelConfig.createEmptyLevel();
 
-    const hasDock = levelCfg?.hasDock !== false && this._levelCfg?.hasDock !== false;
+    const hasDock = this._levelCfg?.hasDock !== false;
     this._hasDock = hasDock;
 
     if (hasDock) {
@@ -2311,7 +2348,7 @@ export class GameState {
     };
     on('editorCameraPreset', this._onEditorCameraPreset);
 
-    emit('uiMount', { screen: 'editor', levelCfg });
+    emit('uiMount', { screen: 'editor', levelCfg: this._levelCfg, openPublish: Boolean(openPublish) });
   }
 
   _updateEditor(delta) {
@@ -2323,7 +2360,7 @@ export class GameState {
       return;
     }
 
-    if (this._orbitControls) {
+    if (this._orbitControls && this._orbitControls.enabled) {
       // WASD panning for editor
       const speed = 40 * delta;
       

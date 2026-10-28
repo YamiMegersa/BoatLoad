@@ -344,10 +344,16 @@ export class PauseMenu {
       emit('restartPhase');
     });
 
-    this._el.querySelector('#btn-shipyard')?.addEventListener('click', () => {
-      emit('resumeGame');
-      emit('gotoShipyard');
-    });
+    const shipyardBtn = this._el.querySelector('#btn-shipyard');
+    if (shipyardBtn) {
+      if (window.gameState?._isEditorPlay) {
+        shipyardBtn.innerHTML = '<span class="pixel-icon icon-map-maker-scroll size-18"></span> Return to Editor';
+      }
+      shipyardBtn.addEventListener('click', () => {
+        emit('resumeGame');
+        emit('gotoShipyard');
+      });
+    }
 
     this._el.querySelector('#btn-title')?.addEventListener('click', () => {
       emit('resumeGame');

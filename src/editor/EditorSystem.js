@@ -37,6 +37,7 @@ export class EditorSystem {
     
     // Config
     this._levelCfg = null;
+    this._publishMetadata = null;
     this._customShipDamage = null;
     this._destructionWorkshop = new BoatDestructionWorkshop();
     this._damageUI = new EditorDamageUI();
@@ -159,6 +160,14 @@ export class EditorSystem {
       this._levelCfg = cfg;
       this._budget = cfg.budget !== undefined ? cfg.budget : 300;
       this._customShipDamage = cfg.damage ? JSON.parse(JSON.stringify(cfg.damage)) : null;
+      if (cfg.title || cfg.metadata?.title) {
+        this._publishMetadata = {
+          title: cfg.metadata?.title || cfg.title || 'Custom Sea Passage',
+          description: cfg.metadata?.description || cfg.description || '',
+          tags: cfg.metadata?.tags || cfg.tags || ['adventure'],
+          budget: cfg.budget !== undefined ? cfg.budget : 300
+        };
+      }
 
       // Clear existing placed obstacles
       for (const obs of this._placedObstacles) {
@@ -553,6 +562,34 @@ export class EditorSystem {
     this._sirenModel = sirenModel;
     this._krakenModel = krakenModel;
 
+    // Restore notes and publish metadata
+    if (this._levelCfg?.metadata || this._levelCfg?.title) {
+      this._publishMetadata = {
+        title: this._levelCfg.metadata?.title || this._levelCfg.title || 'Custom Sea Passage',
+        description: this._levelCfg.metadata?.description || this._levelCfg.description || '',
+        tags: this._levelCfg.metadata?.tags || this._levelCfg.tags || ['adventure'],
+        budget: this._budget
+      };
+    } else {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          const raw = localStorage.getItem('boatload_course_publish_draft');
+          if (raw) {
+            this._publishMetadata = JSON.parse(raw);
+            if (this._levelCfg) {
+              this._levelCfg.title = this._publishMetadata.title;
+              this._levelCfg.description = this._publishMetadata.description;
+              this._levelCfg.tags = this._publishMetadata.tags;
+              if (this._publishMetadata.budget !== undefined) {
+                this._levelCfg.budget = this._publishMetadata.budget;
+                this._budget = this._publishMetadata.budget;
+              }
+            }
+          }
+        }
+      } catch {}
+    }
+
     // Dedicated isolated root group for all editor-specific entities
     this._editorGroup = new THREE.Group();
     this._editorGroup.name = 'EditorEnvironmentGroup';
@@ -915,6 +952,7 @@ export class EditorSystem {
 
   _onKeyDown(event) {
     if (this._destructionWorkshop?.isOpen) return;
+    if (event.target?.tagName === 'INPUT' || event.target?.tagName === 'TEXTAREA' || event.target?.tagName === 'SELECT' || event.target?.isContentEditable) return;
     const isPlaceTool = this._activeTool === 'place' && this._activeType;
     const isTerrainTool = this._activeTool === 'terrain_raise' || this._activeTool === 'terrain_lower';
 
@@ -1231,6 +1269,15 @@ export class EditorSystem {
 
     return {
       ...this._levelCfg,
+      title: this._publishMetadata?.title || this._levelCfg?.title || this._levelCfg?.metadata?.title || 'Custom Sea Passage',
+      description: this._publishMetadata?.description || this._levelCfg?.description || this._levelCfg?.metadata?.description || '',
+      tags: this._publishMetadata?.tags || this._levelCfg?.tags || this._levelCfg?.metadata?.tags || ['adventure'],
+      metadata: {
+        title: this._publishMetadata?.title || this._levelCfg?.title || this._levelCfg?.metadata?.title || 'Custom Sea Passage',
+        description: this._publishMetadata?.description || this._levelCfg?.description || this._levelCfg?.metadata?.description || '',
+        tags: this._publishMetadata?.tags || this._levelCfg?.tags || this._levelCfg?.metadata?.tags || ['adventure'],
+        budget: this._budget !== undefined ? this._budget : (this._levelCfg?.budget !== undefined ? this._levelCfg.budget : 300)
+      },
       ship: this._selectedShipId || this._levelCfg?.ship || DEFAULT_SHIP_ID,
       budget: this._budget !== undefined ? this._budget : (this._levelCfg?.budget !== undefined ? this._levelCfg.budget : 300),
       worldSize: this._levelCfg?.worldSize || 200,

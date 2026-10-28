@@ -11,7 +11,7 @@
 export const LEVEL_SCHEMA_VERSION = '1.0.0';
 export const MAX_OBSTACLES = 250;
 export const MAX_WORLD_SIZE = 500;
-export const MAX_PAYLOAD_BYTES = 256 * 1024; // 256 KB
+export const MAX_PAYLOAD_BYTES = 1024 * 1024; // 1 MB (1,048,576 bytes)
 
 export class LevelSerializer {
   /**
@@ -35,7 +35,7 @@ export class LevelSerializer {
     const sizeBytes = new Blob([jsonString]).size;
 
     if (sizeBytes > MAX_PAYLOAD_BYTES) {
-      throw new Error(`Level payload exceeds max size limit (${(sizeBytes / 1024).toFixed(1)} KB > 256 KB).`);
+      throw new Error(`Level payload exceeds max size limit (${(sizeBytes / 1024).toFixed(1)} KB > 1024 KB / 1 MB).`);
     }
 
     const checksum = await this.computeChecksum(cleanLevel);
