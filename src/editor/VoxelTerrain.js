@@ -135,10 +135,168 @@ export class VoxelTerrain {
     this.scene = scene;
     this.chunks = new Map();
     this.meshes = new Map();
-    this.material = new THREE.MeshLambertMaterial({ 
+    this.terrainUniforms = {
+      uRockBumpStrength: { value: 0.38 },
+      uDirtBumpStrength: { value: 0.22 },
+      uStrataBumpStrength: { value: 0.45 }
+    };
+
+    this.material = new THREE.MeshStandardMaterial({ 
         vertexColors: true, 
-        flatShading: true 
+        roughness: 0.88,
+        metalness: 0.04,
+        flatShading: false
     });
+
+    this.material.onBeforeCompile = (shader) => {
+      shader.uniforms.uRockBumpStrength = this.terrainUniforms.uRockBumpStrength;
+      shader.uniforms.uDirtBumpStrength = this.terrainUniforms.uDirtBumpStrength;
+      shader.uniforms.uStrataBumpStrength = this.terrainUniforms.uStrataBumpStrength;
+
+      shader.vertexShader = `
+        attribute float aBlockType;
+        varying float vBlockType;
+        varying vec3 vWorldPos;
+        varying vec3 vGeomNormal;
+        ${shader.vertexShader}
+      `.replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+        vBlockType = aBlockType;
+        vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
+        vGeomNormal = normal;`
+      );
+
+      shader.fragmentShader = `
+        uniform float uRockBumpStrength;
+        uniform float uDirtBumpStrength;
+        uniform float uStrataBumpStrength;
+
+        varying float vBlockType;
+        varying vec3 vWorldPos;
+        varying vec3 vGeomNormal;
+
+        vec3 hash33_terrain(vec3 p) {
+            p = vec3(
+                dot(p, vec3(127.1, 311.7, 74.7)),
+                dot(p, vec3(269.5, 183.3, 246.1)),
+                dot(p, vec3(113.5, 271.9, 124.6))
+            );
+            return -1.0 + 2.0 * fract(sin(p) * 43758.5453123);
+        }
+
+        float gradNoise3D(vec3 p) {
+            vec3 i = floor(p);
+            vec3 f = fract(p);
+            vec3 u = f * f * (3.0 - 2.0 * f);
+
+            return mix(
+                mix(mix(dot(hash33_terrain(i + vec3(0.0,0.0,0.0)), f - vec3(0.0,0.0,0.0)),
+                        dot(hash33_terrain(i + vec3(1.0,0.0,0.0)), f - vec3(1.0,0.0,0.0)), u.x),
+                    mix(dot(hash33_terrain(i + vec3(0.0,1.0,0.0)), f - vec3(0.0,1.0,0.0)),
+                        dot(hash33_terrain(i + vec3(1.0,1.0,0.0)), f - vec3(1.0,1.0,0.0)), u.x), u.y),
+                mix(mix(dot(hash33_terrain(i + vec3(0.0,0.0,1.0)), f - vec3(0.0,0.0,1.0)),
+                        dot(hash33_terrain(i + vec3(1.0,0.0,1.0)), f - vec3(1.0,0.0,1.0)), u.x),
+                    mix(dot(hash33_terrain(i + vec3(0.0,1.0,1.0)), f - vec3(0.0,1.0,1.0)),
+                        dot(hash33_terrain(i + vec3(1.0,1.0,1.0)), f - vec3(1.0,1.0,1.0)), u.x), u.y), u.z
+            );
+        }
+
+        float getTerrainHeight(vec3 p, float blockType, vec3 geomNormal) {
+            int b = int(blockType + 0.5);
+            bool isTop = geomNormal.y > 0.7;
+
+            // Keep horizontal meadow tops clean & readable
+            if ((b == 2 || b == 3) && isTop) {
+                return 0.0;
+            }
+
+            if (b == 5) {
+                // BLOCK.STONE: Chiseled rock fissures & crystalline granite facets
+                float n1 = gradNoise3D(p * 0.75);
+                float n2 = abs(gradNoise3D(p * 1.8 + 12.5));
+                float n3 = gradNoise3D(p * 3.6 + 47.1);
+                return n1 * 0.5 + (0.5 - n2) * 0.35 + n3 * 0.15;
+            } else if (b == 8) {
+                // BLOCK.CLAY_STRATA: Horizontal sedimentary layered ridges
+                float drift = gradNoise3D(vec3(p.xz * 0.35, 0.0)) * 1.6;
+                float strata = sin((p.y + drift) * 2.8);
+                float micro = gradNoise3D(p * 2.2) * 0.2;
+                return strata * 0.6 + micro;
+            } else if (b == 9) {
+                // BLOCK.SHALE_ROCK: Stepped slate fractures & sharp basalt sheets
+                float crack = abs(gradNoise3D(p * 1.3));
+                float terrace = floor(p.y * 1.4) * 0.25;
+                return (crack < 0.22 ? -0.4 : 0.2) + terrace + gradNoise3D(p * 2.0) * 0.2;
+            } else if (b == 7) {
+                // BLOCK.MOSS_STONE: Rounded boulder swell & depressions
+                float n1 = gradNoise3D(p * 0.65);
+                float n2 = gradNoise3D(p * 2.0 + 5.0) * 0.25;
+                return n1 * 0.65 + n2;
+            } else if (b == 4 || (b == 2 && !isTop)) {
+                // BLOCK.DIRT or GRASS SIDE: Organic soil grain & crumbly pebbles
+                float n1 = gradNoise3D(p * 2.8);
+                float n2 = gradNoise3D(p * 5.8 + 8.3) * 0.45;
+                return (n1 + n2) * 0.4;
+            } else if (b == 1 || b == 6) {
+                // BLOCK.SAND / WET_SAND: Gentle tidal / wind ripples
+                float ripple = sin((p.x + p.z * 0.7) * 2.2 + gradNoise3D(p * 0.4) * 1.8);
+                return ripple * 0.16;
+            } else if (b == 10) {
+                // BLOCK.ALPINE_TUNDRA:
+                return gradNoise3D(p * 1.5) * 0.35;
+            }
+
+            return 0.0;
+        }
+
+        float getBumpStrength(float blockType, vec3 geomNormal) {
+            int b = int(blockType + 0.5);
+            bool isTop = geomNormal.y > 0.7;
+            if (isTop && (b == 2 || b == 3)) return 0.0;
+
+            if (b == 5) return uRockBumpStrength;
+            if (b == 8) return uStrataBumpStrength;
+            if (b == 9) return uRockBumpStrength * 1.15;
+            if (b == 7) return uRockBumpStrength * 0.85;
+            if (b == 4 || (b == 2 && !isTop)) return uDirtBumpStrength;
+            if (b == 1 || b == 6) return 0.12;
+            return 0.15;
+        }
+        ${shader.fragmentShader}
+      `.replace(
+        '#include <normal_fragment_begin>',
+        `#include <normal_fragment_begin>
+        
+        float h = getTerrainHeight(vWorldPos, vBlockType, vGeomNormal);
+        float bumpStr = getBumpStrength(vBlockType, vGeomNormal);
+        
+        if (bumpStr > 0.001) {
+            vec3 dPdx = dFdx(vWorldPos);
+            vec3 dPdy = dFdy(vWorldPos);
+            float dhx = dFdx(h);
+            float dhy = dFdy(h);
+
+            vec3 r1 = cross(dPdy, vGeomNormal);
+            vec3 r2 = cross(vGeomNormal, dPdx);
+            float det = dot(dPdx, r1);
+
+            if (abs(det) > 1e-7) {
+                vec3 worldGrad = (dhx * r1 + dhy * r2) / det;
+                vec3 perturbedWorldNormal = normalize(vGeomNormal - bumpStr * worldGrad);
+                normal = normalize(mat3(viewMatrix) * perturbedWorldNormal);
+            }
+        }`
+      ).replace(
+        '#include <roughnessmap_fragment>',
+        `#include <roughnessmap_fragment>
+        if (int(vBlockType + 0.5) == 6) {
+            roughnessFactor = 0.28; // Wet shoreline sand sheen
+        }`
+      );
+    };
+
+    this.material.customProgramCacheKey = () => 'VoxelTerrainProceduralNormals_v2';
     
     this.meshGroup = new THREE.Group();
     this.scene.add(this.meshGroup);
@@ -834,6 +992,7 @@ export class VoxelTerrain {
     const positions = [];
     const colors = [];
     const normals = [];
+    const blockTypes = [];
     const indices = [];
     let offset = 0;
 
@@ -1005,6 +1164,7 @@ export class VoxelTerrain {
                 const wz = cz * CHUNK_SIZE + c[2] - 0.5;
                 positions.push(wx, wy, wz);
                 normals.push(...normal);
+                blockTypes.push(block);
 
                 const color = this.getFaceVertexColor(block, wx, wy, wz, normal, voxelBiome);
                 colors.push(color[0], color[1], color[2]);
@@ -1039,6 +1199,7 @@ export class VoxelTerrain {
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
     geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    geometry.setAttribute('aBlockType', new THREE.Float32BufferAttribute(blockTypes, 1));
     geometry.setIndex(indices);
     geometry.computeBoundingSphere();
     geometry.computeBoundingBox();
