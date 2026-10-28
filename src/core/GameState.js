@@ -949,7 +949,8 @@ export class GameState {
           dialogue: {
             portrait: `<img src="${getAssetUrl('assets/npc/custom_npc.png')}" alt="${customer.customerName}" />`,
             name: `${customer.customerName} (${customer.customerRole})`,
-            lines: customer.lines
+            lines: customer.lines,
+            voice: customer.voice
           }
         });
       }

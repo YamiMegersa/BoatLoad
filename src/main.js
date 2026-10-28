@@ -215,12 +215,22 @@ if (DEBUG) {
   console.info('[BoatLoad] Debug mode — window.__dev helpers: sink(), setWater(n), damage(n), day(n)');
 }
 
-// Audio: one global instance. Browsers suspend AudioContexts until the first
-// user gesture, so unlock on the first pointer/key input; M toggles mute.
+// Audio: one global instance. Browsers suspend AudioContexts until a valid
+// user activation gesture (click/pointerup/keydown), so keep trying until running; M toggles mute.
 const audio = new AudioManager();
-const unlockAudio = () => audio.unlock();
-window.addEventListener('pointerdown', unlockAudio, { once: true });
-window.addEventListener('keydown', unlockAudio, { once: true });
+const unlockAudio = () => {
+  audio.unlock();
+  if (audio.isUnlocked()) {
+    window.removeEventListener('click', unlockAudio);
+    window.removeEventListener('pointerdown', unlockAudio);
+    window.removeEventListener('pointerup', unlockAudio);
+    window.removeEventListener('keydown', unlockAudio);
+  }
+};
+window.addEventListener('click', unlockAudio);
+window.addEventListener('pointerdown', unlockAudio);
+window.addEventListener('pointerup', unlockAudio);
+window.addEventListener('keydown', unlockAudio);
 window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyM' && !e.ctrlKey && !e.metaKey && !e.shiftKey) audio.toggleMute();
 });

@@ -1,6 +1,46 @@
 /**
- * CustomerScript — Story, NPC customer roster, ship names, base pay, and dialogue scripts for Days 1–7.
+ * CustomerScript — Story, NPC customer roster, ship names, base pay, voice profiles,
+ * and dialogue scripts for Days 1–7.
+ *
+ * Voice clip pools (from `src/assets/audio/voices/*.mp3`):
+ *   - MUMBLE: general conversational babble chained while dialogue text types out
+ *   - SWEAR:  triggered when the typewriter encounters swear/curse words or frustrated complaints
+ *   - GRUNT:  triggered on sighs, groans, "Arrr!", "Oi", or complaint openings
  */
+
+export const VOICE_CLIP_POOLS = {
+  mumble: [
+    'GeorgeMems3',
+    'GeorgeMenem2',
+    'GeorgeMenems',
+    'GeorgeMnems',
+    'GeorgeMus',
+    'GeorgeMus2',
+    'GeorgeMus3',
+    'BrandenMus',
+    'BrandenMus2',
+    'BrandonMems',
+    'BrendanWaa',
+    'BrendanWaa2',
+    'Mus',
+    'Mus-2'
+  ],
+  swear: [
+    'Fuck',
+    'FuckMe',
+    'FuckMeWhyAmIdoingThis',
+    'FuckThisShit',
+    'FuckYou',
+    'FuckThisIsBAdJame'
+  ],
+  grunt: [
+    'Argh',
+    'Aaaa',
+    'Inhale',
+    'InhaleExhale',
+    'InhaleExhale-2'
+  ]
+};
 
 export const CUSTOMER_SCRIPTS = {
   1: {
@@ -11,6 +51,14 @@ export const CUSTOMER_SCRIPTS = {
     complaintShort: `"She's knackered."`,
     basePay: 400,
     bio: 'Peg-legged, half-deaf, smells like a tavern floor. Tutorial level.',
+    voice: {
+      pitch: 0.78,
+      pitchVariance: 0.05,
+      charIntervalMs: 38,
+      sliceDuration: 1.35,
+      bassBoostDb: 4,
+      clips: ['Mus', 'Mus-2', 'BrandenMus', 'GeorgeMnems', 'GeorgeMus2']
+    },
     lines: [
       `Oi. You the shipwright? Christ, you look younger than my last infection.`,
       `She's knackered, my ship. Creaks, groans, leaks. Like my third wife, God rest her. Hell of a woman. Bit of a leaker.`,
@@ -26,6 +74,14 @@ export const CUSTOMER_SCRIPTS = {
     complaintShort: `"She's in poor spirits."`,
     basePay: 600,
     bio: 'A former naval officer, immaculate manners, a body count in the dozens.',
+    voice: {
+      pitch: 1.34,
+      pitchVariance: 0.06,
+      charIntervalMs: 30,
+      sliceDuration: 0.85,
+      bassBoostDb: -3,
+      clips: ['GeorgeMenem2', 'GeorgeMenems', 'GeorgeMems3', 'GeorgeMus', 'GeorgeMus3']
+    },
     lines: [
       `Good morning. I'm told you're the only yard in port that hasn't been burned down. Yet.`,
       `My ship is in poor spirits. My first mate says she's 'fucked'. I prefer 'poor spirits'. He is no longer my first mate.`,
@@ -41,6 +97,13 @@ export const CUSTOMER_SCRIPTS = {
     complaintShort: `"Everything's fucked."`,
     basePay: 700,
     bio: "Has lost eight fingers, each one to a different shipwright's incompetence. Or his own.",
+    voice: {
+      pitch: 1.08,
+      pitchVariance: 0.14,
+      charIntervalMs: 34,
+      sliceDuration: 1.05,
+      clips: ['BrendanWaa', 'BrendanWaa2', 'BrandonMems', 'BrandenMus2']
+    },
     lines: [
       `Don't shake my hand. I haven't the fingers for it.`,
       `Everything's fucked. Every part of her. Mostly the parts.`,
@@ -56,6 +119,17 @@ export const CUSTOMER_SCRIPTS = {
     complaintShort: `"She's been through a trial."`,
     basePay: 900,
     bio: 'A priest with a drinking problem, a gambling problem and a church-robbing problem.',
+    voice: {
+      pitch: 0.72,
+      pitchVariance: 0.04,
+      charIntervalMs: 38,
+      sliceDuration: 1.5,
+      bassBoostDb: 5,
+      echoDelay: 0.065,
+      echoFeedback: 0.25,
+      echoWet: 0.2,
+      clips: ['BrandenMus', 'Mus', 'Mus-2', 'GeorgeMnems']
+    },
     lines: [
       `Bless you, my child. And bless this den of thieves. Mostly the thieves.`,
       `The Lord sent me trials. Also the Navy sent me cannon fire. It's hard to tell the difference.`,
@@ -71,6 +145,14 @@ export const CUSTOMER_SCRIPTS = {
     complaintShort: `"She needs sorting before Thursday."`,
     basePay: 900,
     bio: 'Charming, flirty, and widowed seven times. Every death was an accident.',
+    voice: {
+      pitch: 1.24,
+      pitchVariance: 0.07,
+      charIntervalMs: 33,
+      sliceDuration: 1.0,
+      pitchSlide: 1.06,
+      clips: ['GeorgeMenems', 'GeorgeMems3', 'BrandonMems', 'GeorgeMenem2']
+    },
     lines: [
       `Afternoon, love. Sue. Widow. Seven times over. The sea's cruel.`,
       `My ships never last. Neither do my husbands. Funny, that. Anyway, she's a wreck, and I've a wedding Thursday.`,
@@ -86,6 +168,14 @@ export const CUSTOMER_SCRIPTS = {
     complaintShort: `"She's seen action. From nobody."`,
     basePay: 1200,
     bio: 'Obviously a Navy admiral in a fake beard and a painted pigeon. Everyone in port knows. Nobody says.',
+    voice: {
+      pitch: 0.90,
+      pitchVariance: 0.08,
+      charIntervalMs: 34,
+      sliceDuration: 1.15,
+      bassBoostDb: 2,
+      clips: ['BrandenMus', 'BrandenMus2', 'BrendanWaa', 'GeorgeMus', 'GeorgeMus3']
+    },
     lines: [
       `"Arrr! Good morrow, me hearty. I'm a pirate. Observe my parrot." (Holds up a pigeon.) "Squawk."`,
       `She's seen action. From absolutely nobody. Pirate business. Nothing to do with the Admiralty. I've never been to a briefing.`,
@@ -101,6 +191,17 @@ export const CUSTOMER_SCRIPTS = {
     complaintShort: `"This is your fault."`,
     basePay: 1300,
     bio: "Cold, gorgeous, and enjoying this. Her ship is wrecked, and she's pretty sure it's your fault.",
+    voice: {
+      pitch: 1.38,
+      pitchVariance: 0.06,
+      charIntervalMs: 33,
+      sliceDuration: 1.1,
+      sirenShimmerRatio: 1.012,
+      echoDelay: 0.05,
+      echoFeedback: 0.25,
+      echoWet: 0.18,
+      clips: ['GeorgeMems3', 'GeorgeMenem2', 'BrendanWaa2', 'BrandonMems', 'Aaaa']
+    },
     lines: [
       `Hello, husband.`,
       `It was a lovely wedding. You were on the floor for most of it. The ship's a mess, so's my reputation, and both are your doing.`,

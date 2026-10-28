@@ -1,6 +1,32 @@
 import { on } from '../core/EventBus.js';
 import { getAssetUrl } from './paths.js';
 import { MusicManager } from './MusicManager.js';
+import { VOICE_CLIP_POOLS } from '../config/CustomerScript.js';
+
+/**
+ * Auto-discover any syllable/babble .mp3 files placed in `src/assets/audio/voices/`.
+ * Files can be placed directly in `src/assets/audio/voices/*.mp3` or inside subfolders.
+ * Maps relative key (e.g. "blip1" or "walt/blip1") -> resolved Vite asset URL.
+ */
+const BUNDLED_VOICE_URLS = (() => {
+  try {
+    const raw = import.meta.glob('../assets/audio/voices/**/*.mp3', {
+      eager: true,
+      query: '?url',
+      import: 'default'
+    });
+    const map = new Map();
+    for (const [path, url] of Object.entries(raw)) {
+      const rel = path
+        .replace(/^.*\/assets\/audio\/voices\//, '')
+        .replace(/\.mp3$/i, '');
+      map.set(rel, url);
+    }
+    return map;
+  } catch {
+    return new Map();
+  }
+})();
 
 /**
  * Procedural synth voices, one per known sound id.
@@ -125,10 +151,45 @@ export class AudioManager {
     this._sirenWatchdog = null;
     this._lastSirenPull = 0;
 
+    // NPC Voice / Animalese playback state (Web Audio DSP FX chain + HTML5 Audio fallback)
+    this._voiceBuffers = new Map();      // clipKey -> AudioBuffer (with _trimStart, _trimEnd)
+    this._voiceLoading = new Map();      // clipKey -> Promise<AudioBuffer|null>
+    this._distortionCurves = new Map();  // key -> Float32Array WaveShaper curve
+    this._activeVoiceNodes = [];         // active Web Audio source/osc nodes for current syllable
+    this._activeVoiceGain = null;        // envelope gain node for current Web Audio syllable
+    this._voicePreloaded = false;
+
+    this._voiceDeck = new Audio();
+    this._voiceDeck.preload = 'auto';
+    this._voicePlaying = false;
+    this._voiceClipStartTime = 0;
+    this._voiceCurrentSliceMs = 400;
+    this._voiceMaxTimer = null;
+    this._lastVoiceClipKey = null;
+    this._voiceMissing = new Set();
+
+    this._voiceDeck.addEventListener('ended', () => {
+      this._clearVoiceTimer();
+      this._voicePlaying = false;
+    });
+    this._voiceDeck.addEventListener('error', () => {
+      if (this._lastVoiceClipKey) {
+        this._voiceMissing.add(this._lastVoiceClipKey);
+      }
+      this._clearVoiceTimer();
+      this._voicePlaying = false;
+    });
+
     // Wire EventBus
     on('playSound', ({ sound, ...params }) => this.play(sound, params));
+    on('playVoiceBlip', (params) => this.playVoiceBlip(params));
+    on('stopVoice', () => this.stopVoice());
+    on('finishVoiceLine', () => this.finishVoiceLine());
     on('sirenPulling', (d) => this._updateSiren(d));
-    on('phaseChanged', () => this._stopSiren());
+    on('phaseChanged', () => {
+      this._stopSiren();
+      this.stopVoice();
+    });
     on('setAudioVolume', ({ volume }) => this.setMasterVolume(volume));
     on('setAudioMute', ({ muted }) => this.setMuted(muted));
     on('setSfxVolume', ({ volume }) => this.setSfxVolume(volume));
@@ -142,15 +203,25 @@ export class AudioManager {
 
   /**
    * Resume/create the AudioContext. Must be called from a user gesture
-   * (pointerdown/keydown) to satisfy browser autoplay policies.
+   * (click/pointerup/keydown) to satisfy browser autoplay policies.
    */
   async unlock() {
     try {
       await this._ensureContext();
       this._musicManager?.unlock();
+      if (this._voicePlaying && this._voiceDeck && this._voiceDeck.paused && this._voiceDeck.src) {
+        this._voiceDeck.play().catch(() => {});
+      }
     } catch {
       // Audio unsupported — the game must run on silently.
     }
+  }
+
+  /**
+   * Returns true once the Web Audio context is actively running.
+   */
+  isUnlocked() {
+    return Boolean(this._ctx && this._ctx.state === 'running');
   }
 
   /**
@@ -162,6 +233,7 @@ export class AudioManager {
       this._master.gain.setTargetAtTime(this._muted ? 0 : this._masterVolume, this._ctx.currentTime, 0.02);
     }
     this._musicManager?.setMasterVolume(this._masterVolume);
+    this._applyVoiceVolume();
   }
 
   /**
@@ -173,6 +245,7 @@ export class AudioManager {
       this._master.gain.setTargetAtTime(this._muted ? 0 : this._masterVolume, this._ctx.currentTime, 0.02);
     }
     this._musicManager?.setMuted(this._muted);
+    this._applyVoiceVolume();
     return this._muted;
   }
 
@@ -181,6 +254,7 @@ export class AudioManager {
    */
   setSfxVolume(val) {
     this._sfxVolume = Math.max(0, Math.min(1, Number(val) || 0));
+    this._applyVoiceVolume();
   }
 
   /**
@@ -233,6 +307,492 @@ export class AudioManager {
     return this.setMuted(!this._muted);
   }
 
+  /**
+   * Play or chain an Animal Crossing-style voice clip with per-character pitch
+   * shifting, random syllable slicing, and a custom Web Audio DSP distortion/FX chain.
+   *
+   * @param {object} [params]
+   * @param {object} [params.voice=null]         Full character voice profile from CustomerScript.js
+   * @param {number} [params.pitch=1.0]          Base playbackRate / pitch multiplier for the character
+   * @param {number} [params.pitchVariance=0.08] Random +/- pitch jitter
+   * @param {number} [params.inflection=0]       Extra pitch offset (e.g. +0.08 on questions/exclamations)
+   * @param {number} [params.charCode=0]         Character code of the letter being typed
+   * @param {string} [params.category='mumble']  Clip pool category: 'mumble' | 'swear' | 'grunt'
+   * @param {boolean} [params.interrupt=false]   If true, allow switching to a reaction clip
+   * @param {string[]} [params.clips=null]       Optional explicit list of mumble clip keys
+   */
+  playVoiceBlip({
+    voice = null,
+    pitch = 1.0,
+    pitchVariance = 0.08,
+    inflection = 0,
+    charCode = 0,
+    category = 'mumble',
+    interrupt = false,
+    clips = null
+  } = {}) {
+    if (this._muted || this._sfxVolume <= 0) return;
+
+    const now = performance.now();
+    const minInterruptMs = Math.min(450, this._voiceCurrentSliceMs * 0.75);
+    if (this._voicePlaying) {
+      if (!interrupt || (now - this._voiceClipStartTime) < minInterruptMs) {
+        return;
+      }
+    }
+
+    // Select candidate clip keys:
+    // - 'swear' and 'grunt' always pull from VOICE_CLIP_POOLS.swear / grunt
+    // - 'mumble' uses character-specific `clips` if provided, else VOICE_CLIP_POOLS.mumble
+    let candidateKeys;
+    if (category === 'swear' && VOICE_CLIP_POOLS.swear?.length) {
+      candidateKeys = VOICE_CLIP_POOLS.swear;
+    } else if (category === 'grunt' && VOICE_CLIP_POOLS.grunt?.length) {
+      candidateKeys = VOICE_CLIP_POOLS.grunt;
+    } else if (Array.isArray(clips) && clips.length > 0) {
+      candidateKeys = clips.map(c => c.replace(/\.mp3$/i, ''));
+    } else if (Array.isArray(voice?.clips) && voice.clips.length > 0) {
+      candidateKeys = voice.clips.map(c => c.replace(/\.mp3$/i, ''));
+    } else {
+      candidateKeys = VOICE_CLIP_POOLS.mumble;
+    }
+
+    const basePitch = voice?.pitch ?? pitch;
+    const variance = voice?.pitchVariance ?? pitchVariance;
+    const randomJitter = (Math.random() * 2 - 1) * variance;
+    const playbackRate = Math.max(0.42, Math.min(2.15, basePitch + inflection + randomJitter));
+
+    let pool = candidateKeys.filter(k => !this._voiceMissing.has(k));
+    if (pool.length > 1 && this._lastVoiceClipKey) {
+      pool = pool.filter(k => k !== this._lastVoiceClipKey);
+    }
+
+    if (pool.length > 0) {
+      const chosenKey = pool[Math.floor(Math.random() * pool.length)];
+      this._lastVoiceClipKey = chosenKey;
+
+      this._ensureContext().catch(() => {});
+
+      const cachedBuffer = this._voiceBuffers.get(chosenKey);
+      if (cachedBuffer && this._ctx) {
+        this._playVoiceBufferWithFX(cachedBuffer, playbackRate, voice, category);
+        return;
+      }
+
+      // Decode on first use and immediately play through the Web Audio DSP FX chain
+      this._voicePlaying = true;
+      this._voiceClipStartTime = performance.now();
+      this._loadVoiceClip(chosenKey).then((decodedBuf) => {
+        if (decodedBuf && this._ctx) {
+          this._playVoiceBufferWithFX(decodedBuf, playbackRate, voice, category);
+        } else {
+          const url = BUNDLED_VOICE_URLS.get(chosenKey) || encodeURI(getAssetUrl(`assets/audio/voices/${chosenKey}.mp3`));
+          this._playVoiceDeck(url, playbackRate, voice, category, charCode);
+        }
+      }).catch(() => {
+        const url = BUNDLED_VOICE_URLS.get(chosenKey) || encodeURI(getAssetUrl(`assets/audio/voices/${chosenKey}.mp3`));
+        this._playVoiceDeck(url, playbackRate, voice, category, charCode);
+      });
+      return;
+    }
+
+    // Fallback if all mp3 files were missing
+    this._ensureContext().then(() => {
+      this._playAnimaleseSynthBlip(playbackRate, charCode);
+    }).catch(() => {});
+  }
+
+  /**
+   * Stop any active voice clip immediately (e.g. when Next is clicked or dialogue closes).
+   */
+  stopVoice() {
+    this._clearVoiceTimer();
+    this._voicePlaying = false;
+
+    if (this._ctx && this._activeVoiceGain) {
+      const t = this._ctx.currentTime;
+      try {
+        this._activeVoiceGain.gain.cancelScheduledValues(t);
+        this._activeVoiceGain.gain.setTargetAtTime(0.0001, t, 0.015);
+      } catch { /* noop */ }
+      this._activeVoiceGain = null;
+    }
+    if (this._activeVoiceNodes.length > 0) {
+      const stopAt = this._ctx ? this._ctx.currentTime + 0.05 : 0;
+      for (const node of this._activeVoiceNodes) {
+        try { node.stop(stopAt); } catch { /* noop */ }
+      }
+      this._activeVoiceNodes = [];
+    }
+
+    if (this._voiceDeck) {
+      try {
+        this._voiceDeck.pause();
+        this._voiceDeck.currentTime = 0;
+      } catch { /* noop */ }
+    }
+  }
+
+  /**
+   * Called when typewriter finishes revealing a line: stops the active clip if it
+   * has already played for >= minPlayMs, or lets a freshly started clip finish.
+   */
+  finishVoiceLine() {
+    if (!this._voicePlaying) {
+      this.stopVoice();
+      return;
+    }
+    const elapsed = performance.now() - this._voiceClipStartTime;
+    const minPlayMs = Math.max(420, Math.min(850, this._voiceCurrentSliceMs));
+    if (elapsed >= minPlayMs) {
+      this.stopVoice();
+    } else {
+      this._clearVoiceTimer();
+      this._voiceMaxTimer = setTimeout(() => {
+        this.stopVoice();
+      }, minPlayMs - elapsed);
+    }
+  }
+
+  _clearVoiceTimer() {
+    if (this._voiceMaxTimer) {
+      clearTimeout(this._voiceMaxTimer);
+      this._voiceMaxTimer = null;
+    }
+  }
+
+  _applyVoiceVolume() {
+    if (!this._voiceDeck) return;
+    const masterMult = this._muted ? 0 : this._masterVolume;
+    this._voiceDeck.volume = Math.max(0, Math.min(1, masterMult * this._sfxVolume));
+  }
+
+  /**
+   * Build or retrieve a cached WaveShaper distortion curve.
+   * Supports smooth overdrive saturation and crunchy staircase quantization ('twitch_wobble').
+   */
+  _getDistortionCurve(drive = 15, effect = '') {
+    const key = `${effect}:${drive}`;
+    if (this._distortionCurves.has(key)) {
+      return this._distortionCurves.get(key);
+    }
+    const samples = 8192;
+    const curve = new Float32Array(samples);
+    const k = Math.max(1, drive);
+    const quantSteps = effect === 'twitch_wobble' ? 14 : 0;
+
+    for (let i = 0; i < samples; i++) {
+      const x = (i * 2) / samples - 1;
+      // Asymmetrical tube/throat saturation for rich vocal grit
+      let y = ((1 + k) * x) / (1 + k * Math.abs(x));
+      if (x < 0) y *= 0.88;
+      if (quantSteps > 0) {
+        y = Math.round(y * quantSteps) / quantSteps;
+      }
+      curve[i] = Math.max(-1, Math.min(1, y));
+    }
+    this._distortionCurves.set(key, curve);
+    return curve;
+  }
+
+  /**
+   * Play a decoded voice AudioBuffer through a character-specific Web Audio DSP chain:
+   * - Syllable slicing from random active vocal offsets (`sliceDuration`)
+   * - Pitch slides (`pitchSlide`) & LFO pitch vibrato/warble (`vibratoHz`, `vibratoCents`)
+   * - Dual/Triple Siren voice harmonizer (`sirenHarmonyRatio`, `sirenShimmerRatio`)
+   * - WaveShaper vocal distortion/gravel (`drive`, `effect`)
+   * - Formant/tone BiquadFilter (`filterType`, `filterFreq`, `filterQ`) & chest bass EQ (`bassBoostDb`)
+   * - AM throat growl / purr tremolo (`tremoloHz`, `tremoloDepth`)
+   * - Cathedral / Siren slapback echo (`echoDelay`, `echoFeedback`)
+   */
+  _playVoiceBufferWithFX(buffer, playbackRate = 1.0, voice = null, category = 'mumble') {
+    this.stopVoice();
+
+    const ctx = this._ctx;
+    const t = ctx.currentTime;
+    const trimStart = buffer._trimStart ?? 0;
+    const trimEnd = buffer._trimEnd ?? buffer.duration;
+    const availSpan = Math.max(0.12, trimEnd - trimStart);
+
+    // Play from `trimStart` so the human vocal articulation is always clean and natural;
+    // cap very long recordings (e.g. 5s–16s) at `sliceDuration` so clips still chain nicely.
+    const offset = trimStart;
+    let realSliceDur;
+    if (category === 'swear') {
+      realSliceDur = Math.min(1.6, availSpan / playbackRate);
+    } else if (category === 'grunt') {
+      realSliceDur = Math.min(1.1, availSpan / playbackRate);
+    } else {
+      const maxPhraseDur = (voice?.sliceDuration ?? 1.2) * (0.9 + Math.random() * 0.25);
+      realSliceDur = Math.max(0.25, Math.min(maxPhraseDur, availSpan / playbackRate));
+    }
+
+    const bufPlayDur = Math.min(buffer.duration - offset, realSliceDur * playbackRate);
+    const activeNodes = [];
+
+    // Mix bus for primary + optional Siren harmony voices
+    const voiceBus = ctx.createGain();
+    voiceBus.gain.setValueAtTime(1.0, t);
+
+    const createSource = (rateMult = 1.0, gainVal = 1.0) => {
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      const rate = Math.max(0.3, Math.min(2.8, playbackRate * rateMult));
+      src.playbackRate.setValueAtTime(rate, t);
+
+      if (voice?.pitchSlide && voice.pitchSlide !== 1.0) {
+        src.playbackRate.exponentialRampToValueAtTime(
+          Math.max(0.3, Math.min(2.8, rate * voice.pitchSlide)),
+          t + realSliceDur
+        );
+      }
+
+      if (voice?.vibratoHz > 0 && voice?.vibratoCents > 0) {
+        const vibOsc = ctx.createOscillator();
+        const vibGain = ctx.createGain();
+        vibOsc.type = voice.effect === 'twitch_wobble' ? 'sawtooth' : 'sine';
+        vibOsc.frequency.setValueAtTime(voice.vibratoHz, t);
+        vibGain.gain.setValueAtTime(voice.vibratoCents, t);
+        vibOsc.connect(vibGain);
+        vibGain.connect(src.detune);
+        vibOsc.start(t);
+        vibOsc.stop(t + realSliceDur + 0.08);
+        activeNodes.push(vibOsc);
+      }
+
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(gainVal, t);
+      src.connect(g);
+      g.connect(voiceBus);
+
+      src.start(t, offset, bufPlayDur);
+      activeNodes.push(src);
+      return src;
+    };
+
+    const mainSource = createSource(1.0, 1.0);
+
+    // Subtle Siren chorus shimmer (Day 7 Marguerite) — kept gentle so the human voice stays clear
+    if (voice?.sirenHarmonyRatio) {
+      createSource(voice.sirenHarmonyRatio, 0.22);
+    }
+    if (voice?.sirenShimmerRatio) {
+      createSource(voice.sirenShimmerRatio, 0.25);
+    }
+
+    let currentNode = voiceBus;
+
+    // 1. WaveShaper distortion / overdrive
+    if (voice?.drive > 0) {
+      const shaper = ctx.createWaveShaper();
+      shaper.curve = this._getDistortionCurve(voice.drive, voice.effect || '');
+      shaper.oversample = '2x';
+      currentNode.connect(shaper);
+      currentNode = shaper;
+    }
+
+    // 2. Primary tone / formant BiquadFilter
+    if (voice?.filterType && voice?.filterFreq) {
+      const filter = ctx.createBiquadFilter();
+      filter.type = voice.filterType;
+      filter.frequency.setValueAtTime(voice.filterFreq, t);
+      filter.Q.setValueAtTime(voice.filterQ ?? 1.2, t);
+      currentNode.connect(filter);
+      currentNode = filter;
+    }
+
+    // 3. Chest bass boost / cut EQ
+    if (voice?.bassBoostDb) {
+      const bass = ctx.createBiquadFilter();
+      bass.type = 'lowshelf';
+      bass.frequency.setValueAtTime(210, t);
+      bass.gain.setValueAtTime(voice.bassBoostDb, t);
+      currentNode.connect(bass);
+      currentNode = bass;
+    }
+
+    // 4. Throat growl / sultry purr AM tremolo
+    if (voice?.tremoloHz > 0 && voice?.tremoloDepth > 0) {
+      const tremNode = ctx.createGain();
+      const depth = Math.min(0.85, voice.tremoloDepth);
+      tremNode.gain.setValueAtTime(1.0 - depth * 0.5, t);
+
+      const tremOsc = ctx.createOscillator();
+      const tremDepthGain = ctx.createGain();
+      tremOsc.type = 'sine';
+      tremOsc.frequency.setValueAtTime(voice.tremoloHz, t);
+      tremDepthGain.gain.setValueAtTime(depth * 0.5, t);
+
+      tremOsc.connect(tremDepthGain);
+      tremDepthGain.connect(tremNode.gain);
+      tremOsc.start(t);
+      tremOsc.stop(t + realSliceDur + 0.08);
+      activeNodes.push(tremOsc);
+
+      currentNode.connect(tremNode);
+      currentNode = tremNode;
+    }
+
+    // 5. Output envelope gain (smooth attack & release so sliced chunks never click)
+    const envGain = ctx.createGain();
+    const driveComp = voice?.drive > 25 ? 0.68 : (voice?.drive > 10 ? 0.82 : 1.0);
+    const peakGain = Math.min(1.2, 0.95 * driveComp * this._sfxVolume);
+    const attack = 0.012;
+    const release = Math.min(0.045, realSliceDur * 0.28);
+
+    envGain.gain.setValueAtTime(0.001, t);
+    envGain.gain.linearRampToValueAtTime(peakGain, t + attack);
+    envGain.gain.setValueAtTime(peakGain, Math.max(t + attack, t + realSliceDur - release));
+    envGain.gain.exponentialRampToValueAtTime(0.0001, t + realSliceDur + 0.015);
+
+    currentNode.connect(envGain);
+    envGain.connect(this._master);
+
+    // 6. Optional subtle room/siren slapback echo
+    if (voice?.echoDelay > 0 && voice?.echoFeedback > 0) {
+      const delay = ctx.createDelay(0.5);
+      delay.delayTime.setValueAtTime(voice.echoDelay, t);
+      const fb = ctx.createGain();
+      fb.gain.setValueAtTime(Math.min(0.45, voice.echoFeedback), t);
+      const wet = ctx.createGain();
+      wet.gain.setValueAtTime(voice.echoWet ?? 0.2, t);
+
+      envGain.connect(delay);
+      delay.connect(fb);
+      fb.connect(delay);
+      delay.connect(wet);
+      wet.connect(this._master);
+    }
+
+    this._activeVoiceNodes = activeNodes;
+    this._activeVoiceGain = envGain;
+    this._voicePlaying = true;
+    this._voiceClipStartTime = performance.now();
+    this._voiceCurrentSliceMs = Math.round(realSliceDur * 1000);
+
+    this._voiceMaxTimer = setTimeout(() => {
+      if (this._activeVoiceGain === envGain) {
+        this._voicePlaying = false;
+        this._activeVoiceGain = null;
+        this._activeVoiceNodes = [];
+      }
+    }, this._voiceCurrentSliceMs + 15);
+
+    mainSource.onended = () => {
+      if (this._activeVoiceGain === envGain) {
+        this._clearVoiceTimer();
+        this._voicePlaying = false;
+        this._activeVoiceGain = null;
+        this._activeVoiceNodes = [];
+      }
+    };
+  }
+
+  _playVoiceDeck(url, playbackRate = 1.0, voice = null, category = 'mumble', charCode = 65) {
+    this._clearVoiceTimer();
+    const deck = this._voiceDeck;
+    if (!deck) return;
+
+    try {
+      deck.pause();
+    } catch { /* noop */ }
+
+    deck.src = url;
+    deck.currentTime = 0;
+
+    // Disable pitch preservation so playbackRate shifts vocal pitch (Animal Crossing style)
+    if ('preservesPitch' in deck) deck.preservesPitch = false;
+    if ('mozPreservesPitch' in deck) deck.mozPreservesPitch = false;
+    if ('webkitPreservesPitch' in deck) deck.webkitPreservesPitch = false;
+    deck.playbackRate = Math.max(0.45, Math.min(2.15, playbackRate));
+
+    this._applyVoiceVolume();
+    this._voicePlaying = true;
+    this._voiceClipStartTime = performance.now();
+
+    const sliceSec = category === 'swear'
+      ? 1.25
+      : (category === 'grunt' ? 0.8 : (voice?.sliceDuration ?? 0.4) * (0.85 + Math.random() * 0.3));
+    this._voiceCurrentSliceMs = Math.round(sliceSec * 1000);
+
+    this._voiceMaxTimer = setTimeout(() => {
+      if (this._voicePlaying) {
+        try { deck.pause(); } catch { /* noop */ }
+        this._voicePlaying = false;
+      }
+    }, this._voiceCurrentSliceMs);
+
+    const playPromise = deck.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(() => {
+        this._clearVoiceTimer();
+        this._voicePlaying = false;
+        this._ensureContext().then(() => {
+          this._playAnimaleseSynthBlip(playbackRate, charCode);
+        }).catch(() => {});
+      });
+    }
+  }
+
+  async _loadVoiceClip(clipKey) {
+    if (this._voiceBuffers.has(clipKey)) {
+      return this._voiceBuffers.get(clipKey);
+    }
+    if (this._voiceMissing.has(clipKey)) {
+      return null;
+    }
+    if (this._voiceLoading.has(clipKey)) {
+      return this._voiceLoading.get(clipKey);
+    }
+
+    const promise = (async () => {
+      try {
+        await this._ensureContext();
+        const url = BUNDLED_VOICE_URLS.get(clipKey) || encodeURI(getAssetUrl(`assets/audio/voices/${clipKey}.mp3`));
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const arrayBuffer = await res.arrayBuffer();
+        const audioBuffer = await this._ctx.decodeAudioData(arrayBuffer);
+
+        // Scan PCM samples to trim leading/trailing dead air
+        const ch0 = audioBuffer.getChannelData(0);
+        const sr = audioBuffer.sampleRate;
+        const threshold = 0.015;
+        let firstIdx = 0;
+        let lastIdx = ch0.length - 1;
+        while (firstIdx < ch0.length && Math.abs(ch0[firstIdx]) < threshold) firstIdx++;
+        while (lastIdx > firstIdx && Math.abs(ch0[lastIdx]) < threshold) lastIdx--;
+        audioBuffer._trimStart = Math.max(0, (firstIdx / sr) - 0.008);
+        audioBuffer._trimEnd = Math.min(audioBuffer.duration, (lastIdx / sr) + 0.015);
+
+        this._voiceBuffers.set(clipKey, audioBuffer);
+        return audioBuffer;
+      } catch {
+        this._voiceMissing.add(clipKey);
+        return null;
+      } finally {
+        this._voiceLoading.delete(clipKey);
+      }
+    })();
+
+    this._voiceLoading.set(clipKey, promise);
+    return promise;
+  }
+
+  _preloadVoiceBuffers() {
+    if (this._voicePreloaded) return;
+    this._voicePreloaded = true;
+    const allKeys = new Set([
+      ...(VOICE_CLIP_POOLS.mumble || []),
+      ...(VOICE_CLIP_POOLS.swear || []),
+      ...(VOICE_CLIP_POOLS.grunt || []),
+      ...BUNDLED_VOICE_URLS.keys()
+    ]);
+    for (const key of allKeys) {
+      this._loadVoiceClip(key).catch(() => {});
+    }
+  }
+
   // -------------------------------------------------------------------------
   // Internal — context, files, playback
   // -------------------------------------------------------------------------
@@ -247,11 +807,12 @@ export class AudioManager {
       this._master.connect(this._ctx.destination);
       this._musicManager?.setContext(this._ctx, this._master);
     }
-    // Resume if suspended (browser auto-suspend policy)
+    // Resume if suspended without blocking indefinitely if called outside a user gesture
     if (this._ctx.state === 'suspended') {
-      await this._ctx.resume();
+      this._ctx.resume().catch(() => {});
     }
     this._musicManager?.unlock();
+    this._preloadVoiceBuffers();
   }
 
   async _loadFile(soundId) {
@@ -272,6 +833,38 @@ export class AudioManager {
     source.connect(gainNode);
     gainNode.connect(this._master);
     source.start();
+  }
+
+  _playAnimaleseSynthBlip(playbackRate = 1.0, charCode = 65) {
+    const ctx = this._ctx;
+    const t = ctx.currentTime;
+    const baseFreq = 210 * playbackRate;
+    const dur = 0.068;
+
+    const osc = ctx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(baseFreq * 0.94, t);
+    osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.06, t + dur * 0.65);
+
+    // Bandpass formant filter that shifts vowel color based on the letter
+    const formant = ctx.createBiquadFilter();
+    formant.type = 'bandpass';
+    const vowelFreq = 750 + ((charCode * 53) % 950);
+    formant.frequency.setValueAtTime(vowelFreq * Math.sqrt(playbackRate), t);
+    formant.Q.setValueAtTime(3.2, t);
+
+    const g = ctx.createGain();
+    const peak = 0.16 * this._sfxVolume;
+    g.gain.setValueAtTime(0.001, t);
+    g.gain.linearRampToValueAtTime(peak, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+
+    osc.connect(formant);
+    formant.connect(g);
+    g.connect(this._master);
+
+    osc.start(t);
+    osc.stop(t + dur + 0.02);
   }
 
   _playSynth(soundId, params = {}) {
