@@ -471,11 +471,28 @@ export class HUD {
     };
     on('sirenPulling', this._onSirenPulling);
 
+    // Keyboard steering support (A / D, Left / Right)
+    this._steerKeys = { left: false, right: false };
+    this._onSteerKeyDown = (e) => {
+      if (e.code === 'KeyA' || e.code === 'ArrowLeft') this._steerKeys.left = true;
+      if (e.code === 'KeyD' || e.code === 'ArrowRight') this._steerKeys.right = true;
+    };
+    this._onSteerKeyUp = (e) => {
+      if (e.code === 'KeyA' || e.code === 'ArrowLeft') this._steerKeys.left = false;
+      if (e.code === 'KeyD' || e.code === 'ArrowRight') this._steerKeys.right = false;
+    };
+    window.addEventListener('keydown', this._onSteerKeyDown);
+    window.addEventListener('keyup', this._onSteerKeyUp);
+
     // Auto-centering & emit loop
     const autoCenter = () => {
       if (!this._el) return; // Stop loop if unmounted
       
-      if (!this._isDraggingWheel) {
+      if (this._steerKeys?.left) {
+        this._wheelAngle = Math.max(-180, this._wheelAngle - 450 * 0.016);
+      } else if (this._steerKeys?.right) {
+        this._wheelAngle = Math.min(180, this._wheelAngle + 450 * 0.016);
+      } else if (!this._isDraggingWheel) {
         this._wheelAngle *= 0.85; // Spring back
         if (Math.abs(this._wheelAngle) < 0.1) this._wheelAngle = 0;
       }
@@ -561,6 +578,12 @@ export class HUD {
       off('economyUpdated', this._onEconomyUpdated);
       off('itemsEquipped', this._onEconomyUpdated);
       this._onEconomyUpdated = null;
+    }
+    if (this._onSteerKeyDown) {
+      window.removeEventListener('keydown', this._onSteerKeyDown);
+      window.removeEventListener('keyup', this._onSteerKeyUp);
+      this._onSteerKeyDown = null;
+      this._onSteerKeyUp = null;
     }
     this._pedestal = null;
     clearInterval(this._qteTimer);

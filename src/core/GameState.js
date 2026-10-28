@@ -137,6 +137,9 @@ export class GameState {
     this._dockStall       = new DockStall();
     this._hasDock         = true;
     this._isCountdownActive = false;
+    this._camShudderTrauma = 0;
+    this._onCameraShudder  = (d) => { this._camShudderTrauma = Math.min(1.0, (this._camShudderTrauma || 0) + (d.intensity || 0.4)); };
+    on('cameraShudder', this._onCameraShudder);
     
     // Ship arrival cutscene state
     this._shipDocked = true;
@@ -435,7 +438,7 @@ export class GameState {
 
     this._isCountdownActive = true;
     this._playerShip.halt();
-    this._playerShip.setImmune(9.0); // Departure grace immunity (6s countdown + 3s clear departure)
+    this._playerShip.setDepartureGrace(9.0); // Departure grace immunity (6s countdown + 3s clear departure)
 
     emit('startAnchorCountdown', {
       duration: 6.0,
@@ -444,7 +447,7 @@ export class GameState {
         this._isCountdownActive = false;
         if (this._playerShip) {
           this._playerShip.resumeSpeed();
-          this._playerShip.setImmune(3.0);
+          this._playerShip.setDepartureGrace(3.0);
         }
       }
     });
@@ -1619,7 +1622,7 @@ export class GameState {
     };
 
     this._playerShip = new PlayerShip(effectiveShipStats, this._scene, this._chunkRenderer, this._grid, this._qteSystem);
-    this._playerShip.setImmune(9.0); // Full immunity during anchor countdown + initial departure
+    this._playerShip.setDepartureGrace(9.0); // Full immunity during anchor countdown + initial departure
     if (spawnX !== 0 || spawnY !== 0 || spawnZ !== 0) {
       this._playerShip.mesh.position.set(spawnX, spawnY, spawnZ);
     }
@@ -1951,6 +1954,19 @@ export class GameState {
       if (this._camImpulse > 0) {
         this._camImpulse = Math.max(0, this._camImpulse - delta);
         targetCamPos.y += (this._camImpulse / 0.08) * 0.35;
+      }
+
+      // Camera deck shudder on physical collision impacts (Sea of Thieves trauma decay)
+      if (this._camShudderTrauma > 0) {
+        this._camShudderTrauma = Math.max(0, this._camShudderTrauma - delta * 3.0);
+        const shakeMag = this._camShudderTrauma * this._camShudderTrauma * 0.75;
+        const shakeTime = performance.now() * 0.045;
+        const ox = (Math.sin(shakeTime * 1.3) * 0.7 + Math.cos(shakeTime * 2.1) * 0.3) * shakeMag;
+        const oy = (Math.cos(shakeTime * 1.7) * 0.7 + Math.sin(shakeTime * 2.5) * 0.3) * shakeMag;
+        const oz = (Math.sin(shakeTime * 1.9) * 0.5) * shakeMag;
+        targetCamPos.x += ox;
+        targetCamPos.y += oy;
+        targetCamPos.z += oz;
       }
 
       // 5. Anti-Submersion Water Surface Clamp: never allow camera lens below ocean waves

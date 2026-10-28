@@ -106,12 +106,24 @@ export class PlayerShip {
     this.pitchVelocity = 0;
     this.rollVelocity = 0;
 
-    // Pinball-like knockback velocity
+    // Pinball-like knockback velocity (retained for backward compatibility)
     this.knockbackVelocity = new THREE.Vector3();
     
-    // Immunity
+    // Departure Grace (Mooring / anchor-raise protection, not combat god-mode)
+    this.departureGraceTime = 0;
     this.immuneTime = 0;
     this._lastOpacity = 1.0;
+
+    // Physical Contact & Scraping System (Sea of Thieves model)
+    this.compartmentRefractory = {
+      bow_port: 0,
+      bow_starboard: 0,
+      mid_port: 0,
+      mid_starboard: 0,
+      stern_port: 0,
+      stern_starboard: 0,
+    };
+    this._scrapeSoundThrottle = 0;
 
     /** @type {boolean} True when the ship has sunk (HP ≤ 0) */
     this.sunk = false;
@@ -120,6 +132,7 @@ export class PlayerShip {
     this.throttle = 1.0;
     this.targetThrottle = 1.0;
     this._isHalted = false;
+    this.blockedNormal = null;
 
     this._onCinematicStart = () => this.halt();
     this._onCinematicEnd = () => this.resumeSpeed();
@@ -225,7 +238,7 @@ export class PlayerShip {
     this.obb.copy(this.baseOBB);
     this.obb.applyMatrix4(this.mesh.matrixWorld);
 
-    this.godMode = window.godModeEnabled || false;
+    this.godMode = (typeof window !== 'undefined' && window.godModeEnabled) || false;
     this._onGodMode = (d) => { 
       this.godMode = d.enabled; 
       if (this.godMode) {
@@ -402,17 +415,28 @@ export class PlayerShip {
     // Time for natural bobbing
     const time = performance.now() / 1000;
 
-    // --- IMMUNITY & FLASHING ---
-    if (this.immuneTime > 0) {
-      this.immuneTime -= delta;
-      
-      // Flash every 0.15s
-      const isTransparent = Math.floor(this.immuneTime / 0.15) % 2 === 0;
-      this._setOpacity(isTransparent ? 0.3 : 1.0);
+    // --- DEPARTURE GRACE (Anchor raise & initial departure protection) ---
+    if (this.departureGraceTime > 0) {
+      this.departureGraceTime -= delta;
+      this.immuneTime = this.departureGraceTime;
     } else {
-      if (this._lastOpacity !== 1.0) {
-        this._setOpacity(1.0);
+      this.departureGraceTime = 0;
+      this.immuneTime = 0;
+    }
+
+    // Solid wooden vessel: no arcade transparency flickering
+    if (this._lastOpacity !== 1.0) {
+      this._setOpacity(1.0);
+    }
+
+    // Decay localized compartment refractory windows
+    for (const key in this.compartmentRefractory) {
+      if (this.compartmentRefractory[key] > 0) {
+        this.compartmentRefractory[key] = Math.max(0, this.compartmentRefractory[key] - delta);
       }
+    }
+    if (this._scrapeSoundThrottle > 0) {
+      this._scrapeSoundThrottle = Math.max(0, this._scrapeSoundThrottle - delta);
     }
 
     // --- KILL RADIUS ---
@@ -590,8 +614,10 @@ export class PlayerShip {
     const handlingMultiplier = Math.max(0.1, 1.0 - (waterRatio * 1.2)); // Drops handling drastically as water fills
     
     // Driving Model: Steer input controls Yaw with inertia (heavy boat feel)
-    const turnAccel = (this.turnAccel || 2.0) * handlingMultiplier;      // How fast the rudder can apply turning force
-    const damping = (this.turnDamping || 3.0) * (1.0 + waterRatio * 2.0);  // Water resistance against turning (heavier when flooded)
+    // Full rudder authority is maintained when blocked against an obstacle so player can pivot away
+    const handlingMult = this.blockedNormal ? 1.0 : handlingMultiplier;
+    const turnAccel = (this.turnAccel || 2.2) * handlingMult;
+    const damping = this.blockedNormal ? (this.turnDamping || 2.5) : ((this.turnDamping || 3.0) * (1.0 + waterRatio * 2.0));
     
     // Base turning acceleration from player input
     const steeringInput = this._sirenDisorientationSources.size ? -this.steerInput : this.steerInput;
@@ -617,6 +643,21 @@ const _defaultWind = new THREE.Vector3(1, 0, -1).normalize();
 
     // Calculate wind alignment speed modifier without allocations
     _shipDir.set(0, 0, -1).applyQuaternion(this.mesh.quaternion).normalize();
+
+    // Check grounded / blocked state (head-on collision against obstacle or land)
+    if (this.blockedNormal) {
+      const forwardDotNormal = _shipDir.x * this.blockedNormal.x + _shipDir.z * this.blockedNormal.z;
+      // forwardDotNormal <= 0.05 means bow is still pointed towards obstacle/land
+      if (forwardDotNormal <= 0.05) {
+        // Zero out forward momentum while facing obstacle
+        this.throttle = 0;
+        this.knockbackVelocity.set(0, 0, 0);
+      } else {
+        // Bow has pivoted away from obstacle into open water!
+        this.blockedNormal = null;
+      }
+    }
+
     _windNorm.copy(localWind).normalize();
     const windDot = _shipDir.dot(_windNorm); // 1.0 (with wind), -1.0 (against wind)
     
@@ -630,6 +671,9 @@ const _defaultWind = new THREE.Vector3(1, 0, -1).normalize();
       this.yawVelocity = 0;
       this.steerInput = 0;
       this.knockbackVelocity.set(0, 0, 0);
+    } else if (this.blockedNormal) {
+      this.throttle = 0;
+      this.knockbackVelocity.set(0, 0, 0);
     } else if (this.throttle !== this.targetThrottle) {
       const dampSpeed = this.targetThrottle < this.throttle ? 3.0 : 1.2;
       this.throttle = THREE.MathUtils.damp(this.throttle, this.targetThrottle, dampSpeed, delta);
@@ -639,19 +683,21 @@ const _defaultWind = new THREE.Vector3(1, 0, -1).normalize();
     }
 
     // Dampen yaw velocity when halted so boat doesn't keep turning
-    if (this.targetThrottle === 0 || this._isHalted) {
+    if (this._isHalted) {
       this.yawVelocity *= Math.max(0, 1.0 - 6.0 * delta);
     }
 
     // Lateral movement based on where the ship is pointing (Yaw)
     const speedPenalty = Math.max(0.3, 1.0 - waterRatio);
-    const forwardSpeed = this._isHalted ? 0 : (15.0 * speedPenalty * windSpeedMult * this.throttle);
+    const forwardSpeed = (this._isHalted || this.blockedNormal) ? 0 : (15.0 * speedPenalty * windSpeedMult * this.throttle);
     
-    this.mesh.position.x += _shipDir.x * forwardSpeed * this.speedMultiplier * delta;
-    this.mesh.position.z += _shipDir.z * forwardSpeed * this.speedMultiplier * delta;
+    if (forwardSpeed > 0) {
+      this.mesh.position.x += _shipDir.x * forwardSpeed * this.speedMultiplier * delta;
+      this.mesh.position.z += _shipDir.z * forwardSpeed * this.speedMultiplier * delta;
+    }
 
-    // Apply pinball knockback
-    if (this.knockbackVelocity.lengthSq() > 0.001) {
+    // Apply pinball knockback (disabled while grounded to prevent jitter against land)
+    if (!this.blockedNormal && this.knockbackVelocity.lengthSq() > 0.001) {
       this.mesh.position.addScaledVector(this.knockbackVelocity, delta);
       // Damping the knockback (friction) without allocations
       this.knockbackVelocity.lerp(_zeroVec, 5.0 * delta);
@@ -722,10 +768,7 @@ const _defaultWind = new THREE.Vector3(1, 0, -1).normalize();
    * @param {{ nx?: number, nz?: number }} [contactNormal] Collision normal
    */
   takeDamage(amount, source = 'unknown', contactNormal = null) {
-    if (this.sunk || this.godMode || this.isSinkingDeath) return;
-
-    this.hullHP = Math.max(0, this.hullHP - amount);
-    emit('playerHealth', { hp: this.hullHP, max: this.maxHullHP });
+    if (this.sunk || this.godMode || this.isSinkingDeath || this.isDepartureGrace()) return;
 
     // Determine impact sector and Witcher 3 compartment
     let targetSector = 'bow';
@@ -763,6 +806,15 @@ const _defaultWind = new THREE.Vector3(1, 0, -1).normalize();
       targetSector = 'bow';
       witcherSector = Math.random() < 0.5 ? 'bow_starboard' : 'bow_port';
     }
+
+    // Check localized compartment refractory cooldown to prevent duplicate frames from the exact same hit
+    if (this.compartmentRefractory[witcherSector] > 0) {
+      return;
+    }
+    this.compartmentRefractory[witcherSector] = 0.45; // 450ms physical refractory for this specific compartment
+
+    this.hullHP = Math.max(0, this.hullHP - amount);
+    emit('playerHealth', { hp: this.hullHP, max: this.maxHullHP });
 
     // Immediately register damage to this compartment
     this.compartmentDamage[witcherSector] = (this.compartmentDamage[witcherSector] || 0) + 1;
@@ -978,43 +1030,165 @@ const _defaultWind = new THREE.Vector3(1, 0, -1).normalize();
   }
 
   /**
-   * Apply a dynamic rotational impulse reacting to the shape and angle of the collision.
-   * @param {number} dx  World X difference (ship.x - obs.x)
-   * @param {number} dz  World Z difference (ship.z - obs.z)
-   * @param {string} type Obstacle type
+   * Current forward speed in world units per second.
+   * @returns {number}
+   */
+  getCurrentSpeed() {
+    if (this._isHalted || this.blockedNormal) return 0;
+    const waterRatio = Math.min(this.waterLevel / this.maxWaterLevel, 1.0);
+    const speedPenalty = Math.max(0.3, 1.0 - waterRatio);
+    return 15.0 * speedPenalty * this.speedMultiplier * this.throttle;
+  }
+
+  /**
+   * Sea of Thieves physics-based collision response.
+   * Replaces arcade god-mode and pinball bounce with kinetic momentum transfer,
+   * contact torque around center of mass, and velocity-tiered breaches.
+   *
+   * @param {THREE.Vector3} contactPoint World contact point
+   * @param {THREE.Vector3} contactNormal Separation normal (pointing from obstacle to ship)
+   * @param {number|null} [closingSpeed] Normal closing velocity; computed from speed if null
+   * @param {string} [type='rock'] Obstacle type
+   * @param {number} [baseDamage=25] Base potential damage
+   */
+  applyPhysicalImpact(contactPoint, contactNormal, closingSpeed = null, type = 'rock', baseDamage = 25) {
+    if (this.sunk || this.godMode || this.isSinkingDeath || this.isDepartureGrace()) return;
+
+    const normal = contactNormal ? contactNormal.clone().normalize() : new THREE.Vector3(0, 0, 1);
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.mesh.quaternion).normalize();
+    const currentSpeed = this.getCurrentSpeed();
+
+    // Enter grounded / blocked state on head-on impact into obstacle/land
+    const inDot = forward.dot(normal);
+    if (inDot < -0.05) {
+      this.setBlocked(normal);
+    }
+
+    // Compute normal closing speed if not explicitly provided
+    let vn = closingSpeed;
+    if (vn === null || vn === undefined) {
+      const shipVel = forward.clone().multiplyScalar(currentSpeed);
+      vn = Math.max(0, -shipVel.dot(normal));
+      if (vn < 1.0 && currentSpeed > 4.0) {
+        vn = currentSpeed * 0.35;
+      }
+    }
+
+    // 1. Kinetic Momentum Inelastic Loss
+    // Wood on wet rock is heavily inelastic (e ~ 0.1). High impacts drop throttle to zero.
+    const speedLossRatio = Math.min(1.0, vn / 10.0);
+    this.throttle = Math.max(0, this.throttle * (1.0 - speedLossRatio * 0.85));
+    if (vn >= 8.0) {
+      this.throttle = 0;
+    }
+
+    // 2. Realistic Contact Torque (Pivoting around Center of Mass)
+    const localHit = (contactPoint ? contactPoint.clone() : this.mesh.position.clone())
+      .sub(this.mesh.position)
+      .applyAxisAngle(new THREE.Vector3(0, 1, 0), -this.yaw);
+
+    const localNorm = normal.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -this.yaw);
+
+    const rx = localHit.x;
+    const rz = localHit.z;
+    const fx = localNorm.x;
+    const fz = localNorm.z;
+
+    // Yaw Torque: tau_y = rx * Fz - rz * Fx
+    const torque = (rx * fz - rz * fx);
+    const yawImpulse = THREE.MathUtils.clamp(torque * (vn * 0.18), -6.0, 6.0);
+    this.yawVelocity += yawImpulse;
+
+    // Roll Heel Moment: heeling away from contact normal
+    const rollImpulse = -localNorm.x * (vn * 0.8);
+    this.rollVelocity += THREE.MathUtils.clamp(rollImpulse, -8.0, 8.0);
+
+    // Pitch Moment: bow lifts on steep obstacles, dips over low barrels
+    let pitchScale = 0.5;
+    if (type === 'barrel') pitchScale = -0.4;
+    else if (type === 'wave_small') pitchScale = 0.9;
+    else pitchScale = 0.6;
+    this.pitchVelocity += (localNorm.z > 0 ? 1 : -1) * (vn * pitchScale);
+
+    // 3. Kinetic Damage & Breach Calculation (Sea of Thieves Tiers)
+    if (vn < 2.5) {
+      // Graze: superficial scuff, speed loss, no hole
+      emit('playSound', { sound: 'wood_thud' });
+      emit('cameraShudder', { intensity: 0.18, direction: normal });
+    } else if (vn < 8.0) {
+      // Moderate impact: Tier 1 breach
+      const damage = Math.round(baseDamage * (vn / 8.0));
+      this.takeDamage(Math.max(12, damage), type, { nx: normal.x, nz: normal.z });
+      emit('playSound', { sound: 'wood_crack' });
+      emit('cameraShudder', { intensity: 0.45, direction: normal });
+      if (contactPoint) {
+        emit('spawnParticles', { type: 'splash', position: contactPoint });
+      }
+    } else {
+      // Severe / catastrophic ram: Tier 2/3 puncture
+      const damage = Math.round(baseDamage * 1.6);
+      this.takeDamage(Math.max(35, damage), type, { nx: normal.x, nz: normal.z });
+      emit('playSound', { sound: 'collision' });
+      emit('playSound', { sound: 'hull_groan' });
+      emit('cameraShudder', { intensity: 0.85, direction: normal });
+      if (contactPoint) {
+        emit('spawnParticles', { type: 'massiveSplash', position: contactPoint });
+      }
+    }
+  }
+
+  /**
+   * Continuous grinding / scraping damage.
+   * Triggered when accumulated grinding distance exceeds threshold while under speed.
+   *
+   * @param {THREE.Vector3} contactPoint
+   * @param {THREE.Vector3} contactNormal
+   * @param {string} [type='rock']
+   */
+  applyGrindDamage(contactPoint, contactNormal, type = 'rock') {
+    if (this.sunk || this.godMode || this.isSinkingDeath || this.isDepartureGrace()) return;
+
+    const normal = contactNormal ? contactNormal.clone().normalize() : new THREE.Vector3(0, 0, 1);
+    
+    // Incur scraping breach / damage
+    this.takeDamage(15, type, { nx: normal.x, nz: normal.z });
+
+    // Scrub throttle further with a minimum forward gliding floor
+    this.throttle = Math.max(0.35, this.throttle - 0.15);
+
+    // Audio & tactile feedback
+    emit('playSound', { sound: 'wood_crack' });
+    emit('cameraShudder', { intensity: 0.3, direction: normal });
+    if (contactPoint) {
+      emit('spawnParticles', { type: 'splash', position: contactPoint });
+    }
+  }
+
+  /**
+   * Scrub forward throttle and speed due to friction against obstacles or terrain.
+   * @param {number} amount
+   */
+  scrubSpeed(amount) {
+    this.throttle = Math.max(0.40, this.throttle - amount);
+    if (this._scrapeSoundThrottle <= 0 && amount > 0.05) {
+      this._scrapeSoundThrottle = 0.8;
+      emit('playSound', { sound: 'wood_thud' });
+    }
+  }
+
+  /**
+   * Physical reaction to obstacle contact (backward compatibility wrapper).
+   * @param {number} dx
+   * @param {number} dz
+   * @param {string} type
    */
   bounceBack(dx, dz, type) {
     const dist = Math.hypot(dx, dz) || 0.001;
-    const nx = dx / dist; // nx > 0 means obstacle is to the left
-    const nz = dz / dist; // nz > 0 means obstacle is in front (since ship moves to -Z)
-
-    // Roll: If obstacle is on the left (nx > 0), the left hull rides up it, 
-    // rolling the ship to the right (negative Z rotation).
-    this.rollVelocity += -nx * 10.0;
-
-    // Pitch: Depends on the shape of the obstacle
-    let pitchImpulse = 0;
-    switch (type) {
-      case 'rock':
-        // Rocks are steep slopes. Hitting them pitches the bow UP.
-        pitchImpulse = 8.0; 
-        break;
-      case 'wave_small':
-        // Waves lift the bow very sharply.
-        pitchImpulse = 12.0;
-        break;
-      case 'barrel':
-        // Barrels are low and get crushed, causing the bow to dip over them.
-        pitchImpulse = -5.0;
-        break;
-      default:
-        pitchImpulse = 5.0;
-    }
-
-    // Scale pitch by how head-on the collision was (nz).
-    // If nz > 0 (hit front), bow goes UP (or down for barrels).
-    // If nz < 0 (hit back), stern goes UP -> bow goes DOWN.
-    this.pitchVelocity += nz * pitchImpulse;
+    const nx = dx / dist;
+    const nz = dz / dist;
+    const contactNormal = new THREE.Vector3(nx, 0, nz);
+    const contactPoint = this.mesh.position.clone().addScaledVector(contactNormal, -1.5);
+    this.applyPhysicalImpact(contactPoint, contactNormal, null, type, 20);
   }
 
   /**
@@ -1026,15 +1200,24 @@ const _defaultWind = new THREE.Vector3(1, 0, -1).normalize();
   }
 
   // -------------------------------------------------------------------------
-  // Immunity
+  // Departure Grace / Immunity
   // -------------------------------------------------------------------------
 
+  isDepartureGrace() {
+    return this.departureGraceTime > 0;
+  }
+
+  setDepartureGrace(duration) {
+    this.departureGraceTime = duration;
+    this.immuneTime = duration;
+  }
+
   isImmune() {
-    return this.immuneTime > 0;
+    return this.departureGraceTime > 0 || this.immuneTime > 0;
   }
 
   setImmune(duration) {
-    this.immuneTime = duration;
+    this.setDepartureGrace(duration);
   }
 
   _setOpacity(opacity) {
@@ -1100,6 +1283,27 @@ const _defaultWind = new THREE.Vector3(1, 0, -1).normalize();
   resumeSpeed() {
     this._isHalted = false;
     this.targetThrottle = 1.0;
+  }
+
+  /**
+   * Enter grounded/blocked state against a solid obstacle normal.
+   * Forward momentum into the obstacle is arrested to 0, but turning is fully preserved.
+   * @param {THREE.Vector3} normal
+   */
+  setBlocked(normal) {
+    if (normal) {
+      this.blockedNormal = normal.clone().normalize();
+      this.throttle = 0;
+      this.knockbackVelocity.set(0, 0, 0);
+    }
+  }
+
+  isBlocked() {
+    return this.blockedNormal !== null;
+  }
+
+  unblock() {
+    this.blockedNormal = null;
   }
 
   setSirenDisorientation(sourceId, active) {
