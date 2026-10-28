@@ -41,7 +41,7 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 // Cap pixel ratio to 1.25: renders crisp on high-DPI displays without 4K fillrate collapse
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.info.autoReset = false;
 
 const scene = new THREE.Scene();
@@ -639,24 +639,40 @@ async function boot() {
     // Listen for UI events
     on('phaseChanged', (d) => {
       logEvent(`[Phase] ${d.phase}`);
-      if (d?.phase === GamePhase.RESULTS && gameState._activeCommunityCourseCode) {
-        const timeElapsed = Math.round(performance.now() - gameState._communityVoyageStartTime);
-        CommunityClient.recordAttempt(gameState._activeCommunityCourseCode, {
-          cleared: true,
-          timeMs: timeElapsed
-        });
-        gameState._activeCommunityCourseCode = null;
+      if (d?.phase === GamePhase.RESULTS && (gameState._activeCommunityCourseCode || gameState._isCommunityCourse)) {
+        const code = gameState._activeCommunityCourseCode || gameState._activeCommunityCourse?.courseCode || gameState._activeCommunityCourse?.course_code;
+        if (code && !d.opts?.failed) {
+          const timeElapsed = Math.round(performance.now() - (gameState._communityVoyageStartTime || performance.now()));
+          CommunityClient.recordAttempt(code, {
+            cleared: true,
+            timeMs: timeElapsed
+          });
+        }
       }
     });
     on('obstacleHit',        d => logEvent(`[Obstacle] hit by ${d.type} -${d.damage} HP`));
     on('playerDamaged',      () => logEvent(`[Collision] Hull breached!`));
     on('playerSunk',         () => logEvent('[SUNK] Game Over'));
     on('voyageLost', async () => {
-      if (gameState._activeCommunityCourseCode) {
-        CommunityClient.recordAttempt(gameState._activeCommunityCourseCode, {
-          cleared: false
+      if (gameState._activeCommunityCourseCode || gameState._isCommunityCourse) {
+        const course = gameState._activeCommunityCourse;
+        const courseCode = gameState._activeCommunityCourseCode || course?.courseCode || course?.course_code;
+        if (courseCode) {
+          CommunityClient.recordAttempt(courseCode, {
+            cleared: false
+          });
+        }
+        setPaused(false);
+        gameState._sinkSnapshot = null;
+        showNotice('Vessel lost at sea — community voyage failed.', 5000);
+        await gameState.transition(GamePhase.RESULTS, {
+          isCommunity: true,
+          failed: true,
+          passed: false,
+          course: course,
+          timeElapsed: gameState._communityVoyageStartTime ? Math.round(performance.now() - gameState._communityVoyageStartTime) : null
         });
-        gameState._activeCommunityCourseCode = null;
+        return;
       }
       if (gameState._isEditorPlay) {
         gameState._isEditorPlay = false;
@@ -686,10 +702,15 @@ async function boot() {
       const customLevelCfg = course.levelData || level.levelCfg;
 
       const hp = profile.hullHP;
-      gameState._activeCommunityCourseCode = course.courseCode;
+      gameState._isCommunityCourse = true;
+      gameState._activeCommunityCourse = course;
+      gameState._activeCommunityCourseCode = course.courseCode || course.course_code || course.id;
       gameState._communityVoyageStartTime = performance.now();
+      gameState._sinkSnapshot = null;
 
       gameState.transition(GamePhase.OBSTACLE, {
+        isCommunity: true,
+        course,
         shipDef: activeShipDef,
         levelCfg: customLevelCfg,
         shipStats: { hullHP: hp, profile },
@@ -697,6 +718,19 @@ async function boot() {
         seaweedModels: level.seaweedModels, waveModels: level.waveModels, islandModels: level.islandModels,
         sirenModel: level.sirenModel, krakenModel: level.krakenModel
       });
+    });
+
+    on('returnToCommunityMenu', async () => {
+      setPaused(false);
+      gameState._isCommunityCourse = false;
+      gameState._activeCommunityCourseCode = null;
+      gameState._activeCommunityCourse = null;
+      gameState._communityVoyageStartTime = null;
+      gameState._sinkSnapshot = null;
+      emit('showLoading', { title: 'Returning to Port', message: 'Entering Community Harbor...', progress: 0.2 });
+      await gameState.transition(GamePhase.MAIN_MENU, { ...shipyardPayload() });
+      emit('uiMount', { screen: 'community' });
+      emit('hideLoading');
     });
 
     on('levelSelected', async ({ day }) => {
@@ -782,9 +816,13 @@ async function boot() {
         gameState.day = opts.day;
       }
       if (phase === GamePhase.MAIN_MENU) {
+        if (gameState.currentPhase === GamePhase.MAIN_MENU) {
+          emit('hideLoading');
+          return;
+        }
         logEvent('Main Menu requested...');
         emit('showLoading', { title: 'Returning to Port', message: 'Returning to harbor tavern...', progress: 0.1 });
-        gameState.transition(GamePhase.MAIN_MENU);
+        await gameState.transition(GamePhase.MAIN_MENU);
       } else if (phase === GamePhase.DOCK) {
         if (gameState._isClearCheckRepair || gameState.currentPhase === GamePhase.EDITOR) {
           if (gameState.currentPhase === GamePhase.EDITOR) {
@@ -882,6 +920,10 @@ async function boot() {
         await gameState.transition(GamePhase.EDITOR, editorPayload(gameState._editorPlayLevelCfg));
         return;
       }
+      if (gameState._isCommunityCourse || gameState._activeCommunityCourseCode) {
+        emit('returnToCommunityMenu');
+        return;
+      }
       await syncLevel();
       gameState.transition(GamePhase.SHIPYARD, shipyardPayload());
     });
@@ -889,6 +931,11 @@ async function boot() {
     on('gotoTitle', () => {
       setPaused(false);
       gameState._isEditorPlay = false;
+      gameState._isCommunityCourse = false;
+      gameState._activeCommunityCourseCode = null;
+      gameState._activeCommunityCourse = null;
+      gameState._communityVoyageStartTime = null;
+      gameState._sinkSnapshot = null;
       gameState.transition(GamePhase.MAIN_MENU);
     });
 

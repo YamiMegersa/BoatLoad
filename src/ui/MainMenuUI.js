@@ -12,6 +12,15 @@ class PirateAudio {
     this._ambienceNode = null;
     this._ambienceGain = null;
     this.isAmbienceOn = false;
+
+    // Safely resume AudioContext on user interaction to comply with autoplay policy
+    const unlock = () => {
+      if (this._ctx && this._ctx.state === 'suspended') {
+        this._ctx.resume().catch(() => {});
+      }
+    };
+    window.addEventListener('pointerdown', unlock, { passive: true });
+    window.addEventListener('keydown', unlock, { passive: true });
   }
 
   _initContext() {
@@ -20,7 +29,7 @@ class PirateAudio {
       if (AudioCtx) this._ctx = new AudioCtx();
     }
     if (this._ctx && this._ctx.state === 'suspended') {
-      this._ctx.resume();
+      this._ctx.resume().catch(() => {});
     }
   }
 
@@ -30,7 +39,7 @@ class PirateAudio {
   playClick() {
     try {
       this._initContext();
-      if (!this._ctx) return;
+      if (!this._ctx || this._ctx.state !== 'running') return;
       const osc = this._ctx.createOscillator();
       const gain = this._ctx.createGain();
       const filter = this._ctx.createBiquadFilter();

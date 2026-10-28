@@ -353,9 +353,10 @@ export class GameState {
   }
 
   async _enterResults(opts = {}) {
+    const isCommunity = Boolean(opts?.isCommunity || this._isCommunityCourse || this._activeCommunityCourseCode);
     const day = this.day || 1;
-    const isPassed = opts.passed !== false && !opts.isSunk;
-    const isSunk = !!opts.isSunk;
+    const isPassed = opts.passed !== false && !opts.failed && !opts.isSunk;
+    const isSunk = Boolean(opts.failed || opts.isSunk);
 
     // 1. Customer Repair Contract Accounting
     const baseBudget = this.currentContract?.baseBudget ?? (this._levelCfg?.budget !== undefined ? this._levelCfg.budget : 200);
@@ -365,9 +366,9 @@ export class GameState {
     const leftoverProfit = agreedBudget - repairSpent;
 
     // 2. Sailing Rewards & Bonuses
-    const baseReward = isPassed ? (150 + day * 75) : 0;
-    const multiplier = isPassed ? this.getPedestalMultiplier() : 1.0;
-    const sailingBonus = Math.round(baseReward * multiplier);
+    const baseReward = isPassed && !isCommunity ? (150 + day * 75) : 0;
+    const multiplier = isPassed && !isCommunity ? this.getPedestalMultiplier() : 1.0;
+    const sailingBonus = isCommunity ? 0 : Math.round(baseReward * multiplier);
     const pedestalBonus = Math.max(0, sailingBonus - baseReward);
 
     // 3. Incurred Voyage Damage Penalty
@@ -382,17 +383,25 @@ export class GameState {
     const voxelDamageCost = damageDiff * VOXEL_DAMAGE_RATE;
     const totalDamageIncurred = voxelDamageCost;
 
-    // 4. Net Settlement Payout (can be negative into debt)
-    const netPayout = leftoverProfit + sailingBonus - totalDamageIncurred;
+    // 4. Net Settlement Payout (campaign only; community courses do not affect economy)
+    let netPayout = 0;
     const previousCoins = this.coins;
-    this.applyPayout(netPayout);
+    if (!isCommunity) {
+      netPayout = leftoverProfit + sailingBonus - totalDamageIncurred;
+      this.applyPayout(netPayout);
+    }
 
     emit('uiMount', {
       screen: 'results',
       data: {
         day,
+        isCommunity,
         isPassed,
         isSunk,
+        passed: isPassed,
+        failed: isSunk,
+        course: this._activeCommunityCourse || opts?.course || null,
+        timeElapsed: this._communityVoyageStartTime ? Math.round(performance.now() - this._communityVoyageStartTime) : null,
         contract: {
           baseBudget,
           bargainBonus,
@@ -413,11 +422,16 @@ export class GameState {
         },
         netPayout,
         previousCoins,
-        currentCoins: this.coins
+        currentCoins: this.coins,
+        baseReward,
+        multiplier,
+        bonusCoins: sailingBonus
       }
     });
 
-    if (isPassed) {
+    if (isCommunity) {
+      emit('playSound', { sound: isSunk ? 'wood_crack' : 'success' });
+    } else if (isPassed) {
       emit('playSound', { sound: 'success' });
     } else {
       emit('playSound', { sound: 'qte_fail' });
@@ -439,7 +453,10 @@ export class GameState {
    * @param {boolean} [force]   Force transition even if newPhase === currentPhase
    */
   async transition(newPhase, opts = {}, force = false) {
-    if (this.currentPhase === newPhase && !force) return;
+    if (this.currentPhase === newPhase && !force) {
+      emit('hideLoading');
+      return;
+    }
 
     const skipLoading = opts?.skipLoading || false;
     if (!skipLoading) {
@@ -1559,11 +1576,17 @@ export class GameState {
   // OBSTACLE
   // =========================================================================
 
-  async _enterObstacle({ shipDef, levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel, isEditorPlay }) {
+  async _enterObstacle({ shipDef, levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel, isEditorPlay, isCommunity, course }) {
     this._levelCfg = levelCfg;
-    this._obstacleOpts = { shipDef, levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel, isEditorPlay };
+    this._obstacleOpts = { shipDef, levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel, isEditorPlay, isCommunity, course };
     if (isEditorPlay !== undefined) {
       this._isEditorPlay = Boolean(isEditorPlay);
+    }
+    if (isCommunity !== undefined) {
+      this._isCommunityCourse = Boolean(isCommunity);
+    }
+    if (course) {
+      this._activeCommunityCourse = course;
     }
 
     // Ambient music system: play intense sailing music on Kraken or Storm levels; calm music on peaceful voyages
@@ -2162,6 +2185,14 @@ export class GameState {
           this._isClearCheckRepair = false;
           emit('showLoading', { title: 'Safe Harbor Reached!', message: 'Course verified! Opening dispatch harbor...', progress: 0.2 });
           this.transition(GamePhase.EDITOR, editorOpts);
+          return;
+        }
+        if (this._isCommunityCourse || this._activeCommunityCourseCode) {
+          this.transition(GamePhase.RESULTS, {
+            passed: true,
+            isCommunity: true,
+            course: this._activeCommunityCourse
+          });
           return;
         }
         this.transition(GamePhase.RESULTS, { passed: true });

@@ -360,6 +360,8 @@ export class PauseMenu {
     if (shipyardBtn) {
       if (window.gameState?._isEditorPlay) {
         shipyardBtn.innerHTML = '<span class="pixel-icon icon-map-maker-scroll size-18"></span> Return to Editor';
+      } else if (window.gameState?._isCommunityCourse || window.gameState?._activeCommunityCourseCode) {
+        shipyardBtn.innerHTML = '<span class="pixel-icon icon-anchor size-18"></span> Return to Community Menu';
       }
       shipyardBtn.addEventListener('click', () => {
         emit('resumeGame');

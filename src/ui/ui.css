@@ -5635,6 +5635,22 @@ body {
   transform: translateY(-1px);
 }
 
+.community-action {
+  background: #1c324a;
+  color: #ffd700;
+  border-color: #ffd700 #1b263b #0f172a #60a5fa;
+  font-size: 13.5px;
+  padding: 12px 18px;
+}
+
+.community-action:hover {
+  background: #2a4365;
+  color: #ffffff;
+  border-color: #ffe082 #ffd700 #1b263b #93c5fd;
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.2), 0 0 16px rgba(255, 215, 0, 0.45);
+  transform: translateY(-1px);
+}
+
 
 .pixel-icon {
   display: inline-block;

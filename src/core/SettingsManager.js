@@ -208,7 +208,7 @@ export class SettingsManager {
       renderer.shadowMap.type = THREE.BasicShadowMap;
     } else {
       renderer.shadowMap.enabled = true;
-      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.shadowMap.type = THREE.PCFShadowMap;
     }
 
     // Update lights shadow map sizes if available
