@@ -321,10 +321,10 @@ export class DockStall {
     this.group.scale.setScalar(DOCK_SCALE);
 
     // Generate stylized voxel wood textures
-    const texWoodHi   = createVoxelWoodTexture(181, 139, 94, 0.16);
-    const texWoodMid  = createVoxelWoodTexture(120, 83, 50, 0.20);
+    const texWoodHi = createVoxelWoodTexture(181, 139, 94, 0.16);
+    const texWoodMid = createVoxelWoodTexture(120, 83, 50, 0.20);
     const texWoodDark = createVoxelWoodTexture(61, 39, 22, 0.22);
-    const texPlank    = createVoxelWoodTexture(155, 122, 90, 0.18);
+    const texPlank = createVoxelWoodTexture(155, 122, 90, 0.18);
 
     // Voxel Material Palette
     const mats = {
@@ -442,8 +442,8 @@ export class DockStall {
     const pilingLocations = [
       [-8, -4.5], [-8, 0], [-8, 4.5], [-8, 8.0],
       [-3, -4.5], [-3, 0], [-3, 4.5], [-3, 8.0],
-      [2, -4.5],  [2, 0],  [2, 4.5],  [2, 8.0],
-      [8, -4.5],  [8, 0],  [8, 4.5],  [8, 8.0]
+      [2, -4.5], [2, 0], [2, 4.5], [2, 8.0],
+      [8, -4.5], [8, 0], [8, 4.5], [8, 8.0]
     ];
     pilingLocations.forEach(([x, z]) => {
       // Main square pile
@@ -616,7 +616,7 @@ export class DockStall {
 
     // Solid wall panels below and above the porthole
     const yBottomSill = portholeY - portholeR; // 2.35m
-    const yTopHeader  = portholeY + portholeR; // 3.65m
+    const yTopHeader = portholeY + portholeR; // 3.65m
 
     const wallLower = createVoxelBox(0.22, yBottomSill, shopD - 0.45, mats.woodMid);
     wallLower.position.set(0.11, yBottomSill / 2, 0);
@@ -1412,14 +1412,32 @@ export class DockStall {
     islandGroup.add(knoll2);
 
     // Layer 2: Central Highlands Ridge Base (Elevated spine connecting East to West)
-    // Sits at Y = 2.65. Local X: -5 to -27, Z: -20 to +20
-    const highlandsDirt = createVoxelBox(22, 0.95, 38, mats.dirt);
-    highlandsDirt.position.set(-16, 2.15, 0);
+    // Sits at Y = 2.65. Local X: -5 to -24.2, Z: -20 to +20
+    const highlandsDirt = createVoxelBox(19.2, 0.95, 38, mats.dirt);
+    highlandsDirt.position.set(-14.6, 2.15, 0);
     islandGroup.add(highlandsDirt);
 
-    const highlandsGrass = createVoxelBox(22.2, 0.35, 38.2, mats.grassTop);
-    highlandsGrass.position.set(-16, 2.65, 0);
+    const highlandsGrass = createVoxelBox(19.4, 0.35, 38.2, mats.grassTop);
+    highlandsGrass.position.set(-14.6, 2.65, 0);
     islandGroup.add(highlandsGrass);
+
+    // East Meadow-to-Highlands stepped terrace ledge (top at Y = 2.41)
+    const eastStepDirt = createVoxelBox(1.6, 0.75, 24.0, mats.dirt);
+    eastStepDirt.position.set(-4.6, 1.9, 0);
+    islandGroup.add(eastStepDirt);
+
+    const eastStepGrass = createVoxelBox(1.8, 0.28, 24.2, mats.grassDark);
+    eastStepGrass.position.set(-4.6, 2.27, 0);
+    islandGroup.add(eastStepGrass);
+
+    // West Highlands-to-Shipyard stepped threshold terrace (top at Y = 2.30)
+    const westStepDirt = createVoxelBox(1.4, 0.65, 36.0, mats.dirt);
+    westStepDirt.position.set(-24.4, 1.85, 0);
+    islandGroup.add(westStepDirt);
+
+    const westStepGrass = createVoxelBox(1.6, 0.28, 36.2, mats.grassDark);
+    westStepGrass.position.set(-24.4, 2.16, 0);
+    islandGroup.add(westStepGrass);
 
     // Layer 3: North Bluff (Pine Ridge & Crags)
     // Tier 2: top at Y = 3.55 (X: -8 to -24, Z: -5 to -19)
@@ -1483,14 +1501,15 @@ export class DockStall {
     islandGroup.add(southCliff2);
 
     // Layer 5: West Shipyard Terrace & Waterfront Shore
-    // Local X: -26 to -54, Z: -18 to +18
-    const yardDirt = createVoxelBox(24, 0.95, 36, mats.dirt);
-    yardDirt.position.set(-39, 1.15, 0);
+    // Local X: -24 to -51, Z: -18 to +18
+    const yardDirt = createVoxelBox(27, 0.95, 36, mats.dirt);
+    yardDirt.position.set(-37.5, 1.15, 0);
     islandGroup.add(yardDirt);
 
-    // Packed yard surface (weathered packed sand/gravel at Y = 1.62)
-    const yardSurface = createVoxelBox(24.2, 0.28, 36.2, mats.sandWet);
-    yardSurface.position.set(-39, 1.62, 0);
+    // Packed yard surface (weathered packed sand/gravel at Y = 1.62, top at Y = 1.76)
+    const yardSurface = createVoxelBox(27.2, 0.28, 36.2, mats.sandWet);
+    yardDirt.position.set(-37.5, 1.15, 0);
+    yardSurface.position.set(-37.5, 1.62, 0);
     islandGroup.add(yardSurface);
 
     // Sturdy oak work planks under the workshop area (local X: -31 to -40, Z: 6 to 16)
@@ -1814,11 +1833,15 @@ export class DockStall {
       islandGroup.add(border2);
     }
 
-    // Section B: Trail through Central Pass (X = 1 to X = -16, climbing gently from Y = 2.05 to Y = 2.75)
+    // Section B: Trail through Central Pass (X = 1 to X = -14, climbing onto Central Highlands)
     for (let i = 0; i < 8; i++) {
-      const t = i / 7;
       const stepX = 1.0 - i * 2.15; // Reaches X = -14.05
-      const stepY = 2.05 + t * 0.7; // Climbs from 2.05 up to 2.75
+      let stepY = 2.76;
+      if (stepX > -3.5) {
+        stepY = 1.98;
+      } else if (stepX > -5.0) {
+        stepY = 2.38;
+      }
       const stepZ = Math.sin(i * 0.7) * 0.6;
       const step = createVoxelBox(2.2, 0.24, 1.5, i % 2 === 0 ? mats.stonePath : mats.plankDark);
       step.position.set(stepX, stepY, stepZ);
@@ -1832,11 +1855,15 @@ export class DockStall {
       islandGroup.add(border2);
     }
 
-    // Section C: Trail descent into Shipyard (X = -16 to X = -27, descending from Y = 2.75 to Y = 1.75)
+    // Section C: Trail descent into Shipyard (X = -16 to X = -26.5, descending into Shipyard at Y = 1.76)
     for (let i = 0; i < 6; i++) {
-      const t = i / 5;
       const stepX = -16.0 - i * 2.1; // Reaches X = -26.5
-      const stepY = 2.75 - t * 1.0;  // Descends down to 1.75
+      let stepY = 2.76;
+      if (stepX < -25.5) {
+        stepY = 1.72;
+      } else if (stepX < -23.5) {
+        stepY = 2.24;
+      }
       const stepZ = -Math.sin(i * 0.6) * 0.5;
       const step = createVoxelBox(2.2, 0.24, 1.6, i % 2 === 0 ? mats.stonePath : mats.stoneDark);
       step.position.set(stepX, stepY, stepZ);
@@ -1853,8 +1880,8 @@ export class DockStall {
     // Smooth invisible ramps along trail sections for fluid navigation
     const pathColliders = [
       { x: 7.5, y: 1.95, z: 0, w: 13.5, h: 0.35, d: 2.6, rotZ: 0 },
-      { x: -6.5, y: 2.4, z: 0, w: 15.5, h: 0.35, d: 2.6, rotZ: 0.045 },
-      { x: -21.5, y: 2.25, z: 0, w: 12.0, h: 0.35, d: 2.6, rotZ: -0.09 }
+      { x: -4.5, y: 2.25, z: 0, w: 4.8, h: 0.35, d: 3.2, rotZ: -0.20 },
+      { x: -24.5, y: 2.15, z: 0, w: 4.8, h: 0.35, d: 3.6, rotZ: 0.23 }
     ];
     pathColliders.forEach(pc => {
       const col = new THREE.Mesh(
@@ -3057,9 +3084,9 @@ export class DockStall {
     const postThickness = 0.36;
     const postLocations = [
       [-baseW / 2 + 0.28, -baseD / 2 + 0.28],
-      [ baseW / 2 - 0.28, -baseD / 2 + 0.28],
-      [-baseW / 2 + 0.28,  baseD / 2 - 0.28],
-      [ baseW / 2 - 0.28,  baseD / 2 - 0.28],
+      [baseW / 2 - 0.28, -baseD / 2 + 0.28],
+      [-baseW / 2 + 0.28, baseD / 2 - 0.28],
+      [baseW / 2 - 0.28, baseD / 2 - 0.28],
     ];
     postLocations.forEach(([px, pz]) => {
       const post = createVoxelBox(postThickness, postHeight, postThickness, mats.woodDark);

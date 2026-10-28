@@ -43,11 +43,16 @@ export class DockPlayerController {
       backward: false,
       left: false,
       right: false,
-      sprint: false
+      sprint: false,
+      jump: false
     };
     this.walkSpeed = 6.0 * this.scale;
     this.sprintSpeed = 10.5 * this.scale;
     this.velocity = new THREE.Vector3();
+    this.verticalVelocity = 0;
+    this.isGrounded = true;
+    this.gravity = 22.0 * this.scale;
+    this.jumpSpeed = 8.2 * this.scale;
 
     // Raycasters for terrain following & interaction
     this.downRaycaster = new THREE.Raycaster();
@@ -128,6 +133,8 @@ export class DockPlayerController {
       <span><span class="pixel-icon icon-hand-select size-14"></span> <b>Click Canvas</b> to look</span>
       <span>|</span>
       <span><b>WASD</b> Walk</span>
+      <span>|</span>
+      <span><b>Space</b> Jump</span>
       <span>|</span>
       <span><b>Shift</b> Sprint</span>
       <span>|</span>
@@ -210,6 +217,12 @@ export class DockPlayerController {
       case 'ShiftRight':
         this.keys.sprint = true;
         break;
+      case 'Space':
+        if (this.mode === 'player') {
+          e.preventDefault();
+          this.keys.jump = true;
+        }
+        break;
       case 'KeyE':
         // Interaction key
         if (this.hoveredGhost) {
@@ -253,6 +266,9 @@ export class DockPlayerController {
       case 'ShiftLeft':
       case 'ShiftRight':
         this.keys.sprint = false;
+        break;
+      case 'Space':
+        this.keys.jump = false;
         break;
     }
   }
@@ -400,6 +416,9 @@ export class DockPlayerController {
     this.pitchObject.rotation.x = -0.05;
 
     this.velocity.set(0, 0, 0);
+    this.verticalVelocity = 0;
+    this.isGrounded = true;
+    this.keys.jump = false;
 
     emit('playSound', { sound: 'qte_success' });
     emit('dockPlayerModeChanged', { mode: 'shop' });
@@ -420,6 +439,9 @@ export class DockPlayerController {
     this.yawObject.rotation.y = Math.PI / 2;
     this.pitchObject.rotation.x = 0;
     this.velocity.set(0, 0, 0);
+    this.verticalVelocity = 0;
+    this.isGrounded = true;
+    this.keys.jump = false;
 
     emit('playSound', { sound: 'qte_success' });
     emit('dockPlayerModeChanged', { mode: 'player' });
@@ -459,10 +481,10 @@ export class DockPlayerController {
         pos.z > box.minZ - r &&
         pos.z < box.maxZ + r
       ) {
-        const dLeft   = pos.x - (box.minX - r);
-        const dRight  = (box.maxX + r) - pos.x;
-        const dFront  = pos.z - (box.minZ - r);
-        const dBack   = (box.maxZ + r) - pos.z;
+        const dLeft = pos.x - (box.minX - r);
+        const dRight = (box.maxX + r) - pos.x;
+        const dFront = pos.z - (box.minZ - r);
+        const dBack = (box.maxZ + r) - pos.z;
 
         const minD = Math.min(dLeft, dRight, dFront, dBack);
 
@@ -480,12 +502,20 @@ export class DockPlayerController {
   }
 
   _updatePlayerMovement(delta) {
+    if (this.keys.jump && this.isGrounded) {
+      this.verticalVelocity = this.jumpSpeed;
+      this.isGrounded = false;
+    }
+
     const moveDir = new THREE.Vector3();
 
-    if (this.keys.forward)  moveDir.z -= 1;
+    if (this.keys.forward) moveDir.z -= 1;
     if (this.keys.backward) moveDir.z += 1;
-    if (this.keys.left)     moveDir.x -= 1;
-    if (this.keys.right)    moveDir.x += 1;
+    if (this.keys.left) moveDir.x -= 1;
+    if (this.keys.right) moveDir.x += 1;
+
+    const currentGround = this.yawObject.position.y - this.eyeHeight;
+    const maxStepUp = 0.65; // Max vertical step height (allows ramps, steps, decks; blocks steep cliff drops)
 
     if (moveDir.lengthSq() > 0) {
       moveDir.normalize();
@@ -505,17 +535,15 @@ export class DockPlayerController {
       // Resolve obstacle collisions against shop walls, door, and counter
       this._resolveObstacleCollisions(candidate);
 
-      const currentGround = this.yawObject.position.y - this.eyeHeight;
-      const maxStepUp = 0.45; // Max vertical step height (allows ramps, steps, decks; blocks steep cliff drops)
-
       // Ground raycast check to ensure player stays on solid land / dock
       const groundHit = this._getGroundHeightAt(candidate.x, candidate.z);
       if (groundHit !== null && (groundHit - currentGround <= maxStepUp)) {
         this.yawObject.position.x = candidate.x;
         this.yawObject.position.z = candidate.z;
-        // Smooth vertical ground alignment
-        const targetY = groundHit + this.eyeHeight;
-        this.yawObject.position.y += (targetY - this.yawObject.position.y) * Math.min(1.0, delta * 14.0);
+        if (this.isGrounded) {
+          const targetY = groundHit + this.eyeHeight;
+          this.yawObject.position.y += (targetY - this.yawObject.position.y) * Math.min(1.0, delta * 14.0);
+        }
       } else {
         // Fallback: test sliding along X
         const candX = new THREE.Vector3(candidate.x, this.yawObject.position.y, this.yawObject.position.z);
@@ -523,7 +551,9 @@ export class DockPlayerController {
         const slideXHit = this._getGroundHeightAt(candX.x, this.yawObject.position.z);
         if (slideXHit !== null && (slideXHit - currentGround <= maxStepUp)) {
           this.yawObject.position.x = candX.x;
-          this.yawObject.position.y += (slideXHit + this.eyeHeight - this.yawObject.position.y) * Math.min(1.0, delta * 14.0);
+          if (this.isGrounded) {
+            this.yawObject.position.y += (slideXHit + this.eyeHeight - this.yawObject.position.y) * Math.min(1.0, delta * 14.0);
+          }
         } else {
           // Slide along Z
           const candZ = new THREE.Vector3(this.yawObject.position.x, this.yawObject.position.y, candidate.z);
@@ -531,16 +561,36 @@ export class DockPlayerController {
           const slideZHit = this._getGroundHeightAt(this.yawObject.position.x, candZ.z);
           if (slideZHit !== null && (slideZHit - currentGround <= maxStepUp)) {
             this.yawObject.position.z = candZ.z;
-            this.yawObject.position.y += (slideZHit + this.eyeHeight - this.yawObject.position.y) * Math.min(1.0, delta * 14.0);
+            if (this.isGrounded) {
+              this.yawObject.position.y += (slideZHit + this.eyeHeight - this.yawObject.position.y) * Math.min(1.0, delta * 14.0);
+            }
           }
         }
       }
-    } else {
+    } else if (this.isGrounded) {
       // Idle terrain height tracking
       const groundHit = this._getGroundHeightAt(this.yawObject.position.x, this.yawObject.position.z);
       if (groundHit !== null) {
         const targetY = groundHit + this.eyeHeight;
         this.yawObject.position.y += (targetY - this.yawObject.position.y) * Math.min(1.0, delta * 14.0);
+      }
+    }
+
+    // Airborne jump & gravity integration
+    if (!this.isGrounded) {
+      this.yawObject.position.y += this.verticalVelocity * delta;
+      this.verticalVelocity -= this.gravity * delta;
+
+      const groundBelow = this._getGroundHeightAt(this.yawObject.position.x, this.yawObject.position.z);
+      if (groundBelow !== null) {
+        const minCamY = groundBelow + this.eyeHeight;
+        if (this.yawObject.position.y <= minCamY) {
+          this.yawObject.position.y = minCamY;
+          if (this.verticalVelocity <= 0) {
+            this.verticalVelocity = 0;
+            this.isGrounded = true;
+          }
+        }
       }
     }
   }
