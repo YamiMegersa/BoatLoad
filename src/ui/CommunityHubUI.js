@@ -120,7 +120,10 @@ export class CommunityHubUI {
   _bindEvents() {
     this._el.querySelector('#btn-close-community')?.addEventListener('click', () => {
       this.unmount();
-      emit('requestPhaseChange', { phase: 'MAIN_MENU' });
+      emit('hideLoading');
+      if (window.gameState?.currentPhase !== 'MAIN_MENU') {
+        emit('requestPhaseChange', { phase: 'MAIN_MENU' });
+      }
     });
 
     this._el.querySelector('#btn-open-creator-editor')?.addEventListener('click', () => {

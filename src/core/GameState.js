@@ -316,13 +316,16 @@ export class GameState {
   }
 
   async _enterResults(opts = {}) {
+    const isCommunity = Boolean(opts?.isCommunity || this._isCommunityCourse || this._activeCommunityCourseCode);
     const day = this.day || 1;
-    const baseReward = 150 + day * 75;
-    const multiplier = this.getPedestalMultiplier();
-    const totalAwarded = Math.round(baseReward * multiplier);
+    const baseReward = isCommunity ? 0 : (150 + day * 75);
+    const multiplier = isCommunity ? 1.0 : this.getPedestalMultiplier();
+    const totalAwarded = isCommunity ? 0 : Math.round(baseReward * multiplier);
 
-    // Deposit earned doubloons
-    this.addCoins(totalAwarded);
+    // Deposit earned doubloons ONLY for campaign voyages (never for community courses)
+    if (!isCommunity && opts?.passed !== false && !opts?.failed) {
+      this.addCoins(totalAwarded);
+    }
 
     emit('uiMount', {
       screen: 'results',
@@ -330,11 +333,16 @@ export class GameState {
         day,
         baseReward,
         multiplier,
-        bonusCoins: totalAwarded
+        bonusCoins: totalAwarded,
+        isCommunity,
+        passed: opts?.passed !== false && !opts?.failed,
+        failed: Boolean(opts?.failed),
+        course: this._activeCommunityCourse || opts?.course || null,
+        timeElapsed: this._communityVoyageStartTime ? Math.round(performance.now() - this._communityVoyageStartTime) : null
       }
     });
 
-    emit('playSound', { sound: 'success' });
+    emit('playSound', { sound: opts?.failed ? 'wood_crack' : 'success' });
   }
 
   _exitResults() {
@@ -352,7 +360,10 @@ export class GameState {
    * @param {boolean} [force]   Force transition even if newPhase === currentPhase
    */
   async transition(newPhase, opts = {}, force = false) {
-    if (this.currentPhase === newPhase && !force) return;
+    if (this.currentPhase === newPhase && !force) {
+      emit('hideLoading');
+      return;
+    }
 
     const skipLoading = opts?.skipLoading || false;
     if (!skipLoading) {
@@ -1467,11 +1478,17 @@ export class GameState {
   // OBSTACLE
   // =========================================================================
 
-  async _enterObstacle({ shipDef, levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel, isEditorPlay }) {
+  async _enterObstacle({ shipDef, levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel, isEditorPlay, isCommunity, course }) {
     this._levelCfg = levelCfg;
-    this._obstacleOpts = { shipDef, levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel, isEditorPlay };
+    this._obstacleOpts = { shipDef, levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel, isEditorPlay, isCommunity, course };
     if (isEditorPlay !== undefined) {
       this._isEditorPlay = Boolean(isEditorPlay);
+    }
+    if (isCommunity !== undefined) {
+      this._isCommunityCourse = Boolean(isCommunity);
+    }
+    if (course) {
+      this._activeCommunityCourse = course;
     }
 
     // Ambient music system: play intense sailing music on Kraken or Storm levels; calm music on peaceful voyages
@@ -1736,7 +1753,11 @@ export class GameState {
     // When player sinks, capture the wreck (so its damage persists into the
     // shipyard) and transition to results.
     this._onPlayerSunk = () => {
-      this._sinkSnapshot = this._grid?.snapshot() ?? null;
+      if (!this._isCommunityCourse && !this._activeCommunityCourseCode) {
+        this._sinkSnapshot = this._grid?.snapshot() ?? null;
+      } else {
+        this._sinkSnapshot = null;
+      }
       emit('voyageLost');
     };
     on('playerSunk', this._onPlayerSunk);
@@ -2051,6 +2072,14 @@ export class GameState {
           this._isClearCheckRepair = false;
           emit('showLoading', { title: 'Safe Harbor Reached!', message: 'Course verified! Opening dispatch harbor...', progress: 0.2 });
           this.transition(GamePhase.EDITOR, editorOpts);
+          return;
+        }
+        if (this._isCommunityCourse || this._activeCommunityCourseCode) {
+          this.transition(GamePhase.RESULTS, {
+            passed: true,
+            isCommunity: true,
+            course: this._activeCommunityCourse
+          });
           return;
         }
         this.transition(GamePhase.RESULTS, { passed: true });

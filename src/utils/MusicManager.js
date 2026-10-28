@@ -22,14 +22,14 @@ export const MUSIC_TRACKS = Object.freeze({
 });
 
 /**
- * MusicManager — Resilient Dual-Channel Streaming Music Crossfader.
+ * MusicManager — Dual-Deck Streaming Crossfader with Auto-Fadeout and Auto-Fadein.
  *
- * Channel A = Calm
- * Channel B = Sailing (Intense)
- *
- * Uses direct HTML5 Audio volume crossfading with high-frequency interpolation,
- * completely immune to Web Audio MediaElementSource CORS/silencing bugs while
- * perfectly respecting master volume, mute, ducking, and browser autoplay policies.
+ * Utilizes two alternating audio decks (Deck A & Deck B) to achieve:
+ * - Equal-power crossfading between Calm and Sailing music states.
+ * - Automatic 4-second fadeout/fadein transitions when songs reach their end.
+ * - Smooth fade-in on initial startup / un-mute / phase transitions.
+ * - Completely immune to Web Audio CORS/silencing bugs while respecting
+ *   master volume, mute, ducking, and browser autoplay policies.
  */
 export class MusicManager {
   /**
@@ -45,36 +45,40 @@ export class MusicManager {
     this._isDucked = false;
     this._duckFactor = 0.4;
 
-    // Track playlists
-    this._calmIndex = 0;
-    this._sailingIndex = 0;
+    // Track playlists - randomize initial track selection on startup
+    const calmTracks = MUSIC_TRACKS.calm || [];
+    const sailingTracks = MUSIC_TRACKS.sailing || [];
+    this._calmIndex = calmTracks.length ? Math.floor(Math.random() * calmTracks.length) : 0;
+    this._sailingIndex = sailingTracks.length ? Math.floor(Math.random() * sailingTracks.length) : 0;
+
     this._targetState = 'silent'; // 'silent' | 'calm' | 'sailing'
+    this._currentCategory = 'calm';
+
+    // Dual-deck system: Deck A and Deck B
+    this._deckA = new Audio();
+    this._deckB = new Audio();
+    this._deckA.preload = 'auto';
+    this._deckB.preload = 'auto';
+
+    // Deck references
+    this._activeDeck = this._deckA;
+    this._idleDeck = this._deckB;
 
     // Gains (0.0 to 1.0)
-    this._calmGain = 0;
-    this._sailingGain = 0;
+    this._activeGain = 0;
+    this._idleGain = 0;
 
-    // Crossfade animation
+    // Crossfade state
     this._fadeInterval = null;
+    this._isTransitioning = false;
 
-    // Channel A: Calm
-    this._audioCalm = new Audio();
-    this._audioCalm.loop = true;
-    this._audioCalm.preload = 'auto';
-    this._loadTrack(this._audioCalm, 'calm', this._calmIndex);
+    // Setup track end & progress monitoring for seamless crossfading
+    this._setupDeckListeners(this._deckA);
+    this._setupDeckListeners(this._deckB);
 
-    // Channel B: Sailing
-    this._audioSailing = new Audio();
-    this._audioSailing.loop = true;
-    this._audioSailing.preload = 'auto';
-    this._loadTrack(this._audioSailing, 'sailing', this._sailingIndex);
-
-    // Apply initial silent volume
+    // Initial load on active deck
+    this._loadTrack(this._activeDeck, 'calm', this._calmIndex);
     this._applyVolumes();
-
-    // Loop fallback in case loop property is interrupted
-    this._audioCalm.addEventListener('ended', () => this._onTrackEnded('calm'));
-    this._audioSailing.addEventListener('ended', () => this._onTrackEnded('sailing'));
 
     // EventBus bindings
     on('setMusicState', ({ state, fade, nextTrack }) => {
@@ -93,6 +97,10 @@ export class MusicManager {
       this.setMuted(muted);
     });
 
+    on('nextMusicTrack', () => {
+      this.nextTrack();
+    });
+
     on('uiMount', (d) => {
       if (d?.screen === 'pause') this.duck(true);
     });
@@ -106,7 +114,7 @@ export class MusicManager {
     });
 
     on('krakenFightStarted', () => {
-      this.setState('sailing', { fade: 1.5 });
+      this.setState('sailing', { fade: 2.0 });
     });
 
     on('krakenDefeated', () => {
@@ -126,10 +134,9 @@ export class MusicManager {
    * Called by AudioManager during audio unlock (on first user gesture).
    */
   unlock() {
-    if (this._targetState === 'calm') {
-      this._safePlay(this._audioCalm);
-    } else if (this._targetState === 'sailing') {
-      this._safePlay(this._audioSailing);
+    if (this._targetState === 'silent') return;
+    if (this._activeDeck && this._activeDeck.paused && this._activeDeck.src) {
+      this._safePlay(this._activeDeck);
     }
   }
 
@@ -137,7 +144,6 @@ export class MusicManager {
    * Compatibility method for AudioManager context initialization.
    */
   setContext(ctx, masterNode) {
-    // Retained for API compatibility; volume is applied via HTMLAudioElement directly
     this.unlock();
   }
 
@@ -145,56 +151,73 @@ export class MusicManager {
    * Transition to a new music state ('calm' | 'sailing' | 'silent').
    * @param {'calm'|'sailing'|'silent'} targetState
    * @param {object} [opts]
-   * @param {number} [opts.fade=2.0] - Fade duration in seconds
+   * @param {number} [opts.fade=2.5] - Fade duration in seconds
    * @param {boolean} [opts.nextTrack=false] - Force advancing to the next track
    */
   setState(targetState, opts = {}) {
-    const fadeDuration = opts.fade !== undefined ? opts.fade : 2.0;
+    const fadeDuration = opts.fade !== undefined ? opts.fade : 2.5;
     const forceNext = Boolean(opts.nextTrack);
 
-    // If already in target state and not forcing next track, ensure audio is playing and return
-    if (this._targetState === targetState && !forceNext) {
-      if (targetState === 'calm' && this._audioCalm.paused) {
-        this._safePlay(this._audioCalm);
-      } else if (targetState === 'sailing' && this._audioSailing.paused) {
-        this._safePlay(this._audioSailing);
+    // If requesting silence:
+    if (targetState === 'silent') {
+      this._targetState = 'silent';
+      this._fadeOutAll(fadeDuration);
+      return;
+    }
+
+    const isStateChange = (this._targetState !== targetState);
+    const wasSilent = (this._targetState === 'silent');
+    this._targetState = targetState;
+
+    // If already in this state and not forcing next track:
+    if (!isStateChange && !forceNext && !wasSilent) {
+      if (this._activeDeck.paused) {
+        this._safePlay(this._activeDeck);
+      }
+      if (this._activeGain < 1.0 && !this._isTransitioning) {
+        this._fadeInActive(fadeDuration);
       }
       return;
     }
 
-    this._targetState = targetState;
-
-    if (targetState === 'calm') {
-      if (forceNext) {
-        this._calmIndex = (this._calmIndex + 1) % MUSIC_TRACKS.calm.length;
-        this._loadTrack(this._audioCalm, 'calm', this._calmIndex);
-      }
-      this._safePlay(this._audioCalm);
-      this._startCrossfade(1.0, 0.0, fadeDuration, () => {
-        if (this._targetState === 'calm') {
-          this._audioSailing.pause();
+    // Determine target track index
+    let trackIndex;
+    if (targetState === 'sailing') {
+      if (forceNext || isStateChange) {
+        const len = MUSIC_TRACKS.sailing.length;
+        if (len > 1) {
+          let next = Math.floor(Math.random() * (len - 1));
+          if (next >= this._sailingIndex) next += 1;
+          this._sailingIndex = next;
         }
-      });
-    } else if (targetState === 'sailing') {
-      if (forceNext) {
-        this._sailingIndex = (this._sailingIndex + 1) % MUSIC_TRACKS.sailing.length;
-        this._loadTrack(this._audioSailing, 'sailing', this._sailingIndex);
       }
-      this._safePlay(this._audioSailing);
-      this._startCrossfade(0.0, 1.0, fadeDuration, () => {
-        if (this._targetState === 'sailing') {
-          this._audioCalm.pause();
-        }
-      });
+      trackIndex = this._sailingIndex;
     } else {
-      // Silent
-      this._startCrossfade(0.0, 0.0, fadeDuration, () => {
-        if (this._targetState === 'silent') {
-          this._audioCalm.pause();
-          this._audioSailing.pause();
+      if (forceNext) {
+        const len = MUSIC_TRACKS.calm.length;
+        if (len > 1) {
+          let next = Math.floor(Math.random() * (len - 1));
+          if (next >= this._calmIndex) next += 1;
+          this._calmIndex = next;
         }
-      });
+      }
+      trackIndex = this._calmIndex;
     }
+
+    // If starting from silence or no active track yet:
+    if (wasSilent || !this._activeDeck.src) {
+      this._currentCategory = targetState;
+      this._loadTrack(this._activeDeck, targetState, trackIndex);
+      this._activeGain = 0;
+      this._idleGain = 0;
+      this._applyVolumes();
+      this._safePlay(this._activeDeck);
+      this._fadeInActive(fadeDuration);
+      return;
+    }
+
+    // Transitioning from active track to a new track via equal-power crossfade
+    this._transitionToTrack(targetState, trackIndex, fadeDuration);
   }
 
   /**
@@ -231,13 +254,12 @@ export class MusicManager {
   }
 
   /**
-   * Resume playback of current target channel.
+   * Resume playback of current active deck.
    */
   resume() {
-    if (this._targetState === 'calm') {
-      this._safePlay(this._audioCalm);
-    } else if (this._targetState === 'sailing') {
-      this._safePlay(this._audioSailing);
+    if (this._targetState === 'silent') return;
+    if (this._activeDeck.paused && this._activeDeck.src) {
+      this._safePlay(this._activeDeck);
     }
   }
 
@@ -245,47 +267,211 @@ export class MusicManager {
    * Pause all playback.
    */
   pause() {
-    this._audioCalm.pause();
-    this._audioSailing.pause();
+    this._activeDeck.pause();
+    this._idleDeck.pause();
+  }
+
+  /**
+   * Advance to the next random track in the current playlist with a smooth crossfade.
+   */
+  nextTrack() {
+    this._advanceToNextTrack(this._targetState, 3.0);
   }
 
   // ---------------------------------------------------------------------------
-  // Crossfader Animation & Volume Application
+  // Deck Crossfading & Volume Management
   // ---------------------------------------------------------------------------
 
-  _startCrossfade(targetCalm, targetSailing, durationSec, onComplete) {
+  _setupDeckListeners(deck) {
+    // Check when song is within 4 seconds of end to begin smooth crossfade to next song
+    deck.addEventListener('timeupdate', () => {
+      if (deck !== this._activeDeck || this._isTransitioning) return;
+      if (this._targetState === 'silent') return;
+
+      const dur = deck.duration;
+      const cur = deck.currentTime;
+      if (!dur || isNaN(dur) || !isFinite(dur)) return;
+
+      const remaining = dur - cur;
+      const FADE_WINDOW = 4.0; // 4 seconds smooth crossfade before song ends
+
+      if (remaining > 0 && remaining <= FADE_WINDOW && cur > 10) {
+        this._advanceToNextTrack(this._targetState, FADE_WINDOW);
+      }
+    });
+
+    // Fallback if track reaches end before timeupdate triggered
+    deck.addEventListener('ended', () => {
+      if (deck !== this._activeDeck || this._isTransitioning) return;
+      if (this._targetState === 'silent') return;
+      this._advanceToNextTrack(this._targetState, 2.5);
+    });
+
+    deck.addEventListener('error', (e) => {
+      console.warn('MusicManager: Deck playback error:', deck._currentTrackPath, e);
+      if (deck === this._activeDeck && !this._isTransitioning) {
+        setTimeout(() => this._advanceToNextTrack(this._targetState, 1.5), 1000);
+      }
+    });
+  }
+
+  _advanceToNextTrack(category, fadeDuration = 3.5) {
+    if (this._isTransitioning) return;
+    const cat = (category === 'sailing') ? 'sailing' : 'calm';
+    const list = MUSIC_TRACKS[cat] || [];
+    if (!list.length) return;
+
+    // Pick a random track different from current
+    let nextIndex = 0;
+    const currentIndex = (cat === 'sailing') ? this._sailingIndex : this._calmIndex;
+    if (list.length > 1) {
+      let r = Math.floor(Math.random() * (list.length - 1));
+      if (r >= currentIndex) r += 1;
+      nextIndex = r;
+    }
+
+    if (cat === 'sailing') {
+      this._sailingIndex = nextIndex;
+    } else {
+      this._calmIndex = nextIndex;
+    }
+
+    this._transitionToTrack(cat, nextIndex, fadeDuration);
+  }
+
+  _transitionToTrack(category, index, fadeDuration = 2.5, onComplete) {
+    this._currentCategory = category;
+
+    // 1. Prepare incoming deck (the idle deck)
+    this._loadTrack(this._idleDeck, category, index);
+    this._idleDeck.currentTime = 0;
+    this._idleGain = 0;
+    this._applyVolumes();
+    this._safePlay(this._idleDeck);
+
+    // 2. Perform equal-power crossfade from active to idle
+    this._crossfadeActiveToIdle(fadeDuration, onComplete);
+  }
+
+  _crossfadeActiveToIdle(durationSec = 2.5, onComplete) {
     if (this._fadeInterval) {
       clearInterval(this._fadeInterval);
       this._fadeInterval = null;
     }
 
-    const startCalm = this._calmGain;
-    const startSailing = this._sailingGain;
-    const durationMs = Math.max(100, durationSec * 1000);
+    const startActive = this._activeGain;
+    const startIdle = this._idleGain;
+    const durationMs = Math.max(200, durationSec * 1000);
     const startTime = performance.now();
+    this._isTransitioning = true;
 
     this._fadeInterval = setInterval(() => {
       const elapsed = performance.now() - startTime;
       const progress = Math.min(1.0, elapsed / durationMs);
 
-      // Smooth cubic ease in-out curve
-      const ease = progress < 0.5
-        ? 2 * progress * progress
-        : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+      // Equal-power crossfade curve: cos(t * PI/2) and sin(t * PI/2)
+      // Eliminates perceived acoustic volume drops during transitions
+      const fadeOut = Math.cos(progress * Math.PI * 0.5);
+      const fadeIn = Math.sin(progress * Math.PI * 0.5);
 
-      this._calmGain = startCalm + (targetCalm - startCalm) * ease;
-      this._sailingGain = startSailing + (targetSailing - startSailing) * ease;
+      this._activeGain = startActive * fadeOut;
+      this._idleGain = startIdle + (1.0 - startIdle) * fadeIn;
       this._applyVolumes();
 
       if (progress >= 1.0) {
         clearInterval(this._fadeInterval);
         this._fadeInterval = null;
-        this._calmGain = targetCalm;
-        this._sailingGain = targetSailing;
+        this._isTransitioning = false;
+
+        this._activeGain = 0;
+        this._idleGain = 1.0;
+        this._applyVolumes();
+
+        // Pause the old deck and clean up
+        this._activeDeck.pause();
+        this._activeDeck.currentTime = 0;
+
+        // Swap decks!
+        const prevActive = this._activeDeck;
+        this._activeDeck = this._idleDeck;
+        this._idleDeck = prevActive;
+
+        // Reset gains for swapped roles
+        this._activeGain = 1.0;
+        this._idleGain = 0.0;
+        this._applyVolumes();
+
+        if (typeof onComplete === 'function') onComplete();
+      }
+    }, 25);
+  }
+
+  _fadeInActive(durationSec = 2.0, onComplete) {
+    if (this._fadeInterval) {
+      clearInterval(this._fadeInterval);
+      this._fadeInterval = null;
+    }
+
+    const startGain = this._activeGain;
+    const durationMs = Math.max(200, durationSec * 1000);
+    const startTime = performance.now();
+    this._isTransitioning = true;
+
+    this._fadeInterval = setInterval(() => {
+      const elapsed = performance.now() - startTime;
+      const progress = Math.min(1.0, elapsed / durationMs);
+
+      const fadeIn = Math.sin(progress * Math.PI * 0.5);
+
+      this._activeGain = startGain + (1.0 - startGain) * fadeIn;
+      this._idleGain = 0;
+      this._applyVolumes();
+
+      if (progress >= 1.0) {
+        clearInterval(this._fadeInterval);
+        this._fadeInterval = null;
+        this._isTransitioning = false;
+        this._activeGain = 1.0;
         this._applyVolumes();
         if (typeof onComplete === 'function') onComplete();
       }
-    }, 25); // 40 updates per second for perfectly smooth crossfading
+    }, 25);
+  }
+
+  _fadeOutAll(durationSec = 2.0, onComplete) {
+    if (this._fadeInterval) {
+      clearInterval(this._fadeInterval);
+      this._fadeInterval = null;
+    }
+
+    const startActive = this._activeGain;
+    const startIdle = this._idleGain;
+    const durationMs = Math.max(200, durationSec * 1000);
+    const startTime = performance.now();
+    this._isTransitioning = true;
+
+    this._fadeInterval = setInterval(() => {
+      const elapsed = performance.now() - startTime;
+      const progress = Math.min(1.0, elapsed / durationMs);
+
+      const fadeOut = Math.cos(progress * Math.PI * 0.5);
+
+      this._activeGain = startActive * fadeOut;
+      this._idleGain = startIdle * fadeOut;
+      this._applyVolumes();
+
+      if (progress >= 1.0) {
+        clearInterval(this._fadeInterval);
+        this._fadeInterval = null;
+        this._isTransitioning = false;
+        this._activeGain = 0;
+        this._idleGain = 0;
+        this._applyVolumes();
+        this._activeDeck.pause();
+        this._idleDeck.pause();
+        if (typeof onComplete === 'function') onComplete();
+      }
+    }, 25);
   }
 
   _applyVolumes() {
@@ -293,11 +479,11 @@ export class MusicManager {
     const duckMult = this._isDucked ? this._duckFactor : 1.0;
     const effectiveBase = masterMult * this._volume * duckMult;
 
-    const calmVol = Math.max(0, Math.min(1, effectiveBase * this._calmGain));
-    const sailingVol = Math.max(0, Math.min(1, effectiveBase * this._sailingGain));
+    const activeVol = Math.max(0, Math.min(1, effectiveBase * this._activeGain));
+    const idleVol = Math.max(0, Math.min(1, effectiveBase * this._idleGain));
 
-    this._audioCalm.volume = calmVol;
-    this._audioSailing.volume = sailingVol;
+    this._activeDeck.volume = activeVol;
+    this._idleDeck.volume = idleVol;
   }
 
   // ---------------------------------------------------------------------------
@@ -326,18 +512,6 @@ export class MusicManager {
       playPromise.catch(() => {
         // Autoplay policy prevented playback; will automatically start on user interaction
       });
-    }
-  }
-
-  _onTrackEnded(category) {
-    if (category === 'calm') {
-      this._calmIndex = (this._calmIndex + 1) % MUSIC_TRACKS.calm.length;
-      this._loadTrack(this._audioCalm, 'calm', this._calmIndex);
-      this._safePlay(this._audioCalm);
-    } else {
-      this._sailingIndex = (this._sailingIndex + 1) % MUSIC_TRACKS.sailing.length;
-      this._loadTrack(this._audioSailing, 'sailing', this._sailingIndex);
-      this._safePlay(this._audioSailing);
     }
   }
 }
