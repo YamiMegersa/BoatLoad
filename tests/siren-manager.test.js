@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { clear } from '../src/core/EventBus.js';
+import { clear, on, off } from '../src/core/EventBus.js';
 import { SirenManager } from '../src/monsters/SirenManager.js';
 
 function createSirenHarness(definitions) {
@@ -116,5 +116,28 @@ test('active resolve damps siren pull torque', () => {
   assert.ok(Math.abs(bracedTorque / unbracedTorque - 0.15) < 0.01);
 
   manager.dispose();
+  clear();
+});
+
+test('SirenManager.hasSirens reports false when level has no sirens/mermaids, true when present', () => {
+  const emptyScene = new THREE.Scene();
+  const emptyManager = new SirenManager();
+  let configuredPayload = null;
+  const onCfg = (d) => { configuredPayload = d; };
+  on('sirensConfigured', onCfg);
+
+  emptyManager.init({ sirens: [] }, emptyScene, null, [], null);
+  assert.equal(emptyManager.hasSirens(), false);
+  assert.deepEqual(configuredPayload, { count: 0, hasSirens: false });
+  emptyManager.dispose();
+
+  const sirenScene = new THREE.Scene();
+  const sirenManager = new SirenManager();
+  sirenManager.init({ sirens: [{ position: { x: 0, y: 0, z: -10 } }] }, sirenScene, null, [], null);
+  assert.equal(sirenManager.hasSirens(), true);
+  assert.deepEqual(configuredPayload, { count: 1, hasSirens: true });
+  sirenManager.dispose();
+
+  off('sirensConfigured', onCfg);
   clear();
 });

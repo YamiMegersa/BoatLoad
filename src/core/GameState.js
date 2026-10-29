@@ -2073,7 +2073,11 @@ export class GameState {
 
     this._wasCinematicActive = false;
     this.score = 0;
-    emit('uiMount', { screen: 'obstacle' });
+    const hasSirens = Boolean(
+      (levelCfg?.sirens && levelCfg.sirens.length > 0) ||
+      (this._sirenManager?.hasSirens?.())
+    );
+    emit('uiMount', { screen: 'obstacle', day: this.day, hasSirens, levelCfg });
 
     // Anchor Hoisting Countdown state before casting off
     this._hasDock = hasDock;

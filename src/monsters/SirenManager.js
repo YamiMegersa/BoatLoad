@@ -109,6 +109,10 @@ export class SirenManager {
     this._hudPullActive = false;
   }
 
+  hasSirens() {
+    return (this._sirens?.length ?? 0) > 0;
+  }
+
   /**
    * @param {object} levelCfg   Level JSON — reads `levelCfg.sirens[]`
    * @param {THREE.Scene} scene
@@ -127,6 +131,8 @@ export class SirenManager {
     for (const def of defs) {
       this._spawn(def);
     }
+
+    emit('sirensConfigured', { count: this._sirens.length, hasSirens: this.hasSirens() });
   }
 
   /**

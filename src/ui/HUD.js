@@ -77,7 +77,18 @@ export class HUD {
     on('scoreAdded', this._onScore);
     on('sharkHitConfirmed', d => this._showSharkConfirm(d));
     on('sirenWarning', d => this._showBanner(d));
-    this._onSirenPull = d => { this._stationController.noteSirenPull(d); this._updateSirenPull(d); };
+    this._hasSirens = false;
+    this._onSirensConfigured = ({ hasSirens }) => {
+      this.setSirenStationVisible(hasSirens);
+    };
+    on('sirensConfigured', this._onSirensConfigured);
+    this._onSirenPull = d => {
+      if (d?.intensity > 0.01) {
+        this.setSirenStationVisible(true);
+      }
+      this._stationController.noteSirenPull(d);
+      this._updateSirenPull(d);
+    };
     on('sirenPulling', this._onSirenPull);
     on('waterBailed', d => this._showBanner({ label: `BAILED ${d.removed}% WATER — CIRCLE ${d.accuracy}%` }));
     on('waterBailFailed', () => this._showBanner({ label: 'INCOMPLETE LOOP — TRY AGAIN' }));
@@ -134,9 +145,13 @@ export class HUD {
     this._clearBailCanvas();
   }
 
-  mount({ day } = {}) {
+  mount({ day, hasSirens = false, levelCfg = null } = {}) {
     if (this._el) this.unmount();
 
+    this._hasSirens = Boolean(
+      hasSirens ||
+      (levelCfg?.sirens && levelCfg.sirens.length > 0)
+    );
     this._score = 0;
     const defaultArcs = describeSweetSpotArcs([0.4, 0.6]);
 
@@ -296,7 +311,7 @@ export class HUD {
       </section>
 
       <!-- 3. Gunwale Siren Ward Rail (SIREN) -->
-      <section id="qte-station-siren" class="qte-station qte-siren-station is-idle side-right" aria-hidden="false">
+      <section id="qte-station-siren" class="qte-station qte-siren-station is-idle side-right" aria-hidden="${this._hasSirens ? 'false' : 'true'}" style="${this._hasSirens ? '' : 'display: none;'}">
         <div class="qte-siren-header">
           <span class="qte-siren-icon"><span class="pixel-icon icon-siren-note size-16"></span></span>
           <span class="qte-siren-title">WARD</span>
@@ -382,6 +397,7 @@ export class HUD {
       siren: this._el.querySelector('#qte-station-siren'),
       live: this._el.querySelector('#qte-station-live'),
     };
+    this.setSirenStationVisible(this._hasSirens);
     this._bailCanvas = this._el.querySelector('#hud-qte-draw');
     this._wheel = this._el.querySelector('#hud-wheel');
     this._pedestal = this._el.querySelector('#hud-pedestal');
@@ -726,6 +742,14 @@ export class HUD {
     this._bonusBoxEl = null;
   }
 
+  setSirenStationVisible(visible) {
+    this._hasSirens = Boolean(visible);
+    if (this._stations?.siren) {
+      this._stations.siren.style.display = this._hasSirens ? '' : 'none';
+      this._stations.siren.setAttribute('aria-hidden', this._hasSirens ? 'false' : 'true');
+    }
+  }
+
   _onScoreAdded({ points = 0, isPerfect = false }) {
     this._score += points;
     if (this._scoreEl) {
@@ -1020,6 +1044,7 @@ export class HUD {
       this._clearBailCanvas();
     }
     if (station === 'siren') {
+      this.setSirenStationVisible(true);
       this._stations.siren.querySelectorAll('.qte-pips i').forEach(pip => pip.classList.remove('filled'));
     }
     if (this._stations.live) {
@@ -1058,6 +1083,9 @@ export class HUD {
     if (!this._stations) return;
     const station = this._stationController.queue(event);
     const targetStation = station ?? (event?.type === 'SHOOT' || event?.type === 'HARPOON' ? 'timing' : null);
+    if (station === 'siren' || targetStation === 'siren') {
+      this.setSirenStationVisible(true);
+    }
     if (targetStation) {
       this._syncStationDOM(targetStation, event?.theme);
     }
@@ -1317,6 +1345,7 @@ export class HUD {
     off('qteStart', this._onQTEStart); off('qteUpdate', this._onQTEUpdate); off('qteQueued', this._onQTEQueued);
     off('qteSuccess', this._onQTESuccess); off('qteFail', this._onQTEFail);
     off('qteStrikeWindow', this._onQTEStrikeWindow);
+    off('sirensConfigured', this._onSirensConfigured);
     off('sirenPulling', this._onSirenPull);
     off('scoreAdded', this._onScore);
     off('waterBailed');
