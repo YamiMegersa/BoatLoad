@@ -37,6 +37,7 @@ import { ShopRegistry, ItemType } from '../config/ShopRegistry.js';
 import { getCustomerForDay } from '../config/CustomerScript.js';
 import { getAssetUrl } from '../utils/paths.js';
 import { emit, on, off, clear } from './EventBus.js';
+import { settingsManager } from './SettingsManager.js';
 
 // ---------------------------------------------------------------------------
 // Phase enum
@@ -381,8 +382,10 @@ export class GameState {
     // 2. Sailing Rewards & Bonuses
     const baseReward = isPassed && !isCommunity ? (150 + day * 75) : 0;
     const multiplier = isPassed && !isCommunity ? this.getPedestalMultiplier() : 1.0;
-    const sailingBonus = isCommunity ? 0 : Math.round(baseReward * multiplier);
-    const pedestalBonus = Math.max(0, sailingBonus - baseReward);
+    const pedestalTotal = Math.round(baseReward * multiplier);
+    const pedestalBonus = Math.max(0, pedestalTotal - baseReward);
+    const sharkBonus = isPassed && !isCommunity ? Math.max(0, Math.round(this.score || 0)) : 0;
+    const sailingBonus = isCommunity ? 0 : (pedestalTotal + sharkBonus);
 
     // 3. Incurred Voyage Damage Penalty
     let damageDiff = 0;
@@ -426,6 +429,7 @@ export class GameState {
           baseReward,
           multiplier,
           pedestalBonus,
+          sharkBonus,
           sailingBonus
         },
         damage: {
@@ -438,6 +442,7 @@ export class GameState {
         currentCoins: this.coins,
         baseReward,
         multiplier,
+        sharkBonus,
         bonusCoins: sailingBonus
       }
     });
@@ -1938,11 +1943,11 @@ export class GameState {
 
     const qteTuning = { ...(levelCfg?.qte ?? {}) };
     if (levelCfg?.tutorialPrompts) qteTuning.windowScale = (qteTuning.windowScale ?? 1) * 1.25;
+    qteTuning.tapToLatch = Boolean(settingsManager?.get?.('qteTapToLatch'));
     this._qteSystem = new QTESystem(qteTuning, levelCfg?.rewardAbilities);
     this._inputRouter = new QTEInputRouter({
       target: window,
       qteSystem: this._qteSystem,
-      canFire: () => this._hasCannon && this._ammo > 0 && this._canFire,
       isDirectorActive: () => Boolean(window.directorMode?.isActive),
     });
 
@@ -1990,8 +1995,18 @@ export class GameState {
     }
     this._obstacleManager = new ObstacleManager();
     this._obstacleManager.init(levelCfg, this._scene, rockModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, this._qteSystem);
+
+    // "Don't start in danger": defer any QTE while a solid hazard is directly
+    // ahead, so the player is never forced to choose between a crash and a QTE.
+    // Bailing uses a slightly shorter corridor (20m) as it is a survival action.
+    this._qteSystem.setHazardCheck(({ sourceName }) => {
+      const ship = this._playerShip;
+      if (!ship || !this._obstacleManager) return true;
+      const distance = sourceName === 'bail' ? 20 : 25;
+      return this._obstacleManager.isForwardHazardClear(ship, distance, 35);
+    });
     this._environmentManager = new EnvironmentManager();
-    this._environmentManager.init(this._scene, fishModels, levelCfg, this._qteSystem, this._ocean, this._clouds);
+    this._environmentManager.init(this._scene, fishModels, levelCfg, this._qteSystem, this._ocean, this._clouds, this.activeCamera || this._camera);
     this._sirenManager = new SirenManager();
     this._sirenManager.init(levelCfg, this._scene, sirenModel, rockModels, this._qteSystem);
 
@@ -2043,16 +2058,6 @@ export class GameState {
     };
     if (DEBUG) on('qteDebugTrigger', this._onDebugQTE);
 
-    // Cannon: ammo is per-run (restocked every Set Sail). Day 1 has no cannon
-    // config, so the free proximity barrel QTE stays as the tutorial.
-    this._hasCannon = Boolean(levelCfg?.cannon);
-    this._cannonRange = levelCfg?.cannon?.range ?? 14;
-    this._ammo = levelCfg?.cannon?.ammo ?? 0;
-    this._canFire = false;
-    this._onCannonFire = () => this._fireCannon();
-    on('cannonFire', this._onCannonFire);
-    emit('ammoChanged', { ammo: this._ammo, cannon: this._hasCannon });
-
     // Subtle camera impulse when a harpooned shark is hit
     this._camImpulse = 0;
     this._onSharkHit = () => { this._camImpulse = 0.08; };
@@ -2068,7 +2073,11 @@ export class GameState {
 
     this._wasCinematicActive = false;
     this.score = 0;
-    emit('uiMount', { screen: 'obstacle' });
+    const hasSirens = Boolean(
+      (levelCfg?.sirens && levelCfg.sirens.length > 0) ||
+      (this._sirenManager?.hasSirens?.())
+    );
+    emit('uiMount', { screen: 'obstacle', day: this.day, hasSirens, levelCfg });
 
     // Anchor Hoisting Countdown state before casting off
     this._hasDock = hasDock;
@@ -2085,7 +2094,7 @@ export class GameState {
     this._playerShip?.update?.(delta, this._ocean, this._windManager);
     this._obstacleManager?.update?.(delta, this._playerShip, this._windManager, this._voxelTerrain);
     this._voxelTerrain?.updateCulling?.(this.activeCamera?.position || this._camera?.position);
-    this._environmentManager?.update?.(delta, this._windManager, this._playerShip);
+    this._environmentManager?.update?.(delta, this._windManager, this._playerShip, this.activeCamera || this._camera);
     this._sirenManager?.update?.(delta, this._playerShip);
 
     // Cull the dock village/island only once it is fully beyond the draw distance
@@ -2166,11 +2175,11 @@ export class GameState {
       const krakenAudio = this._krakenBoss
         ? this._krakenBoss.getAudioState(this._playerShip)
         : {
-            hasKraken: Boolean(this._levelCfg?.kraken),
-            state: 'idle',
-            intensity: this._levelCfg?.kraken ? 0.22 : 0,
-            proximity: this._levelCfg?.kraken ? 0.22 : 0,
-          };
+          hasKraken: Boolean(this._levelCfg?.kraken),
+          state: 'idle',
+          intensity: this._levelCfg?.kraken ? 0.22 : 0,
+          proximity: this._levelCfg?.kraken ? 0.22 : 0,
+        };
 
       emit('sailingAudioUpdate', {
         active: !isSinkingNow,
@@ -2207,17 +2216,6 @@ export class GameState {
     }
 
     if (this._playerShip) {
-      // Edge-triggered FIRE prompt: shown only while shells remain and a
-      // barrel is in range, so Space stays free for the active QTE otherwise.
-      if (this._hasCannon && this._obstacleManager && this._qteSystem) {
-        const canFire = this._ammo > 0 &&
-          Boolean(this._obstacleManager.findShootTarget(this._cannonRange, this._playerShip));
-        if (canFire !== this._canFire) {
-          this._canFire = canFire;
-          emit('cannonPrompt', { canFire });
-        }
-      }
-
       const p = this._playerShip.mesh.position;
       const shipYaw = this._playerShip.yaw;
       const shipYawVel = this._playerShip.yawVelocity;
@@ -2610,7 +2608,6 @@ export class GameState {
 
     off('steer', this._onSteer);
     if (DEBUG) off('qteDebugTrigger', this._onDebugQTE);
-    off('cannonFire', this._onCannonFire);
     off('sharkHitConfirmed', this._onSharkHit);
     if (this._onPlayerSunk) off('playerSunk', this._onPlayerSunk);
     this._onPlayerSunk = null;
@@ -2655,48 +2652,6 @@ export class GameState {
     }
 
     emit('uiUnmount', { screen: 'obstacle' });
-  }
-
-  /**
-   * FIRE input: open the SHOOT timing QTE on the nearest in-range barrel.
-   * The shell is spent only when the trigger is accepted — while a cannon QTE
-   * is already active/queued trigger() returns false, so Space spam can't
-   * waste ammo.
-   */
-  _fireCannon() {
-    if (!this._hasCannon || this._ammo <= 0 || this._qteSystem?.hasActive()) return;
-    const target = this._obstacleManager?.findShootTarget(this._cannonRange, this._playerShip);
-    if (!target) return;
-
-    const start = this._playerShip.mesh.localToWorld(new THREE.Vector3(0.65, 0.8, -2));
-    const targetPosition = target.mesh.position.clone();
-    const accepted = this._qteSystem?.trigger({
-      source: 'cannon',
-      metadata: { source: 'cannon' },
-      onSuccess: ({ metadata }) => {
-        if (metadata.debug) return;
-        if (!target.active || target.qteResolved) {
-          emit('cannonResult', { result: 'miss' });
-          return;
-        }
-        target.qteResolved = true;
-        target.active = false;
-        target.mesh.visible = false;
-        emit('spawnParticles', { type: 'explosion', position: target.mesh.position.clone() });
-        emit('cannonResult', { result: 'hit' });
-      },
-      onFail: ({ metadata }) => {
-        if (metadata.debug) return;
-        const splashPosition = start.clone().lerp(targetPosition, 0.8);
-        emit('spawnParticles', { type: 'splash', position: splashPosition });
-        emit('cannonResult', { result: 'miss' });
-      },
-    });
-    if (!accepted) return;
-
-    emit('spawnParticles', { type: 'cannonShot', start, end: targetPosition });
-    this._ammo--;
-    emit('ammoChanged', { ammo: this._ammo, cannon: this._hasCannon });
   }
 
   // =========================================================================

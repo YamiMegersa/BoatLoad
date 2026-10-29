@@ -12,11 +12,11 @@ import { DamageSystem } from '../shipyard/DamageSystem.js';
 
 /** @readonly */
 export const ObstacleType = Object.freeze({
-  ROCK:       'rock',
-  BARREL:     'barrel',
+  ROCK: 'rock',
+  BARREL: 'barrel',
   WAVE_SMALL: 'wave_small',
-  SEAWEED:    'seaweed',
-  WHIRLPOOL:  'whirlpool',
+  SEAWEED: 'seaweed',
+  WHIRLPOOL: 'whirlpool',
 });
 
 // ---------------------------------------------------------------------------
@@ -41,12 +41,12 @@ export class PlayerShip {
     const profile = stats.profile || {};
     this.shipProfile = profile;
     this.speedMultiplier = stats.speedMultiplier ?? profile.speedMultiplier ?? 1.0;
-    this._laneHalfWidth  = stats.laneHalfWidth ?? 6;
-    this.turnAccel       = stats.turnAccel ?? profile.turnAccel ?? 2.0;
-    this.turnDamping     = stats.turnDamping ?? profile.turnDamping ?? 3.0;
+    this._laneHalfWidth = stats.laneHalfWidth ?? 6;
+    this.turnAccel = stats.turnAccel ?? profile.turnAccel ?? 2.0;
+    this.turnDamping = stats.turnDamping ?? profile.turnDamping ?? 3.0;
     this.sirenResistance = stats.sirenResistance ?? 0;
-    this.isGagTruck      = !!(stats.isGagTruck || profile.isGagTruck);
-    this.shipScale       = stats.scale ?? profile.scale ?? 0.10;
+    this.isGagTruck = !!(stats.isGagTruck || profile.isGagTruck);
+    this.shipScale = stats.scale ?? profile.scale ?? 0.10;
 
     this.chunkRenderer = chunkRenderer;
     this.grid = grid;
@@ -99,7 +99,7 @@ export class PlayerShip {
 
     /** @type {number} Steering input in [-1, +1] from wheel drag or keyboard */
     this.steerInput = 0;
-    
+
     // Physics & Rotation
     this.yaw = 0;
     this.yawVelocity = 0;
@@ -113,7 +113,7 @@ export class PlayerShip {
 
     // Pinball-like knockback velocity (retained for backward compatibility)
     this.knockbackVelocity = new THREE.Vector3();
-    
+
     // Departure Grace (Mooring / anchor-raise protection, not combat god-mode)
     this.departureGraceTime = 0;
     this.immuneTime = 0;
@@ -156,21 +156,21 @@ export class PlayerShip {
       // Create a wrapper to handle scaling and centering independently
       wrapper = new THREE.Group();
       wrapper.add(chunkRenderer.container);
-      
+
       // Calculate bounding box to center the voxel grid horizontally
       const tempBox = new THREE.Box3().setFromObject(chunkRenderer.container);
       const center = new THREE.Vector3();
       tempBox.getCenter(center);
-      
+
       // Offset so the ship is centered on X and Z, resting on Y=0
       chunkRenderer.container.position.set(-center.x, -tempBox.min.y, -center.z);
-      
+
       // Scale the wrapper according to ship profile scale
       wrapper.scale.setScalar(this.shipScale);
-      
+
       // The voxel model faces +Z by default, but we move towards -Z
       wrapper.rotation.y = Math.PI;
-      
+
       this.mesh.add(wrapper);
     } else {
       this.mesh.add(this._buildMesh());
@@ -200,6 +200,16 @@ export class PlayerShip {
     this.lanternStats = stats.lanternStats || null;
     this._bowLanternGroup = null;
     this._buildBowLantern(this.lanternStats);
+
+    // 3D Prow-Mounted Swivel Harpoon Launcher
+    this._harpoonLauncherGroup = null;
+    this._harpoonSwivel = null;
+    this._harpoonPivot = null;
+    this._harpoonBarrel = null;
+    this._loadedHarpoonMesh = null;
+    this._harpoonRecoil = 0;
+    this._harpoonReloadTimer = 0;
+    this._buildHarpoonLauncher();
 
     this._onItemsEquipped = (d) => {
       if (d?.type === 'lantern') {
@@ -235,8 +245,8 @@ export class PlayerShip {
     this.obb.applyMatrix4(this.mesh.matrixWorld);
 
     this.godMode = (typeof window !== 'undefined' && window.godModeEnabled) || false;
-    this._onGodMode = (d) => { 
-      this.godMode = d.enabled; 
+    this._onGodMode = (d) => {
+      this.godMode = d.enabled;
       if (this.godMode) {
         this.sunk = false;
         this.waterLevel = 0;
@@ -562,10 +572,11 @@ export class PlayerShip {
       }
     }
 
-    // Trigger sinking QTE
-    if (this.waterLevel > this.maxWaterLevel * 0.75 && !this._bailingWater && this._bailCooldown <= 0 && this.qteSystem) {
+    // Trigger bailing QTE from 50% water level so player can bail proactively
+    if (this.waterLevel > this.maxWaterLevel * 0.50 && !this._bailingWater && this._bailCooldown <= 0 && this.qteSystem) {
       const accepted = this.qteSystem.trigger({
         source: 'bail',
+        metadata: { source: 'bail', urgent: this.waterLevel >= this.maxWaterLevel * 0.88 },
         onSuccess: ({ accuracy = 0, metadata }) => {
           this._bailingWater = false;
           this._bailCooldown = 1.25;
@@ -583,10 +594,10 @@ export class PlayerShip {
           emit('waterBailed', { accuracy: Math.round(accuracy * 100), removed: Math.round(removed) });
           emit('spawnParticles', { type: 'splash', position: this.mesh.position });
         },
-        onFail: ({ metadata }) => {
+        onFail: ({ metadata, queued = false }) => {
           this._bailingWater = false;
-          this._bailCooldown = 10.0;
-          if (!metadata.debug) emit('waterBailFailed', { cooldown: 10 });
+          this._bailCooldown = queued ? 0.5 : 4.0;
+          if (!metadata.debug && !queued) emit('waterBailFailed', { cooldown: 4 });
         }
       });
       this._bailingWater = accepted;
@@ -599,7 +610,7 @@ export class PlayerShip {
     const targetTrimPitch = THREE.MathUtils.clamp((-netBowWeight) * 0.03 * (1 + waterRatio * 1.5), -0.20, 0.20);
     this.listRoll = THREE.MathUtils.damp(this.listRoll, targetListRoll, 2.5, delta);
     this.trimPitch = THREE.MathUtils.damp(this.trimPitch, targetTrimPitch, 2.5, delta);
-    
+
     // Check for terminal sinking (Sea of Thieves: ship fills with water and begins death plunge)
     if (this.waterLevel >= this.maxWaterLevel && !this.sunk && !this.isSinkingDeath) {
       this.isSinkingDeath = true;
@@ -614,30 +625,29 @@ export class PlayerShip {
 
     // Heavy Debuffs based on water level
     const handlingMultiplier = Math.max(0.1, 1.0 - (waterRatio * 1.2)); // Drops handling drastically as water fills
-    
+
     // Driving Model: Steer input controls Yaw with inertia (heavy boat feel)
     // Full rudder authority is maintained when blocked against an obstacle so player can pivot away
     const handlingMult = this.blockedNormal ? 1.0 : handlingMultiplier;
     const turnAccel = (this.turnAccel || 2.2) * handlingMult;
     const damping = this.blockedNormal ? (this.turnDamping || 2.5) : ((this.turnDamping || 3.0) * (1.0 + waterRatio * 2.0));
-    
     // Base turning acceleration from player input
     const steeringInput = this._sirenDisorientationSources.size ? -this.steerInput : this.steerInput;
     let yawAccel = -steeringInput * turnAccel;
-    
+
     // Apply water damping/friction
     yawAccel -= this.yawVelocity * damping;
-    
+
     // Euler integration for heavy momentum
     this.yawVelocity += yawAccel * delta;
     this.yaw += this.yawVelocity * delta;
     // No more clamping, free 360 degree rotation
-    
-const _shipDir = new THREE.Vector3();
-const _windNorm = new THREE.Vector3();
-const _zeroVec = new THREE.Vector3(0, 0, 0);
-const _waveNormal = new THREE.Vector3(0, 1, 0);
-const _defaultWind = new THREE.Vector3(1, 0, -1).normalize();
+
+    const _shipDir = new THREE.Vector3();
+    const _windNorm = new THREE.Vector3();
+    const _zeroVec = new THREE.Vector3(0, 0, 0);
+    const _waveNormal = new THREE.Vector3(0, 1, 0);
+    const _defaultWind = new THREE.Vector3(1, 0, -1).normalize();
 
     const pos = this.mesh.position;
     if (!this._tempWind) this._tempWind = new THREE.Vector3();
@@ -662,7 +672,7 @@ const _defaultWind = new THREE.Vector3(1, 0, -1).normalize();
 
     _windNorm.copy(localWind).normalize();
     const windDot = _shipDir.dot(_windNorm); // 1.0 (with wind), -1.0 (against wind)
-    
+
     // Map dot product [-1, 1] to speed multiplier [0.3, 1.0] (never negative)
     const windSpeedMult = 0.3 + ((windDot + 1) / 2) * 0.7;
 
@@ -756,9 +766,9 @@ const _defaultWind = new THREE.Vector3(1, 0, -1).normalize();
     // Apply spring physics for impact bobbing
     this.pitchVelocity *= 0.9; // damping
     this.rollVelocity *= 0.9;
-    
+
     // Spring back to 0
-    this.pitchVelocity -= (this.pitch - 0) * 10 * delta; 
+    this.pitchVelocity -= (this.pitch - 0) * 10 * delta;
     this.rollVelocity -= (this.roll - 0) * 10 * delta;
 
     this.pitch += this.pitchVelocity * delta;
@@ -790,11 +800,96 @@ const _defaultWind = new THREE.Vector3(1, 0, -1).normalize();
     this.mesh.updateMatrixWorld(true);
     this.obb.copy(this.baseOBB);
     this.obb.applyMatrix4(this.mesh.matrixWorld);
+
+    // Animate prow swivel harpoon launcher recoil & reload
+    this._updateHarpoonLauncher(delta);
   }
 
   // -------------------------------------------------------------------------
-  // Damage
+  // Prow Swivel Harpoon Launcher & Damage
   // -------------------------------------------------------------------------
+
+  /** Returns the world-space muzzle origin and forward vector of the prow swivel harpoon launcher. */
+  getHarpoonLaunchTransform() {
+    this.mesh.updateMatrixWorld(true);
+    if (this._harpoonBarrel) {
+      const origin = new THREE.Vector3(0, 0.06, -0.72).applyMatrix4(this._harpoonBarrel.matrixWorld);
+      const tail = new THREE.Vector3(0, 0.06, 0.2).applyMatrix4(this._harpoonBarrel.matrixWorld);
+      const forward = origin.clone().sub(tail).normalize();
+      return { origin, forward };
+    }
+    const halfSize = this.baseOBB?.halfSize;
+    const bowOffset = -Math.max(1.4, (halfSize?.z ?? 2) * 0.82);
+    const deckHeight = Math.max(1.15, (halfSize?.y ?? 0.7) * 1.7);
+    const origin = new THREE.Vector3(0, deckHeight, bowOffset).applyMatrix4(this.mesh.matrixWorld);
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.mesh.quaternion).normalize();
+    return { origin, forward };
+  }
+
+  /** Smoothly swivels and pitches the bow harpoon gun toward an approaching shark (or resets to rest). */
+  aimHarpoonAt(worldTargetPos, delta = 0.016) {
+    if (!this._harpoonLauncherGroup || !this._harpoonSwivel || !this._harpoonPivot) return;
+    let targetYaw = 0;
+    let targetPitch = -0.06;
+
+    if (worldTargetPos) {
+      this.mesh.updateMatrixWorld(true);
+      const localTarget = this._harpoonLauncherGroup.worldToLocal(worldTargetPos.clone());
+      // Forward is -Z in ship local space
+      const horizDist = Math.hypot(localTarget.x, localTarget.z) || 0.001;
+      const rawYaw = Math.atan2(-localTarget.x, -localTarget.z);
+      targetYaw = THREE.MathUtils.clamp(rawYaw, -Math.PI * 0.78, Math.PI * 0.78);
+      const dy = localTarget.y - 0.52;
+      const rawPitch = Math.atan2(dy, horizDist);
+      targetPitch = THREE.MathUtils.clamp(rawPitch, -0.52, 0.32);
+    }
+
+    this._harpoonSwivel.rotation.y = THREE.MathUtils.damp(
+      this._harpoonSwivel.rotation.y,
+      targetYaw,
+      9.0,
+      delta
+    );
+    this._harpoonPivot.rotation.x = THREE.MathUtils.damp(
+      this._harpoonPivot.rotation.x,
+      targetPitch,
+      9.0,
+      delta
+    );
+  }
+
+  /** Triggers barrel recoil, hides the loaded harpoon spear during flight, and schedules reload. */
+  triggerHarpoonFireAnimation() {
+    this._harpoonRecoil = 1.0;
+    this._harpoonReloadTimer = 0.92;
+    if (this._loadedHarpoonMesh) {
+      this._loadedHarpoonMesh.visible = false;
+    }
+    return this.getHarpoonLaunchTransform();
+  }
+
+  _updateHarpoonLauncher(delta) {
+    if (!this._harpoonBarrel) return;
+    if (this._harpoonRecoil > 0.001) {
+      this._harpoonRecoil = THREE.MathUtils.damp(this._harpoonRecoil, 0, 11.0, delta);
+      this._harpoonBarrel.position.z = this._harpoonRecoil * 0.28;
+    } else {
+      this._harpoonRecoil = 0;
+      this._harpoonBarrel.position.z = 0;
+    }
+
+    if (this._harpoonReloadTimer > 0) {
+      this._harpoonReloadTimer = Math.max(0, this._harpoonReloadTimer - delta);
+      if (this._harpoonReloadTimer <= 0.22 && this._loadedHarpoonMesh) {
+        this._loadedHarpoonMesh.visible = true;
+        const t = 1 - this._harpoonReloadTimer / 0.22;
+        this._loadedHarpoonMesh.position.z = (1 - t) * 0.35;
+      }
+    } else if (this._loadedHarpoonMesh && !this._loadedHarpoonMesh.visible) {
+      this._loadedHarpoonMesh.visible = true;
+      this._loadedHarpoonMesh.position.z = 0;
+    }
+  }
 
   /**
    * Physically blow holes or cracks in the voxel hull using point of impact and material durability.
@@ -941,7 +1036,7 @@ const _defaultWind = new THREE.Vector3(1, 0, -1).normalize();
             this.grid.setState(hitCell.x, hitCell.y, hitCell.z, CellState.MISSING);
             let voxelsLost = 1;
             if (effectiveDamage >= 30 && candidates.length > 1) {
-              const second = candidates.find(c => 
+              const second = candidates.find(c =>
                 Math.abs(c.x - hitCell.x) <= 1 && Math.abs(c.y - hitCell.y) <= 1 && Math.abs(c.z - hitCell.z) <= 1 &&
                 !(c.x === hitCell.x && c.y === hitCell.y && c.z === hitCell.z)
               );
@@ -1019,10 +1114,10 @@ const _defaultWind = new THREE.Vector3(1, 0, -1).normalize();
    */
   takeWaterDamage(amount) {
     if (this.sunk || this.godMode) return;
-    
+
     this.waterLevel += amount;
     emit('playerWaterLevel', { level: this.waterLevel, max: this.maxWaterLevel });
-    
+
     if (this.waterLevel >= this.maxWaterLevel && !this.sunk) {
       this.sunk = true;
       emit('playerSunk');
@@ -1035,12 +1130,12 @@ const _defaultWind = new THREE.Vector3(1, 0, -1).normalize();
    */
   healDamage(amount) {
     if (this.sunk || !this.grid || !this.chunkRenderer) return;
-    
+
     this.hullHP = Math.min(this.maxHullHP, this.hullHP + amount);
     emit('playerHealth', { hp: this.hullHP, max: this.maxHullHP });
-    
+
     let holesPatched = 0;
-    
+
     // Find DAMAGED (2) and MISSING (3) cells. Prioritize those below the waterline first.
     const damagedCells = [];
     this.grid.forEach((x, y, z, state) => {
@@ -1048,20 +1143,20 @@ const _defaultWind = new THREE.Vector3(1, 0, -1).normalize();
         damagedCells.push({ x, y, z, isLeak: y <= this.waterlineY });
       }
     });
-    
+
     // Sort so leaks are repaired first
     damagedCells.sort((a, b) => {
       if (a.isLeak && !b.isLeak) return -1;
       if (!a.isLeak && b.isLeak) return 1;
       return 0;
     });
-    
+
     for (const cell of damagedCells) {
       if (holesPatched >= amount) break;
       this.grid.setState(cell.x, cell.y, cell.z, CellState.INTACT);
       holesPatched++;
     }
-    
+
     if (holesPatched > 0) {
       this._countLeaks();
       this.chunkRenderer.sync(this.grid);
@@ -1291,13 +1386,13 @@ const _defaultWind = new THREE.Vector3(1, 0, -1).normalize();
           // Clone material on first modify to prevent affecting shared materials globally
           if (!child.userData.clonedMat) {
             if (Array.isArray(child.material)) {
-               child.material = child.material.map(m => m.clone());
+              child.material = child.material.map(m => m.clone());
             } else {
-               child.material = child.material.clone();
+              child.material = child.material.clone();
             }
             child.userData.clonedMat = true;
           }
-          
+
           const mats = Array.isArray(child.material) ? child.material : [child.material];
           mats.forEach(mat => {
             mat.transparent = opacity < 1.0;
@@ -1385,6 +1480,7 @@ const _defaultWind = new THREE.Vector3(1, 0, -1).normalize();
       this._onItemsEquipped = null;
     }
     this._buildBowLantern(null);
+    this._disposeHarpoonLauncher();
     clearTimeout(this._speedTimer);
     this._sirenDisorientationSources.clear();
     scene.remove(this.mesh);
@@ -1570,6 +1666,182 @@ const _defaultWind = new THREE.Vector3(1, 0, -1).normalize();
 
     this.mesh.add(group);
     this._bowLanternGroup = group;
+  }
+
+  _disposeHarpoonLauncher() {
+    if (!this._harpoonLauncherGroup) return;
+    this.mesh.remove(this._harpoonLauncherGroup);
+    this._harpoonLauncherGroup.traverse(c => {
+      if (c.geometry) c.geometry.dispose();
+      if (c.material) {
+        if (Array.isArray(c.material)) c.material.forEach(m => m.dispose());
+        else c.material.dispose();
+      }
+    });
+    this._harpoonLauncherGroup = null;
+    this._harpoonSwivel = null;
+    this._harpoonPivot = null;
+    this._harpoonBarrel = null;
+    this._loadedHarpoonMesh = null;
+  }
+
+  _buildHarpoonLauncher() {
+    this._disposeHarpoonLauncher();
+
+    const group = new THREE.Group();
+    group.name = 'ProwHarpoonLauncher';
+
+    const lanternMount = this._getBowLanternMountPosition();
+    // Seat the swivel harpoon pedestal on the foredeck just aft of the bow lantern
+    group.position.set(0, Math.max(1.18, lanternMount.y - 0.16), lanternMount.z + 0.54);
+    group.scale.setScalar(0.82);
+
+    const ironMat = new THREE.MeshStandardMaterial({
+      color: 0x2b3138,
+      roughness: 0.45,
+      metalness: 0.78,
+    });
+    const brassMat = new THREE.MeshStandardMaterial({
+      color: 0xd7b35a,
+      roughness: 0.32,
+      metalness: 0.85,
+    });
+    const woodMat = new THREE.MeshStandardMaterial({
+      color: 0x6b3e20,
+      roughness: 0.72,
+      metalness: 0.1,
+    });
+    const ropeMat = new THREE.MeshStandardMaterial({
+      color: 0xd8c396,
+      roughness: 0.85,
+      metalness: 0.05,
+    });
+    const steelPointMat = new THREE.MeshStandardMaterial({
+      color: 0xe2e8f0,
+      emissive: 0x334155,
+      emissiveIntensity: 0.35,
+      roughness: 0.25,
+      metalness: 0.92,
+    });
+
+    // 1. Bolted Iron Deck Flange & Timber Stanchion Pedestal
+    const baseFlange = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.28, 0.06, 8), ironMat);
+    baseFlange.position.set(0, 0.03, 0);
+    group.add(baseFlange);
+
+    const pedestalPost = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.15, 0.42, 8), woodMat);
+    pedestalPost.position.set(0, 0.24, 0);
+    group.add(pedestalPost);
+
+    const collarRing = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.06, 8), brassMat);
+    collarRing.position.set(0, 0.44, 0);
+    group.add(collarRing);
+
+    // Coiled Hemp Line Drum mounted on the starboard side of the pedestal
+    const drumCore = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.16, 10), ropeMat);
+    drumCore.rotation.z = Math.PI / 2;
+    drumCore.position.set(0.17, 0.24, 0.04);
+    group.add(drumCore);
+
+    for (const offsetX of [0.10, 0.24]) {
+      const cheek = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.02, 10), ironMat);
+      cheek.rotation.z = Math.PI / 2;
+      cheek.position.set(offsetX, 0.24, 0.04);
+      group.add(cheek);
+    }
+
+    // 2. Rotating Brass Swivel Yoke (Yaw)
+    const swivel = new THREE.Group();
+    swivel.position.set(0, 0.47, 0);
+    group.add(swivel);
+    this._harpoonSwivel = swivel;
+
+    const yokeBase = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.05, 0.18), brassMat);
+    swivel.add(yokeBase);
+
+    for (const sideX of [-0.10, 0.10]) {
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.18, 0.10), brassMat);
+      arm.position.set(sideX, 0.09, 0);
+      swivel.add(arm);
+    }
+
+    // 3. Pitching Gun Cradle (Pitch)
+    const pivot = new THREE.Group();
+    pivot.position.set(0, 0.15, 0);
+    pivot.rotation.x = -0.06;
+    swivel.add(pivot);
+    this._harpoonPivot = pivot;
+
+    // 4. Recoiling Barrel & Launch Rail
+    const barrelGroup = new THREE.Group();
+    pivot.add(barrelGroup);
+    this._harpoonBarrel = barrelGroup;
+
+    // Heavy timber stock / trough
+    const stock = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.10, 0.92), woodMat);
+    stock.position.set(0, -0.02, -0.12);
+    barrelGroup.add(stock);
+
+    // Twin iron launch rails & bronze barrel tube
+    const launchTube = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.055, 0.07, 0.88, 8).rotateX(Math.PI / 2),
+      ironMat
+    );
+    launchTube.position.set(0, 0.05, -0.15);
+    barrelGroup.add(launchTube);
+
+    for (const bandZ of [-0.52, -0.18, 0.16]) {
+      const band = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.078, 0.078, 0.04, 8).rotateX(Math.PI / 2),
+        brassMat
+      );
+      band.position.set(0, 0.04, bandZ);
+      barrelGroup.add(band);
+    }
+
+    // Rear aiming grip
+    const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 0.24, 6), ironMat);
+    grip.rotation.x = Math.PI / 3;
+    grip.position.set(0, -0.03, 0.38);
+    barrelGroup.add(grip);
+
+    // 5. Loaded Barbed Harpoon Spear resting in the trough
+    const loadedSpear = new THREE.Group();
+    loadedSpear.position.set(0, 0.07, 0);
+    barrelGroup.add(loadedSpear);
+    this._loadedHarpoonMesh = loadedSpear;
+
+    const spearShaft = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.028, 0.032, 1.15, 6).rotateX(Math.PI / 2),
+      woodMat
+    );
+    spearShaft.position.set(0, 0, -0.35);
+    loadedSpear.add(spearShaft);
+
+    const spearCollar = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.042, 0.036, 0.12, 8).rotateX(Math.PI / 2),
+      brassMat
+    );
+    spearCollar.position.set(0, 0, -0.92);
+    loadedSpear.add(spearCollar);
+
+    const spearHead = new THREE.Mesh(
+      new THREE.ConeGeometry(0.09, 0.38, 4).rotateX(-Math.PI / 2),
+      steelPointMat
+    );
+    spearHead.position.set(0, 0, -1.16);
+    loadedSpear.add(spearHead);
+
+    // Twin angled barbs on the loaded spearhead
+    for (const side of [-1, 1]) {
+      const barb = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.20), steelPointMat);
+      barb.position.set(side * 0.06, 0, -1.06);
+      barb.rotation.y = side * -0.48;
+      loadedSpear.add(barb);
+    }
+
+    this.mesh.add(group);
+    this._harpoonLauncherGroup = group;
   }
 
   // -------------------------------------------------------------------------

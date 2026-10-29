@@ -18,16 +18,15 @@ export class QTEInputRouter {
     target = globalThis.window,
     documentRef = globalThis.document,
     qteSystem,
-    canFire = () => false,
     isDirectorActive = () => false,
   }) {
     this._target = target;
     this._document = documentRef;
     this._qteSystem = qteSystem;
-    this._canFire = canFire;
     this._isDirectorActive = isDirectorActive;
     this._down = false;
     this._consumedDown = false;
+    this._holdingQTE = false;
     this._paused = false;
     this._disposed = false;
 
@@ -39,7 +38,10 @@ export class QTEInputRouter {
         this._clearHeldState();
       }
     };
-    this._onPaused = ({ paused }) => { this._paused = Boolean(paused); };
+    this._onPaused = ({ paused }) => {
+      this._paused = Boolean(paused);
+      if (this._paused) this._clearHeldState();
+    };
 
     this._target?.addEventListener('keydown', this._onKeyDown);
     this._target?.addEventListener('keyup', this._onKeyUp);
@@ -64,20 +66,19 @@ export class QTEInputRouter {
       const kind = this._qteSystem.getInputKindForKey('Space');
       if (kind) {
         this._consume(event);
+        if (kind === 'holdStart') this._holdingQTE = true;
         emit('qteInput', { kind });
       }
-      return;
-    }
-
-    if (this._canFire()) {
-      this._consume(event);
-      emit('cannonFire');
     }
   }
 
   _handleKeyUp(event) {
     if (event.code !== 'Space') return;
     this._down = false;
+    if (this._holdingQTE) {
+      this._holdingQTE = false;
+      emit('qteInput', { kind: 'holdEnd' });
+    }
     if (!this._consumedDown) return;
     event.preventDefault();
     this._consumedDown = false;
@@ -99,6 +100,10 @@ export class QTEInputRouter {
   _clearHeldState() {
     this._down = false;
     this._consumedDown = false;
+    if (this._holdingQTE) {
+      this._holdingQTE = false;
+      emit('qteInput', { kind: 'holdEnd' });
+    }
   }
 
   dispose() {

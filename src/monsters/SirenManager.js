@@ -109,6 +109,10 @@ export class SirenManager {
     this._hudPullActive = false;
   }
 
+  hasSirens() {
+    return (this._sirens?.length ?? 0) > 0;
+  }
+
   /**
    * @param {object} levelCfg   Level JSON — reads `levelCfg.sirens[]`
    * @param {THREE.Scene} scene
@@ -127,6 +131,8 @@ export class SirenManager {
     for (const def of defs) {
       this._spawn(def);
     }
+
+    emit('sirensConfigured', { count: this._sirens.length, hasSirens: this.hasSirens() });
   }
 
   /**
@@ -141,6 +147,11 @@ export class SirenManager {
     const shipPos = playerShip.mesh.position;
     let maxIntensityThisFrame = 0;
     let netSteerPullThisFrame = 0;
+    let maxAudibleIntensityThisFrame = 0;
+    let minActiveDist = Infinity;
+    let activeAttractRadius = 0;
+    let closestDx = 0;
+    let closestDz = 0;
 
     for (const siren of this._sirens) {
       siren.playerShip = playerShip;
@@ -238,6 +249,17 @@ export class SirenManager {
 
       // 2. Steering Pull: draws the player in by pulling the ship's steering/rudder
       const resistant = siren.resistanceRemaining > 0;
+      if (dist < def.attractRadius) {
+        const audibleT = Math.max(0, 1.0 - dist / def.attractRadius);
+        const audibleStrength = audibleT * (def.intensity ?? 0.8);
+        if (audibleStrength > maxAudibleIntensityThisFrame) {
+          maxAudibleIntensityThisFrame = audibleStrength;
+          minActiveDist = dist;
+          activeAttractRadius = def.attractRadius;
+          closestDx = dx;
+          closestDz = dz;
+        }
+      }
       if (dist < def.attractRadius && !resistant) {
         // Proximity ramp: 0 at outer boundary, 1 at center
         const t = Math.max(0, 1.0 - dist / def.attractRadius);
@@ -260,28 +282,34 @@ export class SirenManager {
         // Torque applied to ship yawVelocity:
         // Player's rudder turnAccel is ~2.0 rad/s².
         // By scaling torque up to ~2.6 rad/s² near the center, the Siren exerts
-        // a compelling pull that requires deliberate counter-steering to fight off.
-        const torque = turnDir * turnFactor * (2.6 * intensity) * t;
+        // a compelling pull that requires deliberate counter-steering or bracing to fight off.
+        const activeResolve = Math.max(0, Math.min(1, this._qteSystem?.getActiveResolve?.('siren') ?? 0));
+        const braceDamping = 1 - 0.85 * activeResolve;
+        const torque = turnDir * turnFactor * (2.6 * intensity) * t * braceDamping;
         playerShip.yawVelocity += torque * delta;
 
         // Visceral physical leaning into the forced turn
-        playerShip.rollVelocity -= turnDir * t * 0.4 * delta;
+        playerShip.rollVelocity -= turnDir * t * 0.4 * braceDamping * delta;
 
-        const pullStrength = t * intensity;
+        const pullStrength = t * intensity * braceDamping;
         if (pullStrength > maxIntensityThisFrame) {
           maxIntensityThisFrame = pullStrength;
           // In HUD conventions: positive steerInput is RIGHT, negative is LEFT.
           // Since turnDir < 0 is right and turnDir > 0 is left:
           netSteerPullThisFrame = -turnDir * pullStrength;
+          minActiveDist = dist;
+          activeAttractRadius = def.attractRadius;
+          closestDx = dx;
+          closestDz = dz;
         }
 
         // Trigger SIREN QTE when close
         if (this._qteSystem && !siren.qteTriggered && siren.retryRemaining <= 0 &&
-            siren.resistanceRemaining <= 0 && dist < def.attractRadius * 0.7) {
+          siren.resistanceRemaining <= 0 && dist < def.attractRadius * 0.7) {
           const accepted = this._qteSystem.trigger({
             type: 'SIREN',
             source: 'siren',
-            metadata: { source: 'siren', instanceId: siren.instanceId },
+            metadata: { source: 'siren', instanceId: siren.instanceId, side: turnDir > 0 ? 'left' : 'right' },
             onSuccess: () => {
               siren.resistanceRemaining = def.resistanceDuration ?? 5;
               siren.disorientationRemaining = 0;
@@ -309,14 +337,26 @@ export class SirenManager {
       siren.particles.update(delta);
     }
 
-    if (maxIntensityThisFrame > 0) {
+    if (maxAudibleIntensityThisFrame > 0) {
       emit('sirenPulling', {
         intensity: maxIntensityThisFrame,
+        audibleIntensity: maxAudibleIntensityThisFrame,
         steerPull: netSteerPullThisFrame,
+        dist: minActiveDist,
+        radius: activeAttractRadius,
+        boatSpeed: (playerShip._isHalted ? 0 : 15.0 * (playerShip.throttle ?? 1.0)) * (playerShip.speedMultiplier ?? 1.0),
+        yawVelocity: playerShip.yawVelocity || 0,
+        approachDot: (() => {
+          const normDist = Math.hypot(closestDx, closestDz) || 1;
+          const shipForwardX = -Math.sin(playerShip.yaw || 0);
+          const shipForwardZ = -Math.cos(playerShip.yaw || 0);
+          return (shipForwardX * closestDx + shipForwardZ * closestDz) / normDist;
+        })(),
+        escaped: false,
       });
       this._hudPullActive = true;
     } else if (this._hudPullActive) {
-      emit('sirenPulling', { intensity: 0, steerPull: 0 });
+      emit('sirenPulling', { intensity: 0, steerPull: 0, escaped: true });
       this._hudPullActive = false;
     }
 
@@ -351,7 +391,7 @@ export class SirenManager {
     }
     if (this._hudEffectState !== 'none') emit('sirenEffect', { state: 'none' });
     this._hudEffectState = 'none';
-    if (this._hudPullActive) emit('sirenPulling', { intensity: 0, steerPull: 0 });
+    if (this._hudPullActive) emit('sirenPulling', { intensity: 0, steerPull: 0, escaped: true });
     this._hudPullActive = false;
     this._sirens.length = 0;
     this._scene = null;
@@ -375,9 +415,9 @@ export class SirenManager {
     // Use genuine obstacle rock model for the reef base
     const rocks = this._rockModels || (typeof LevelConfig !== 'undefined' ? LevelConfig._cache?.get('rockModels') : null);
     const selectedRock = rocks?.find(m => m.url?.includes('voxel_Cliff')) ||
-                         rocks?.find(m => m.url?.includes('voxel_Rock Large.glb')) ||
-                         rocks?.find(m => m.url?.includes('Rock Large')) ||
-                         rocks?.[0];
+      rocks?.find(m => m.url?.includes('voxel_Rock Large.glb')) ||
+      rocks?.find(m => m.url?.includes('Rock Large')) ||
+      rocks?.[0];
 
     let rockTopY = 2.45;
     if (selectedRock && selectedRock.scene) {

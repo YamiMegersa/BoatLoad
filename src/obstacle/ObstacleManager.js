@@ -18,7 +18,6 @@ import { GamePhase } from '../core/GameState.js';
  * @property {THREE.Sphere|null} sphere  Bounding sphere (barrels)
  * @property {number}          scrollSpeed  Z units per second
  * @property {boolean}         active    false = collision disabled, pending removal
- * @property {boolean}         qteResolved  barrel-specific: true = QTE shot succeeded
  * @property {number}          damage    HP to deduct on hit
  * @property {number|null}     pullForce Whirlpool lateral force magnitude
  */
@@ -406,7 +405,6 @@ export class ObstacleManager {
     this._islandModels = islandModels;
     this._sirenModel = sirenModel;
     this._qteSystem = qteSystem ?? null;
-    this._cannonCfg = levelCfg?.cannon ?? null; // days with a cannon fire manually
     this._obstacles = [];
     this.playRadius = levelCfg.worldSize || 200;
     this._waveTime = 0;
@@ -632,8 +630,6 @@ export class ObstacleManager {
         }
       }
 
-      this._triggerBarrelQTE(obs, playerShip, distSq);
-
       // Check collision
       this._checkCollision(obs, playerShip, delta, distSq);
     }
@@ -653,6 +649,72 @@ export class ObstacleManager {
     this._scene = null;
     this._rockModels = null;
     this._qteSystem = null;
+  }
+
+  /**
+   * Returns true when no solid collision hazard lies within the ship's forward
+   * safety cone/corridor, ensuring QTEs never start while a crash is imminent.
+   * @param {import('./PlayerShip.js').PlayerShip} playerShip
+   * @param {number} [forwardDistance=25]
+   * @param {number} [halfAngleDeg=35]
+   * @returns {boolean}
+   */
+  isForwardHazardClear(playerShip, forwardDistance = 25, halfAngleDeg = 35) {
+    if (!playerShip || !playerShip.mesh) return true;
+    if (playerShip.blockedNormal) return false;
+
+    const sx = playerShip.mesh.position.x;
+    const sz = playerShip.mesh.position.z;
+
+    let fwdX = -Math.sin(playerShip.yaw || 0);
+    let fwdZ = -Math.cos(playerShip.yaw || 0);
+    if (playerShip.mesh.quaternion) {
+      const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(playerShip.mesh.quaternion);
+      const len = Math.hypot(dir.x, dir.z);
+      if (len > 1e-4) {
+        fwdX = dir.x / len;
+        fwdZ = dir.z / len;
+      }
+    }
+
+    const cosThreshold = Math.cos((halfAngleDeg * Math.PI) / 180);
+
+    for (const obs of this._obstacles) {
+      if (!obs || !obs.active || !obs.mesh) continue;
+      if (obs.type === 'pickup' || obs.type === 'seaweed' || obs.type === 'whirlpool' || obs.type === 'wind_zone') {
+        continue;
+      }
+
+      const dx = obs.mesh.position.x - sx;
+      const dz = obs.mesh.position.z - sz;
+      const dist = Math.hypot(dx, dz);
+
+      let obsRadius = 1.5;
+      if (obs.sphere && Number.isFinite(obs.sphere.radius)) {
+        obsRadius = obs.sphere.radius;
+      } else if (obs.obb?.halfSize) {
+        obsRadius = Math.max(obs.obb.halfSize.x || 0, obs.obb.halfSize.z || 0);
+      } else if (obs.baseOBB?.halfSize) {
+        obsRadius = Math.max(obs.baseOBB.halfSize.x || 0, obs.baseOBB.halfSize.z || 0);
+      }
+
+      const surfaceDist = Math.max(0, dist - obsRadius);
+      if (surfaceDist > forwardDistance) continue;
+      if (surfaceDist <= 2.5) return false;
+
+      const dirX = dx / (dist || 1);
+      const dirZ = dz / (dist || 1);
+      const dot = fwdX * dirX + fwdZ * dirZ;
+      if (dot >= cosThreshold) return false;
+
+      const forwardProj = dx * fwdX + dz * fwdZ;
+      const lateralDist = Math.abs(dx * (-fwdZ) + dz * fwdX);
+      if (forwardProj > 0 && (forwardProj - obsRadius) <= forwardDistance && lateralDist <= (obsRadius + 2.0)) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   // -------------------------------------------------------------------------
@@ -738,9 +800,8 @@ export class ObstacleManager {
       return;
     }
 
-    // Barrel — sphere collision; skip if QTE resolved
+    // Barrel — sphere collision
     if (obs.type === 'barrel') {
-      if (obs.qteResolved) { obs.active = false; return; }
       if (ship.obb.intersectsSphere(obs.sphere)) {
         obs.active = false;
         obs.mesh.visible = false;
@@ -807,48 +868,6 @@ export class ObstacleManager {
       }
       this._resolveSolidCollision(obs, ship, delta);
     }
-  }
-
-  _triggerBarrelQTE(obs, ship, distSq) {
-    if (obs.type !== 'barrel' || obs.qteTriggered || !this._qteSystem || !ship) return;
-    // Days with a cannon (levelCfg.cannon) shoot barrels manually via the FIRE
-    // prompt; the free proximity QTE remains the day-1 tutorial only.
-    if (this._cannonCfg) return;
-    if (distSq !== undefined ? distSq > 100 : obs.mesh.position.distanceTo(ship.mesh.position) > 10) return;
-
-    const accepted = this._qteSystem.trigger({
-      source: 'barrel',
-      metadata: { source: 'barrel' },
-      onSuccess: () => {
-        obs.qteResolved = true;
-        obs.active = false;
-        obs.mesh.visible = false;
-        emit('spawnParticles', { type: 'massiveSplash', position: obs.mesh.position.clone() });
-      },
-    });
-    if (accepted) obs.qteTriggered = true;
-  }
-
-  /**
-   * Nearest shootable obstacle (barrels today; mines or sharks later) within
-   * range of the ship, or null. Powers the cannon FIRE prompt.
-   * @param {number} range  World units
-   * @param {import('./PlayerShip.js').PlayerShip} ship
-   * @returns {ObstacleDesc|null}
-   */
-  findShootTarget(range, ship) {
-    if (!ship) return null;
-    let best = null;
-    let bestDist = Infinity;
-    for (const obs of this._obstacles) {
-      if (!obs.active || obs.type !== 'barrel' || obs.qteResolved) continue;
-      const dist = obs.mesh.position.distanceTo(ship.mesh.position);
-      if (dist <= range && dist < bestDist) {
-        best = obs;
-        bestDist = dist;
-      }
-    }
-    return best;
   }
 
   /**

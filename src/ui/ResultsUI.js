@@ -56,11 +56,17 @@ export class ResultsUI {
     // 2. Sailing Rewards Breakdown
     const pedestalItem = ShopRegistry.getItem(isCommunity ? 'pedestal_lvl0' : this.gameState.equippedItems?.pedestal);
     const pedestalName = pedestalItem?.name || 'Weathered Oak Binnacle';
+    const baseReward = isPassed ? (150 + day * 75) : 0;
+    const multiplier = this.gameState.getPedestalMultiplier();
+    const pedestalTotal = Math.round(baseReward * multiplier);
+    const pedestalBonus = Math.max(0, pedestalTotal - baseReward);
+    const sharkBonus = data.sharkBonus ?? (data.sailing?.sharkBonus || Math.max(0, Math.round(this.gameState.score || 0)));
     const sailing = data.sailing || {
-      baseReward: isPassed ? (150 + day * 75) : 0,
-      multiplier: this.gameState.getPedestalMultiplier(),
-      pedestalBonus: 0,
-      sailingBonus: isPassed ? (150 + day * 75) : 0
+      baseReward,
+      multiplier,
+      pedestalBonus,
+      sharkBonus,
+      sailingBonus: isPassed ? (pedestalTotal + sharkBonus) : 0
     };
 
     // 3. Incurred Damage Breakdown
@@ -178,6 +184,16 @@ export class ResultsUI {
                 <span class="ledger-subtext">${pedestalName}</span>
               </div>
               <span class="ledger-val highlight-gold">+${sailing.pedestalBonus} <span class="pixel-icon icon-doubloon size-16"></span></span>
+            </div>
+            ` : ''}
+
+            ${sailing.sharkBonus > 0 ? `
+            <div class="ledger-row highlight">
+              <div class="ledger-mult-desc">
+                <span class="ledger-label">Shark Harpoon Bounty</span>
+                <span class="ledger-subtext">Successful Shark Attacks</span>
+              </div>
+              <span class="ledger-val highlight-gold">+${sailing.sharkBonus} <span class="pixel-icon icon-doubloon size-16"></span></span>
             </div>
             ` : ''}
 
