@@ -411,7 +411,7 @@ export class GameState {
         passed: isPassed,
         failed: isSunk,
         course: this._activeCommunityCourse || opts?.course || null,
-        timeElapsed: this._communityVoyageStartTime ? Math.round(performance.now() - this._communityVoyageStartTime) : null,
+        timeElapsed: (this._communityVoyageStartTime || this._voyageStartTime) ? Math.round(performance.now() - (this._communityVoyageStartTime || this._voyageStartTime)) : null,
         contract: {
           baseBudget,
           bargainBonus,
@@ -449,6 +449,7 @@ export class GameState {
   }
 
   _exitResults() {
+    this._voyageStartTime = null;
     emit('uiUnmount', { screen: 'results' });
   }
 

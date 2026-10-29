@@ -143,7 +143,9 @@ export class ResultsUI {
       };
 
     } else {
-      // Standard Campaign Results (4-Tier Settlement Ledger)
+      // Standard Campaign Results (Sailing Summary & Return to Dock)
+      const totalAwarded = netPayout !== undefined ? netPayout : (sailing.sailingBonus - damage.totalDamageIncurred);
+
       this.root.innerHTML = `
         <div class="results-container">
           <div class="results-header">
@@ -155,32 +157,20 @@ export class ResultsUI {
           </div>
 
           <div class="results-ledger-card">
-            <!-- Tier 1: Customer Repair Contract -->
-            <div class="ledger-section-title">1. SHIPWRIGHT REPAIR CONTRACT</div>
-            <div class="ledger-row">
-              <span class="ledger-label">Customer Agreed Budget${contract.bargainBonus > 0 ? ` (Base ${contract.baseBudget} + Bargain ${contract.bargainBonus})` : ''}</span>
-              <span class="ledger-val">+${contract.agreedBudget} <span class="pixel-icon icon-doubloon size-16"></span></span>
-            </div>
-            <div class="ledger-row">
-              <span class="ledger-label">Drydock Timber &amp; Materials</span>
-              <span class="ledger-val ${contract.repairSpent > 0 ? 'text-penalty' : ''}">-${contract.repairSpent} <span class="pixel-icon icon-doubloon size-16"></span></span>
-            </div>
+            ${timeText ? `
             <div class="ledger-row highlight">
               <div class="ledger-mult-desc">
-                <span class="ledger-label">Construction Profit Margin</span>
-                <span class="ledger-subtext">${contract.leftoverProfit >= 0 ? 'Frugal shipyard craftsmanship retained' : 'Overbudget repairs paid from purse'}</span>
+                <span class="ledger-label">Voyage Duration</span>
+                <span class="ledger-subtext">${isSunk ? 'Time before wreckage' : 'Clear recorded in'}</span>
               </div>
-              <span class="ledger-val ${contract.leftoverProfit >= 0 ? 'highlight-gold' : 'text-penalty'}">${contract.leftoverProfit >= 0 ? '+' : ''}${contract.leftoverProfit} <span class="pixel-icon icon-doubloon size-16"></span></span>
-            </div>
+              <span class="ledger-val highlight-gold">${timeText}</span>
+            </div>` : ''}
 
-            <div class="ledger-divider"></div>
-
-            <!-- Tier 2: Sailing Rewards -->
-            <div class="ledger-section-title">2. SAILING PASSAGE BOUNTY</div>
             <div class="ledger-row">
               <span class="ledger-label">Passage Delivery Bounty</span>
               <span class="ledger-val">${sailing.baseReward > 0 ? `+${sailing.baseReward}` : '0 (Passage Incomplete)'} <span class="pixel-icon icon-doubloon size-16"></span></span>
             </div>
+
             ${sailing.pedestalBonus > 0 ? `
             <div class="ledger-row highlight">
               <div class="ledger-mult-desc">
@@ -191,21 +181,18 @@ export class ResultsUI {
             </div>
             ` : ''}
 
+            ${damage.damagedVoxels > 0 ? `
+            <div class="ledger-row">
+              <span class="ledger-label">Reef &amp; Collision Damage (${damage.damagedVoxels} Voxels)</span>
+              <span class="ledger-val text-penalty">-${damage.voxelDamageCost} <span class="pixel-icon icon-doubloon size-16"></span></span>
+            </div>
+            ` : ''}
+
             <div class="ledger-divider"></div>
 
-            <!-- Tier 3: Incurred Voyage Damage -->
-            <div class="ledger-section-title">3. INVOICED VOYAGE DAMAGE</div>
-            <div class="ledger-row">
-              <span class="ledger-label">Reef Collisions &amp; Breaches (${damage.damagedVoxels} Voxels)</span>
-              <span class="ledger-val ${damage.voxelDamageCost > 0 ? 'text-penalty' : ''}">-${damage.voxelDamageCost} <span class="pixel-icon icon-doubloon size-16"></span></span>
-            </div>
-
-            <div class="ledger-divider thick"></div>
-
-            <!-- Tier 4: Net Settlement & Purse -->
             <div class="ledger-row total-row">
-              <span class="ledger-label">Net Settlement Payout</span>
-              <span class="ledger-val ${netPayout >= 0 ? 'total-gold' : 'total-debt'}">${netPayout >= 0 ? `+${netPayout}` : `-${Math.abs(netPayout)}`} <span class="pixel-icon icon-doubloon size-18"></span></span>
+              <span class="ledger-label">Total Doubloons Banked</span>
+              <span class="ledger-val ${totalAwarded >= 0 ? 'total-gold' : 'total-debt'}">${totalAwarded >= 0 ? `+${totalAwarded}` : `-${Math.abs(totalAwarded)}`} <span class="pixel-icon icon-doubloon size-18"></span></span>
             </div>
 
             <div class="ledger-wallet-row ${isDebt ? 'debt-row' : ''}">
@@ -215,53 +202,20 @@ export class ResultsUI {
           </div>
 
           <div class="results-actions">
-            <button class="results-btn shop-action" id="res-btn-shop">
-              <span class="pixel-icon icon-phantom-ghost size-18"></span>
-              <span>Visit Ghost Stall</span>
-            </button>
             <button class="results-btn dock-action" id="res-btn-dock">
               <span class="pixel-icon icon-harbor-flag size-18"></span>
               <span>Return to Dock</span>
             </button>
-            <button class="results-btn shipyard-action ${isSunk ? 'action-priority' : ''}" id="res-btn-shipyard">
-              <span class="pixel-icon icon-hammer size-18"></span>
-              <span>${isSunk ? 'Repair Wrecked Vessel' : 'Shipyard &amp; Repairs'}</span>
-            </button>
-            ${!isSunk ? `
-            <button class="results-btn next-action" id="res-btn-next">
-              <span class="pixel-icon icon-sloop size-18"></span>
-              <span>Next Voyage (Day ${Math.min(7, day + 1)})</span>
-            </button>
-            ` : ''}
           </div>
         </div>
       `;
 
-      this.root.querySelector('#res-btn-shop').onclick = () => {
-        this.unmount();
-        emit('requestPhaseChange', { phase: GamePhase.DOCK, openShop: true });
-      };
-
       this.root.querySelector('#res-btn-dock').onclick = () => {
         this.unmount();
-        emit('requestPhaseChange', { phase: GamePhase.DOCK });
+        const nextDay = isPassed ? Math.min(7, day + 1) : day;
+        this.gameState.day = nextDay;
+        emit('requestPhaseChange', { phase: GamePhase.DOCK, day: nextDay });
       };
-
-      this.root.querySelector('#res-btn-shipyard').onclick = () => {
-        this.unmount();
-        emit('requestPhaseChange', { phase: GamePhase.SHIPYARD });
-      };
-
-      const nextBtn = this.root.querySelector('#res-btn-next');
-      if (nextBtn) {
-        nextBtn.onclick = () => {
-          this.unmount();
-          const nextDay = Math.min(7, day + 1);
-          this.gameState.day = nextDay;
-          emit('levelSelected', { day: nextDay });
-          emit('startSailing');
-        };
-      }
     }
 
     const uiRoot = document.getElementById('ui-root') || document.body;

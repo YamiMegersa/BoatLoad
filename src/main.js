@@ -772,6 +772,9 @@ async function boot() {
       if (isCommunity && !gameState._communityVoyageStartTime) {
         gameState._communityVoyageStartTime = performance.now();
       }
+      if (!gameState._voyageStartTime) {
+        gameState._voyageStartTime = performance.now();
+      }
       gameState.transition(GamePhase.OBSTACLE, {
         shipDef: activeShipDef,
         levelCfg: currentLevelCfg,
