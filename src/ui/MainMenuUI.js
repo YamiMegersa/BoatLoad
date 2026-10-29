@@ -257,14 +257,9 @@ export class MainMenuUI {
             <span class="pixel-icon icon-anchor size-18"></span> Community Courses (Course World)
           </button>
 
-          <div class="menu-btn-grid">
-            <button class="pirate-btn" id="btn-menu-codex">
-              <span class="pixel-icon icon-closed-logbook size-20"></span> Codex
-            </button>
-            <button class="pirate-btn" id="btn-menu-credits">
-              <span class="pixel-icon icon-quill-author size-20"></span> Credits
-            </button>
-          </div>
+          <button class="pirate-btn" id="btn-menu-codex">
+            <span class="pixel-icon icon-closed-logbook size-20"></span> Captain's Codex
+          </button>
 
           <div id="menu-dev-shortcuts" style="display: ${GameEnv.isDev() ? 'flex' : 'none'}; flex-direction: column; gap: 8px; margin-top: 6px; border-top: 1px dashed rgba(212, 175, 55, 0.4); padding-top: 8px;">
             <div style="font-size: 11px; color: #ffd700; text-transform: uppercase; letter-spacing: 1px; font-weight: bold; text-align: center;">Dev Fast-Travel (mode=dev)</div>
@@ -289,6 +284,9 @@ export class MainMenuUI {
           </button>
           <button class="menu-util-btn" id="btn-menu-settings">
             <span class="pixel-icon icon-settings-cog size-16"></span> Settings
+          </button>
+          <button class="menu-util-btn" id="btn-menu-credits" title="View Game Credits &amp; Honours">
+            <span class="pixel-icon icon-quill-author size-16"></span> Credits
           </button>
           <span class="menu-version">v1.0 • ${GameEnv.isDev() ? 'DEV SUITE' : 'DEMO EDITION'}</span>
           <button class="menu-util-btn" id="btn-menu-fullscreen">

@@ -3912,6 +3912,8 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
   margin-top: 22px;
   padding-top: 14px;
   border-top: 1px solid rgba(197, 155, 39, 0.3);
@@ -3921,6 +3923,9 @@ body {
 }
 
 .menu-util-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   background: rgba(0, 0, 0, 0.4);
   border: 1px solid #5a4022;
   color: #d1b88e;
