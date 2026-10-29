@@ -516,8 +516,8 @@ export class DockStall {
     this.bunny = new VoxelLopBunny(islandGroup, new THREE.Vector3(0, 2.0, 2.5), this.group);
     this.bunnyInteractables = this.bunny.interactables;
 
-    // Day 0 Opening Cutscene: Clerk Crab in the shallow surf near the northeast beach
-    this.crab = new VoxelCrab(islandGroup, new THREE.Vector3(8.5, 0.42, -18.8));
+    // Day 0 Opening Cutscene: Clerk Crab on the shoreline edge of the northeast beach (y = 1.15)
+    this.crab = new VoxelCrab(islandGroup, new THREE.Vector3(8.5, 1.15, -19.6));
     this.crabInteractables = this.crab.interactables;
 
     // =========================================================================

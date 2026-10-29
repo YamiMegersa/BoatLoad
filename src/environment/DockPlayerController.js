@@ -547,27 +547,33 @@ export class DockPlayerController {
 
     let cardIndex = 0;
     let inWakeupPhase = false;
-    let isTransitioningCard = false;
+    let isFadingOut = false;
 
-      const showCurrentCard = (initialDelayMs = 250) => {
-        if (inWakeupPhase) return;
-        this._clearCutsceneTimers();
+    const clearCardTimers = () => {
+      if (this._cutsceneTimeouts) {
+        this._cutsceneTimeouts.forEach(t => clearTimeout(t));
+        this._cutsceneTimeouts = [];
+      }
+    };
 
-        if (cardIndex >= premiseCards.length) {
-          beginWakeupBlink();
-          return;
-        }
+    const showCurrentCard = (initialDelayMs = 200) => {
+      if (inWakeupPhase) return;
+      clearCardTimers();
 
-        isTransitioningCard = true;
-        const html = premiseCards[cardIndex];
-        cardIndex++;
+      if (cardIndex >= premiseCards.length) {
+        beginWakeupBlink();
+        return;
+      }
 
-        textEl.style.transition = 'opacity 0.75s ease';
-        textEl.style.opacity = '0';
-        const tIn = setTimeout(() => {
-          textEl.innerHTML = html;
-          textEl.style.opacity = '1';
-        isTransitioningCard = false;
+      isFadingOut = false;
+      const html = premiseCards[cardIndex];
+      cardIndex++;
+
+      textEl.style.transition = 'opacity 0.65s ease';
+      textEl.style.opacity = '0';
+      const tIn = setTimeout(() => {
+        textEl.innerHTML = html;
+        textEl.style.opacity = '1';
       }, initialDelayMs);
 
       this._cutsceneTimeouts.push(tIn);
@@ -575,43 +581,48 @@ export class DockPlayerController {
 
     const advanceCard = () => {
       if (inWakeupPhase) return;
-      // If user clicks while fade-out/in is still in progress, jump straight to showing/next
-      this._clearCutsceneTimers();
+      clearCardTimers();
 
-      if (isTransitioningCard) {
-        isTransitioningCard = false;
-        textEl.style.transition = 'opacity 0.25s ease';
-        textEl.style.opacity = '1';
+      // If already fading out to the next card, jump immediately to the next card
+      if (isFadingOut) {
+        isFadingOut = false;
+        if (cardIndex >= premiseCards.length) {
+          beginWakeupBlink();
+        } else {
+          showCurrentCard(30);
+        }
         return;
       }
 
-      isTransitioningCard = true;
-      textEl.style.transition = 'opacity 0.45s ease';
+      isFadingOut = true;
+      textEl.style.transition = 'opacity 0.35s ease';
       textEl.style.opacity = '0';
 
       const tNext = setTimeout(() => {
-      if (cardIndex >= premiseCards.length) {
-        beginWakeupBlink();
-      } else {
-        showCurrentCard(60);
-      }
-    }, 460);
-    this._cutsceneTimeouts.push(tNext);
-  };
+        isFadingOut = false;
+        if (cardIndex >= premiseCards.length) {
+          beginWakeupBlink();
+        } else {
+          showCurrentCard(50);
+        }
+      }, 360);
+      this._cutsceneTimeouts.push(tNext);
+    };
 
-  const onAdvanceInput = (e) => {
-    if (inWakeupPhase) return;
-    if (e.type === 'keydown' && e.code !== 'Space' && e.code !== 'Enter') return;
-    if (e.type === 'keydown') e.preventDefault();
-    advanceCard();
-  };
+    const onAdvanceInput = (e) => {
+      if (inWakeupPhase) return;
+      if (e.type === 'keydown' && e.code !== 'Space' && e.code !== 'Enter') return;
+      e.preventDefault();
+      e.stopPropagation();
+      advanceCard();
+    };
 
-    overlay.addEventListener('click', onAdvanceInput);
+    overlay.addEventListener('pointerdown', onAdvanceInput);
     window.addEventListener('keydown', onAdvanceInput);
     this._cleanupPremiseInput = () => {
-  overlay.removeEventListener('click', onAdvanceInput);
-  window.removeEventListener('keydown', onAdvanceInput);
-};
+      overlay.removeEventListener('pointerdown', onAdvanceInput);
+      window.removeEventListener('keydown', onAdvanceInput);
+    };
 
 const beginWakeupBlink = () => {
   if (inWakeupPhase) return;
@@ -632,10 +643,10 @@ const beginWakeupBlink = () => {
   eyelidTop.style.transform = 'translateY(0%)';
   eyelidBot.style.transform = 'translateY(0%)';
 
-  // Crab position in world space: islandGroup (-22 + 8.5, 0.42, -18.8) * s
+  // Crab position in world space: islandGroup (-22 + 8.5, 1.15, -19.6) * s
   const crabWorldX = (-22 + 8.5) * s;
-  const crabWorldY = 0.55 * s;
-  const crabWorldZ = -18.8 * s;
+  const crabWorldY = 1.85 * s;
+  const crabWorldZ = -19.6 * s;
   const dxCrab = crabWorldX - beachX;
   const dzCrab = crabWorldZ - beachZ;
   const crabYaw = Math.atan2(-dxCrab, -dzCrab);
