@@ -851,7 +851,9 @@ export class GameState {
         this._chunkRenderer = null;
       }
       this._chunkRenderer = new ChunkRenderer();
-      this._chunkRenderer.init(grid, this._scene, gltfScene);
+      this._chunkRenderer.init(grid, this._scene, gltfScene, { showMissingOutlines: false });
+    } else if (this._chunkRenderer) {
+      this._chunkRenderer.setShowMissingOutlines(false);
     }
 
     if (!this._dockMooredGroup) {
@@ -1073,7 +1075,7 @@ export class GameState {
         this._chunkRenderer = null;
       }
       this._chunkRenderer = new ChunkRenderer();
-      this._chunkRenderer.init(grid, this._scene, gltfScene);
+      this._chunkRenderer.init(grid, this._scene, gltfScene, { showMissingOutlines: false });
 
       if (!this._dockMooredGroup) {
         this._dockMooredGroup = new THREE.Group();
@@ -1413,6 +1415,7 @@ export class GameState {
           this._scene.add(this._chunkRenderer.container);
         }
       }
+      this._chunkRenderer.setShowMissingOutlines(true);
       this._chunkRenderer.sync(this._grid);
     } else {
       // Cleanly dispose any existing chunk renderer first so no duplicate/ghost boat remains
@@ -1426,9 +1429,9 @@ export class GameState {
       this._zones = zones;
       def = builtDef;
 
-      // Chunk renderer
+      // Chunk renderer - show missing outlines for shipyard repair
       this._chunkRenderer = new ChunkRenderer();
-      this._chunkRenderer.init(grid, this._scene, gltfScene);
+      this._chunkRenderer.init(grid, this._scene, gltfScene, { showMissingOutlines: true });
       this._chunkRenderer.container.position.copy(containerPos);
       this._chunkRenderer.container.rotation.copy(SHIP_MOORED_ROT);
       this._chunkRenderer.container.scale.set(s, s, s);
@@ -1582,6 +1585,7 @@ export class GameState {
     this._buildSystem?.reset();
     this._shipyardFlyControls?.dispose();
     this._shipyardFlyControls = null;
+    this._chunkRenderer?.setShowMissingOutlines(false);
 
     if (this._chunkRenderer && this._chunkRenderer.container) {
       this._chunkRenderer.container.scale.set(1, 1, 1);
@@ -1776,11 +1780,12 @@ export class GameState {
       this._grid = grid;
       this._zones = zones;
       this._chunkRenderer = new ChunkRenderer();
-      this._chunkRenderer.init(grid, this._scene, gltfScene);
+      this._chunkRenderer.init(grid, this._scene, gltfScene, { showMissingOutlines: false });
     }
 
     // Reset container transform before handing off to PlayerShip wrapper
     if (this._chunkRenderer && this._chunkRenderer.container) {
+      this._chunkRenderer.setShowMissingOutlines(false);
       if (this._chunkRenderer.container.parent !== this._scene) {
         this._scene.add(this._chunkRenderer.container);
       }

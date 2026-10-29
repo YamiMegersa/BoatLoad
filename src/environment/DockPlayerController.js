@@ -214,6 +214,29 @@ export class DockPlayerController {
     document.addEventListener('mousemove', this._onMouseMove);
     document.addEventListener('pointerlockchange', this._onPointerLockChange);
     this.domElement.addEventListener('pointerdown', this._onPointerDown);
+
+    this.dialogueActive = false;
+    this._onShowDialogue = () => {
+      this.dialogueActive = true;
+      this.keys.forward = false;
+      this.keys.backward = false;
+      this.keys.left = false;
+      this.keys.right = false;
+      this.keys.sprint = false;
+      this.keys.jump = false;
+      if (document.exitPointerLock && (document.pointerLockElement === this.domElement || document.pointerLockElement)) {
+        try {
+          document.exitPointerLock();
+        } catch (_) {}
+      }
+    };
+    this._onHideDialogue = () => {
+      this.dialogueActive = false;
+    };
+
+    on('showDialogue', this._onShowDialogue);
+    on('hideDialogue', this._onHideDialogue);
+    on('dialogueDone', this._onHideDialogue);
   }
 
   _unbindEvents() {
@@ -224,6 +247,12 @@ export class DockPlayerController {
     document.removeEventListener('mousemove', this._onMouseMove);
     document.removeEventListener('pointerlockchange', this._onPointerLockChange);
     this.domElement.removeEventListener('pointerdown', this._onPointerDown);
+
+    if (this._onShowDialogue) {
+      off('showDialogue', this._onShowDialogue);
+      off('hideDialogue', this._onHideDialogue);
+      off('dialogueDone', this._onHideDialogue);
+    }
   }
 
   _onWindowResize() {
@@ -244,6 +273,7 @@ export class DockPlayerController {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     if (this.mode === 'cutscene') return;
     if (this._tutorialPopupEl) return;
+    if (this.dialogueActive || document.getElementById('dialogue-box')) return;
 
     switch (e.code) {
       case 'KeyW':
@@ -329,6 +359,7 @@ export class DockPlayerController {
   _onMouseMove(e) {
     if (this.mode === 'cutscene') return;
     if (this._tutorialPopupEl) return;
+    if (this.dialogueActive || document.getElementById('dialogue-box')) return;
     if (this.isLocked) {
       const movementX = e.movementX || 0;
       const movementY = e.movementY || 0;
@@ -353,6 +384,7 @@ export class DockPlayerController {
     if (this.mode === 'cutscene') return;
     if (this._tutorialPopupEl) return;
     if (this.emoteWheel && this.emoteWheel.isOpen) return;
+    if (this.dialogueActive || document.getElementById('dialogue-box')) return;
 
     if (this.hoveredCrab) {
       this._interactWithCrab();
@@ -1221,6 +1253,10 @@ _resolveObstacleCollisions(pos) {
 }
 
 _updatePlayerMovement(delta) {
+  if (this.dialogueActive || document.getElementById('dialogue-box')) {
+    return;
+  }
+
   if (this.keys.jump && this.isGrounded) {
     this.verticalVelocity = this.jumpSpeed;
     this.isGrounded = false;
@@ -1354,6 +1390,11 @@ _getGroundHeightAt(x, z) {
 }
 
 _updateInteractionRaycast() {
+  if (this.dialogueActive || document.getElementById('dialogue-box')) {
+    this._setHoverState(null);
+    return;
+  }
+
   if (!this.dockStall) {
     this._setHoverState(null);
     return;

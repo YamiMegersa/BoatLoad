@@ -60,7 +60,7 @@ export class ChunkRenderer {
     this._individualQueue = [];
 
     this._scene = null;
-    this._showMissingOutlines = true;
+    this._showMissingOutlines = false;
     this._voxel3DTexture = null;
     this._voxelUniforms = null;
   }
@@ -73,14 +73,14 @@ export class ChunkRenderer {
    * @param {THREE.Scene} scene
    * @param {THREE.Object3D} [gltfScene]
    * @param {object} [options]
-   * @param {boolean} [options.showMissingOutlines=true] Whether to draw red wireframe boxes on MISSING cells
+   * @param {boolean} [options.showMissingOutlines=false] Whether to draw red wireframe boxes on MISSING cells (e.g. true during shipyard repairs)
    */
   init(grid, scene, gltfScene = null, options = {}) {
     this._scene = scene;
     this._scene.add(this.container);
     this._grid = grid;
     this._gltfScene = gltfScene;
-    this._showMissingOutlines = options.showMissingOutlines !== undefined ? Boolean(options.showMissingOutlines) : true;
+    this._showMissingOutlines = options.showMissingOutlines !== undefined ? Boolean(options.showMissingOutlines) : false;
 
     if (this._gltfScene) {
       this.container.add(this._gltfScene);
@@ -122,10 +122,12 @@ export class ChunkRenderer {
    * @param {boolean} show
    */
   setShowMissingOutlines(show) {
-    this._showMissingOutlines = Boolean(show);
+    const shouldShow = Boolean(show);
+    if (this._showMissingOutlines === shouldShow) return;
+    this._showMissingOutlines = shouldShow;
     if (!this._showMissingOutlines) {
       for (const [flatIdx, mesh] of this._individualMeshes.entries()) {
-        if (mesh.type === 'LineSegments') {
+        if (mesh.type === 'LineSegments' || mesh.isLineSegments || mesh.material === missingMaterial) {
           this._disposeIndividualMesh(mesh);
           this._individualMeshes.delete(flatIdx);
           const qIdx = this._individualQueue.indexOf(flatIdx);
