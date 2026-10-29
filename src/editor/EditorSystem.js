@@ -147,6 +147,27 @@ export class EditorSystem {
         else if (this._scene) this._scene.remove(obs.mesh);
       }
       this._placedObstacles = [];
+      if (this._levelCfg) {
+        this._levelCfg.obstacles = [];
+        this._levelCfg.sirens = [];
+      }
+
+      // Also remove any orphan siren meshes in editorGroup or scene
+      const cleanupSirens = (parent) => {
+        if (!parent) return;
+        const toRemove = [];
+        parent.traverse(child => {
+          if (child.userData?.isSiren || child.userData?.obstacleType === 'siren' || child.name === 'siren_obstacle' || child.name === 'siren_instance') {
+            toRemove.push(child);
+          }
+        });
+        for (const c of toRemove) {
+          if (c.parent) c.parent.remove(c);
+        }
+      };
+      cleanupSirens(this._editorGroup);
+      cleanupSirens(this._scene);
+
       if (this._voxelTerrain) {
         this._voxelTerrain.dispose();
         this._voxelTerrain = new VoxelTerrain(this._editorGroup || this._scene);
@@ -1247,6 +1268,11 @@ export class EditorSystem {
     );
     obs.mesh.rotation.y = rotation;
     obs.rotation = rotation;
+    if (type === 'siren') {
+      obs.mesh.name = 'siren_obstacle';
+      obs.mesh.userData.isSiren = true;
+      obs.mesh.userData.obstacleType = 'siren';
+    }
     if (this._editorGroup) this._editorGroup.add(obs.mesh);
     else if (this._scene) this._scene.add(obs.mesh);
     this._placedObstacles.push(obs);
@@ -1300,7 +1326,7 @@ export class EditorSystem {
             z: Math.round(obs.mesh.position.z * 100) / 100
           }
         })),
-      sirens: sirens.length > 0 ? sirens : (this._levelCfg?.sirens || []),
+      sirens: sirens,
       kraken: this._krakenConfig ? this._krakenConfig : null,
       endLocation: this._endLocation || this._levelCfg?.endLocation || { position: { x: 0, y: 0, z: -220 }, radius: 16 },
       shipSpawn: this._shipSpawn || (this._hasDock ? null : (this._levelCfg?.shipSpawn || { position: { x: 0, y: 0, z: 0 }, rotation: 0 })),

@@ -12,6 +12,7 @@ import { MainMenuUI } from './ui/MainMenuUI.js';
 import { LevelSelectorUI } from './ui/LevelSelectorUI.js';
 import { LoadingScreenUI } from './ui/LoadingScreenUI.js';
 import { AnchorCountdownUI } from './ui/AnchorCountdownUI.js';
+import { PreSailChartModal } from './ui/PreSailChartModal.js';
 import { ShopUI } from './ui/ShopUI.js';
 import { ResultsUI } from './ui/ResultsUI.js';
 import { CommunityHubUI } from './ui/CommunityHubUI.js';
@@ -234,6 +235,7 @@ const pauseMenu = new PauseMenu();
 const levelSelectorUI = new LevelSelectorUI();
 const loadingScreenUI = new LoadingScreenUI();
 const anchorCountdownUI = new AnchorCountdownUI();
+const preSailChartModal = new PreSailChartModal();
 const shopUI = new ShopUI(gameState);
 const resultsUI = new ResultsUI(gameState);
 const communityHubUI = new CommunityHubUI();
@@ -693,30 +695,29 @@ async function boot() {
     });
 
     on('communityPlayCourseRequested', async ({ course }) => {
-      emit('showLoading', { title: 'Community Voyage', message: `Setting sail on "${course.title}"...`, progress: 0.1 });
+      emit('showLoading', { title: 'Shipyard: Outfitting', message: `Entering drydock for "${course.title}"...`, progress: 0.1 });
       const activeShipId = course.shipType || DEFAULT_SHIP_ID;
       const activeShipDef = LevelConfig.getShipDef(activeShipId);
-      const profile = ShipRegistry.get(activeShipId);
 
       const level = await LevelConfig.load(1);
       const customLevelCfg = course.levelData || level.levelCfg;
 
-      const hp = profile.hullHP;
       gameState._isCommunityCourse = true;
       gameState._activeCommunityCourse = course;
       gameState._activeCommunityCourseCode = course.courseCode || course.course_code || course.id;
-      gameState._communityVoyageStartTime = performance.now();
+      gameState._communityVoyageStartTime = null;
       gameState._sinkSnapshot = null;
+      gameState._levelCfg = customLevelCfg;
 
-      gameState.transition(GamePhase.OBSTACLE, {
-        isCommunity: true,
-        course,
+      const baseBudget = customLevelCfg.budget !== undefined ? customLevelCfg.budget : 200;
+      gameState.initContract(1, baseBudget);
+
+      gameState.transition(GamePhase.SHIPYARD, {
         shipDef: activeShipDef,
         levelCfg: customLevelCfg,
-        shipStats: { hullHP: hp, profile },
-        rockModels: level.rockModels, fishModels: level.fishModels, pickupModels: level.pickupModels,
-        seaweedModels: level.seaweedModels, waveModels: level.waveModels, islandModels: level.islandModels,
-        sirenModel: level.sirenModel, krakenModel: level.krakenModel
+        fishModels: level.fishModels,
+        isCommunity: true,
+        forceNew: true
       });
     });
 
@@ -754,6 +755,10 @@ async function boot() {
       if (gameState._grid) {
         hp = Math.round((DamageSystem.getSummary(gameState._grid).integrityPct / 100) * profile.hullHP);
       }
+      const isCommunity = Boolean(gameState._isCommunityCourse || gameState._activeCommunityCourseCode);
+      if (isCommunity && !gameState._communityVoyageStartTime) {
+        gameState._communityVoyageStartTime = performance.now();
+      }
       gameState.transition(GamePhase.OBSTACLE, {
         shipDef: activeShipDef,
         levelCfg: currentLevelCfg,
@@ -761,7 +766,9 @@ async function boot() {
         rockModels: level.rockModels, fishModels: level.fishModels, pickupModels: level.pickupModels,
         seaweedModels: level.seaweedModels, waveModels: level.waveModels, islandModels: level.islandModels,
         sirenModel: level.sirenModel, krakenModel: level.krakenModel,
-        isEditorPlay: gameState._isEditorPlay
+        isEditorPlay: gameState._isEditorPlay,
+        isCommunity: isCommunity,
+        course: gameState._activeCommunityCourse
       });
     });
 

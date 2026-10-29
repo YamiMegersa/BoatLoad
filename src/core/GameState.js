@@ -341,10 +341,16 @@ export class GameState {
   }
 
   getPedestalMultiplier() {
+    if (this._isCommunityCourse || this._activeCommunityCourseCode) {
+      return ShopRegistry.getPedestalMultiplier('pedestal_lvl0');
+    }
     return ShopRegistry.getPedestalMultiplier(this.equippedItems?.pedestal);
   }
 
   getWheelStats() {
+    if (this._isCommunityCourse || this._activeCommunityCourseCode) {
+      return ShopRegistry.getWheelStats('wheel_default');
+    }
     return ShopRegistry.getWheelStats(this.equippedItems?.wheel);
   }
 
@@ -547,16 +553,41 @@ export class GameState {
 
     this._isCountdownActive = true;
     this._playerShip.halt();
-    this._playerShip.setDepartureGrace(9.0); // Departure grace immunity (6s countdown + 3s clear departure)
+    this._playerShip.setDepartureGrace(99999.0); // Held safely in dock until player presses Space / clicks Set Sail
 
-    emit('startAnchorCountdown', {
-      duration: 6.0,
-      hasDock: this._hasDock,
+    // Capture high-fidelity top-down nautical chart from 3D scene before opening briefing
+    if (this._minimap?._renderer && this._renderer && this._scene) {
+      try {
+        this._minimap._renderer.captureTopDownMap({
+          renderer: this._renderer,
+          scene: this._scene,
+          voxelTerrain: this._voxelTerrain,
+          obstacles: this._obstacleManager?._obstacles || [],
+          dockStall: this._dockStall,
+          hasDock: this._hasDock,
+          endLocation: this._endLocation,
+          playerPos: { x: this._playerShip.mesh.position.x, z: this._playerShip.mesh.position.z }
+        });
+      } catch (e) {
+        console.warn('[GameState] Failed to capture top-down map snapshot:', e);
+      }
+    }
+
+    emit('openPreSailChart', {
+      levelCfg: this._levelCfg,
+      voxelTerrain: this._voxelTerrain,
+      obstacles: this._obstacleManager?._obstacles || [],
+      sirens: this._sirenManager?._sirens || this._levelCfg?.sirens || [],
+      playerPos: { x: this._playerShip.mesh.position.x, z: this._playerShip.mesh.position.z },
+      playerYaw: this._playerShip.yaw,
+      endLocation: this._endLocation,
+      renderer: this._renderer,
+      scene: this._scene,
       onComplete: () => {
         this._isCountdownActive = false;
         if (this._playerShip) {
           this._playerShip.resumeSpeed();
-          this._playerShip.setDepartureGrace(3.0);
+          this._playerShip.setDepartureGrace(4.0); // 4 seconds departure grace into open water
         }
       }
     });
@@ -1748,6 +1779,9 @@ export class GameState {
     const lanternStats = this.getLanternStats();
     const pedestalMultiplier = this.getPedestalMultiplier();
 
+    // End Location (Harbor Goal) Waypoint
+    this._endLocation = levelCfg?.endLocation || this._levelCfg?.endLocation || { position: { x: 0, y: 0, z: -220 }, radius: 16 };
+
     const effectiveShipStats = {
       ...(shipStats || {}),
       profile,
@@ -1766,7 +1800,8 @@ export class GameState {
       maxHullHP: profile.health ?? 100,
       spawnPosition: { x: spawnX, y: spawnY, z: spawnZ },
       spawnRotation: spawnRot,
-      shipSpawn: spawnConfig
+      shipSpawn: spawnConfig,
+      endLocation: this._endLocation
     };
 
     this._playerShip = new PlayerShip(effectiveShipStats, this._scene, this._chunkRenderer, this._grid, this._qteSystem);
@@ -1819,8 +1854,6 @@ export class GameState {
       );
     }
 
-    // End Location (Harbor Goal) Waypoint
-    this._endLocation = levelCfg?.endLocation || this._levelCfg?.endLocation || { position: { x: 0, y: 0, z: -220 }, radius: 16 };
     this._buildEndLocationVisual(this._endLocation);
 
     this._onSteer = (d) => {

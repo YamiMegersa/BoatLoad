@@ -331,11 +331,14 @@ export class HUD {
 
     this._updateEquippedAssets = () => {
       if (!window.gameState) return;
-      const wheelItem = ShopRegistry.getItem(window.gameState.equippedItems?.wheel);
+      const isCommunity = Boolean(window.gameState._isCommunityCourse || window.gameState._activeCommunityCourseCode);
+      const wheelId = isCommunity ? 'wheel_default' : (window.gameState.equippedItems?.wheel || 'wheel_default');
+      const pedestalId = isCommunity ? 'pedestal_lvl0' : (window.gameState.equippedItems?.pedestal || 'pedestal_lvl0');
+      const wheelItem = ShopRegistry.getItem(wheelId);
       if (wheelItem && this._wheel) {
         this._wheel.src = wheelItem.icon;
       }
-      const pedestalItem = ShopRegistry.getItem(window.gameState.equippedItems?.pedestal);
+      const pedestalItem = ShopRegistry.getItem(pedestalId);
       if (pedestalItem && this._pedestal) {
         this._pedestal.src = pedestalItem.icon;
         this._pedestal.style.display = 'block';

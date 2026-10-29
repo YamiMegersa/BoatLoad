@@ -222,6 +222,9 @@ export function buildObstacle(type, pos, url, scale, rockModels, pickupModels, s
     mesh.add(cloned);
   } else if (type === 'siren') {
     mesh = new THREE.Group();
+    mesh.name = 'siren_obstacle';
+    mesh.userData.isSiren = true;
+    mesh.userData.obstacleType = 'siren';
 
     // Use genuine obstacle rock model for the reef base
     const rocks = rockModels || (typeof LevelConfig !== 'undefined' ? LevelConfig._cache?.get('rockModels') : null);

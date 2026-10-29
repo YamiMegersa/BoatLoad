@@ -55,6 +55,8 @@ export class PlayerShip {
     this._bailCooldown = 0;
     this._sirenDisorientationSources = new Set();
 
+    this.endLocation = stats.endLocation || null;
+
     // Leak & Ingress System (Sea of Thieves hydrostatic model)
     this.waterLevel = 0;
     this.maxWaterLevel = stats.waterCapacity ?? profile.waterCapacity ?? 100;
@@ -439,10 +441,16 @@ export class PlayerShip {
       this._scrapeSoundThrottle = Math.max(0, this._scrapeSoundThrottle - delta);
     }
 
-    // --- KILL RADIUS ---
+    // --- OUT-OF-BOUNDS KILL BOUNDARY ---
+    // Fix: Hardcoded 220m radius was smaller than level goals located at z=-220/-240
+    // and long community courses, causing boats with zero damage to sink.
+    const goalDist = this.endLocation?.position
+      ? Math.hypot(this.endLocation.position.x, this.endLocation.position.z)
+      : 240;
+    const killRadius = Math.max(1200, goalDist + 400);
     const distFromOrigin = Math.hypot(this.mesh.position.x, this.mesh.position.z);
-    if (distFromOrigin > 220) {
-      // Rapidly sink if out of bounds
+    if (distFromOrigin > killRadius) {
+      // Rapidly sink only if truly abandoned far out at sea (>1200m)
       if (!this.godMode) {
         this.waterLevel += 20 * delta;
         emit('playerWaterLevel', { level: this.waterLevel, max: this.maxWaterLevel });

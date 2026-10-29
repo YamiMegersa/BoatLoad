@@ -54,7 +54,7 @@ export class ResultsUI {
     };
 
     // 2. Sailing Rewards Breakdown
-    const pedestalItem = ShopRegistry.getItem(this.gameState.equippedItems?.pedestal);
+    const pedestalItem = ShopRegistry.getItem(isCommunity ? 'pedestal_lvl0' : this.gameState.equippedItems?.pedestal);
     const pedestalName = pedestalItem?.name || 'Weathered Oak Binnacle';
     const sailing = data.sailing || {
       baseReward: isPassed ? (150 + day * 75) : 0,

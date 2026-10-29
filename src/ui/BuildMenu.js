@@ -222,6 +222,10 @@ export class BuildMenu {
         console.warn('[ClearCheck] Cannot navigate to dock during clear check repair.');
         return;
       }
+      if (window.gameState?._isCommunityCourse || window.gameState?._activeCommunityCourseCode) {
+        emit('returnToCommunityMenu');
+        return;
+      }
       emit('requestPhaseChange', { phase: 'DOCK' });
     });
 
@@ -278,6 +282,7 @@ export class BuildMenu {
 
   _applyModeLayout() {
     const isClearCheck = Boolean(window.gameState?._isClearCheckRepair);
+    const isCommunity = Boolean(window.gameState?._isCommunityCourse || window.gameState?._activeCommunityCourseCode);
     const dockBtn = this._el.querySelector('#btn-shipyard-dock');
     const abortBtn = this._el.querySelector('#btn-shipyard-abort');
     const brandTitle = this._el.querySelector('#shipyard-brand-title');
@@ -292,8 +297,24 @@ export class BuildMenu {
       if (brandSub) brandSub.textContent = 'Repair Vessel Within Budget Before Sail Verification';
       if (sailText) sailText.innerHTML = '<span class="pixel-icon icon-sloop size-16"></span> Verify Voyage (Set Sail)';
       if (sailBtn) sailBtn.title = 'Test-sail this repaired vessel through the course to prove beatability!';
+    } else if (isCommunity) {
+      if (dockBtn) {
+        dockBtn.style.display = 'inline-flex';
+        dockBtn.innerHTML = '<span><span class="pixel-icon icon-anchor size-16"></span> Community Harbor</span>';
+        dockBtn.title = 'Cancel and return to Community Harbor';
+      }
+      if (abortBtn) abortBtn.style.display = 'none';
+      if (brandTitle) brandTitle.textContent = 'COMMUNITY VOYAGE: SHIPYARD';
+      const courseTitle = window.gameState?._activeCommunityCourse?.title;
+      if (brandSub) brandSub.textContent = courseTitle ? `Outfitting Vessel for "${courseTitle}"` : 'Prepare & Outfit Vessel Before Setting Sail';
+      if (sailText) sailText.innerHTML = '<span class="pixel-icon icon-sloop size-16"></span> Set Sail on Voyage!';
+      if (sailBtn) sailBtn.title = 'Depart drydock and begin the community voyage!';
     } else {
-      if (dockBtn) dockBtn.style.display = 'inline-flex';
+      if (dockBtn) {
+        dockBtn.style.display = 'inline-flex';
+        dockBtn.innerHTML = '<span><span class="pixel-icon icon-anchor size-16"></span> Island Dock</span>';
+        dockBtn.title = 'Return to island dock promenade';
+      }
       if (abortBtn) abortBtn.style.display = 'none';
       if (brandTitle) brandTitle.textContent = 'DRYDOCK SHIPWRIGHT';
       if (brandSub) brandSub.textContent = 'Ship Repair & Engineering';

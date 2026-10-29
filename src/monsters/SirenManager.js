@@ -367,6 +367,8 @@ export class SirenManager {
    */
   _spawn(def) {
     const group = new THREE.Group();
+    group.name = 'siren_instance';
+    group.userData.isSiren = true;
     group.position.set(def.position.x, def.position.y ?? 0, def.position.z);
 
     // Use genuine obstacle rock model for the reef base
