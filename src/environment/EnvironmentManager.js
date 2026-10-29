@@ -63,8 +63,9 @@ export class EnvironmentManager {
    * @param {object}      levelCfg    - The level configuration
    * @param {object}      [qteSystem] - QTESystem instance
    * @param {object}      [ocean]     - Ocean instance (used to find the live water height)
+   * @param {object}      [existingClouds] - Pre-instantiated shared StormClouds
    */
-  init(scene, fishModels, levelCfg, qteSystem, ocean) {
+  init(scene, fishModels, levelCfg, qteSystem, ocean, existingClouds = null) {
     this._scene      = scene;
     this._fishModels = fishModels;
     this.qteSystem   = qteSystem;
@@ -105,13 +106,15 @@ export class EnvironmentManager {
     this._windParticles = new WindParticles(scene);
     this._rainManager = new RainManager(scene);
     this._fogVolume = new FogVolume(scene);
-    this._stormClouds = new StormClouds(scene);
+    this._ownsClouds = !existingClouds;
+    this._stormClouds = existingClouds || new StormClouds(scene);
 
     if (this._fogVolume?.mesh) {
       this._fogVolume.mesh.visible = this._isDenseFog;
     }
     if (this._stormClouds?.mesh) {
-      this._stormClouds.mesh.visible = this._isStormy;
+      this._stormClouds.mesh.visible = true;
+      this._stormClouds.setStormFactor(this._isStormy ? 1.0 : 0.0);
     }
 
     this._updateTimeAndLighting(0);
@@ -527,6 +530,13 @@ export class EnvironmentManager {
         if (u.uTop) u.uTop.value.copy(cSky);
         if (u.uHorizon) u.uHorizon.value.copy(cFog);
       }
+
+      // Update StormClouds horizon atmospheric blending
+      if (this._stormClouds?.mesh?.material?.uniforms) {
+        const cu = this._stormClouds.mesh.material.uniforms;
+        if (cu.uHorizonColor) cu.uHorizonColor.value.copy(cFog);
+        if (cu.uSkyColor) cu.uSkyColor.value.copy(cSky);
+      }
     }
 
     // Update Ocean specular highlight direction
@@ -553,9 +563,10 @@ export class EnvironmentManager {
       this._rainManager.setIntensity(this._isStormy ? 1.0 : 0.0);
     }
     
-    // You could also toggle storm clouds visibility or intensity here
-    if (this._stormClouds && this._stormClouds.mesh) {
-       this._stormClouds.mesh.visible = this._isStormy;
+    // Dynamically adjust cloud storm-factor between calm cumulus and dark storm
+    if (this._stormClouds) {
+       this._stormClouds.mesh.visible = true;
+       this._stormClouds.setTargetStorm(this._isStormy ? 1.0 : 0.0);
     }
 
     return this._isStormy;
@@ -590,7 +601,7 @@ export class EnvironmentManager {
     }
     
     if (this._stormClouds && this._stormClouds.mesh) {
-      this._stormClouds.mesh.visible = !this._isDenseFog && this._isStormy;
+      this._stormClouds.mesh.visible = !this._isDenseFog;
     }
     
     return this._isDenseFog;
@@ -624,7 +635,8 @@ export class EnvironmentManager {
     }
     if (this._rainManager) { this._rainManager.dispose(); this._rainManager = null; }
     if (this._fogVolume) { this._fogVolume.dispose(); this._fogVolume = null; }
-    if (this._stormClouds) { this._stormClouds.dispose(); this._stormClouds = null; }
+    if (this._stormClouds && this._ownsClouds) { this._stormClouds.dispose(); }
+    this._stormClouds = null;
     if (this._moonLight) {
       if (this._moonLight.parent) this._moonLight.parent.remove(this._moonLight);
       this._moonLight = null;

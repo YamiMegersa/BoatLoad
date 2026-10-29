@@ -665,7 +665,7 @@ export class DirectorMode {
       this._showToast("UI Hidden for Recording — Press [H] or [Esc] to restore", 3500);
     } else {
       container?.classList.remove('ui-hidden');
-      if (launchBtn) launchBtn.style.display = 'flex';
+      if (launchBtn) launchBtn.style.display = 'none';
       if (fps) fps.style.display = 'block';
     }
   }
@@ -815,9 +815,10 @@ export class DirectorMode {
   // ---------------------------------------------------------------------------
 
   _initDOM() {
-    // 1. Floating Launch Button
+    // 1. Floating Launch Button - Hidden (accessible via Pause Menu or F8)
     const launchBtn = document.createElement('button');
     launchBtn.id = 'director-launch-btn';
+    launchBtn.style.display = 'none';
     launchBtn.innerHTML = `
       <span class="icon"><span class="pixel-icon icon-director-clapper size-18"></span></span>
       <span>Director Mode</span>
@@ -1611,7 +1612,7 @@ export class DirectorMode {
     if (this._dom.launchBtn) {
       this._dom.launchBtn.style.borderColor = 'rgba(212, 175, 55, 0.45)';
       this._dom.launchBtn.style.color = '#f3e3b4';
-      this._dom.launchBtn.style.display = 'flex';
+      this._dom.launchBtn.style.display = 'none';
     }
     this.uiHidden = false;
     this.setAspectRatio('none');
