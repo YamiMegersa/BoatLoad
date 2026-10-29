@@ -12,6 +12,15 @@ class PirateAudio {
     this._ambienceNode = null;
     this._ambienceGain = null;
     this.isAmbienceOn = false;
+
+    // Safely resume AudioContext on user interaction to comply with autoplay policy
+    const unlock = () => {
+      if (this._ctx && this._ctx.state === 'suspended') {
+        this._ctx.resume().catch(() => { });
+      }
+    };
+    window.addEventListener('pointerdown', unlock, { passive: true });
+    window.addEventListener('keydown', unlock, { passive: true });
   }
 
   _initContext() {
@@ -20,7 +29,7 @@ class PirateAudio {
       if (AudioCtx) this._ctx = new AudioCtx();
     }
     if (this._ctx && this._ctx.state === 'suspended') {
-      this._ctx.resume();
+      this._ctx.resume().catch(() => { });
     }
   }
 
@@ -30,7 +39,7 @@ class PirateAudio {
   playClick() {
     try {
       this._initContext();
-      if (!this._ctx) return;
+      if (!this._ctx || this._ctx.state !== 'running') return;
       const osc = this._ctx.createOscillator();
       const gain = this._ctx.createGain();
       const filter = this._ctx.createBiquadFilter();
@@ -51,7 +60,7 @@ class PirateAudio {
 
       osc.start();
       osc.stop(this._ctx.currentTime + 0.08);
-    } catch (_) {}
+    } catch (_) { }
   }
 
   /**
@@ -62,7 +71,7 @@ class PirateAudio {
       this._initContext();
       if (!this._ctx) return;
       const now = this._ctx.currentTime;
-      
+
       // Dual-tone harmonic bell
       [523.25, 659.25, 783.99].forEach((freq, idx) => {
         const osc = this._ctx.createOscillator();
@@ -80,7 +89,7 @@ class PirateAudio {
         osc.start(now);
         osc.stop(now + 1.8);
       });
-    } catch (_) {}
+    } catch (_) { }
   }
 
   /**
@@ -244,6 +253,10 @@ export class MainMenuUI {
             <span class="pixel-icon icon-helm-wheel size-20"></span> Play / Select Level
           </button>
 
+          <button class="pirate-btn" id="btn-menu-community" style="border-color: #ffd700; color: #ffd700;">
+            <span class="pixel-icon icon-anchor size-18"></span> Community Courses (Course World)
+          </button>
+
           <button class="pirate-btn" id="btn-menu-codex">
             <span class="pixel-icon icon-closed-logbook size-20"></span> Captain's Codex
           </button>
@@ -272,6 +285,9 @@ export class MainMenuUI {
           <button class="menu-util-btn" id="btn-menu-settings">
             <span class="pixel-icon icon-settings-cog size-16"></span> Settings
           </button>
+          <button class="menu-util-btn" id="btn-menu-credits" title="View Game Credits &amp; Honours">
+            <span class="pixel-icon icon-quill-author size-16"></span> Credits
+          </button>
           <span class="menu-version">v1.0 • ${GameEnv.isDev() ? 'DEV SUITE' : 'DEMO EDITION'}</span>
           <button class="menu-util-btn" id="btn-menu-fullscreen">
             <span class="pixel-icon icon-fullscreen-expand size-16"></span> Fullscreen
@@ -288,6 +304,15 @@ export class MainMenuUI {
           </div>
 
           <div class="level-cards-list" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px;">
+            <div class="level-card" data-day="0" style="padding: 12px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
+              <div>
+                <h3 style="margin: 0 0 4px; font-size: 19px;">Day 0: Port Rotgut (Opening &amp; Tutorial)</h3>
+                <div style="font-size: 13px;">Clerk: <strong>🦀 Barnaby Claw, Esq.</strong> • Weather: Dawn Hangover</div>
+                <div style="font-size: 12px; margin-top: 3px; opacity: 0.85;">Wake up on the island beach surrounded by empty bottles, meet the Crab Clerk, and inspect your divorce papers.</div>
+              </div>
+              <button class="pirate-btn" style="padding: 8px 14px; font-size: 14px; pointer-events: none;">Embark <span class="pixel-icon icon-arrow-right size-14"></span></button>
+            </div>
+
             <div class="level-card" data-day="1" style="padding: 12px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
               <div>
                 <h3 style="margin: 0 0 4px; font-size: 19px;">Day 1: Calm Shallows</h3>
@@ -460,7 +485,8 @@ export class MainMenuUI {
       });
       card.addEventListener('click', (e) => {
         e.stopPropagation();
-        const day = parseInt(card.dataset.day, 10) || 1;
+        const parsedDay = parseInt(card.dataset.day, 10);
+        const day = Number.isNaN(parsedDay) ? 1 : parsedDay;
         this._audio.playSetSail();
         if (levelModal) levelModal.style.display = 'none';
         emit('requestPhaseChange', { phase: 'DOCK', day });
@@ -477,6 +503,14 @@ export class MainMenuUI {
 
     bindBtn('#btn-menu-editor', () => {
       emit('requestPhaseChange', { phase: 'EDITOR' });
+    });
+
+    bindBtn('#btn-menu-credits', () => {
+      emit('requestPhaseChange', { phase: 'CREDITS' });
+    });
+
+    bindBtn('#btn-menu-community', () => {
+      emit('uiMount', { screen: 'community' });
     });
 
     // Env mode changed handler
@@ -529,10 +563,10 @@ export class MainMenuUI {
       fsBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         if (!document.fullscreenElement) {
-          document.documentElement.requestFullscreen().catch(() => {});
+          document.documentElement.requestFullscreen().catch(() => { });
           fsBtn.innerHTML = '<span class="pixel-icon icon-fullscreen-expand size-16"></span> Exit Fullscreen';
         } else {
-          document.exitFullscreen().catch(() => {});
+          document.exitFullscreen().catch(() => { });
           fsBtn.innerHTML = '<span class="pixel-icon icon-fullscreen-expand size-16"></span> Fullscreen';
         }
       });

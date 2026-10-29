@@ -47,10 +47,10 @@ export class ShopUI {
             </div>
           </div>
           <div class="shop-header-right">
-            <div class="shop-wallet-pill">
+            <div class="shop-wallet-pill ${(this.gameState.coins || 0) < 0 ? 'debt' : ''}">
               <span class="pixel-icon icon-doubloon size-18"></span>
-              <span class="shop-wallet-coins" id="shop-coin-display">${this.gameState.coins || 0}</span>
-              <span class="shop-wallet-label">Doubloons</span>
+              <span class="shop-wallet-coins ${(this.gameState.coins || 0) < 0 ? 'debt' : ''}" id="shop-coin-display">${(this.gameState.coins || 0) < 0 ? `-${Math.abs(this.gameState.coins || 0)}` : (this.gameState.coins || 0)}</span>
+              <span class="shop-wallet-label">${(this.gameState.coins || 0) < 0 ? 'Doubloons (IN DEBT)' : 'Doubloons'}</span>
             </div>
             <button class="shop-close-btn" id="shop-btn-close" title="Close Stall (Esc)">
               <span class="pixel-icon icon-close-cross size-16"></span>
@@ -135,8 +135,22 @@ export class ShopUI {
   _refresh() {
     if (!this._isOpen || !this.root) return;
     const coinDisplay = this.root.querySelector('#shop-coin-display');
+    const pill = this.root.querySelector('.shop-wallet-pill');
+    const label = this.root.querySelector('.shop-wallet-label');
+    const coins = this.gameState.coins ?? 0;
+    const isDebt = coins < 0;
+
     if (coinDisplay) {
-      coinDisplay.textContent = this.gameState.coins || 0;
+      coinDisplay.textContent = isDebt ? `-${Math.abs(coins)}` : coins;
+      if (isDebt) coinDisplay.classList.add('debt');
+      else coinDisplay.classList.remove('debt');
+    }
+    if (pill) {
+      if (isDebt) pill.classList.add('debt');
+      else pill.classList.remove('debt');
+    }
+    if (label) {
+      label.textContent = isDebt ? 'Doubloons (IN DEBT)' : 'Doubloons';
     }
     this._renderItems();
   }
@@ -149,11 +163,13 @@ export class ShopUI {
     const items = SHOP_CATALOG[this.activeTab] || [];
     const owned = this.gameState.inventory || [];
     const equipped = this.gameState.equippedItems || {};
+    const coins = this.gameState.coins ?? 0;
+    const isDebt = coins < 0;
 
     items.forEach(item => {
       const isOwned = owned.includes(item.id);
       const isEquipped = equipped[this.activeTab] === item.id;
-      const canAfford = (this.gameState.coins || 0) >= item.cost;
+      const canAfford = !isDebt && coins >= item.cost;
 
       const card = document.createElement('div');
       card.className = `shop-item-card ${isEquipped ? 'equipped' : ''} ${isOwned ? 'owned' : ''}`;
@@ -197,10 +213,12 @@ export class ShopUI {
         btnHtml = `<button class="shop-action-btn equipped-btn" disabled><span class="pixel-icon icon-confirm-check size-16"></span> EQUIPPED</button>`;
       } else if (isOwned) {
         btnHtml = `<button class="shop-action-btn equip-btn" data-action="equip" data-id="${item.id}"><span class="pixel-icon icon-anchor size-16"></span> EQUIP</button>`;
+      } else if (isDebt) {
+        btnHtml = `<button class="shop-action-btn locked-btn debt" disabled><span class="pixel-icon icon-lock-padlock size-14"></span> LOCKED (IN PORT DEBT)</button>`;
       } else if (canAfford) {
         btnHtml = `<button class="shop-action-btn buy-btn" data-action="buy" data-id="${item.id}"><span class="pixel-icon icon-doubloon size-16"></span> ${item.cost} DOUBLOONS</button>`;
       } else {
-        const diff = item.cost - (this.gameState.coins || 0);
+        const diff = item.cost - coins;
         btnHtml = `<button class="shop-action-btn locked-btn" disabled><span class="pixel-icon icon-lock-padlock size-14"></span> <span class="pixel-icon icon-doubloon size-14"></span> ${item.cost} (Need ${diff})</button>`;
       }
 

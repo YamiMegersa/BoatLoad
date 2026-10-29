@@ -408,11 +408,14 @@ export class HUD {
 
     this._updateEquippedAssets = () => {
       if (!window.gameState) return;
-      const wheelItem = ShopRegistry.getItem(window.gameState.equippedItems?.wheel);
+      const isCommunity = Boolean(window.gameState._isCommunityCourse || window.gameState._activeCommunityCourseCode);
+      const wheelId = isCommunity ? 'wheel_default' : (window.gameState.equippedItems?.wheel || 'wheel_default');
+      const pedestalId = isCommunity ? 'pedestal_lvl0' : (window.gameState.equippedItems?.pedestal || 'pedestal_lvl0');
+      const wheelItem = ShopRegistry.getItem(wheelId);
       if (wheelItem && this._wheel) {
         this._wheel.src = wheelItem.icon;
       }
-      const pedestalItem = ShopRegistry.getItem(window.gameState.equippedItems?.pedestal);
+      const pedestalItem = ShopRegistry.getItem(pedestalId);
       if (pedestalItem && this._pedestal) {
         this._pedestal.src = pedestalItem.icon;
         this._pedestal.style.display = 'block';
@@ -567,11 +570,27 @@ export class HUD {
     };
     on('sirenPulling', this._onSirenPulling);
 
+    // Keyboard steering support (A / D, Left / Right)
+    this._steerKeys = { left: false, right: false };
+    this._onSteerKeyDown = (e) => {
+      if (e.code === 'KeyA' || e.code === 'ArrowLeft') this._steerKeys.left = true;
+      if (e.code === 'KeyD' || e.code === 'ArrowRight') this._steerKeys.right = true;
+    };
+    this._onSteerKeyUp = (e) => {
+      if (e.code === 'KeyA' || e.code === 'ArrowLeft') this._steerKeys.left = false;
+      if (e.code === 'KeyD' || e.code === 'ArrowRight') this._steerKeys.right = false;
+    };
+    window.addEventListener('keydown', this._onSteerKeyDown);
+    window.addEventListener('keyup', this._onSteerKeyUp);
+
     // Auto-centering & emit loop
     const autoCenter = () => {
       if (!this._el) return; // Stop loop if unmounted
-
-      if (!this._isDraggingWheel) {
+      if (this._steerKeys?.left) {
+        this._wheelAngle = Math.max(-180, this._wheelAngle - 450 * 0.016);
+      } else if (this._steerKeys?.right) {
+        this._wheelAngle = Math.min(180, this._wheelAngle + 450 * 0.016);
+      } else if (!this._isDraggingWheel) {
         this._wheelAngle *= 0.85; // Spring back
         if (Math.abs(this._wheelAngle) < 0.1) this._wheelAngle = 0;
       }
@@ -657,6 +676,12 @@ export class HUD {
       off('economyUpdated', this._onEconomyUpdated);
       off('itemsEquipped', this._onEconomyUpdated);
       this._onEconomyUpdated = null;
+    }
+    if (this._onSteerKeyDown) {
+      window.removeEventListener('keydown', this._onSteerKeyDown);
+      window.removeEventListener('keyup', this._onSteerKeyUp);
+      this._onSteerKeyDown = null;
+      this._onSteerKeyUp = null;
     }
     this._pedestal = null;
     clearInterval(this._qteTimer);

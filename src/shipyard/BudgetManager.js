@@ -14,13 +14,22 @@ export class BudgetManager {
    */
   constructor(initialBudget = 300) {
     this.totalBudget = initialBudget;
+    this.contractBudget = initialBudget;
     this.spent = 0;
     /** Maps 'x,y,z' -> { cost: number, materialId: string, timestamp: number } for newly placed repairs */
     this.sessionRepairs = new Map();
   }
 
   /**
-   * Remaining funds available.
+   * Profit margin if construction ends now (can be negative if overspent).
+   * @returns {number}
+   */
+  get leftoverProfit() {
+    return this.totalBudget - this.spent;
+  }
+
+  /**
+   * Remaining funds available under contract budget.
    * @returns {number}
    */
   get remaining() {
@@ -29,31 +38,46 @@ export class BudgetManager {
 
   /**
    * Check if a placement cost can be afforded.
+   * Players are permitted to exceed customer budget (with deficit funded from purse).
    * @param {number} cost
    * @returns {boolean}
    */
   canAfford(cost) {
-    if (this.totalBudget === Infinity) return true;
-    return this.remaining >= cost;
+    return true;
   }
 
   /**
    * Deduct funds for placed blocks.
+   * Emits an over-budget warning the moment total expenditures exceed customer allocation.
    * @param {number} cost
    * @param {Array<{ x: number, y: number, z: number }>} cells
    * @param {string} materialId
    * @returns {boolean}
    */
   spend(cost, cells = [], materialId = 'oak_plank') {
-    if (!this.canAfford(cost)) return false;
-
+    const wasUnder = this.spent <= this.totalBudget;
     this.spent += cost;
+    const isOver = this.spent > this.totalBudget;
+
     const costPerCell = cells.length > 0 ? cost / cells.length : 0;
     for (const { x, y, z } of cells) {
       this.sessionRepairs.set(`${x},${y},${z}`, {
         cost: costPerCell,
         materialId,
         timestamp: Date.now()
+      });
+    }
+
+    if (wasUnder && isOver) {
+      const deficit = this.spent - this.totalBudget;
+      emit('budgetExceeded', {
+        total: this.totalBudget,
+        spent: this.spent,
+        deficit
+      });
+      emit('notification', {
+        type: 'warning',
+        text: `⚠️ OVER BUDGET: You exceeded the customer's budget by ${deficit} Doubloons! Extra repairs will come out of your own purse.`
       });
     }
 
@@ -107,16 +131,22 @@ export class BudgetManager {
    */
   reset(budget = 300) {
     this.totalBudget = budget !== undefined && budget !== null ? budget : 300;
+    this.contractBudget = this.totalBudget;
     this.spent = 0;
     this.sessionRepairs.clear();
     this._emitChange();
   }
 
   _emitChange() {
+    const isOverBudget = this.spent > this.totalBudget;
     emit('budgetChanged', {
       total: this.totalBudget,
+      contractBudget: this.totalBudget,
       spent: this.spent,
-      remaining: this.remaining
+      remaining: this.remaining,
+      leftoverProfit: this.leftoverProfit,
+      isOverBudget,
+      deficit: isOverBudget ? (this.spent - this.totalBudget) : 0
     });
   }
 }

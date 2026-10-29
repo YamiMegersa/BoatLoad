@@ -1,16 +1,34 @@
 import { on, off, emit } from '../core/EventBus.js';
+import { CUSTOMER_SCRIPTS } from '../config/CustomerScript.js';
 
 const LEVELS = [
   {
+    day: 0,
+    name: `Day 0: ${CUSTOMER_SCRIPTS[0].shipName}`,
+    icon: '🦀',
+    meta: `${CUSTOMER_SCRIPTS[0].customerName} • Opening &amp; Tutorial`,
+    customer: `${CUSTOMER_SCRIPTS[0].customerName} (${CUSTOMER_SCRIPTS[0].customerRole})`,
+    vessel: CUSTOMER_SCRIPTS[0].shipName,
+    weather: '<span class="pixel-icon icon-sun-fair size-16"></span> Dawn Hangover &amp; Calm Tide',
+    budget: `<span class="pixel-icon icon-doubloon size-16"></span> -7,000 Doubloons (Divorce Debt)`,
+    hazard: 'None (Beach Wakeup &amp; Divorce Writ)',
+    dispatch: `${CUSTOMER_SCRIPTS[0].complaintShort} — "${CUSTOMER_SCRIPTS[0].lines[0]} ${CUSTOMER_SCRIPTS[0].lines[2]}"`,
+    docket: [
+      { icon: '🦀', text: '<strong>Speak with Barnaby Claw, Esq.</strong> in the shallow water off the beach' },
+      { icon: '<span class="pixel-icon icon-map-maker-scroll size-18"></span>', text: '<strong>Inspect the Writ of Divorce</strong> nailed to the post where the dock meets land' }
+    ]
+  },
+  {
     day: 1,
-    name: 'Day 1: Maiden Shakedown',
+    name: `Day 1: ${CUSTOMER_SCRIPTS[1].shipName}`,
     icon: '<span class="pixel-icon icon-sloop size-20"></span>',
-    meta: 'Sunny • Light Sloop • <span class="pixel-icon icon-doubloon size-14"></span> 200',
-    vessel: 'Barlow Light Sloop',
+    meta: `${CUSTOMER_SCRIPTS[1].customerName} • <span class="pixel-icon icon-doubloon size-14"></span> ${CUSTOMER_SCRIPTS[1].basePay}`,
+    customer: `${CUSTOMER_SCRIPTS[1].customerName} (${CUSTOMER_SCRIPTS[1].customerRole})`,
+    vessel: CUSTOMER_SCRIPTS[1].shipName,
     weather: '<span class="pixel-icon icon-sun-fair size-16"></span> Clear &amp; Fair Breeze',
-    budget: '<span class="pixel-icon icon-doubloon size-16"></span> 200 Doubloons',
+    budget: `<span class="pixel-icon icon-doubloon size-16"></span> ${CUSTOMER_SCRIPTS[1].basePay} Doubloons`,
     hazard: 'Low (Barrels &amp; Shallow Rocks)',
-    dispatch: `"Treacherous shoals offshore have breached our hull and torn our canvas! My crew is limping into port now. We need the master shipwright to patch the timber breaches, mend the sails, and reinforce the mast before our departure!"`,
+    dispatch: `${CUSTOMER_SCRIPTS[1].complaintShort} — "${CUSTOMER_SCRIPTS[1].lines[1]} ${CUSTOMER_SCRIPTS[1].lines[2]}"`,
     docket: [
       { icon: '<span class="pixel-icon icon-hammer size-18"></span>', text: '<strong>Patch 3 Hull Breaches</strong> (Hammer &amp; Planks)' },
       { icon: '<span class="pixel-icon icon-sail-needle size-18"></span>', text: '<strong>Mend Torn Sail Cloth</strong> (Sailmaker Needle)' },
@@ -19,14 +37,15 @@ const LEVELS = [
   },
   {
     day: 2,
-    name: 'Day 2: The Rising Squall',
+    name: `Day 2: ${CUSTOMER_SCRIPTS[2].shipName}`,
     icon: '<span class="pixel-icon icon-rain-squall size-20"></span>',
-    meta: 'Overcast • Choppy Shoals • <span class="pixel-icon icon-doubloon size-14"></span> 250',
-    vessel: 'Barlow Light Sloop',
+    meta: `${CUSTOMER_SCRIPTS[2].customerName} • <span class="pixel-icon icon-doubloon size-14"></span> ${CUSTOMER_SCRIPTS[2].basePay}`,
+    customer: `${CUSTOMER_SCRIPTS[2].customerName} (${CUSTOMER_SCRIPTS[2].customerRole})`,
+    vessel: CUSTOMER_SCRIPTS[2].shipName,
     weather: '<span class="pixel-icon icon-rain-squall size-16"></span> Overcast &amp; Rising Waves',
-    budget: '<span class="pixel-icon icon-doubloon size-16"></span> 250 Doubloons',
+    budget: `<span class="pixel-icon icon-doubloon size-16"></span> ${CUSTOMER_SCRIPTS[2].basePay} Doubloons`,
     hazard: 'Moderate (Choppy Shoals &amp; Siren Call)',
-    dispatch: `"Dark clouds gather on the horizon and the wind is howling! Our hull took hits from submerged reef outcroppings, and siren calls were heard echoing off the bluffs. Prepare the ship for rougher seas!"`,
+    dispatch: `${CUSTOMER_SCRIPTS[2].complaintShort} — "${CUSTOMER_SCRIPTS[2].lines[1]} ${CUSTOMER_SCRIPTS[2].lines[2]}"`,
     docket: [
       { icon: '<span class="pixel-icon icon-hammer size-18"></span>', text: '<strong>Patch Hull Breaches</strong> (Hammer &amp; Planks)' },
       { icon: '<span class="pixel-icon icon-sail-needle size-18"></span>', text: '<strong>Mend Torn Sail Cloth</strong> (Sailmaker Needle)' },
@@ -35,14 +54,15 @@ const LEVELS = [
   },
   {
     day: 3,
-    name: "Day 3: Siren's Fog",
+    name: `Day 3: ${CUSTOMER_SCRIPTS[3].shipName}`,
     icon: '<span class="pixel-icon icon-sea-fog size-20"></span>',
-    meta: 'Sunset Fog • Reef Hazards • <span class="pixel-icon icon-doubloon size-14"></span> 300',
-    vessel: 'Barlow Light Sloop',
+    meta: `${CUSTOMER_SCRIPTS[3].customerName} • <span class="pixel-icon icon-doubloon size-14"></span> ${CUSTOMER_SCRIPTS[3].basePay}`,
+    customer: `${CUSTOMER_SCRIPTS[3].customerName} (${CUSTOMER_SCRIPTS[3].customerRole})`,
+    vessel: CUSTOMER_SCRIPTS[3].shipName,
     weather: '<span class="pixel-icon icon-dusk-sunset size-16"></span> Golden Sunset &amp; Dense Mist',
-    budget: '<span class="pixel-icon icon-doubloon size-16"></span> 300 Doubloons',
+    budget: `<span class="pixel-icon icon-doubloon size-16"></span> ${CUSTOMER_SCRIPTS[3].basePay} Doubloons`,
     hazard: 'High (Siren Allure &amp; Jagged Skerries)',
-    dispatch: `"The sunset cast a false calm over the waters—bewitching songs lured our lookouts off course directly onto the teeth of jagged rocks. Patch her up tight and sound the bell!"`,
+    dispatch: `${CUSTOMER_SCRIPTS[3].complaintShort} — "${CUSTOMER_SCRIPTS[3].lines[1]} ${CUSTOMER_SCRIPTS[3].lines[2]}"`,
     docket: [
       { icon: '<span class="pixel-icon icon-hammer size-18"></span>', text: '<strong>Patch Hull Breaches</strong> (Hammer &amp; Planks)' },
       { icon: '<span class="pixel-icon icon-sail-needle size-18"></span>', text: '<strong>Mend Torn Sail Cloth</strong> (Sailmaker Needle)' },
@@ -51,14 +71,15 @@ const LEVELS = [
   },
   {
     day: 4,
-    name: 'Day 4: Gale-Force Reef',
+    name: `Day 4: ${CUSTOMER_SCRIPTS[4].shipName}`,
     icon: '<span class="pixel-icon icon-storm-lightning size-20"></span>',
-    meta: 'Storm Winds • Heavy Swells • <span class="pixel-icon icon-doubloon size-14"></span> 350',
-    vessel: 'Barlow Light Sloop',
+    meta: `${CUSTOMER_SCRIPTS[4].customerName} • <span class="pixel-icon icon-doubloon size-14"></span> ${CUSTOMER_SCRIPTS[4].basePay}`,
+    customer: `${CUSTOMER_SCRIPTS[4].customerName} (${CUSTOMER_SCRIPTS[4].customerRole})`,
+    vessel: CUSTOMER_SCRIPTS[4].shipName,
     weather: '<span class="pixel-icon icon-storm-lightning size-16"></span> Violent Storm &amp; Gale Winds',
-    budget: '<span class="pixel-icon icon-doubloon size-16"></span> 350 Doubloons',
+    budget: `<span class="pixel-icon icon-doubloon size-16"></span> ${CUSTOMER_SCRIPTS[4].basePay} Doubloons`,
     hazard: 'Severe (Sudden Squalls &amp; Crashing Swells)',
-    dispatch: `"Gale winds split our mainsail and batter our deck timbers! We barely made it past the outer reefs before the storm broke over us. Quick repairs needed before nightfall!"`,
+    dispatch: `${CUSTOMER_SCRIPTS[4].complaintShort} — "${CUSTOMER_SCRIPTS[4].lines[1]} ${CUSTOMER_SCRIPTS[4].lines[2]}"`,
     docket: [
       { icon: '<span class="pixel-icon icon-hammer size-18"></span>', text: '<strong>Patch Hull Breaches</strong> (Hammer &amp; Planks)' },
       { icon: '<span class="pixel-icon icon-sail-needle size-18"></span>', text: '<strong>Mend Torn Sail Cloth</strong> (Sailmaker Needle)' },
@@ -67,14 +88,15 @@ const LEVELS = [
   },
   {
     day: 5,
-    name: 'Day 5: Abyssal Trench',
+    name: `Day 5: ${CUSTOMER_SCRIPTS[5].shipName}`,
     icon: '<span class="pixel-icon icon-ocean-wave size-20"></span>',
-    meta: 'Heavy Squall • Strong Tide • <span class="pixel-icon icon-doubloon size-14"></span> 400',
-    vessel: 'Barlow Light Sloop',
+    meta: `${CUSTOMER_SCRIPTS[5].customerName} • <span class="pixel-icon icon-doubloon size-14"></span> ${CUSTOMER_SCRIPTS[5].basePay}`,
+    customer: `${CUSTOMER_SCRIPTS[5].customerName} (${CUSTOMER_SCRIPTS[5].customerRole})`,
+    vessel: CUSTOMER_SCRIPTS[5].shipName,
     weather: '<span class="pixel-icon icon-ocean-wave size-16"></span> Heavy Squall &amp; Torrential Rain',
-    budget: '<span class="pixel-icon icon-doubloon size-16"></span> 400 Doubloons',
+    budget: `<span class="pixel-icon icon-doubloon size-16"></span> ${CUSTOMER_SCRIPTS[5].basePay} Doubloons`,
     hazard: 'Extreme (Abyssal Currents &amp; Sea Beasts)',
-    dispatch: `"The deep currents near the trench drag down even the stoutest craft. Timber groaned and joints separated under the pressure of abyssal swells. Rebuild her strength, shipwright!"`,
+    dispatch: `${CUSTOMER_SCRIPTS[5].complaintShort} — "${CUSTOMER_SCRIPTS[5].lines[1]} ${CUSTOMER_SCRIPTS[5].lines[2]}"`,
     docket: [
       { icon: '<span class="pixel-icon icon-hammer size-18"></span>', text: '<strong>Patch Hull Breaches</strong> (Hammer &amp; Planks)' },
       { icon: '<span class="pixel-icon icon-sail-needle size-18"></span>', text: '<strong>Mend Torn Sail Cloth</strong> (Sailmaker Needle)' },
@@ -83,14 +105,15 @@ const LEVELS = [
   },
   {
     day: 6,
-    name: 'Day 6: Tempest Surge',
+    name: `Day 6: ${CUSTOMER_SCRIPTS[6].shipName}`,
     icon: '<span class="pixel-icon icon-lightning-spark size-20"></span>',
-    meta: 'Lightning • Crushing Waves • <span class="pixel-icon icon-doubloon size-14"></span> 500',
-    vessel: 'Barlow Light Sloop',
+    meta: `${CUSTOMER_SCRIPTS[6].customerName} • <span class="pixel-icon icon-doubloon size-14"></span> ${CUSTOMER_SCRIPTS[6].basePay}`,
+    customer: `${CUSTOMER_SCRIPTS[6].customerName} (${CUSTOMER_SCRIPTS[6].customerRole})`,
+    vessel: CUSTOMER_SCRIPTS[6].shipName,
     weather: '<span class="pixel-icon icon-lightning-spark size-16"></span> Tempest Surge &amp; Thick Fog',
-    budget: '<span class="pixel-icon icon-doubloon size-16"></span> 500 Doubloons',
+    budget: `<span class="pixel-icon icon-doubloon size-16"></span> ${CUSTOMER_SCRIPTS[6].basePay} Doubloons`,
     hazard: 'Extreme (Rolling Lightning &amp; Crushing Waves)',
-    dispatch: `"Lightning struck our topmast and lightning arcs scorched the rigging! Shorter waves are slamming against our bow. We need a complete overhaul to weather the next run!"`,
+    dispatch: `${CUSTOMER_SCRIPTS[6].complaintShort} — "${CUSTOMER_SCRIPTS[6].lines[1]} ${CUSTOMER_SCRIPTS[6].lines[2]}"`,
     docket: [
       { icon: '<span class="pixel-icon icon-hammer size-18"></span>', text: '<strong>Patch Hull Breaches</strong> (Hammer &amp; Planks)' },
       { icon: '<span class="pixel-icon icon-sail-needle size-18"></span>', text: '<strong>Mend Torn Sail Cloth</strong> (Sailmaker Needle)' },
@@ -99,14 +122,15 @@ const LEVELS = [
   },
   {
     day: 7,
-    name: "Day 7: The Kraken's Wake",
+    name: `Day 7: ${CUSTOMER_SCRIPTS[7].shipName}`,
     icon: '<span class="pixel-icon icon-kraken-head size-20"></span>',
-    meta: 'Gale Sky • Ancient Titan • <span class="pixel-icon icon-doubloon size-14"></span> 600',
-    vessel: 'Barlow Light Sloop',
+    meta: `${CUSTOMER_SCRIPTS[7].customerName} • <span class="pixel-icon icon-doubloon size-14"></span> ${CUSTOMER_SCRIPTS[7].basePay}`,
+    customer: `${CUSTOMER_SCRIPTS[7].customerName} (${CUSTOMER_SCRIPTS[7].customerRole})`,
+    vessel: CUSTOMER_SCRIPTS[7].shipName,
     weather: '<span class="pixel-icon icon-hurricane-gale size-16"></span> Blood Gale &amp; Monstrous Tides',
-    budget: '<span class="pixel-icon icon-doubloon size-16"></span> 600 Doubloons',
+    budget: `<span class="pixel-icon icon-doubloon size-16"></span> ${CUSTOMER_SCRIPTS[7].basePay} Doubloons`,
     hazard: 'Lethal (The Ancient Kraken &amp; Tentacles)',
-    dispatch: `"The beast awakens from the depths! Tentacles like ancient tree trunks dragged three galleons down yesterday. Our vessel must be in peak fighting shape to survive the Kraken's domain!"`,
+    dispatch: `${CUSTOMER_SCRIPTS[7].complaintShort} — "${CUSTOMER_SCRIPTS[7].lines[1]} ${CUSTOMER_SCRIPTS[7].lines[2]}"`,
     docket: [
       { icon: '<span class="pixel-icon icon-hammer size-18"></span>', text: '<strong>Patch Hull Breaches</strong> (Hammer &amp; Planks)' },
       { icon: '<span class="pixel-icon icon-sail-needle size-18"></span>', text: '<strong>Mend Torn Sail Cloth</strong> (Sailmaker Needle)' },
@@ -132,10 +156,10 @@ export class LevelSelectorUI {
     on('openLevelSelector', this._onOpen);
     on('closeLevelSelector', this._onClose);
     on('uiMount', d => {
-      if (d?.gameState?.day) {
-        this._selectedDay = d.gameState.day;
-      }
-    });
+        if (d?.gameState?.day !== undefined) {
+          this._selectedDay = d.gameState.day;
+        }
+      });
     on('uiUnmount', d => {
       if (d?.screen === 'dock') this.close();
     });
@@ -170,13 +194,13 @@ export class LevelSelectorUI {
     dossierRight.querySelector('.dossier-title').textContent = `VOYAGE DOSSIER: DAY ${lvl.day}`;
 
     const values = dossierRight.querySelectorAll('.dossier-value');
-    if (values[0]) values[0].textContent = lvl.vessel;
+    if (values[0]) values[0].textContent = `${lvl.vessel} — ${lvl.customer}`;
     if (values[1]) values[1].innerHTML = lvl.weather;
-    if (values[2]) values[2].innerHTML = lvl.budget;
+    if (values[2]) values[2].innerHTML = `${lvl.budget} <span class="dossier-bargain-tag" style="font-size:10px; color:#94a3b8; font-style:italic; margin-left:6px;">[Base Contract]</span>`;
     if (values[3]) values[3].textContent = lvl.hazard;
 
     const dispatchBody = dossierRight.querySelector('.dispatch-body');
-    if (dispatchBody) dispatchBody.textContent = lvl.dispatch.replace(/^"|"$/g, '');
+    if (dispatchBody) dispatchBody.textContent = lvl.dispatch;
 
     const docketList = dossierRight.querySelector('.docket-list');
     if (docketList) {
@@ -209,15 +233,15 @@ export class LevelSelectorUI {
   open(initialDay) {
     if (this._isOpen) return;
     this._isOpen = true;
-    if (initialDay && LEVEL_DOSSIERS[initialDay]) {
-      this._selectedDay = initialDay;
-    }
+      if (initialDay !== undefined && LEVELS.some(l => l.day === initialDay)) {
+        this._selectedDay = initialDay;
+      }
 
-    this._el = document.createElement('div');
-    this._el.id = 'level-selector-modal';
-    this._el.className = 'level-selector-backdrop';
+      this._el = document.createElement('div');
+      this._el.id = 'level-selector-modal';
+      this._el.className = 'level-selector-backdrop';
 
-    this._el.innerHTML = `
+      this._el.innerHTML = `
       <div class="level-book-wrapper">
         <div class="level-book">
           <!-- Close button resembling a wax seal / brass emblem -->
@@ -251,8 +275,8 @@ export class LevelSelectorUI {
 
               <div class="dossier-section">
                 <div class="dossier-row">
-                  <span class="dossier-label">Vessel Class:</span>
-                  <span class="dossier-value" id="dossier-vessel">Standard Sloop</span>
+                  <span class="dossier-label">Vessel &amp; Client:</span>
+                  <span class="dossier-value" id="dossier-vessel">The Sorry Bastard — Old Walt Gunnet</span>
                 </div>
                 <div class="dossier-row">
                   <span class="dossier-label">Weather Forecast:</span>
@@ -290,97 +314,51 @@ export class LevelSelectorUI {
       </div>
     `;
 
-    // Populate the right page dossier with current selection
-    this._updateDossier();
+      // Populate the right page dossier with current selection
+      this._updateDossier();
 
-    // Click on level cards
-    const cards = this._el.querySelectorAll('.level-card');
-    cards.forEach(card => {
-      card.addEventListener('click', () => {
-        const day = parseInt(card.dataset.level, 10);
-        if (day) this._selectDay(day);
+      // Click on level cards
+      const cards = this._el.querySelectorAll('.level-card');
+      cards.forEach(card => {
+        card.addEventListener('click', () => {
+          const day = parseInt(card.dataset.level, 10);
+          if (day) this._selectDay(day);
+        });
       });
-    });
 
-    // Click backdrop or close button to close
-    this._el.querySelector('#book-close-btn').addEventListener('click', () => this.close());
-    this._el.addEventListener('click', (e) => {
-      if (e.target === this._el) this.close();
-    });
+      // Click backdrop or close button to close
+      this._el.querySelector('#book-close-btn').addEventListener('click', () => this.close());
+      this._el.addEventListener('click', (e) => {
+        if (e.target === this._el) this.close();
+      });
 
-    // Embark selected level
-    const embarkBtn = this._el.querySelector('#btn-embark-voyage');
-    embarkBtn.addEventListener('click', () => {
+      // Embark selected level
+      const embarkBtn = this._el.querySelector('#btn-embark-voyage');
+      embarkBtn.addEventListener('click', () => {
+        emit('playSound', { sound: 'qte_success' });
+        const day = this._selectedDay || 1;
+        this.close();
+        emit('levelSelected', { day });
+      });
+
+      document.getElementById('ui-root')?.appendChild(this._el);
       emit('playSound', { sound: 'qte_success' });
-      const day = this._selectedDay || 1;
+
+      // Initialize dossier display for selected day
+      this._selectDay(this._selectedDay || 1);
+    }
+
+    close() {
+      if (!this._isOpen) return;
+      this._isOpen = false;
+      this._el?.remove();
+      this._el = null;
+    }
+
+    dispose() {
       this.close();
-      emit('levelSelected', { day });
-    });
-
-    document.getElementById('ui-root')?.appendChild(this._el);
-    emit('playSound', { sound: 'qte_success' });
-
-    // Initialize dossier display for selected day
-    this._selectLevel(this._selectedDay || 1);
-  }
-
-  _selectLevel(day) {
-    if (!LEVEL_DOSSIERS[day]) return;
-    this._selectedDay = day;
-
-    if (!this._el) return;
-
-    // Update active card selected state
-    this._el.querySelectorAll('.level-card').forEach(card => {
-      const cardDay = parseInt(card.dataset.level, 10);
-      if (cardDay === day) {
-        card.classList.add('selected');
-      } else {
-        card.classList.remove('selected');
-      }
-    });
-
-    // Update right page dossier
-    const data = LEVEL_DOSSIERS[day];
-    const stampEl = this._el.querySelector('#dossier-stamp');
-    const titleEl = this._el.querySelector('#dossier-title');
-    const vesselEl = this._el.querySelector('#dossier-vessel');
-    const weatherEl = this._el.querySelector('#dossier-weather');
-    const budgetEl = this._el.querySelector('#dossier-budget');
-    const hazardEl = this._el.querySelector('#dossier-hazard');
-    const dispatchEl = this._el.querySelector('#dossier-dispatch-text');
-    const docketEl = this._el.querySelector('#dossier-docket-list');
-    const embarkTitleEl = this._el.querySelector('#embark-title');
-    const embarkSubEl = this._el.querySelector('#embark-sub');
-
-    if (stampEl) stampEl.innerText = data.stamp;
-    if (titleEl) titleEl.innerText = data.title;
-    if (vesselEl) vesselEl.innerText = data.vessel;
-    if (weatherEl) weatherEl.innerHTML = data.weather;
-    if (budgetEl) budgetEl.innerText = data.budget;
-    if (hazardEl) hazardEl.innerText = data.hazard;
-    if (dispatchEl) dispatchEl.innerText = `"${data.dispatch}"`;
-    if (embarkTitleEl) embarkTitleEl.innerText = data.embarkTitle;
-    if (embarkSubEl) embarkSubEl.innerText = data.embarkSub;
-
-    if (docketEl) {
-      docketEl.innerHTML = data.docket.map(item => `
-        <li><span class="docket-icon">${item.icon}</span> ${item.text}</li>
-      `).join('');
+      off('openLevelSelector', this._onOpen);
+      off('closeLevelSelector', this._onClose);
     }
   }
-
-  close() {
-    if (!this._isOpen) return;
-    this._isOpen = false;
-    this._el?.remove();
-    this._el = null;
-  }
-
-  dispose() {
-    this.close();
-    off('openLevelSelector', this._onOpen);
-    off('closeLevelSelector', this._onClose);
-  }
-}
 

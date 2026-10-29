@@ -1,5 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+
+globalThis.Audio ??= class MockAudio {
+  constructor() {
+    this.preload = 'auto';
+    this.volume = 1;
+    this.currentTime = 0;
+    this.paused = true;
+    this.src = '';
+  }
+  load() {}
+  async play() {}
+  pause() {}
+  addEventListener() {}
+  removeEventListener() {}
+};
+
 import * as THREE from 'three';
 import { on, emit, clear } from '../src/core/EventBus.js';
 import { SirenManager } from '../src/monsters/SirenManager.js';

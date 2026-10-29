@@ -182,7 +182,9 @@ export class StudioFlyControls {
   _onMouseDown(e) {
     if (!this.enabled) return;
     if (e.button === 2) {
-      // Right-click initiates freelook drag
+      // Right-click initiates freelook drag — prevent other controllers (e.g. OrbitControls) from receiving this
+      e.preventDefault();
+      e.stopPropagation();
       this._isRightDragging = true;
       this._lastMousePos = { x: e.clientX, y: e.clientY };
     } else if (e.button === 1) {
@@ -199,6 +201,7 @@ export class StudioFlyControls {
 
   _onMouseMove(e) {
     if (!this.enabled || !this._isRightDragging) return;
+    e.stopPropagation();
 
     // Extra safety: if no mouse buttons are pressed, stop dragging immediately
     if (e.buttons !== undefined && (e.buttons & 2) === 0) {
@@ -222,6 +225,9 @@ export class StudioFlyControls {
 
   _onMouseUp(e) {
     if (!e || e.button === 2 || (e.buttons !== undefined && (e.buttons & 2) === 0)) {
+      if (e && e.button === 2) {
+        e.stopPropagation();
+      }
       this._isRightDragging = false;
     }
   }

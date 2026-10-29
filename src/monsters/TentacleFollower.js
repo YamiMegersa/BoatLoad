@@ -309,22 +309,25 @@ export class TentacleFollower {
     const shipPos = playerShip.mesh.position;
 
     // Slam impact occurs precisely at the climax of the downward smash (1.05s)
-    if (this._attackTimer >= 1.05 && !this._hasImpacted && !playerShip.isImmune()) {
+    if (this._attackTimer >= 1.05 && !this._hasImpacted && !(playerShip.isDepartureGrace && playerShip.isDepartureGrace())) {
       this._hasImpacted = true;
-      const rockDamage = 20;
-
-      // Deal damage and trigger physical response
-      playerShip.takeDamage(rockDamage, 'kraken_tentacle');
-      playerShip.setImmune(2.0);
+      const rockDamage = 25;
 
       const dx = shipPos.x - this._krakenOrigin.x;
       const dz = shipPos.z - this._krakenOrigin.z;
       const pushDist = Math.hypot(dx, dz) || 0.001;
       const dirX = dx / pushDist;
       const dirZ = dz / pushDist;
+      const contactNormal = new THREE.Vector3(dirX, 0, dirZ);
+      const contactPoint = shipPos.clone().addScaledVector(contactNormal, -1.5);
 
-      // Heavy roll & pitch impulse (rocking violently in water)
-      playerShip.bounceBack(dirX * 8.0, dirZ * 8.0, 'rock');
+      // Deal damage and trigger physical response
+      if (typeof playerShip.applyPhysicalImpact === 'function') {
+        playerShip.applyPhysicalImpact(contactPoint, contactNormal, 9.0, 'kraken_tentacle', rockDamage);
+      } else {
+        playerShip.takeDamage(rockDamage, 'kraken_tentacle', { nx: dirX, nz: dirZ });
+        playerShip.bounceBack(dirX * 8.0, dirZ * 8.0, 'rock');
+      }
 
       // Downward smash impulse
       _V.set(dirX * 25.0, -35.0, dirZ * 25.0);
@@ -332,7 +335,7 @@ export class TentacleFollower {
 
       // Audio & feedback
       emit('obstacleHit', { type: 'rock', damage: rockDamage });
-      emit('playSound', { sound: 'collision' });
+
     }
   }
 

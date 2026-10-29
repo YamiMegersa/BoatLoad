@@ -10,10 +10,16 @@ import { PauseMenu } from './ui/PauseMenu.js';
 import { DockUI } from './ui/DockUI.js';
 import { MainMenuUI } from './ui/MainMenuUI.js';
 import { LevelSelectorUI } from './ui/LevelSelectorUI.js';
+import { DivorcePapersUI } from './ui/DivorcePapersUI.js';
 import { LoadingScreenUI } from './ui/LoadingScreenUI.js';
 import { AnchorCountdownUI } from './ui/AnchorCountdownUI.js';
+import { PreSailChartModal } from './ui/PreSailChartModal.js';
 import { ShopUI } from './ui/ShopUI.js';
 import { ResultsUI } from './ui/ResultsUI.js';
+import { CreditsUI } from './ui/CreditsUI.js';
+import { CommunityHubUI } from './ui/CommunityHubUI.js';
+import { CommunityClient } from './community/CommunityClient.js';
+import { ClearCheckManager } from './community/ClearCheckManager.js';
 import { ParticleSystem } from './environment/ParticleSystem.js';
 import { DamageSystem } from './shipyard/DamageSystem.js';
 import { GodRays } from './environment/GodRays.js';
@@ -38,7 +44,7 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 // Cap pixel ratio to 1.25: renders crisp on high-DPI displays without 4K fillrate collapse
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.info.autoReset = false;
 
 const scene = new THREE.Scene();
@@ -204,20 +210,31 @@ window.addEventListener('keydown', (e) => {
 // reach hard-to-reach states quickly (sink, low water, day jumps).
 if (DEBUG) {
   window.__dev = {
-    sink:     () => emit('playerSunk'),
-    setWater: (n)  => { if (gameState._playerShip) gameState._playerShip.waterLevel = n; },
-    damage:   (n)  => gameState._playerShip?.takeDamage(n, 'dev'),
-    day:      (n)  => { gameState.day = n; },
+    sink: () => emit('playerSunk'),
+    setWater: (n) => { if (gameState._playerShip) gameState._playerShip.waterLevel = n; },
+    damage: (n) => gameState._playerShip?.takeDamage(n, 'dev'),
+    day: (n) => { gameState.day = n; },
+    credits: (list) => gameState.transition(GamePhase.CREDITS, { credits: list }),
   };
-  console.info('[BoatLoad] Debug mode — window.__dev helpers: sink(), setWater(n), damage(n), day(n)');
+  console.info('[BoatLoad] Debug mode — window.__dev helpers: sink(), setWater(n), damage(n), day(n), credits(list)');
 }
 
-// Audio: one global instance. Browsers suspend AudioContexts until the first
-// user gesture, so unlock on the first pointer/key input; M toggles mute.
+// Audio: one global instance. Browsers suspend AudioContexts until a valid
+// user activation gesture (click/pointerup/keydown), so keep trying until running; M toggles mute.
 const audio = new AudioManager();
-const unlockAudio = () => audio.unlock();
-window.addEventListener('pointerdown', unlockAudio, { once: true });
-window.addEventListener('keydown', unlockAudio, { once: true });
+const unlockAudio = () => {
+  audio.unlock();
+  if (audio.isUnlocked()) {
+    window.removeEventListener('click', unlockAudio);
+    window.removeEventListener('pointerdown', unlockAudio);
+    window.removeEventListener('pointerup', unlockAudio);
+    window.removeEventListener('keydown', unlockAudio);
+  }
+};
+window.addEventListener('click', unlockAudio);
+window.addEventListener('pointerdown', unlockAudio);
+window.addEventListener('pointerup', unlockAudio);
+window.addEventListener('keydown', unlockAudio);
 window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyM' && !e.ctrlKey && !e.metaKey && !e.shiftKey) audio.toggleMute();
 });
@@ -229,10 +246,15 @@ const hud = new HUD();
 const dialogue = new DialogueBox();
 const pauseMenu = new PauseMenu();
 const levelSelectorUI = new LevelSelectorUI();
+const divorcePapersUI = new DivorcePapersUI();
 const loadingScreenUI = new LoadingScreenUI();
 const anchorCountdownUI = new AnchorCountdownUI();
+const preSailChartModal = new PreSailChartModal();
 const shopUI = new ShopUI(gameState);
 const resultsUI = new ResultsUI(gameState);
+const communityHubUI = new CommunityHubUI();
+const creditsUI = new CreditsUI(gameState);
+window.creditsUI = creditsUI;
 const particles = new ParticleSystem(scene);
 
 const directorMode = new DirectorMode({
@@ -379,7 +401,7 @@ function tick() {
   // Re-apply camera FOV and far clipping plane based on Settings
   settingsManager.applyCamera(activeCam);
 
-  const isMainMenu = gameState.currentPhase === GamePhase.MAIN_MENU;
+  const isMainMenu = gameState.currentPhase === GamePhase.MAIN_MENU || gameState.currentPhase === GamePhase.CREDITS;
   const paperSetting = settingsManager.get('paperShader');
   let usePaperShader = false;
   if (paperSetting === 'off') {
@@ -445,6 +467,7 @@ demoUI.innerHTML = `
     <button id="btn-shipyard" style="flex:1; padding: 8px; cursor: pointer;">Shipyard</button>
     <button id="btn-obstacle" style="flex:1; padding: 8px; cursor: pointer;">Sailing</button>
     <button id="btn-editor" style="flex:1; padding: 8px; cursor: pointer; background: #474b6b; color: white; border: 1px solid #556;">Editor</button>
+    <button id="btn-credits" style="flex:1; padding: 8px; cursor: pointer; background: #854d0e; color: white; border: 1px solid #eab308;">Credits</button>
     <button id="btn-mesh-borders" style="flex:1; padding: 8px; cursor: pointer; background: #059669; color: white; border: 1px solid #10b981;" title="Toggle Mesh Borders (Ctrl+Shift+M)">Borders</button>
   </div>
 `;
@@ -489,6 +512,11 @@ on('buildError', (d) => {
   showNotice(`<span class="pixel-icon icon-powder-keg size-16"></span> ${d.message}`);
 });
 
+on('budgetExceeded', (d) => {
+  logEvent(`[Shipyard] Budget exceeded by ${d.deficit} Doubloons`);
+  showNotice(`<span class="pixel-icon icon-doubloon size-16"></span> ⚠️ OVER BUDGET: Exceeded customer budget by ${d.deficit} Doubloons! Extra repairs will come from your purse.`, 6000);
+});
+
 // ---------------------------------------------------------------------------
 // Boot
 // ---------------------------------------------------------------------------
@@ -497,10 +525,11 @@ const MAX_DAY = 7;
 
 async function boot() {
   try {
-    // Start day: ?debug&day=N jumps straight to a day (dev aid), else day 1.
-    const startDay = DEBUG
-      ? Math.max(1, Math.min(MAX_DAY, parseInt(new URLSearchParams(location.search).get('day')) || 1))
-      : 1;
+    // Start day: ?debug&day=N jumps straight to a day (dev aid), else day 0 (opening prologue).
+    const parsedQueryDay = parseInt(new URLSearchParams(location.search).get('day'), 10);
+    const startDay = DEBUG && !Number.isNaN(parsedQueryDay)
+      ? Math.max(0, Math.min(MAX_DAY, parsedQueryDay))
+      : 0;
 
     // The active day's content. Reloaded via syncLevel() whenever gameState.day changes.
     let level = await LevelConfig.load(startDay);
@@ -561,9 +590,9 @@ async function boot() {
       return { shipDef: level.shipDef, levelCfg: level.levelCfg, fishModels: level.fishModels };
     }
 
-    function editorPayload() {
+    function editorPayload(customCfg = null) {
       return {
-        levelCfg: gameState._levelCfg || level.levelCfg,
+        levelCfg: customCfg || LevelConfig.createEmptyLevel(),
         rockModels: level.rockModels, pickupModels: level.pickupModels,
         seaweedModels: level.seaweedModels, waveModels: level.waveModels,
         islandModels: level.islandModels,
@@ -579,6 +608,10 @@ async function boot() {
     document.getElementById('btn-dock').onclick = async () => {
       logEvent('Transitioning to Dock...');
       await syncLevel();
+      if (gameState.currentPhase === GamePhase.EDITOR) {
+        emit('editorRequestPlay');
+        return;
+      }
       const activeShipId = gameState._levelCfg?.ship || level.levelCfg?.ship || DEFAULT_SHIP_ID;
       const activeShipDef = LevelConfig.getShipDef(activeShipId);
       gameState.transition(GamePhase.DOCK, { shipDef: activeShipDef, levelCfg: gameState._levelCfg || level.levelCfg, fishModels: level.fishModels });
@@ -593,6 +626,10 @@ async function boot() {
     document.getElementById('btn-obstacle').onclick = async () => {
       logEvent('Transitioning to Sailing...');
       await syncLevel();
+      if (gameState.currentPhase === GamePhase.EDITOR) {
+        emit('editorRequestPlay');
+        return;
+      }
       const activeShipId = gameState._levelCfg?.ship || level.levelCfg?.ship || DEFAULT_SHIP_ID;
       const activeShipDef = LevelConfig.getShipDef(activeShipId);
       const profile = ShipRegistry.get(activeShipId);
@@ -614,20 +651,112 @@ async function boot() {
       await syncLevel();
       gameState.transition(GamePhase.EDITOR, editorPayload());
     };
+    const btnCredits = document.getElementById('btn-credits');
+    if (btnCredits) {
+      btnCredits.onclick = () => {
+        logEvent('Transitioning to Credits...');
+        gameState.transition(GamePhase.CREDITS);
+      };
+    }
     const btnBorders = document.getElementById('btn-mesh-borders');
     if (btnBorders) {
       btnBorders.onclick = () => meshBorderOverlay.toggle();
     }
 
     // Listen for UI events
-    on('phaseChanged',       d => logEvent(`[Phase] ${d.phase}`));
-    on('obstacleHit',        d => logEvent(`[Obstacle] hit by ${d.type} -${d.damage} HP`));
-    on('playerDamaged',      () => logEvent(`[Collision] Hull breached!`));
-    on('playerSunk',         () => logEvent('[SUNK] Game Over'));
+    on('phaseChanged', (d) => {
+      logEvent(`[Phase] ${d.phase}`);
+      if (d?.phase === GamePhase.RESULTS && (gameState._activeCommunityCourseCode || gameState._isCommunityCourse)) {
+        const code = gameState._activeCommunityCourseCode || gameState._activeCommunityCourse?.courseCode || gameState._activeCommunityCourse?.course_code;
+        if (code && !d.opts?.failed) {
+          const timeElapsed = Math.round(performance.now() - (gameState._communityVoyageStartTime || performance.now()));
+          CommunityClient.recordAttempt(code, {
+            cleared: true,
+            timeMs: timeElapsed
+          });
+        }
+      }
+    });
+    on('obstacleHit', d => logEvent(`[Obstacle] hit by ${d.type} -${d.damage} HP`));
+    on('playerDamaged', () => logEvent(`[Collision] Hull breached!`));
+    on('playerSunk', () => logEvent('[SUNK] Game Over'));
     on('voyageLost', async () => {
+      if (gameState._activeCommunityCourseCode || gameState._isCommunityCourse) {
+        const course = gameState._activeCommunityCourse;
+        const courseCode = gameState._activeCommunityCourseCode || course?.courseCode || course?.course_code;
+        if (courseCode) {
+          CommunityClient.recordAttempt(courseCode, {
+            cleared: false
+          });
+        }
+        setPaused(false);
+        gameState._sinkSnapshot = null;
+        showNotice('Vessel lost at sea — community voyage failed.', 5000);
+        await gameState.transition(GamePhase.RESULTS, {
+          isCommunity: true,
+          failed: true,
+          passed: false,
+          course: course,
+          timeElapsed: gameState._communityVoyageStartTime ? Math.round(performance.now() - gameState._communityVoyageStartTime) : null
+        });
+        return;
+      }
+      if (gameState._isEditorPlay) {
+        gameState._isEditorPlay = false;
+        gameState._isClearCheckRepair = false;
+        setPaused(false);
+        showNotice('Vessel sank — course verification failed. Returning to Level Editor.', 5000);
+        emit('showLoading', { title: 'Returning to Level Editor', message: 'Returning to chart drafting table...', progress: 0.2 });
+        await gameState.transition(GamePhase.EDITOR, editorPayload(gameState._editorPlayLevelCfg));
+        return;
+      }
       setPaused(false);
-      showNotice('Voyage lost — repair the wreck before setting sail again.', 6000);
-      await gameState.transition(GamePhase.SHIPYARD, shipyardPayload());
+      showNotice('<span class="pixel-icon icon-skull size-16"></span> Vessel sunk! Resetting vessel and contract with original budget...', 5000);
+      gameState._sinkSnapshot = null;
+      gameState._grid = null;
+      const baseBudget = gameState._levelCfg?.budget !== undefined ? gameState._levelCfg.budget : (level.levelCfg?.budget !== undefined ? level.levelCfg.budget : 200);
+      gameState.initContract(gameState.day, baseBudget);
+      await gameState.transition(GamePhase.SHIPYARD, { ...shipyardPayload(), forceNew: true });
+    });
+
+    on('communityPlayCourseRequested', async ({ course }) => {
+      emit('showLoading', { title: 'Shipyard: Outfitting', message: `Entering drydock for "${course.title}"...`, progress: 0.1 });
+      const activeShipId = course.shipType || DEFAULT_SHIP_ID;
+      const activeShipDef = LevelConfig.getShipDef(activeShipId);
+
+      const level = await LevelConfig.load(1);
+      const customLevelCfg = course.levelData || level.levelCfg;
+
+      gameState._isCommunityCourse = true;
+      gameState._activeCommunityCourse = course;
+      gameState._activeCommunityCourseCode = course.courseCode || course.course_code || course.id;
+      gameState._communityVoyageStartTime = null;
+      gameState._sinkSnapshot = null;
+      gameState._levelCfg = customLevelCfg;
+
+      const baseBudget = customLevelCfg.budget !== undefined ? customLevelCfg.budget : 200;
+      gameState.initContract(1, baseBudget);
+
+      gameState.transition(GamePhase.SHIPYARD, {
+        shipDef: activeShipDef,
+        levelCfg: customLevelCfg,
+        fishModels: level.fishModels,
+        isCommunity: true,
+        forceNew: true
+      });
+    });
+
+    on('returnToCommunityMenu', async () => {
+      setPaused(false);
+      gameState._isCommunityCourse = false;
+      gameState._activeCommunityCourseCode = null;
+      gameState._activeCommunityCourse = null;
+      gameState._communityVoyageStartTime = null;
+      gameState._sinkSnapshot = null;
+      emit('showLoading', { title: 'Returning to Port', message: 'Entering Community Harbor...', progress: 0.2 });
+      await gameState.transition(GamePhase.MAIN_MENU, { ...shipyardPayload() });
+      emit('uiMount', { screen: 'community' });
+      emit('hideLoading');
     });
 
     on('levelSelected', async ({ day }) => {
@@ -641,54 +770,63 @@ async function boot() {
     on('startSailing', async () => {
       emit('showLoading', { title: 'Setting Sail', message: 'Rigging canvas & casting off lines...', progress: 0.1 });
       await syncLevel();
-      const activeShipId = gameState._levelCfg?.ship || level.levelCfg?.ship || DEFAULT_SHIP_ID;
+      const currentLevelCfg = gameState._isEditorPlay
+        ? (gameState._editorPlayLevelCfg || gameState._levelCfg)
+        : (gameState._levelCfg || level.levelCfg);
+      const activeShipId = currentLevelCfg?.ship || DEFAULT_SHIP_ID;
       const activeShipDef = LevelConfig.getShipDef(activeShipId);
       const profile = ShipRegistry.get(activeShipId);
       let hp = profile.hullHP;
       if (gameState._grid) {
         hp = Math.round((DamageSystem.getSummary(gameState._grid).integrityPct / 100) * profile.hullHP);
       }
+      const isCommunity = Boolean(gameState._isCommunityCourse || gameState._activeCommunityCourseCode);
+      if (isCommunity && !gameState._communityVoyageStartTime) {
+        gameState._communityVoyageStartTime = performance.now();
+      }
+      if (!gameState._voyageStartTime) {
+        gameState._voyageStartTime = performance.now();
+      }
       gameState.transition(GamePhase.OBSTACLE, {
         shipDef: activeShipDef,
-        levelCfg: gameState._levelCfg || level.levelCfg,
-        shipStats: { hullHP: hp },
+        levelCfg: currentLevelCfg,
+        shipStats: { hullHP: hp, profile },
         rockModels: level.rockModels, fishModels: level.fishModels, pickupModels: level.pickupModels,
         seaweedModels: level.seaweedModels, waveModels: level.waveModels, islandModels: level.islandModels,
-        sirenModel: level.sirenModel, krakenModel: level.krakenModel
+        sirenModel: level.sirenModel, krakenModel: level.krakenModel,
+        isEditorPlay: gameState._isEditorPlay,
+        isCommunity: isCommunity,
+        course: gameState._activeCommunityCourse
       });
     });
 
     on('editorRequestPlay', (d) => {
       if (gameState.currentPhase === GamePhase.EDITOR && gameState._editorSystem) {
-        emit('showLoading', { title: 'Test Voyage', message: 'Launching vessel into custom map...', progress: 0.1 });
         const customLevelCfg = gameState._editorSystem.getPlayableConfig();
         const activeShipId = customLevelCfg.ship || DEFAULT_SHIP_ID;
         const activeShipDef = LevelConfig.getShipDef(activeShipId);
         const profile = ShipRegistry.get(activeShipId);
 
-        if (d && d.mode === 'dock') {
-          logEvent(`Docking custom level with vessel [${profile.name}]...`);
-          gameState.transition(GamePhase.DOCK, {
-            shipDef: activeShipDef,
-            levelCfg: customLevelCfg,
-            fishModels: level.fishModels
-          });
-        } else {
-          logEvent(`Playing Custom Level from Editor with vessel [${profile.name}]...`);
-          let hp = profile.hullHP;
-          if (gameState._grid) {
-            hp = Math.round((DamageSystem.getSummary(gameState._grid).integrityPct / 100) * profile.hullHP);
-          }
+        gameState._isEditorPlay = true;
+        gameState._editorPlayLevelCfg = customLevelCfg;
 
-          gameState.transition(GamePhase.OBSTACLE, {
-            shipDef: activeShipDef,
-            levelCfg: customLevelCfg,
-            shipStats: { hullHP: hp, profile },
-            rockModels: level.rockModels, fishModels: level.fishModels, pickupModels: level.pickupModels,
-            seaweedModels: level.seaweedModels, waveModels: level.waveModels, islandModels: level.islandModels,
-            sirenModel: level.sirenModel, krakenModel: level.krakenModel
-          });
+        // Ensure clear check is active for verification
+        if (!ClearCheckManager._activeCheck) {
+          ClearCheckManager.startClearCheck(customLevelCfg);
         }
+
+        // Every play/test path from the editor routes to the Shipyard first with the allocated budget
+        emit('showLoading', { title: 'Shipyard: Hull Repair', message: 'Routing to drydock shipyard to repair vessel with allocated budget before sailing...', progress: 0.1 });
+        logEvent(`Editor Play -> Shipyard: Vessel [${profile.name}] with repair budget [$${customLevelCfg.budget}]...`);
+        gameState._isClearCheckRepair = true;
+        gameState.transition(GamePhase.SHIPYARD, {
+          shipDef: activeShipDef,
+          levelCfg: customLevelCfg,
+          fishModels: level.fishModels,
+          isEditorPlay: true,
+          isClearCheck: true,
+          forceNew: true
+        });
       }
     });
 
@@ -708,53 +846,76 @@ async function boot() {
     on('editorSetPaperWobble', d => paperFilter.setWobbleIntensity(d.intensity));
 
     on('requestPhaseChange', async (opts) => {
-      const phase = opts?.phase;
-      if (opts?.day) {
-        gameState.day = opts.day;
-      }
-      if (phase === GamePhase.MAIN_MENU) {
-        logEvent('Main Menu requested...');
-        emit('showLoading', { title: 'Returning to Port', message: 'Returning to harbor tavern...', progress: 0.1 });
-        gameState.transition(GamePhase.MAIN_MENU);
-      } else if (phase === GamePhase.DOCK) {
-        logEvent('Setting Sail -> Arriving at Dock...');
-        emit('showLoading', { title: 'Mooring at Harbor', message: 'Arriving at harbor dock...', progress: 0.1 });
-        await syncLevel();
-        const activeShipId = opts?.shipDef?.id || gameState._levelCfg?.ship || level.levelCfg?.ship || DEFAULT_SHIP_ID;
-        const activeShipDef = opts?.shipDef || LevelConfig.getShipDef(activeShipId);
-        const activeLevelCfg = opts?.levelCfg || gameState._levelCfg || level.levelCfg;
-        gameState.transition(GamePhase.DOCK, { shipDef: activeShipDef, levelCfg: activeLevelCfg, fishModels: level.fishModels, openShop: opts?.openShop });
-      } else if (phase === GamePhase.SHIPYARD) {
-        logEvent('Entering Shipyard...');
-        emit('showLoading', { title: 'Entering Shipyard', message: 'Entering outfitting berth & inspecting hull...', progress: 0.1 });
-        await syncLevel();
-        const activeShipId = gameState._levelCfg?.ship || level.levelCfg?.ship || DEFAULT_SHIP_ID;
-        const activeShipDef = LevelConfig.getShipDef(activeShipId);
-        gameState.transition(GamePhase.SHIPYARD, { shipDef: activeShipDef, levelCfg: gameState._levelCfg || level.levelCfg, fishModels: level.fishModels });
-      } else if (phase === GamePhase.OBSTACLE) {
-        logEvent('Setting Sail -> Heading to High Seas...');
-        emit('showLoading', { title: 'Setting Sail', message: 'Heading out to open waters...', progress: 0.1 });
-        await syncLevel();
-        const activeShipId = gameState._levelCfg?.ship || level.levelCfg?.ship || DEFAULT_SHIP_ID;
-        const activeShipDef = LevelConfig.getShipDef(activeShipId);
-        const profile = ShipRegistry.get(activeShipId);
-        let hp = profile.hullHP;
-        if (gameState._grid) {
-          hp = Math.round((DamageSystem.getSummary(gameState._grid).integrityPct / 100) * profile.hullHP);
+      try {
+        const phase = opts?.phase;
+        if (opts?.day !== undefined) {
+          gameState.day = opts.day;
         }
-        gameState.transition(GamePhase.OBSTACLE, {
-          shipDef: activeShipDef,
-          levelCfg: gameState._levelCfg || level.levelCfg,
-          shipStats: { hullHP: hp },
-          rockModels: level.rockModels, fishModels: level.fishModels, pickupModels: level.pickupModels,
-          seaweedModels: level.seaweedModels, waveModels: level.waveModels, islandModels: level.islandModels,
-          sirenModel: level.sirenModel, krakenModel: level.krakenModel
-        });
-      } else if (phase === GamePhase.EDITOR) {
-        logEvent('Opening Map Maker / Level Editor...');
-        emit('showLoading', { title: 'Level Editor', message: 'Opening map maker...', progress: 0.1 });
-        await syncLevel();
-        gameState.transition(GamePhase.EDITOR, editorPayload());
+        if (phase === GamePhase.MAIN_MENU) {
+          if (gameState.currentPhase === GamePhase.MAIN_MENU) {
+            emit('hideLoading');
+            return;
+          }
+          logEvent('Main Menu requested...');
+          emit('showLoading', { title: 'Returning to Port', message: 'Returning to harbor tavern...', progress: 0.1 });
+          await gameState.transition(GamePhase.MAIN_MENU);
+        } else if (phase === GamePhase.DOCK) {
+          if (gameState._isClearCheckRepair || gameState.currentPhase === GamePhase.EDITOR) {
+            if (gameState.currentPhase === GamePhase.EDITOR) {
+              emit('editorRequestPlay');
+            }
+            return;
+          }
+          logEvent('Setting Sail -> Arriving at Dock...');
+          emit('showLoading', { title: 'Mooring at Harbor', message: 'Arriving at harbor dock...', progress: 0.1 });
+          await syncLevel();
+          const activeShipId = opts?.shipDef?.id || gameState._levelCfg?.ship || level.levelCfg?.ship || DEFAULT_SHIP_ID;
+          const activeShipDef = opts?.shipDef || LevelConfig.getShipDef(activeShipId);
+          const activeLevelCfg = opts?.levelCfg || gameState._levelCfg || level.levelCfg;
+          await gameState.transition(GamePhase.DOCK, { shipDef: activeShipDef, levelCfg: activeLevelCfg, fishModels: level.fishModels, openShop: opts?.openShop, day: opts?.day }, true);
+        } else if (phase === GamePhase.SHIPYARD) {
+          logEvent('Entering Shipyard...');
+          emit('showLoading', { title: 'Entering Shipyard', message: 'Entering outfitting berth & inspecting hull...', progress: 0.1 });
+          await syncLevel();
+          const activeShipId = gameState._levelCfg?.ship || level.levelCfg?.ship || DEFAULT_SHIP_ID;
+          const activeShipDef = LevelConfig.getShipDef(activeShipId);
+          await gameState.transition(GamePhase.SHIPYARD, { shipDef: activeShipDef, levelCfg: gameState._levelCfg || level.levelCfg, fishModels: level.fishModels });
+        } else if (phase === GamePhase.OBSTACLE) {
+          if (gameState.currentPhase === GamePhase.EDITOR) {
+            emit('editorRequestPlay');
+            return;
+          }
+          logEvent('Setting Sail -> Heading to High Seas...');
+          emit('showLoading', { title: 'Setting Sail', message: 'Heading out to open waters...', progress: 0.1 });
+          await syncLevel();
+          const activeShipId = gameState._levelCfg?.ship || level.levelCfg?.ship || DEFAULT_SHIP_ID;
+          const activeShipDef = LevelConfig.getShipDef(activeShipId);
+          const profile = ShipRegistry.get(activeShipId);
+          let hp = profile.hullHP;
+          if (gameState._grid) {
+            hp = Math.round((DamageSystem.getSummary(gameState._grid).integrityPct / 100) * profile.hullHP);
+          }
+          await gameState.transition(GamePhase.OBSTACLE, {
+            shipDef: activeShipDef,
+            levelCfg: gameState._levelCfg || level.levelCfg,
+            shipStats: { hullHP: hp },
+            rockModels: level.rockModels, fishModels: level.fishModels, pickupModels: level.pickupModels,
+            seaweedModels: level.seaweedModels, waveModels: level.waveModels, islandModels: level.islandModels,
+            sirenModel: level.sirenModel, krakenModel: level.krakenModel
+          });
+        } else if (phase === GamePhase.EDITOR) {
+          logEvent('Opening Map Maker / Level Editor...');
+          emit('showLoading', { title: 'Level Editor', message: 'Opening map maker...', progress: 0.1 });
+          await syncLevel();
+          await gameState.transition(GamePhase.EDITOR, editorPayload(opts?.levelCfg));
+        } else if (phase === GamePhase.CREDITS) {
+          logEvent('Unfurling Credits...');
+          emit('showLoading', { title: 'Voyage Concluded', message: 'Unfurling the Grand Honour Roll & Credits...', progress: 0.1 });
+          await gameState.transition(GamePhase.CREDITS, opts);
+        }
+      } catch (err) {
+        console.error('[main] requestPhaseChange error:', err);
+        emit('hideLoading');
       }
     });
 
@@ -771,7 +932,7 @@ async function boot() {
     }
 
     function togglePause() {
-      if (gameState.currentPhase === GamePhase.MAIN_MENU || directorMode.isActive) return;
+      if (gameState.currentPhase === GamePhase.MAIN_MENU || gameState.currentPhase === GamePhase.CREDITS || directorMode.isActive) return;
       setPaused(!isPaused);
     }
 
@@ -798,12 +959,27 @@ async function boot() {
 
     on('gotoShipyard', async () => {
       setPaused(false);
+      if (gameState._isEditorPlay) {
+        gameState._isEditorPlay = false;
+        await gameState.transition(GamePhase.EDITOR, editorPayload(gameState._editorPlayLevelCfg));
+        return;
+      }
+      if (gameState._isCommunityCourse || gameState._activeCommunityCourseCode) {
+        emit('returnToCommunityMenu');
+        return;
+      }
       await syncLevel();
       gameState.transition(GamePhase.SHIPYARD, shipyardPayload());
     });
 
     on('gotoTitle', () => {
       setPaused(false);
+      gameState._isEditorPlay = false;
+      gameState._isCommunityCourse = false;
+      gameState._activeCommunityCourseCode = null;
+      gameState._activeCommunityCourse = null;
+      gameState._communityVoyageStartTime = null;
+      gameState._sinkSnapshot = null;
       gameState.transition(GamePhase.MAIN_MENU);
     });
 

@@ -2,13 +2,13 @@
    BoatLoad — Director Mode Cinema Deck & Film Rig Styles (Pixel-Art Board Edition)
    ========================================================================== */
 
-/* Floating Launch Plaque Button */
+/* Floating Launch Plaque Button - Hidden: Director Mode is accessed via Pause Menu */
 #director-launch-btn {
+  display: none !important;
   position: fixed;
   top: 14px;
   left: 14px;
   z-index: 1000;
-  display: flex;
   align-items: center;
   gap: 8px;
   padding: 6px 14px;
@@ -24,7 +24,7 @@
   cursor: pointer;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 230, 140, 0.3);
   transition: all 0.15s ease;
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 #director-launch-btn:hover {

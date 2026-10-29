@@ -37,6 +37,7 @@ export class EditorSystem {
     
     // Config
     this._levelCfg = null;
+    this._publishMetadata = null;
     this._customShipDamage = null;
     this._destructionWorkshop = new BoatDestructionWorkshop();
     this._damageUI = new EditorDamageUI();
@@ -146,6 +147,27 @@ export class EditorSystem {
         else if (this._scene) this._scene.remove(obs.mesh);
       }
       this._placedObstacles = [];
+      if (this._levelCfg) {
+        this._levelCfg.obstacles = [];
+        this._levelCfg.sirens = [];
+      }
+
+      // Also remove any orphan siren meshes in editorGroup or scene
+      const cleanupSirens = (parent) => {
+        if (!parent) return;
+        const toRemove = [];
+        parent.traverse(child => {
+          if (child.userData?.isSiren || child.userData?.obstacleType === 'siren' || child.name === 'siren_obstacle' || child.name === 'siren_instance') {
+            toRemove.push(child);
+          }
+        });
+        for (const c of toRemove) {
+          if (c.parent) c.parent.remove(c);
+        }
+      };
+      cleanupSirens(this._editorGroup);
+      cleanupSirens(this._scene);
+
       if (this._voxelTerrain) {
         this._voxelTerrain.dispose();
         this._voxelTerrain = new VoxelTerrain(this._editorGroup || this._scene);
@@ -159,6 +181,14 @@ export class EditorSystem {
       this._levelCfg = cfg;
       this._budget = cfg.budget !== undefined ? cfg.budget : 300;
       this._customShipDamage = cfg.damage ? JSON.parse(JSON.stringify(cfg.damage)) : null;
+      if (cfg.title || cfg.metadata?.title) {
+        this._publishMetadata = {
+          title: cfg.metadata?.title || cfg.title || 'Custom Sea Passage',
+          description: cfg.metadata?.description || cfg.description || '',
+          tags: cfg.metadata?.tags || cfg.tags || ['adventure'],
+          budget: cfg.budget !== undefined ? cfg.budget : 300
+        };
+      }
 
       // Clear existing placed obstacles
       for (const obs of this._placedObstacles) {
@@ -469,6 +499,7 @@ export class EditorSystem {
       if (this._editorGroup) this._editorGroup.visible = true;
       if (window.gameState?._orbitControls) {
         window.gameState._orbitControls.enabled = true;
+        window.gameState._orbitControls.update();
       }
       if (this._camera && this._savedEditorCameraPos.lengthSq() > 0) {
         this._camera.position.copy(this._savedEditorCameraPos);
@@ -486,6 +517,8 @@ export class EditorSystem {
 
     on('workshopSelectBrush', ({ brush }) => this._destructionWorkshop?.setBrush(brush));
     on('workshopSelectSize', ({ size }) => this._destructionWorkshop?.setBrushSize(size));
+    on('workshopRotateBrush', () => this._destructionWorkshop?.rotate());
+    on('workshopTogglePitch', () => this._destructionWorkshop?.togglePitch());
     on('workshopToggleMirror', () => this._destructionWorkshop?.toggleMirror());
     on('workshopToggleOutlines', () => this._destructionWorkshop?.toggleOutlines());
     on('workshopUndo', () => this._destructionWorkshop?.undo());
@@ -552,6 +585,34 @@ export class EditorSystem {
     this._islandModels = islandModels;
     this._sirenModel = sirenModel;
     this._krakenModel = krakenModel;
+
+    // Restore notes and publish metadata
+    if (this._levelCfg?.metadata || this._levelCfg?.title) {
+      this._publishMetadata = {
+        title: this._levelCfg.metadata?.title || this._levelCfg.title || 'Custom Sea Passage',
+        description: this._levelCfg.metadata?.description || this._levelCfg.description || '',
+        tags: this._levelCfg.metadata?.tags || this._levelCfg.tags || ['adventure'],
+        budget: this._budget
+      };
+    } else {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          const raw = localStorage.getItem('boatload_course_publish_draft');
+          if (raw) {
+            this._publishMetadata = JSON.parse(raw);
+            if (this._levelCfg) {
+              this._levelCfg.title = this._publishMetadata.title;
+              this._levelCfg.description = this._publishMetadata.description;
+              this._levelCfg.tags = this._publishMetadata.tags;
+              if (this._publishMetadata.budget !== undefined) {
+                this._levelCfg.budget = this._publishMetadata.budget;
+                this._budget = this._publishMetadata.budget;
+              }
+            }
+          }
+        }
+      } catch {}
+    }
 
     // Dedicated isolated root group for all editor-specific entities
     this._editorGroup = new THREE.Group();
@@ -915,6 +976,7 @@ export class EditorSystem {
 
   _onKeyDown(event) {
     if (this._destructionWorkshop?.isOpen) return;
+    if (event.target?.tagName === 'INPUT' || event.target?.tagName === 'TEXTAREA' || event.target?.tagName === 'SELECT' || event.target?.isContentEditable) return;
     const isPlaceTool = this._activeTool === 'place' && this._activeType;
     const isTerrainTool = this._activeTool === 'terrain_raise' || this._activeTool === 'terrain_lower';
 
@@ -983,16 +1045,10 @@ export class EditorSystem {
     }
 
     if (isTerrainTool) {
-      if (this._voxelTerrain) {
-        const type = this._activeTool === 'terrain_raise' ? 'raise' : 'lower';
-        const radius = Math.max(1, Math.floor(this._currentScale * 2));
-        const previewTargetY = (this._isPointerDown && this._strokeTargetY !== null)
-          ? this._strokeTargetY
-          : (type === 'raise' ? this._intersection.y : Math.max(0, this._intersection.y - 1));
-        this._voxelTerrain.updatePreview(this._intersection.x, this._intersection.z, radius, type, previewTargetY, this._brushShape);
-      }
-      
       if (this._isPointerDown) {
+        // While actively drawing land, hide the wireframe preview mesh to prevent visual obstruction & avoid 2000-matrix updates
+        if (this._voxelTerrain) this._voxelTerrain.hidePreview();
+
         if (this._strokeAnchor) {
           const curDist = this._strokeAnchor.distanceTo(new THREE.Vector2(this._intersection.x, this._intersection.z));
           if (curDist > 1.0) {
@@ -1001,7 +1057,15 @@ export class EditorSystem {
             this._strokeAnchor.set(this._intersection.x, this._intersection.z);
           }
         }
-        this._applyTerraform(this._intersection);
+        // Defer meshing to the animation frame for a buttery 60 FPS drawing experience
+        this._applyTerraform(this._intersection, false);
+      } else {
+        if (this._voxelTerrain) {
+          const type = this._activeTool === 'terrain_raise' ? 'raise' : 'lower';
+          const radius = Math.max(1, Math.floor(this._currentScale * 2));
+          const previewTargetY = type === 'raise' ? this._intersection.y : Math.max(0, this._intersection.y - 1);
+          this._voxelTerrain.updatePreview(this._intersection.x, this._intersection.z, radius, type, previewTargetY, this._brushShape);
+        }
       }
     } else {
       if (this._voxelTerrain) this._voxelTerrain.hidePreview();
@@ -1015,10 +1079,20 @@ export class EditorSystem {
       this._lastTerraformPoint = null;
       this._strokeTargetY = null;
       this._strokeHoldTimer = 0;
+      if (this._voxelTerrain) {
+        this._voxelTerrain.updateDirtyMeshes();
+        const isTerrainTool = this._activeTool === 'terrain_raise' || this._activeTool === 'terrain_lower';
+        if (isTerrainTool) {
+          const type = this._activeTool === 'terrain_raise' ? 'raise' : 'lower';
+          const radius = Math.max(1, Math.floor(this._currentScale * 2));
+          const previewTargetY = type === 'raise' ? this._intersection.y : Math.max(0, this._intersection.y - 1);
+          this._voxelTerrain.updatePreview(this._intersection.x, this._intersection.z, radius, type, previewTargetY, this._brushShape);
+        }
+      }
     }
   }
 
-  _applyTerraform(hitPoint) {
+  _applyTerraform(hitPoint, immediateMeshUpdate = false) {
     if (this._voxelTerrain) {
       const type = this._activeTool === 'terrain_raise' ? 'raise' : 'lower';
       const radius = Math.max(1, Math.floor(this._currentScale * 2));
@@ -1030,10 +1104,10 @@ export class EditorSystem {
 
       if (this._lastTerraformPoint) {
         const dist = this._lastTerraformPoint.distanceTo(currentPt);
-        const stepDist = Math.max(0.8, radius / 2);
+        const stepDist = Math.max(1.0, radius * 0.6);
         
         if (dist > stepDist) {
-          const steps = Math.ceil(dist / stepDist);
+          const steps = Math.min(30, Math.ceil(dist / stepDist));
           for (let i = 1; i <= steps; i++) {
             const lerped = this._lastTerraformPoint.clone().lerp(currentPt, i / steps);
             this._voxelTerrain.applyBrush(lerped.x, lerped.y, radius, type, targetY, this._brushShape);
@@ -1046,7 +1120,9 @@ export class EditorSystem {
       }
       
       this._lastTerraformPoint = currentPt;
-      this._voxelTerrain.updateDirtyMeshes();
+      if (immediateMeshUpdate) {
+        this._voxelTerrain.updateDirtyMeshes();
+      }
     }
   }
 
@@ -1070,7 +1146,8 @@ export class EditorSystem {
       }
       if (!this._strokeAnchor) this._strokeAnchor = new THREE.Vector2();
       this._strokeAnchor.set(this._intersection.x, this._intersection.z);
-      this._applyTerraform(this._intersection);
+      this._voxelTerrain.hidePreview();
+      this._applyTerraform(this._intersection, true);
       return;
     }
 
@@ -1209,6 +1286,11 @@ export class EditorSystem {
     );
     obs.mesh.rotation.y = rotation;
     obs.rotation = rotation;
+    if (type === 'siren') {
+      obs.mesh.name = 'siren_obstacle';
+      obs.mesh.userData.isSiren = true;
+      obs.mesh.userData.obstacleType = 'siren';
+    }
     if (this._editorGroup) this._editorGroup.add(obs.mesh);
     else if (this._scene) this._scene.add(obs.mesh);
     this._placedObstacles.push(obs);
@@ -1231,6 +1313,15 @@ export class EditorSystem {
 
     return {
       ...this._levelCfg,
+      title: this._publishMetadata?.title || this._levelCfg?.title || this._levelCfg?.metadata?.title || 'Custom Sea Passage',
+      description: this._publishMetadata?.description || this._levelCfg?.description || this._levelCfg?.metadata?.description || '',
+      tags: this._publishMetadata?.tags || this._levelCfg?.tags || this._levelCfg?.metadata?.tags || ['adventure'],
+      metadata: {
+        title: this._publishMetadata?.title || this._levelCfg?.title || this._levelCfg?.metadata?.title || 'Custom Sea Passage',
+        description: this._publishMetadata?.description || this._levelCfg?.description || this._levelCfg?.metadata?.description || '',
+        tags: this._publishMetadata?.tags || this._levelCfg?.tags || this._levelCfg?.metadata?.tags || ['adventure'],
+        budget: this._budget !== undefined ? this._budget : (this._levelCfg?.budget !== undefined ? this._levelCfg.budget : 300)
+      },
       ship: this._selectedShipId || this._levelCfg?.ship || DEFAULT_SHIP_ID,
       budget: this._budget !== undefined ? this._budget : (this._levelCfg?.budget !== undefined ? this._levelCfg.budget : 300),
       worldSize: this._levelCfg?.worldSize || 200,
@@ -1253,7 +1344,7 @@ export class EditorSystem {
             z: Math.round(obs.mesh.position.z * 100) / 100
           }
         })),
-      sirens: sirens.length > 0 ? sirens : (this._levelCfg?.sirens || []),
+      sirens: sirens,
       kraken: this._krakenConfig ? this._krakenConfig : null,
       endLocation: this._endLocation || this._levelCfg?.endLocation || { position: { x: 0, y: 0, z: -220 }, radius: 16 },
       shipSpawn: this._shipSpawn || (this._hasDock ? null : (this._levelCfg?.shipSpawn || { position: { x: 0, y: 0, z: 0 }, rotation: 0 })),
@@ -1865,6 +1956,16 @@ export class EditorSystem {
       this._endLocationVisualGroup.rotation.y += delta * 0.4;
     }
 
+    // Rebuild dirty chunk meshes once per render frame
+    if (this._voxelTerrain && this._voxelTerrain.dirtyChunks && this._voxelTerrain.dirtyChunks.size > 0) {
+      this._voxelTerrain.updateDirtyMeshes();
+    }
+
+    if (this._voxelTerrain && this._camera) {
+      const editorMaxDist = Math.max(250, (this._camera.position?.y || 50) * 3.0);
+      this._voxelTerrain.updateCulling(this._camera.position, editorMaxDist);
+    }
+
     // Hybrid Stroke-Leveling: Pulse height when holding stationary in place
     const isTerrainTool = this._activeTool === 'terrain_raise' || this._activeTool === 'terrain_lower';
     if (this._isPointerDown && isTerrainTool && this._voxelTerrain && this._strokeTargetY !== null) {
@@ -1882,9 +1983,7 @@ export class EditorSystem {
             this._strokeTargetY--;
           }
         }
-        this._applyTerraform(this._intersection);
-        const radius = Math.max(1, Math.floor(this._currentScale * 2));
-        this._voxelTerrain.updatePreview(this._intersection.x, this._intersection.z, radius, type, this._strokeTargetY, this._brushShape);
+        this._applyTerraform(this._intersection, true);
       }
     }
   }

@@ -35,15 +35,7 @@ export class DockUI {
       btn.onmouseenter = () => btn.style.borderColor = '#ffd700';
       btn.onmouseleave = () => btn.style.borderColor = '#8c6507';
       btn.onclick = async () => {
-        this.gameState.day = i;
-        await this.gameState._weather.loadLevel(i, {
-          ambient: this.gameState._ambient,
-          sun: this.gameState._sun,
-          ocean: this.gameState._ocean,
-          sky: this.gameState._sky,
-          lanternLight: this.dockStall.lanternLight,
-          scene: this.gameState._scene
-        });
+        emit('levelSelected', { day: i });
       };
       dayButtons.appendChild(btn);
     }
@@ -166,15 +158,50 @@ export class DockUI {
     };
     on('levelSelected', this._onLevelSelected);
 
+    // Top-right Doubloon Purse HUD showing live player funds
+    this.doubloonHud = document.createElement('div');
+    this.doubloonHud.id = 'dock-doubloon-hud';
+    this.doubloonHud.className = 'dock-doubloon-hud';
+
+    const renderCoins = (count) => {
+      const coins = typeof count === 'number' ? count : (this.gameState?.coins ?? window.gameState?.coins ?? 0);
+      const isDebt = coins < 0;
+      this.doubloonHud.innerHTML = `
+        <div class="shop-wallet-pill ${isDebt ? 'debt' : ''}" title="Your Active Purse">
+          <span class="pixel-icon icon-doubloon size-18"></span>
+          <span class="shop-wallet-coins ${isDebt ? 'debt' : ''}" id="dock-coin-display">${isDebt ? `-${Math.abs(coins)}` : coins}</span>
+          <span class="shop-wallet-label">${isDebt ? 'Doubloons (IN DEBT)' : 'Doubloons'}</span>
+        </div>
+      `;
+    };
+    renderCoins(this.gameState?.coins);
+
+    this._onEconomyUpdated = (d) => {
+      if (typeof d?.coins === 'number') {
+        renderCoins(d.coins);
+      }
+    };
+    on('economyUpdated', this._onEconomyUpdated);
+
     const uiRoot = document.getElementById('ui-root');
     if (uiRoot) {
         uiRoot.appendChild(this.root);
+        uiRoot.appendChild(this.doubloonHud);
     } else {
         document.body.appendChild(this.root);
+        document.body.appendChild(this.doubloonHud);
     }
   }
 
   unmount() {
+    if (this._onEconomyUpdated) {
+      off('economyUpdated', this._onEconomyUpdated);
+      this._onEconomyUpdated = null;
+    }
+    if (this.doubloonHud && this.doubloonHud.parentNode) {
+      this.doubloonHud.parentNode.removeChild(this.doubloonHud);
+    }
+    this.doubloonHud = null;
     if (this._onLevelSelected) {
       off('levelSelected', this._onLevelSelected);
       this._onLevelSelected = null;

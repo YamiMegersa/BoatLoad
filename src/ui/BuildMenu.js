@@ -1,5 +1,6 @@
 import { emit, on, off } from '../core/EventBus.js';
 import { GameEnv } from '../core/GameEnv.js';
+import { ClearCheckManager } from '../community/ClearCheckManager.js';
 import {
   MATERIAL_REGISTRY,
   DEFAULT_MATERIAL_ID,
@@ -82,8 +83,8 @@ export class BuildMenu {
         <div class="shipyard-brand">
           <span class="shipyard-brand-icon"><span class="pixel-icon icon-hammer size-18"></span></span>
           <div class="shipyard-brand-text">
-            <span class="shipyard-brand-title">DRYDOCK SHIPWRIGHT</span>
-            <span class="shipyard-brand-sub">Ship Repair &amp; Engineering</span>
+            <span class="shipyard-brand-title" id="shipyard-brand-title">DRYDOCK SHIPWRIGHT</span>
+            <span class="shipyard-brand-sub" id="shipyard-brand-sub">Ship Repair &amp; Engineering</span>
           </div>
         </div>
 
@@ -116,15 +117,15 @@ export class BuildMenu {
             </div>
           </div>
 
-          <!-- Repair Funds -->
-          <div class="hud-stat-box hud-budget-box" title="Funds available for hull timber and plates">
+          <!-- Repair Funds & Customer Contract -->
+          <div class="hud-stat-box hud-budget-box" title="Customer repair contract funds & est. profit margin">
             <div class="hud-budget-top">
-              <span class="hud-stat-label">REPAIR FUNDS</span>
-              <span class="hud-budget-spent" id="hud-spent-val">Spent: $0</span>
+              <span class="hud-stat-label">REPAIR CONTRACT</span>
+              <span class="hud-budget-spent" id="hud-spent-val">Spent: 0 <span class="pixel-icon icon-doubloon size-12"></span></span>
             </div>
             <div class="hud-stat-value-row">
-              <span class="hud-stat-number gold-text" id="hud-remaining-val">$300</span>
-              <span class="hud-budget-total" id="hud-total-val">/ $300</span>
+              <span class="hud-stat-number gold-text" id="hud-remaining-val">+300 <span class="pixel-icon icon-doubloon size-14"></span></span>
+              <span class="hud-budget-total" id="hud-total-val">Profit (Budget: 300)</span>
             </div>
           </div>
         </div>
@@ -134,8 +135,11 @@ export class BuildMenu {
           <button id="btn-shipyard-dock" class="action-btn-sm" title="Return to island dock promenade">
             <span><span class="pixel-icon icon-anchor size-16"></span> Island Dock</span>
           </button>
+          <button id="btn-shipyard-abort" class="action-btn-sm" title="Cancel clear check and return to Level Editor" style="display: none; background: #261616; border-color: #8c3b3b; color: #ff9b9b;">
+            <span><span class="pixel-icon icon-close-cross size-16"></span> Back to Editor</span>
+          </button>
           <button id="btn-shipyard-sail" class="action-btn-primary" title="Depart drydock and begin sailing!">
-            <span><span class="pixel-icon icon-sloop size-16"></span> Set Sail When Ready!</span>
+            <span id="btn-shipyard-sail-text"><span class="pixel-icon icon-sloop size-16"></span> Set Sail When Ready!</span>
           </button>
         </div>
       </header>
@@ -214,7 +218,24 @@ export class BuildMenu {
     });
 
     this._el.querySelector('#btn-shipyard-dock')?.addEventListener('click', () => {
+      if (window.gameState?._isClearCheckRepair) {
+        console.warn('[ClearCheck] Cannot navigate to dock during clear check repair.');
+        return;
+      }
+      if (window.gameState?._isCommunityCourse || window.gameState?._activeCommunityCourseCode) {
+        emit('returnToCommunityMenu');
+        return;
+      }
       emit('requestPhaseChange', { phase: 'DOCK' });
+    });
+
+    this._el.querySelector('#btn-shipyard-abort')?.addEventListener('click', () => {
+      if (window.gameState) {
+        window.gameState._isClearCheckRepair = false;
+        window.gameState._isEditorPlay = false;
+      }
+      ClearCheckManager.completeActiveCheck(false, 'Verification cancelled in shipyard.');
+      emit('requestPhaseChange', { phase: 'EDITOR' });
     });
 
     // Control buttons
@@ -252,10 +273,54 @@ export class BuildMenu {
 
   mount(parent) {
     parent.appendChild(this._el);
+    this._applyModeLayout();
     this._updateHUD();
     this._renderMaterialTiles();
     this._renderBrushTiles();
     this._updateToolButtons();
+  }
+
+  _applyModeLayout() {
+    const isClearCheck = Boolean(window.gameState?._isClearCheckRepair);
+    const isCommunity = Boolean(window.gameState?._isCommunityCourse || window.gameState?._activeCommunityCourseCode);
+    const dockBtn = this._el.querySelector('#btn-shipyard-dock');
+    const abortBtn = this._el.querySelector('#btn-shipyard-abort');
+    const brandTitle = this._el.querySelector('#shipyard-brand-title');
+    const brandSub = this._el.querySelector('#shipyard-brand-sub');
+    const sailText = this._el.querySelector('#btn-shipyard-sail-text');
+    const sailBtn = this._el.querySelector('#btn-shipyard-sail');
+
+    if (isClearCheck) {
+      if (dockBtn) dockBtn.style.display = 'none';
+      if (abortBtn) abortBtn.style.display = 'inline-flex';
+      if (brandTitle) brandTitle.textContent = 'CLEAR CHECK: HULL REPAIR';
+      if (brandSub) brandSub.textContent = 'Repair Vessel Within Budget Before Sail Verification';
+      if (sailText) sailText.innerHTML = '<span class="pixel-icon icon-sloop size-16"></span> Verify Voyage (Set Sail)';
+      if (sailBtn) sailBtn.title = 'Test-sail this repaired vessel through the course to prove beatability!';
+    } else if (isCommunity) {
+      if (dockBtn) {
+        dockBtn.style.display = 'inline-flex';
+        dockBtn.innerHTML = '<span><span class="pixel-icon icon-anchor size-16"></span> Community Harbor</span>';
+        dockBtn.title = 'Cancel and return to Community Harbor';
+      }
+      if (abortBtn) abortBtn.style.display = 'none';
+      if (brandTitle) brandTitle.textContent = 'COMMUNITY VOYAGE: SHIPYARD';
+      const courseTitle = window.gameState?._activeCommunityCourse?.title;
+      if (brandSub) brandSub.textContent = courseTitle ? `Outfitting Vessel for "${courseTitle}"` : 'Prepare & Outfit Vessel Before Setting Sail';
+      if (sailText) sailText.innerHTML = '<span class="pixel-icon icon-sloop size-16"></span> Set Sail on Voyage!';
+      if (sailBtn) sailBtn.title = 'Depart drydock and begin the community voyage!';
+    } else {
+      if (dockBtn) {
+        dockBtn.style.display = 'inline-flex';
+        dockBtn.innerHTML = '<span><span class="pixel-icon icon-anchor size-16"></span> Island Dock</span>';
+        dockBtn.title = 'Return to island dock promenade';
+      }
+      if (abortBtn) abortBtn.style.display = 'none';
+      if (brandTitle) brandTitle.textContent = 'DRYDOCK SHIPWRIGHT';
+      if (brandSub) brandSub.textContent = 'Ship Repair & Engineering';
+      if (sailText) sailText.innerHTML = '<span class="pixel-icon icon-sloop size-16"></span> Set Sail When Ready!';
+      if (sailBtn) sailBtn.title = 'Depart drydock and begin sailing!';
+    }
   }
 
   unmount() {
@@ -273,7 +338,7 @@ export class BuildMenu {
       const tile = document.createElement('button');
       tile.className = `shelf-btn material-shelf-btn ${isSelected ? 'tool-active' : ''}`;
       tile.dataset.materialId = id;
-      tile.title = `${mat.name} ($${mat.unitCost})\n${mat.durabilityHP} HP • ${mat.description}`;
+      tile.title = `${mat.name} (${mat.unitCost} Doubloons)\n${mat.durabilityHP} HP • ${mat.description}`;
 
       const hexStr = '#' + mat.color.toString(16).padStart(6, '0');
 
@@ -282,7 +347,7 @@ export class BuildMenu {
           <span class="swatch-key">${index}</span>
         </div>
         <span class="shelf-btn-text">${mat.name}</span>
-        <span class="material-cost-tag">$${mat.unitCost}</span>
+        <span class="material-cost-tag"><span class="pixel-icon icon-doubloon size-10"></span> ${mat.unitCost}</span>
       `;
 
       tile.addEventListener('click', () => {
@@ -372,26 +437,48 @@ export class BuildMenu {
       }
     }
 
-    // 4. Budget
+    // 4. Budget & Profit Margin
     const remaining = this._budgetData.remaining ?? 300;
     const total = this._budgetData.total ?? 300;
     const spent = this._budgetData.spent ?? 0;
+    const profit = this._budgetData.leftoverProfit ?? (total - spent);
 
     const remainingVal = this._el.querySelector('#hud-remaining-val');
     const totalVal = this._el.querySelector('#hud-total-val');
     const spentVal = this._el.querySelector('#hud-spent-val');
+    const budgetBox = this._el.querySelector('.hud-budget-box');
+
+    if (budgetBox) {
+      if (profit < 0) {
+        budgetBox.classList.add('over-budget');
+      } else {
+        budgetBox.classList.remove('over-budget');
+      }
+    }
 
     if (remainingVal) {
-      remainingVal.textContent = total === Infinity ? 'Unlimited' : `$${remaining}`;
-      if (remaining <= 20) remainingVal.style.color = '#ef4444';
-      else if (remaining <= 60) remainingVal.style.color = '#f59e0b';
-      else remainingVal.style.color = '#fbbf24';
+      if (total === Infinity) {
+        remainingVal.textContent = 'Unlimited';
+        remainingVal.style.color = '#fbbf24';
+      } else {
+        const sign = profit >= 0 ? '+' : '';
+        remainingVal.innerHTML = `${sign}${profit} <span class="pixel-icon icon-doubloon size-14"></span>`;
+        if (profit < 0) remainingVal.style.color = '#ef4444';
+        else if (profit <= 25) remainingVal.style.color = '#f59e0b';
+        else remainingVal.style.color = '#fbbf24';
+      }
     }
     if (totalVal) {
-      totalVal.textContent = total === Infinity ? '' : `/ $${total}`;
+      if (total === Infinity) {
+        totalVal.textContent = '';
+      } else if (profit < 0) {
+        totalVal.textContent = `DEFICIT (From Purse)`;
+      } else {
+        totalVal.textContent = `Profit (Budget: ${total})`;
+      }
     }
     if (spentVal) {
-      spentVal.textContent = `Spent: $${spent}`;
+      spentVal.innerHTML = `Spent: ${spent} <span class="pixel-icon icon-doubloon size-12"></span>`;
     }
   }
 }

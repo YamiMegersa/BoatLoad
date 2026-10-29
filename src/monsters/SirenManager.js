@@ -195,17 +195,21 @@ export class SirenManager {
           tz = -nx;
         }
 
-        if (!playerShip.isImmune()) {
-          const rockDamage = 20; // Identical damage to rock collision
-          playerShip.takeDamage(rockDamage, 'rock');
-          playerShip.setImmune(2.0);
-
-          // Physical rock collision reaction: pitch/roll bounceBack
-          playerShip.bounceBack(pushDx, pushDz, 'rock');
-
-          // Audio and obstacle hit events
+        const now = performance.now();
+        const isNewContact = !siren._rockContactTime || (now - siren._rockContactTime > 400);
+        if (isNewContact) {
+          siren._rockContactTime = now;
+          const rockDamage = 20;
+          const contactNormal = new THREE.Vector3(nx, 0, nz);
+          const contactPoint = playerShip.mesh.position.clone().addScaledVector(contactNormal, -1.5);
+          if (typeof playerShip.applyPhysicalImpact === 'function') {
+            playerShip.applyPhysicalImpact(contactPoint, contactNormal, null, 'rock', rockDamage);
+          } else {
+            playerShip.takeDamage(rockDamage, 'rock', { nx, nz });
+            playerShip.bounceBack(pushDx, pushDz, 'rock');
+          }
           emit('obstacleHit', { type: 'rock', damage: rockDamage });
-          emit('playSound', { sound: 'collision' });
+
         }
 
         // Static push away from rock center to avoid sticking
@@ -396,6 +400,8 @@ export class SirenManager {
    */
   _spawn(def) {
     const group = new THREE.Group();
+    group.name = 'siren_instance';
+    group.userData.isSiren = true;
     group.position.set(def.position.x, def.position.y ?? 0, def.position.z);
 
     // Use genuine obstacle rock model for the reef base

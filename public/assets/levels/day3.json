@@ -2,7 +2,7 @@
   "day": 3,
   "ship": "sloop",
   "weather": "sunny",
-  "budget": 1100,
+  "budget": 700,
   "qte": {
     "windowScale": 1
   },
