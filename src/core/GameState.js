@@ -357,7 +357,7 @@ export class GameState {
 
   async _enterResults(opts = {}) {
     const isCommunity = Boolean(opts?.isCommunity || this._isCommunityCourse || this._activeCommunityCourseCode);
-    const day = this.day || 1;
+    const day = this.day !== undefined && this.day !== null ? this.day : 1;
     const isPassed = opts.passed !== false && !opts.failed && !opts.isSunk;
     const isSunk = Boolean(opts.failed || opts.isSunk);
 
@@ -1493,7 +1493,7 @@ export class GameState {
     };
     on('gridDirty', this._onShipyardGridDirty);
 
-    emit('uiMount', { screen: 'shipyard', isClearCheck: this._isClearCheckRepair, isEditorPlay: this._isEditorPlay });
+    emit('uiMount', { screen: 'shipyard', day: this.day, isClearCheck: this._isClearCheckRepair, isEditorPlay: this._isEditorPlay });
     this._emitShipyardSummary();
   }
 

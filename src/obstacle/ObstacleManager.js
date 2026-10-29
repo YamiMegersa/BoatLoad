@@ -86,7 +86,8 @@ export function buildObstacle(type, pos, url, scale, rockModels, pickupModels, s
     }
   } else if (type === 'rock' && rockModels && rockModels.length > 0) {
     if (url) {
-      selectedModel = rockModels.find(m => m.url === url) || rockModels[Math.floor(Math.random() * rockModels.length)];
+      const cleanUrl = url.replace(/^\.?\//, '');
+      selectedModel = rockModels.find(m => m.url === url || (m.url && m.url.replace(/^\.?\//, '') === cleanUrl) || (m.url && m.url.endsWith(cleanUrl))) || rockModels[Math.floor(Math.random() * rockModels.length)];
     } else {
       selectedModel = rockModels[Math.floor(Math.random() * rockModels.length)];
     }

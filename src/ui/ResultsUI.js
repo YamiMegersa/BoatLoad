@@ -40,7 +40,7 @@ export class ResultsUI {
     if (this.root) this.unmount();
 
     const isCommunity = Boolean(data.isCommunity || this.gameState._isCommunityCourse || this.gameState._activeCommunityCourseCode);
-    const day = data.day || this.gameState.day || 1;
+    const day = data.day !== undefined && data.day !== null ? data.day : (this.gameState.day !== undefined && this.gameState.day !== null ? this.gameState.day : 1);
     const isPassed = data.isPassed !== false && !data.failed && !data.isSunk;
     const isSunk = Boolean(data.failed || data.isSunk);
 
@@ -150,8 +150,8 @@ export class ResultsUI {
             <div class="results-crest ${isSunk ? 'crest-wreck' : ''}">
               <span class="pixel-icon ${isSunk ? 'icon-skull size-32' : 'icon-anchor size-32'}"></span>
             </div>
-            <h1 class="results-title ${isSunk ? 'title-wreck' : ''}">${isSunk ? 'VESSEL WRECKED &amp; SUNK' : 'VOYAGE ACCOMPLISHED'}</h1>
-            <div class="results-subtitle">${isSunk ? `Catastrophic Hull Breach • Day ${day} Salvaged` : `Safe Harbor Reached • Day ${day} Conquered`}</div>
+            <h1 class="results-title ${isSunk ? 'title-wreck' : ''}">${isSunk ? 'VESSEL WRECKED &amp; SUNK' : (day === 0 ? 'PRACTICE VOYAGE CLEARED' : 'VOYAGE ACCOMPLISHED')}</h1>
+            <div class="results-subtitle">${isSunk ? (day === 0 ? 'Practice Run Failed • Scrap Vessel Salvaged' : `Catastrophic Hull Breach • Day ${day} Salvaged`) : (day === 0 ? 'Safe Harbor Reached • Day 0 Tutorial Conquered' : `Safe Harbor Reached • Day ${day} Conquered`)}</div>
           </div>
 
           <div class="results-ledger-card">
@@ -215,60 +215,120 @@ export class ResultsUI {
           </div>
 
           <div class="results-actions">
-            <button class="results-btn shop-action" id="res-btn-shop">
-              <span class="pixel-icon icon-phantom-ghost size-18"></span>
-              <span>Visit Ghost Stall</span>
-            </button>
-            <button class="results-btn dock-action" id="res-btn-dock">
-              <span class="pixel-icon icon-harbor-flag size-18"></span>
-              <span>Return to Dock</span>
-            </button>
-            <button class="results-btn shipyard-action ${isSunk ? 'action-priority' : ''}" id="res-btn-shipyard">
-              <span class="pixel-icon icon-hammer size-18"></span>
-              <span>${isSunk ? 'Repair Wrecked Vessel' : 'Shipyard &amp; Repairs'}</span>
-            </button>
-            ${!isSunk ? `
-            <button class="results-btn next-action" id="res-btn-next">
-              <span class="pixel-icon icon-sloop size-18"></span>
-              <span>Next Voyage (Day ${Math.min(7, day + 1)})</span>
-            </button>
-            ` : ''}
+            ${day === 0 ? `
+              ${!isSunk ? `
+                <button class="results-btn next-action action-priority" id="res-btn-next">
+                  <span class="pixel-icon icon-harbor-flag size-18"></span>
+                  <span>Return to Dock Island</span>
+                </button>
+              ` : `
+                <button class="results-btn shipyard-action action-priority" id="res-btn-retry">
+                  <span class="pixel-icon icon-sloop size-18"></span>
+                  <span>Retry Practice Voyage</span>
+                </button>
+                <button class="results-btn dock-action" id="res-btn-dock">
+                  <span class="pixel-icon icon-harbor-flag size-18"></span>
+                  <span>Return to Dock Island</span>
+                </button>
+              `}
+            ` : `
+              <button class="results-btn shop-action" id="res-btn-shop">
+                <span class="pixel-icon icon-phantom-ghost size-18"></span>
+                <span>Visit Ghost Stall</span>
+              </button>
+              <button class="results-btn dock-action" id="res-btn-dock">
+                <span class="pixel-icon icon-harbor-flag size-18"></span>
+                <span>Return to Dock</span>
+              </button>
+              <button class="results-btn shipyard-action ${isSunk ? 'action-priority' : ''}" id="res-btn-shipyard">
+                <span class="pixel-icon icon-hammer size-18"></span>
+                <span>${isSunk ? 'Repair Wrecked Vessel' : 'Shipyard &amp; Repairs'}</span>
+              </button>
+              ${!isSunk ? `
+              <button class="results-btn next-action action-priority" id="res-btn-next">
+                <span class="pixel-icon icon-sloop size-18"></span>
+                <span>Next Voyage (Day ${Math.min(7, day + 1)})</span>
+              </button>
+              ` : ''}
+            `}
           </div>
         </div>
       `;
 
-      this.root.querySelector('#res-btn-shop').onclick = () => {
-        this.unmount();
-        emit('requestPhaseChange', { phase: GamePhase.DOCK, openShop: true });
-      };
+      const shopBtn = this.root.querySelector('#res-btn-shop');
+      if (shopBtn) {
+        shopBtn.onclick = () => {
+          this.unmount();
+          emit('requestPhaseChange', { phase: GamePhase.DOCK, openShop: true });
+        };
+      }
 
-      this.root.querySelector('#res-btn-dock').onclick = () => {
-        this.unmount();
-        emit('requestPhaseChange', { phase: GamePhase.DOCK });
-      };
+      const dockBtn = this.root.querySelector('#res-btn-dock');
+      if (dockBtn) {
+        dockBtn.onclick = () => {
+          this.unmount();
+          if (day === 0 && isPassed) {
+            this.gameState.day = 1;
+            emit('levelSelected', { day: 1 });
+          }
+          emit('requestPhaseChange', { phase: GamePhase.DOCK });
+        };
+      }
 
-      this.root.querySelector('#res-btn-shipyard').onclick = () => {
-        this.unmount();
-        emit('requestPhaseChange', { phase: GamePhase.SHIPYARD });
-      };
+      const shipyardBtn = this.root.querySelector('#res-btn-shipyard');
+      if (shipyardBtn) {
+        shipyardBtn.onclick = () => {
+          this.unmount();
+          emit('requestPhaseChange', { phase: GamePhase.SHIPYARD });
+        };
+      }
+
+      const retryBtn = this.root.querySelector('#res-btn-retry');
+      if (retryBtn) {
+        retryBtn.onclick = () => {
+          this.unmount();
+          emit('startSailing');
+        };
+      }
 
       const nextBtn = this.root.querySelector('#res-btn-next');
       if (nextBtn) {
         nextBtn.onclick = () => {
           this.unmount();
-          const nextDay = Math.min(7, day + 1);
-          this.gameState.day = nextDay;
-          emit('levelSelected', { day: nextDay });
-          emit('startSailing');
+          if (day === 0) {
+            this.gameState.day = 1;
+            emit('levelSelected', { day: 1 });
+            emit('requestPhaseChange', { phase: GamePhase.DOCK });
+          } else {
+            const nextDay = Math.min(7, day + 1);
+            this.gameState.day = nextDay;
+            emit('levelSelected', { day: nextDay });
+            emit('startSailing');
+          }
         };
       }
     }
+
+    this._handleKeyDown = (e) => {
+      if (e.code === 'Space' || e.code === 'Enter') {
+        const primaryBtn = this.root?.querySelector('.action-priority') || this.root?.querySelector('#res-btn-next') || this.root?.querySelector('#res-btn-dock');
+        if (primaryBtn) {
+          e.preventDefault();
+          primaryBtn.click();
+        }
+      }
+    };
+    window.addEventListener('keydown', this._handleKeyDown);
 
     const uiRoot = document.getElementById('ui-root') || document.body;
     uiRoot.appendChild(this.root);
   }
 
   unmount() {
+    if (this._handleKeyDown) {
+      window.removeEventListener('keydown', this._handleKeyDown);
+      this._handleKeyDown = null;
+    }
     if (this.root && this.root.parentNode) {
       this.root.parentNode.removeChild(this.root);
     }

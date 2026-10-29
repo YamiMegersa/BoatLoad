@@ -747,7 +747,7 @@ async function boot() {
     });
 
     on('levelSelected', async ({ day }) => {
-      if (day) {
+      if (day !== undefined && day !== null) {
         gameState.day = day;
         await syncLevel();
       }

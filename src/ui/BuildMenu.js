@@ -27,6 +27,11 @@ export class BuildMenu {
     this._activeBrushId = DEFAULT_BRUSH_ID;
     this._mirrorMode = false;
 
+    // Day 0 Tutorial State
+    this._day0TutorialPopupEl = null;
+    this._cleanupTutorialPopupInput = null;
+    this._hasShownDay0Tutorial = false;
+
     // HUD Data Cache
     this._budgetData = { total: 300, spent: 0, remaining: 300 };
     this._summaryData = { integrityPct: 100, leaks: 0, intact: 0, missing: 0, damaged: 0, flooded: 0, shipName: 'Sloop', shipIcon: '<span class="pixel-icon icon-sloop size-20"></span>' };
@@ -61,7 +66,7 @@ export class BuildMenu {
 
     on('uiMount', d => {
       if (d.screen === 'shipyard') {
-        this.mount(document.getElementById('ui-root') || document.body);
+        this.mount(document.getElementById('ui-root') || document.body, d);
       }
     });
 
@@ -132,6 +137,9 @@ export class BuildMenu {
 
         <!-- Top Right Actions -->
         <div class="shipyard-top-actions">
+          <button id="btn-shipyard-help" class="action-btn-sm" title="Review repair instructions & tutorial" style="display: none; border-color: #d4af37; color: #ffd700;">
+            <span><span class="pixel-icon icon-scroll size-16"></span> Tutorial Guide</span>
+          </button>
           <button id="btn-shipyard-dock" class="action-btn-sm" title="Return to island dock promenade">
             <span><span class="pixel-icon icon-anchor size-16"></span> Island Dock</span>
           </button>
@@ -213,6 +221,10 @@ export class BuildMenu {
 
   _bindEvents() {
     // Top actions
+    this._el.querySelector('#btn-shipyard-help')?.addEventListener('click', () => {
+      this._showDay0TutorialPopup();
+    });
+
     this._el.querySelector('#btn-shipyard-sail')?.addEventListener('click', () => {
       emit('startSailing');
     });
@@ -267,13 +279,28 @@ export class BuildMenu {
     }
   }
 
-  mount(parent) {
+  mount(parent, opts = {}) {
     parent.appendChild(this._el);
-    this._applyModeLayout();
+    this._applyModeLayout(opts);
     this._updateHUD();
     this._renderMaterialTiles();
     this._renderBrushTiles();
     this._updateToolButtons();
+
+    const isDay0 = (opts?.day === 0) || (window.gameState?.day === 0);
+    const isSpecialMode = Boolean(window.gameState?._isClearCheckRepair || window.gameState?._isEditorPlay);
+
+    const helpBtn = this._el.querySelector('#btn-shipyard-help');
+    if (helpBtn) {
+      helpBtn.style.display = isDay0 && !isSpecialMode ? 'inline-flex' : 'none';
+    }
+
+    if (isDay0 && !isSpecialMode && !this._hasShownDay0Tutorial) {
+      this._hasShownDay0Tutorial = true;
+      setTimeout(() => {
+        this._showDay0TutorialPopup();
+      }, 150);
+    }
   }
 
   _applyModeLayout() {
@@ -303,7 +330,132 @@ export class BuildMenu {
   }
 
   unmount() {
+    this._closeDay0TutorialPopup();
     this._el.remove();
+  }
+
+  _showDay0TutorialPopup() {
+    this._closeDay0TutorialPopup();
+
+    const popup = document.createElement('div');
+    popup.id = 'day0-shipyard-tutorial-popup';
+    popup.style.cssText = `
+      position: fixed; inset: 0; z-index: 9999;
+      background: rgba(6, 8, 12, 0.76); backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px; pointer-events: auto; user-select: none;
+    `;
+
+    popup.innerHTML = `
+      <div style="
+        max-width: 620px; width: 100%;
+        background: linear-gradient(180deg, #241911 0%, #160f0a 100%);
+        border: 2.5px solid #d4af37; border-radius: 10px;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.85), inset 0 0 24px rgba(212,175,55,0.12);
+        padding: 24px 28px; color: #f5ebd6;
+        font-family: Georgia, 'Times New Roman', serif;
+      ">
+        <div style="display:flex; align-items:center; gap:14px; margin-bottom:14px; border-bottom:1px solid rgba(212,175,55,0.35); padding-bottom:12px;">
+          <div style="
+            width: 46px; height: 46px; border-radius: 8px;
+            background: rgba(212, 175, 55, 0.16); border: 1.5px solid #d4af37;
+            display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0;
+          ">🛠️</div>
+          <div>
+            <div style="font-family: monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #d4af37; margin-bottom: 3px;">
+              Drydock Tutorial • Shipwright Workshop
+            </div>
+            <div style="font-size: 22px; font-weight: bold; color: #fff8e7; line-height: 1.2;">
+              The Ship Repair System
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 12px;">
+          <div style="font-family: monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; color: #eab308; margin-bottom: 4px;">
+            ⚓ Aim &amp; Seaworthiness
+          </div>
+          <div style="font-size: 14px; line-height: 1.5; color: #e8dcc4;">
+            This abandoned scrap frigate has breaches along its starboard hull. Breaches at or below the waterline count as <b>Waterline Leaks</b>. If you set sail with active leaks, ocean water will flood and sink the ship! Your primary goal is to seal breaches until <b>Waterline Leaks reaches 0</b>.
+          </div>
+        </div>
+
+        <div style="
+          background: rgba(212, 175, 55, 0.08); border-left: 3px solid #ffd700;
+          padding: 10px 14px; border-radius: 0 6px 6px 0; margin-bottom: 12px;
+        ">
+          <div style="font-family: monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; color: #ffd700; margin-bottom: 4px;">
+            💰 Repair Budget &amp; Profit
+          </div>
+          <div style="font-size: 13.5px; line-height: 1.45; color: #fffdf7;">
+            You have a repair allowance of <b>300 doubloons</b>. Each block of wood you place costs money. Any unspent funds become your <b>Construction Profit</b> when completing the voyage, so repair efficiently!
+          </div>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+          <div style="font-family: monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; color: #38bdf8; margin-bottom: 6px;">
+            🎮 Workshop Controls &amp; Tools
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px; color: #d5cbba;">
+            <div style="background: rgba(0,0,0,0.3); padding: 8px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.08);">
+              <b style="color:#ffd700;">🎥 Camera:</b> Hold <b>Right-Click + Drag</b> to orbit &amp; look. Use <b>WASD</b> to fly around the hull.
+            </div>
+            <div style="background: rgba(0,0,0,0.3); padding: 8px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.08);">
+              <b style="color:#ffd700;">🔨 Patching:</b> Select <b>Wood Planks</b> below (or key <b>1</b>). <b>Left-Click</b> damaged blocks to reconstruct them.
+            </div>
+            <div style="background: rgba(0,0,0,0.3); padding: 8px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.08);">
+              <b style="color:#ffd700;">📐 Brushes:</b> Pick <b>Plank (1×3)</b> or <b>Bulkhead (3×3)</b> from the shelf to patch larger breaches in one click.
+            </div>
+            <div style="background: rgba(0,0,0,0.3); padding: 8px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.08);">
+              <b style="color:#ffd700;">⛵ Departure:</b> When leaks reach 0, click <b>"Set Sail When Ready!"</b> in the top-right to begin the sea trial!
+            </div>
+          </div>
+        </div>
+
+        <button id="day0-shipyard-tutorial-btn" style="
+          width: 100%; padding: 11px 18px; cursor: pointer;
+          background: linear-gradient(180deg, #d4af37 0%, #9a7418 100%);
+          color: #1a1108; font-family: Georgia, serif; font-size: 15px; font-weight: bold;
+          border: 1px solid #ffe57f; border-radius: 6px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.5); letter-spacing: 0.4px;
+        ">Understood, Let's Repair! [Space or Enter]</button>
+      </div>
+    `;
+
+    const uiRoot = document.getElementById('ui-root') || document.body;
+    uiRoot.appendChild(popup);
+    this._day0TutorialPopupEl = popup;
+
+    const dismiss = (e) => {
+      if (e) {
+        if (e.type === 'keydown' && e.code !== 'Space' && e.code !== 'Enter' && e.code !== 'Escape') return;
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      emit('playSound', { sound: 'qte_success' });
+      this._closeDay0TutorialPopup();
+    };
+
+    const btn = popup.querySelector('#day0-shipyard-tutorial-btn');
+    if (btn) btn.addEventListener('click', dismiss);
+    popup.addEventListener('pointerdown', (e) => {
+      if (e.target === popup) dismiss(e);
+    });
+    window.addEventListener('keydown', dismiss);
+    this._cleanupTutorialPopupInput = () => {
+      window.removeEventListener('keydown', dismiss);
+    };
+  }
+
+  _closeDay0TutorialPopup() {
+    if (this._cleanupTutorialPopupInput) {
+      this._cleanupTutorialPopupInput();
+      this._cleanupTutorialPopupInput = null;
+    }
+    if (this._day0TutorialPopupEl) {
+      this._day0TutorialPopupEl.remove();
+      this._day0TutorialPopupEl = null;
+    }
   }
 
   _renderMaterialTiles() {
