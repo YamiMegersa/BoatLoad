@@ -1045,16 +1045,10 @@ export class EditorSystem {
     }
 
     if (isTerrainTool) {
-      if (this._voxelTerrain) {
-        const type = this._activeTool === 'terrain_raise' ? 'raise' : 'lower';
-        const radius = Math.max(1, Math.floor(this._currentScale * 2));
-        const previewTargetY = (this._isPointerDown && this._strokeTargetY !== null)
-          ? this._strokeTargetY
-          : (type === 'raise' ? this._intersection.y : Math.max(0, this._intersection.y - 1));
-        this._voxelTerrain.updatePreview(this._intersection.x, this._intersection.z, radius, type, previewTargetY, this._brushShape);
-      }
-      
       if (this._isPointerDown) {
+        // While actively drawing land, hide the wireframe preview mesh to prevent visual obstruction & avoid 2000-matrix updates
+        if (this._voxelTerrain) this._voxelTerrain.hidePreview();
+
         if (this._strokeAnchor) {
           const curDist = this._strokeAnchor.distanceTo(new THREE.Vector2(this._intersection.x, this._intersection.z));
           if (curDist > 1.0) {
@@ -1063,7 +1057,15 @@ export class EditorSystem {
             this._strokeAnchor.set(this._intersection.x, this._intersection.z);
           }
         }
-        this._applyTerraform(this._intersection);
+        // Defer meshing to the animation frame for a buttery 60 FPS drawing experience
+        this._applyTerraform(this._intersection, false);
+      } else {
+        if (this._voxelTerrain) {
+          const type = this._activeTool === 'terrain_raise' ? 'raise' : 'lower';
+          const radius = Math.max(1, Math.floor(this._currentScale * 2));
+          const previewTargetY = type === 'raise' ? this._intersection.y : Math.max(0, this._intersection.y - 1);
+          this._voxelTerrain.updatePreview(this._intersection.x, this._intersection.z, radius, type, previewTargetY, this._brushShape);
+        }
       }
     } else {
       if (this._voxelTerrain) this._voxelTerrain.hidePreview();
@@ -1077,10 +1079,20 @@ export class EditorSystem {
       this._lastTerraformPoint = null;
       this._strokeTargetY = null;
       this._strokeHoldTimer = 0;
+      if (this._voxelTerrain) {
+        this._voxelTerrain.updateDirtyMeshes();
+        const isTerrainTool = this._activeTool === 'terrain_raise' || this._activeTool === 'terrain_lower';
+        if (isTerrainTool) {
+          const type = this._activeTool === 'terrain_raise' ? 'raise' : 'lower';
+          const radius = Math.max(1, Math.floor(this._currentScale * 2));
+          const previewTargetY = type === 'raise' ? this._intersection.y : Math.max(0, this._intersection.y - 1);
+          this._voxelTerrain.updatePreview(this._intersection.x, this._intersection.z, radius, type, previewTargetY, this._brushShape);
+        }
+      }
     }
   }
 
-  _applyTerraform(hitPoint) {
+  _applyTerraform(hitPoint, immediateMeshUpdate = false) {
     if (this._voxelTerrain) {
       const type = this._activeTool === 'terrain_raise' ? 'raise' : 'lower';
       const radius = Math.max(1, Math.floor(this._currentScale * 2));
@@ -1092,10 +1104,10 @@ export class EditorSystem {
 
       if (this._lastTerraformPoint) {
         const dist = this._lastTerraformPoint.distanceTo(currentPt);
-        const stepDist = Math.max(0.8, radius / 2);
+        const stepDist = Math.max(1.0, radius * 0.6);
         
         if (dist > stepDist) {
-          const steps = Math.ceil(dist / stepDist);
+          const steps = Math.min(30, Math.ceil(dist / stepDist));
           for (let i = 1; i <= steps; i++) {
             const lerped = this._lastTerraformPoint.clone().lerp(currentPt, i / steps);
             this._voxelTerrain.applyBrush(lerped.x, lerped.y, radius, type, targetY, this._brushShape);
@@ -1108,7 +1120,9 @@ export class EditorSystem {
       }
       
       this._lastTerraformPoint = currentPt;
-      this._voxelTerrain.updateDirtyMeshes();
+      if (immediateMeshUpdate) {
+        this._voxelTerrain.updateDirtyMeshes();
+      }
     }
   }
 
@@ -1132,7 +1146,8 @@ export class EditorSystem {
       }
       if (!this._strokeAnchor) this._strokeAnchor = new THREE.Vector2();
       this._strokeAnchor.set(this._intersection.x, this._intersection.z);
-      this._applyTerraform(this._intersection);
+      this._voxelTerrain.hidePreview();
+      this._applyTerraform(this._intersection, true);
       return;
     }
 
@@ -1941,6 +1956,16 @@ export class EditorSystem {
       this._endLocationVisualGroup.rotation.y += delta * 0.4;
     }
 
+    // Rebuild dirty chunk meshes once per render frame
+    if (this._voxelTerrain && this._voxelTerrain.dirtyChunks && this._voxelTerrain.dirtyChunks.size > 0) {
+      this._voxelTerrain.updateDirtyMeshes();
+    }
+
+    if (this._voxelTerrain && this._camera) {
+      const editorMaxDist = Math.max(250, (this._camera.position?.y || 50) * 3.0);
+      this._voxelTerrain.updateCulling(this._camera.position, editorMaxDist);
+    }
+
     // Hybrid Stroke-Leveling: Pulse height when holding stationary in place
     const isTerrainTool = this._activeTool === 'terrain_raise' || this._activeTool === 'terrain_lower';
     if (this._isPointerDown && isTerrainTool && this._voxelTerrain && this._strokeTargetY !== null) {
@@ -1958,9 +1983,7 @@ export class EditorSystem {
             this._strokeTargetY--;
           }
         }
-        this._applyTerraform(this._intersection);
-        const radius = Math.max(1, Math.floor(this._currentScale * 2));
-        this._voxelTerrain.updatePreview(this._intersection.x, this._intersection.z, radius, type, this._strokeTargetY, this._brushShape);
+        this._applyTerraform(this._intersection, true);
       }
     }
   }
