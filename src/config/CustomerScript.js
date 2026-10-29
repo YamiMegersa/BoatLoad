@@ -47,7 +47,7 @@ export const CUSTOMER_SCRIPTS = {
     day: 0,
     customerName: 'Barnaby Claw, Esq.',
     customerRole: 'Crab Clerk',
-    shipName: 'Port Rotgut Prologue',
+    shipName: 'Abandoned Scrap Sloop',
     spritePath: 'assets/npc/custom_npc.png',
     complaintShort: `"7,000 doubloons by Sunday."`,
     basePay: 0,

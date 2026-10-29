@@ -89,7 +89,7 @@ export class DivorcePapersUI {
 
         <div style="text-align: center; border-bottom: 2px double #6e4726; padding-bottom: 14px; margin-bottom: 18px;">
           <div style="font-size: 11px; letter-spacing: 2.5px; text-transform: uppercase; color: #7a201c; font-weight: bold;">
-            Admiralty Court of Port Rotgut • Claw &amp; Fin Attorneys-at-Law
+            Admiralty Court of Port Rotgut • Barnaby Claw, Esq., Attorney-at-Law
           </div>
           <h2 style="margin: 6px 0 4px; font-size: 26px; letter-spacing: 1px; color: #231409; text-transform: uppercase;">
             Official Writ of Divorce &amp; Notice of Lien
@@ -105,7 +105,7 @@ export class DivorcePapersUI {
           </p>
 
           <p style="margin: 0;">
-            <strong>II. SETTLEMENT DEMAND (7,000 DOUBLOONS):</strong> Petitioner’s legal counsel — <em>Barnaby Claw, Esq. (Crab)</em> and <em>Dorsal Fin, LL.M. (Bull Shark)</em> — hereby demand the sum of <strong>7,000 Doubloons</strong> in the shop till by <strong>Sunday at Sundown (End of Day 7)</strong> to dissolve the union.
+            <strong>II. SETTLEMENT DEMAND (7,000 DOUBLOONS):</strong> Petitioner’s legal counsel — <em>Barnaby Claw, Esq. (a Crab)</em> — hereby demands the sum of <strong>7,000 Doubloons</strong> in the shop till by <strong>Sunday at Sundown (End of Day 7)</strong> to dissolve the union.
           </p>
 
           <div style="
@@ -117,8 +117,8 @@ export class DivorcePapersUI {
             <strong style="color: #7a201c;">III. FORFEITURE UPON DEFAULT:</strong> Failure to remit the full <strong>7,000 Doubloons</strong> by Sunday shall result in immediate seizure of:
             <ol style="margin: 6px 0 0 18px; padding: 0;">
               <li><strong>Your Shipwright Shop &amp; Drydock</strong> in Port Rotgut;</li>
-              <li><strong>Your Lop-Eared Island Bunny</strong> (forfeit to the Siren); and</li>
-              <li><strong>The Better Half of Your Liver</strong> (forfeit to the Shark).</li>
+              <li><strong>Your Lop-Eared Island Bunny</strong>; and</li>
+              <li><strong>The Better Half of Your Liver</strong>.</li>
             </ol>
           </div>
 
@@ -139,7 +139,7 @@ export class DivorcePapersUI {
               box-shadow: 0 3px 8px rgba(0,0,0,0.45);
               display: flex; align-items: center; justify-content: center;
               color: #f7d794; font-weight: bold; font-size: 10px; text-align: center; line-height: 1.1;
-            ">CLAW<br/>&amp; FIN</div>
+            ">CLAW<br/>ESQ.</div>
             <div style="font-size: 12px; color: #4a331c; line-height: 1.35;">
               <div><strong>Served by:</strong> Barnaby Claw, Esq. (Clerk)</div>
               <div><em>"You wept. She didn't."</em></div>

@@ -85,12 +85,14 @@ export class GameState {
 
     this.currentPhase = null;
 
-    // Day / session data
-    this.day = 1;
+    // Day / session data (Default starting day is Day 0 opening & tutorial)
+    this.day = 0;
+    this.unlockedDay = 0;
     this.shipId = 'sloop';
     this.abilityInventory = [];
 
-    // Economy and Shop System (Unified Doubloons)
+    // Progression & Economy System (Unified Doubloons)
+    this._loadProgression();
     this.coins = 350;
     this.inventory = ['wheel_default', 'pedestal_lvl0', 'lantern_lvl1'];
     this.equippedItems = ShopRegistry.getDefaultEquipped();
@@ -98,10 +100,10 @@ export class GameState {
 
     // Active customer contract & sailing damage baseline
     this.currentContract = {
-      day: 1,
-      baseBudget: 400,
+      day: 0,
+      baseBudget: 0,
       bargainBonus: 0,
-      agreedBudget: 400,
+      agreedBudget: 0,
       spentOnRepairs: 0
     };
     this._sailInitialIntactCount = null;
@@ -226,6 +228,50 @@ export class GameState {
         this._ocean.setWorldSize(d.size);
       }
     });
+  }
+
+  // -------------------------------------------------------------------------
+  // Campaign Progression System
+  // -------------------------------------------------------------------------
+
+  _loadProgression() {
+    try {
+      const data = localStorage.getItem('boatload_progression');
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (typeof parsed.unlockedDay === 'number' && !isNaN(parsed.unlockedDay)) {
+          this.unlockedDay = Math.max(0, Math.min(7, Math.floor(parsed.unlockedDay)));
+        }
+      }
+    } catch (e) {
+      console.warn('[GameState] Could not load progression from localStorage:', e);
+    }
+  }
+
+  _saveProgression() {
+    try {
+      const payload = {
+        unlockedDay: this.unlockedDay
+      };
+      localStorage.setItem('boatload_progression', JSON.stringify(payload));
+    } catch (e) {
+      console.warn('[GameState] Could not save progression to localStorage:', e);
+    }
+  }
+
+  unlockDay(day) {
+    if (typeof day !== 'number' || isNaN(day)) return;
+    const clamped = Math.max(0, Math.min(7, Math.floor(day)));
+    if (clamped > this.unlockedDay) {
+      this.unlockedDay = clamped;
+      this._saveProgression();
+      emit('progressionUpdated', { unlockedDay: this.unlockedDay });
+    }
+  }
+
+  isDayUnlocked(day) {
+    if (day === 0) return true;
+    return day <= this.unlockedDay;
   }
 
   // -------------------------------------------------------------------------
@@ -367,7 +413,7 @@ export class GameState {
 
   async _enterResults(opts = {}) {
     const isCommunity = Boolean(opts?.isCommunity || this._isCommunityCourse || this._activeCommunityCourseCode);
-    const day = this.day || 1;
+    const day = this.day !== undefined && this.day !== null ? this.day : 1;
     const isPassed = opts.passed !== false && !opts.failed && !opts.isSunk;
     const isSunk = Boolean(opts.failed || opts.isSunk);
 
@@ -405,6 +451,9 @@ export class GameState {
     if (!isCommunity) {
       netPayout = leftoverProfit + sailingBonus - totalDamageIncurred;
       this.applyPayout(netPayout);
+      if (isPassed) {
+        this.unlockDay(day + 1);
+      }
     }
 
     emit('uiMount', {
@@ -895,13 +944,16 @@ export class GameState {
     this._mooredShipProfile = shipProfile;
 
     // Re-trigger ship arrival if level or day changed
+    // On Day 0, an old customer's abandoned scrap ship is already moored at the West Shipyard
     if (this._lastDockLevel !== activeShipId || this._lastDockDay !== this.day) {
-      this._dockShipArrived = false;
+      this._dockShipArrived = (this.day === 0);
       this._lastDockLevel = activeShipId;
       this._lastDockDay = this.day;
       if (this._dockStall && this._dockStall.dockNPC) {
         this._dockStall.dockNPC.reset();
       }
+    } else if (this.day === 0) {
+      this._dockShipArrived = true;
     }
 
     // Build or update ship model if needed so it displays moored in the dock
@@ -915,7 +967,9 @@ export class GameState {
         this._chunkRenderer = null;
       }
       this._chunkRenderer = new ChunkRenderer();
-      this._chunkRenderer.init(grid, this._scene, gltfScene);
+      this._chunkRenderer.init(grid, this._scene, gltfScene, { showMissingOutlines: false });
+    } else if (this._chunkRenderer) {
+      this._chunkRenderer.setShowMissingOutlines(false);
     }
 
     if (!this._dockMooredGroup) {
@@ -1119,8 +1173,9 @@ export class GameState {
       this._lastDockDay = this.day;
 
       // 3. Reset ship and NPC arrival state so cutscene replays for the selected day
-      this._dockShipArrived = false;
-      this._shipDocked = false;
+      // (On Day 0, the abandoned scrap ship is already moored at the West Shipyard)
+      this._dockShipArrived = (this.day === 0);
+      this._shipDocked = (this.day === 0);
       this._shipArriving = false;
       if (this._dockStall && this._dockStall.dockNPC) {
         this._dockStall.dockNPC.setSprite(customer.spritePath);
@@ -1137,7 +1192,7 @@ export class GameState {
         this._chunkRenderer = null;
       }
       this._chunkRenderer = new ChunkRenderer();
-      this._chunkRenderer.init(grid, this._scene, gltfScene);
+      this._chunkRenderer.init(grid, this._scene, gltfScene, { showMissingOutlines: false });
 
       if (!this._dockMooredGroup) {
         this._dockMooredGroup = new THREE.Group();
@@ -1177,16 +1232,22 @@ export class GameState {
         c.userData.isMooredShip = true;
       });
 
-      this._dockMooredGroup.position.copy(this._dockMooredP0);
-      this._dockMooredGroup.rotation.set(0, Math.atan2(this._dockMooredP1.x - this._dockMooredP0.x, this._dockMooredP1.z - this._dockMooredP0.z), 0);
-      this._dockMooredGroup.visible = false;
+      if (this._dockShipArrived) {
+        this._dockMooredGroup.position.copy(this._dockMooredTargetPos);
+        this._dockMooredGroup.rotation.set(0, 0, 0);
+        this._dockMooredGroup.visible = true;
+      } else {
+        this._dockMooredGroup.position.copy(this._dockMooredP0);
+        this._dockMooredGroup.rotation.set(0, Math.atan2(this._dockMooredP1.x - this._dockMooredP0.x, this._dockMooredP1.z - this._dockMooredP0.z), 0);
+        this._dockMooredGroup.visible = false;
+      }
 
       // 5. Update stall interactables & repair state
       const integrity = this._grid ? DamageSystem.getSummary(this._grid).integrityPct : 100;
       if (this._dockStall) {
         this._dockStall.shipNeedsRepair = integrity < 100;
         this._dockStall.activeShipProfile = { ...shipProfile, name: customer?.shipName || shipProfile?.name };
-        this._dockStall.shipInteractables = [];
+        this._dockStall.shipInteractables = this._dockShipArrived ? [this._dockMooredGroup] : [];
       }
 
       emit('updateLoading', { progress: 0.75 });
@@ -1211,6 +1272,19 @@ export class GameState {
       }
       emit('updateLoading', { progress: 1.0 });
       emit('hideLoading');
+
+      // Clear Day 0 tutorial state when a real voyage day is selected
+      if (this._dockPlayerController) {
+        this._dockPlayerController.tutorialActive = false;
+        this._dockPlayerController.tutorialStep = null;
+        this._dockPlayerController.closeAreaPopup();
+        this._dockPlayerController.hideObjective();
+      }
+      if (this._dockStall) {
+        this._dockStall.setDivorcePostRingVisible(false);
+        this._dockStall.setShipyardTutorialCircleVisible(false);
+        this._dockStall.setShopDoorGlowVisible(false);
+      }
 
       // 7. Start arrival cutscene
       this._startLevelCutscene();
@@ -1237,9 +1311,7 @@ export class GameState {
             }
             emit('playSound', { sound: 'sinking_bell' });
             if (this._dockPlayerController) {
-              this._dockPlayerController.setObjective(
-                `📜 Inspect the <strong>Divorce Papers</strong> nailed to the post where the dock meets land <span style="color:#ffd700;">[E or Click]</span>`
-              );
+              this._dockPlayerController.advanceTutorialStep('READ_NOTICE');
             }
           }
         }
@@ -1249,9 +1321,9 @@ export class GameState {
 
     this._onDivorcePapersRead = () => {
       if (this.day === 0 && this._dockPlayerController) {
-        this._dockPlayerController.setObjective(
-          `🏠 Head into your <strong>Shipwright Shop</strong> on the dock and open the <strong>Logbook</strong> to begin repairs`
-        );
+        if (!this._dockPlayerController.tutorialActive || this._dockPlayerController.tutorialStep === 'READ_NOTICE') {
+          this._dockPlayerController.advanceTutorialStep('ENTER_SHOP');
+        }
       }
     };
     on('divorcePapersRead', this._onDivorcePapersRead);
@@ -1469,6 +1541,7 @@ export class GameState {
           this._scene.add(this._chunkRenderer.container);
         }
       }
+      this._chunkRenderer.setShowMissingOutlines(true);
       this._chunkRenderer.sync(this._grid);
     } else {
       // Cleanly dispose any existing chunk renderer first so no duplicate/ghost boat remains
@@ -1482,9 +1555,9 @@ export class GameState {
       this._zones = zones;
       def = builtDef;
 
-      // Chunk renderer
+      // Chunk renderer - show missing outlines for shipyard repair
       this._chunkRenderer = new ChunkRenderer();
-      this._chunkRenderer.init(grid, this._scene, gltfScene);
+      this._chunkRenderer.init(grid, this._scene, gltfScene, { showMissingOutlines: true });
       this._chunkRenderer.container.position.copy(containerPos);
       this._chunkRenderer.container.rotation.copy(SHIP_MOORED_ROT);
       this._chunkRenderer.container.scale.set(s, s, s);
@@ -1598,7 +1671,7 @@ export class GameState {
     };
     on('gridDirty', this._onShipyardGridDirty);
 
-    emit('uiMount', { screen: 'shipyard', isClearCheck: this._isClearCheckRepair, isEditorPlay: this._isEditorPlay });
+    emit('uiMount', { screen: 'shipyard', day: this.day, isClearCheck: this._isClearCheckRepair, isEditorPlay: this._isEditorPlay });
     this._emitShipyardSummary();
   }
 
@@ -1638,6 +1711,7 @@ export class GameState {
     this._buildSystem?.reset();
     this._shipyardFlyControls?.dispose();
     this._shipyardFlyControls = null;
+    this._chunkRenderer?.setShowMissingOutlines(false);
 
     if (this._chunkRenderer && this._chunkRenderer.container) {
       this._chunkRenderer.container.scale.set(1, 1, 1);
@@ -1832,11 +1906,12 @@ export class GameState {
       this._grid = grid;
       this._zones = zones;
       this._chunkRenderer = new ChunkRenderer();
-      this._chunkRenderer.init(grid, this._scene, gltfScene);
+      this._chunkRenderer.init(grid, this._scene, gltfScene, { showMissingOutlines: false });
     }
 
     // Reset container transform before handing off to PlayerShip wrapper
     if (this._chunkRenderer && this._chunkRenderer.container) {
+      this._chunkRenderer.setShowMissingOutlines(false);
       if (this._chunkRenderer.container.parent !== this._scene) {
         this._scene.add(this._chunkRenderer.container);
       }

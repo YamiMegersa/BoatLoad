@@ -40,9 +40,14 @@ export class ResultsUI {
     if (this.root) this.unmount();
 
     const isCommunity = Boolean(data.isCommunity || this.gameState._isCommunityCourse || this.gameState._activeCommunityCourseCode);
-    const day = data.day || this.gameState.day || 1;
+    const day = data.day !== undefined && data.day !== null ? data.day : (this.gameState.day !== undefined && this.gameState.day !== null ? this.gameState.day : 1);
     const isPassed = data.isPassed !== false && !data.failed && !data.isSunk;
     const isSunk = Boolean(data.failed || data.isSunk);
+
+    // If campaign level was passed, unlock the next day in progression
+    if (!isCommunity && isPassed && this.gameState) {
+      this.gameState.unlockDay(day + 1);
+    }
 
     // 1. Contract Breakdown
     const contract = data.contract || {
@@ -158,8 +163,8 @@ export class ResultsUI {
             <div class="results-crest ${isSunk ? 'crest-wreck' : ''}">
               <span class="pixel-icon ${isSunk ? 'icon-skull size-32' : 'icon-anchor size-32'}"></span>
             </div>
-            <h1 class="results-title ${isSunk ? 'title-wreck' : ''}">${isSunk ? 'VESSEL WRECKED &amp; SUNK' : 'VOYAGE ACCOMPLISHED'}</h1>
-            <div class="results-subtitle">${isSunk ? `Catastrophic Hull Breach • Day ${day} Salvaged` : `Safe Harbor Reached • Day ${day} Conquered`}</div>
+            <h1 class="results-title ${isSunk ? 'title-wreck' : ''}">${isSunk ? 'VESSEL WRECKED &amp; SUNK' : (day === 0 ? 'PRACTICE VOYAGE CLEARED' : 'VOYAGE ACCOMPLISHED')}</h1>
+            <div class="results-subtitle">${isSunk ? (day === 0 ? 'Practice Run Failed • Scrap Vessel Salvaged' : `Catastrophic Hull Breach • Day ${day} Salvaged`) : (day === 0 ? 'Safe Harbor Reached • Day 0 Tutorial Conquered' : `Safe Harbor Reached • Day ${day} Conquered`)}</div>
           </div>
 
           <div class="results-ledger-card">
@@ -218,38 +223,63 @@ export class ResultsUI {
           </div>
 
           <div class="results-actions">
-            <button class="results-btn dock-action" id="res-btn-dock">
+            <button class="results-btn dock-action action-priority" id="res-btn-dock">
               <span class="pixel-icon icon-harbor-flag size-18"></span>
-              <span>Return to Dock</span>
+              <span>${(day >= 7 && isPassed) ? 'Roll Credits' : (day === 0 ? 'Return to Dock Island' : 'Return to Dock')}</span>
             </button>
           </div>
         </div>
       `;
 
-      this.root.querySelector('#res-btn-dock').onclick = () => {
-        this.unmount();
-        if (day >= 7 && isPassed) {
-          emit('requestPhaseChange', {
-            phase: GamePhase.CREDITS,
-            gameCompleted: true,
-            day,
-            baseReward: sailing.baseReward,
-            multiplier: sailing.multiplier,
-            bonusCoins: totalAwarded
-          });
-          return;
-        }
-        const nextDay = isPassed ? Math.min(7, day + 1) : day;
-        this.gameState.day = nextDay;
-        emit('requestPhaseChange', { phase: GamePhase.DOCK, day: nextDay });
-      };
+      const dockBtn = this.root.querySelector('#res-btn-dock');
+      if (dockBtn) {
+        dockBtn.onclick = () => {
+          this.unmount();
+          if (day >= 7 && isPassed) {
+            emit('requestPhaseChange', {
+              phase: GamePhase.CREDITS,
+              gameCompleted: true,
+              day,
+              baseReward: sailing.baseReward,
+              multiplier: sailing.multiplier,
+              bonusCoins: totalAwarded
+            });
+            return;
+          }
+          if (day === 0 && isPassed) {
+            this.gameState.day = 1;
+            this.gameState.unlockDay?.(1);
+            emit('levelSelected', { day: 1 });
+          } else if (isPassed) {
+            const nextDay = Math.min(7, day + 1);
+            this.gameState.day = nextDay;
+            this.gameState.unlockDay?.(nextDay);
+          }
+          emit('requestPhaseChange', { phase: GamePhase.DOCK });
+        };
+      }
     }
+
+    this._handleKeyDown = (e) => {
+      if (e.code === 'Space' || e.code === 'Enter') {
+        const primaryBtn = this.root?.querySelector('.action-priority') || this.root?.querySelector('#res-btn-next') || this.root?.querySelector('#res-btn-dock');
+        if (primaryBtn) {
+          e.preventDefault();
+          primaryBtn.click();
+        }
+      }
+    };
+    window.addEventListener('keydown', this._handleKeyDown);
 
     const uiRoot = document.getElementById('ui-root') || document.body;
     uiRoot.appendChild(this.root);
   }
 
   unmount() {
+    if (this._handleKeyDown) {
+      window.removeEventListener('keydown', this._handleKeyDown);
+      this._handleKeyDown = null;
+    }
     if (this.root && this.root.parentNode) {
       this.root.parentNode.removeChild(this.root);
     }
