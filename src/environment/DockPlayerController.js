@@ -1440,7 +1440,7 @@ _updateInteractionRaycast() {
             return;
           }
         } else if (hit.object.userData.isShipyardBench) {
-          if (hit.distance <= 5.5) {
+          if (hit.distance <= 6.5 * this.scale) {
             this._setHoverState(hit.object, 'shipyard');
             return;
           }
