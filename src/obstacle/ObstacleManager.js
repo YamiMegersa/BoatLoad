@@ -379,6 +379,8 @@ export class ObstacleManager {
     this._obstacles = [];
     this._scene     = null;
     this.playRadius = 200;
+    this.hasWhirlpools = false;
+    this.whirlpoolIntensity = 0;
   }
 
   // -------------------------------------------------------------------------
@@ -488,7 +490,13 @@ export class ObstacleManager {
           playerShip.setImmune(2.0);
           playerShip.bounceBack(nx * 10, nz * 10, 'rock');
           emit('obstacleHit', { type: 'island', damage: 50 });
-          emit('playSound', { sound: 'collision' });
+          emit('playSound', {
+            sound: 'collision',
+            type: 'island',
+            damage: 50,
+            speedRatio: playerShip.speedRatio || 0,
+            maneuver: playerShip.maneuverIntensity || 0,
+          });
         }
 
         // 2. Physical push out to prevent clipping into terrain
@@ -533,6 +541,9 @@ export class ObstacleManager {
       }
     }
 
+    let hasWhirlpools = false;
+    let maxWhirlpoolIntensity = 0;
+
     for (const obs of this._obstacles) {
       if (!obs.active) continue;
 
@@ -542,6 +553,23 @@ export class ObstacleManager {
         const dx = obs.mesh.position.x - playerShip.mesh.position.x;
         const dz = obs.mesh.position.z - playerShip.mesh.position.z;
         distSq = dx * dx + dz * dz;
+
+        if (obs.type === 'whirlpool') {
+          hasWhirlpools = true;
+          const dist = Math.sqrt(distSq);
+          const pullRadius = 12.0 * (obs.scale || 1.0);
+          const hearRadius = Math.max(48.0, pullRadius * 3.8);
+          let localIntensity = 0.22; // ambient storm/vortex presence when whirlpools exist in level
+          if (dist < pullRadius) {
+            localIntensity = 0.58 + 0.42 * (1.0 - dist / pullRadius);
+          } else if (dist < hearRadius) {
+            const prox = 1.0 - (dist - pullRadius) / Math.max(0.001, hearRadius - pullRadius);
+            localIntensity = 0.22 + 0.36 * prox * prox;
+          }
+          if (localIntensity > maxWhirlpoolIntensity) {
+            maxWhirlpoolIntensity = localIntensity;
+          }
+        }
 
         // Large landmarks (islands, sirens) stay visible out to the camera far plane
         // (never less than 180m); smaller obstacles (rocks, barrels, seaweed, waves) cull at 135m.
@@ -562,6 +590,9 @@ export class ObstacleManager {
         if (!obs.mesh.visible && distSq > 900) { // 30m squared = 900
           continue;
         }
+      } else if (obs.type === 'whirlpool') {
+        hasWhirlpools = true;
+        maxWhirlpoolIntensity = Math.max(maxWhirlpoolIntensity, 0.22);
       }
 
       // Only waves move, according to wind direction
@@ -600,6 +631,9 @@ export class ObstacleManager {
       // Check collision
       this._checkCollision(obs, playerShip, delta, distSq);
     }
+
+    this.hasWhirlpools = hasWhirlpools;
+    this.whirlpoolIntensity = hasWhirlpools ? maxWhirlpoolIntensity : 0;
   }
 
   /**
@@ -714,7 +748,13 @@ export class ObstacleManager {
           ship.setImmune(2.0);
           ship.bounceBack(0, 1, 'barrel');
           emit('obstacleHit', { type: 'barrel', damage: obs.damage });
-          emit('playSound', { sound: 'collision' });
+          emit('playSound', {
+            sound: 'collision',
+            type: 'barrel',
+            damage: obs.damage,
+            speedRatio: ship.speedRatio || 0,
+            maneuver: ship.maneuverIntensity || 0,
+          });
         }
         emit('spawnParticles', { type: 'massiveSplash', position: obs.mesh.position.clone() });
       }
@@ -733,7 +773,13 @@ export class ObstacleManager {
           ship.setImmune(2.0);
           ship.bounceBack(0, 1, 'wave_small');
           emit('obstacleHit', { type: 'wave_small', damage: obs.damage });
-          emit('playSound', { sound: 'collision' });
+          emit('playSound', {
+            sound: 'collision',
+            type: 'wave_small',
+            damage: obs.damage,
+            speedRatio: ship.speedRatio || 0,
+            maneuver: ship.maneuverIntensity || 0,
+          });
         } else {
           ship.bounceBack(0, 1, 'wave_small');
         }
@@ -863,7 +909,13 @@ export class ObstacleManager {
       ship.setImmune(2.0); // 2 seconds of damage immunity
       ship.bounceBack(nx * 10, nz * 10, obs.type === 'siren' ? 'rock' : obs.type);
       emit('obstacleHit', { type: obs.type, damage: obs.damage });
-      emit('playSound', { sound: 'collision' });
+      emit('playSound', {
+        sound: 'collision',
+        type: obs.type,
+        damage: obs.damage,
+        speedRatio: ship.speedRatio || 0,
+        maneuver: ship.maneuverIntensity || 0,
+      });
     }
 
     // 2. PHYSICAL SEPARATION (Push ship out so it never clips into terrain)

@@ -1826,6 +1826,88 @@ export class GameState {
       this._krakenBoss.update(delta);
     }
 
+    // Dynamic sailing audio telemetry update
+    if (this._playerShip) {
+      const isSinkingNow = Boolean(
+        this._playerShip.isSinkingDeath ||
+        this._playerShip.sunk ||
+        (this._playerShip.isGagTruck && this._playerShip.truckSinkTimer > 0)
+      );
+
+      let waveRoughness = 0.2;
+      const oceanWaveScale = this._ocean?._waveScale ?? this._levelCfg?.waveScale ?? 1.0;
+      if (this._ocean && this._playerShip.mesh) {
+        const waveInfo = this._ocean.getWaveInfo(this._playerShip.mesh.position.x, this._playerShip.mesh.position.z);
+        const localHeight = Math.abs(waveInfo?.height || 0);
+        waveRoughness = Math.min(1.0, Math.max(0, (oceanWaveScale - 0.5) * 0.45 + localHeight * 0.35));
+      }
+
+      // Determine from level configuration whether waters are tranquil vs rough ocean
+      const weatherKey = String(this._levelCfg?.weather || '').toLowerCase();
+      const isRoughOcean = Boolean(
+        this._environmentManager?._isStormy ||
+        this._levelCfg?.isStormy ||
+        weatherKey === 'stormy' ||
+        weatherKey === 'gale' ||
+        oceanWaveScale >= 1.5
+      );
+
+      const hasWhirlpools = Boolean(
+        this._obstacleManager?.hasWhirlpools ||
+        this._levelCfg?.obstacles?.some(o => o.type === 'whirlpool' && (o.count ?? 1) > 0)
+      );
+      const whirlpoolIntensity = hasWhirlpools ? (this._obstacleManager?.whirlpoolIntensity ?? 0.22) : 0;
+
+      // Check for rough winds (storm/gale weather or active wind zones near the ship)
+      let windZoneIntensity = 0;
+      const windZones = this._windManager?.zones || [];
+      if (windZones.length > 0 && this._playerShip.mesh) {
+        const sx = this._playerShip.mesh.position.x;
+        const sz = this._playerShip.mesh.position.z;
+        for (const z of windZones) {
+          const dSq = (sx - z.x) * (sx - z.x) + (sz - z.z) * (sz - z.z);
+          const r = Math.sqrt(z.radiusSq || 100);
+          const hearR = r * 2.2;
+          if (dSq < hearR * hearR) {
+            const d = Math.sqrt(dSq);
+            const localW = Math.max(0.2, 1.0 - d / hearR);
+            if (localW > windZoneIntensity) windZoneIntensity = localW;
+          }
+        }
+      }
+      const hasRoughWinds = Boolean(isRoughOcean || windZoneIntensity > 0.05);
+      const windIntensity = isRoughOcean
+        ? Math.max(0.55, windZoneIntensity, Math.min(1.0, (oceanWaveScale - 1.0) * 0.45))
+        : windZoneIntensity;
+
+      const krakenAudio = this._krakenBoss
+        ? this._krakenBoss.getAudioState(this._playerShip)
+        : {
+            hasKraken: Boolean(this._levelCfg?.kraken),
+            state: 'idle',
+            intensity: this._levelCfg?.kraken ? 0.22 : 0,
+            proximity: this._levelCfg?.kraken ? 0.22 : 0,
+          };
+
+      emit('sailingAudioUpdate', {
+        active: !isSinkingNow,
+        isRoughOcean,
+        hasRoughWinds,
+        windIntensity,
+        speedRatio: this._playerShip.speedRatio ?? 0,
+        throttle: this._playerShip.throttle ?? 1.0,
+        maneuverIntensity: this._playerShip.maneuverIntensity ?? 0,
+        steerInput: this._playerShip.steerInput ?? 0,
+        yawVelocity: this._playerShip.yawVelocity ?? 0,
+        waveRoughness,
+        hasWhirlpools,
+        whirlpoolIntensity,
+        hasKraken: krakenAudio.hasKraken,
+        krakenIntensity: krakenAudio.intensity,
+        krakenProximity: krakenAudio.proximity ?? krakenAudio.intensity,
+        krakenState: krakenAudio.state,
+      });
+    }
 
     if (this._krakenBoss) {
       // During cinematic, skip normal camera updates and keep chase targets synchronized
@@ -2192,6 +2274,7 @@ export class GameState {
 
   _exitObstacle() {
     emit('cancelAnchorCountdown');
+    emit('sailingAudioUpdate', { active: false });
     this._isCountdownActive = false;
 
     if (this._dockStall?.group && this._dockStall.group.parent === this._scene) {

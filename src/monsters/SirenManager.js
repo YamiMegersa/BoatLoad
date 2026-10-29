@@ -200,7 +200,13 @@ export class SirenManager {
 
           // Audio and obstacle hit events
           emit('obstacleHit', { type: 'rock', damage: rockDamage });
-          emit('playSound', { sound: 'collision' });
+          emit('playSound', {
+            sound: 'collision',
+            type: 'siren',
+            damage: rockDamage,
+            speedRatio: playerShip.speedRatio || 0,
+            maneuver: playerShip.maneuverIntensity || 0,
+          });
         }
 
         // Static push away from rock center to avoid sticking

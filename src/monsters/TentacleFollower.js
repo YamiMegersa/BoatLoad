@@ -332,7 +332,13 @@ export class TentacleFollower {
 
       // Audio & feedback
       emit('obstacleHit', { type: 'rock', damage: rockDamage });
-      emit('playSound', { sound: 'collision' });
+      emit('playSound', {
+        sound: 'collision',
+        type: 'kraken_tentacle',
+        damage: 42,
+        speedRatio: playerShip.speedRatio || 0,
+        maneuver: playerShip.maneuverIntensity || 0,
+      });
     }
   }
 

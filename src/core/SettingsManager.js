@@ -18,6 +18,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   muted: false,           // boolean
   sfxVolume: 0.8,         // 0.0 to 1.0
   ambientVolume: 0.8,     // 0.0 to 1.0
+  musicVolume: 0.7,       // 0.0 to 1.0
 });
 
 export class SettingsManager {
@@ -102,6 +103,7 @@ export class SettingsManager {
       case 'muted':
       case 'sfxVolume':
       case 'ambientVolume':
+      case 'musicVolume':
         this.applyAudio();
         break;
       case 'showFps':
@@ -223,19 +225,28 @@ export class SettingsManager {
   }
 
   applyAudio(audioTarget) {
-    if (!this._context) return;
-    const audio = audioTarget || this._context.audio;
-    if (!audio) return;
-
     const masterVol = Number(this.get('masterVolume'));
     const isMuted   = Boolean(this.get('muted'));
     const sfxVol    = Number(this.get('sfxVolume'));
     const ambVol    = Number(this.get('ambientVolume'));
+    const musicVol  = Number(this.get('musicVolume'));
+
+    // Broadcast on EventBus so AudioManager & MusicManager always stay in sync
+    emit('setAudioVolume', { volume: masterVol });
+    emit('setAudioMute', { muted: isMuted });
+    emit('setSfxVolume', { volume: sfxVol });
+    emit('setAmbientVolume', { volume: ambVol });
+    emit('setMusicVolume', { volume: musicVol });
+
+    if (!this._context) return;
+    const audio = audioTarget || this._context.audio;
+    if (!audio) return;
 
     if (typeof audio.setMasterVolume === 'function') audio.setMasterVolume(masterVol);
     if (typeof audio.setMuted === 'function') audio.setMuted(isMuted);
     if (typeof audio.setSfxVolume === 'function') audio.setSfxVolume(sfxVol);
     if (typeof audio.setAmbientVolume === 'function') audio.setAmbientVolume(ambVol);
+    if (typeof audio.setMusicVolume === 'function') audio.setMusicVolume(musicVol);
   }
 
   applyFps(fpsTarget) {

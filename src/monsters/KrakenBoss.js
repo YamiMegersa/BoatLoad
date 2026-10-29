@@ -214,6 +214,81 @@ export class KrakenBoss {
     return this._cinematic.isActive;
   }
 
+  /**
+   * Returns current Kraken presence, proximity, and threat intensity for dynamic audio.
+   * When the ship is far from the Kraken, proximity/intensity stays low so the Kraken
+   * acts as a background danger signal; as the player maneuvers tentacles and gets
+   * closer to the Kraken, proximity and intensity ramp up.
+   * @param {import('../obstacle/PlayerShip.js').PlayerShip} [playerShip]
+   * @returns {{ hasKraken: boolean, state: string, intensity: number, proximity: number }}
+   */
+  getAudioState(playerShip = this._playerShip) {
+    if (this._state === BossState.VICTORY) {
+      return { hasKraken: false, state: this._state, intensity: 0, proximity: 0 };
+    }
+
+    const shipPos = playerShip?.mesh?.position;
+    let distToKraken = 120;
+    let distToTrigger = 120;
+    if (shipPos) {
+      distToKraken = Math.hypot(shipPos.x - this._krakenPos.x, shipPos.z - this._krakenPos.z);
+      distToTrigger = Math.hypot(shipPos.x - this._raceStartPos.x, shipPos.z - this._raceStartPos.z);
+    }
+
+    // Distance-based proximity in [0.10, 1.0]:
+    // > 140m away => ~0.10 (distant background warning)
+    // < 25m away  => 1.00 (up close with the Kraken)
+    const minDist = Math.min(distToKraken, distToTrigger);
+    const distProx = Math.max(0.10, Math.min(1.0, 1.0 - (minDist - 22) / 130));
+    const maneuverBoost = Math.min(0.22, (playerShip?.maneuverIntensity || 0) * 0.22);
+
+    let intensity = distProx;
+    let proximity = distProx;
+
+    switch (this._state) {
+      case BossState.IDLE: {
+        // Not in active tentacle pursuit yet: scale from 0.12 (far) up to 0.52 (near trigger)
+        proximity = Math.max(0.12, Math.min(0.55, distProx * 0.65));
+        intensity = proximity;
+        break;
+      }
+      case BossState.RACE_ACTIVE: {
+        // Maneuvering tentacles & waypoints: scales with both closeness to Kraken and race urgency
+        const timeRatio = this._waypointRace ? this._waypointRace.getTimeRatio() : 1.0;
+        const urgency = Math.max(0, Math.min(1, 1.0 - timeRatio));
+        proximity = Math.max(0.42, Math.min(1.0, distProx * 0.65 + urgency * 0.30 + maneuverBoost));
+        intensity = Math.max(0.48, proximity);
+        break;
+      }
+      case BossState.TENTACLE_ATTACKING:
+        proximity = 1.0;
+        intensity = 1.0;
+        break;
+      case BossState.TENTACLE_CAUGHT:
+      case BossState.CINEMATIC:
+        proximity = 0.92;
+        intensity = 0.92;
+        break;
+      case BossState.RACE_COOLDOWN:
+        proximity = Math.max(0.35, distProx * 0.7);
+        intensity = proximity;
+        break;
+      case BossState.DEFEATED:
+        proximity = 0.30;
+        intensity = 0.30;
+        break;
+      default:
+        break;
+    }
+
+    return {
+      hasKraken: true,
+      state: this._state,
+      intensity: Math.max(0, Math.min(1, intensity)),
+      proximity: Math.max(0, Math.min(1, proximity)),
+    };
+  }
+
   dispose() {
     // Clean up event listeners
     if (this._onPlayerSunk) off('playerSunk', this._onPlayerSunk);
@@ -359,6 +434,7 @@ export class KrakenBoss {
           if (t) t.startAttack();
           this._attackTimer = 0;
           this._attackDuration = 3.0; // 3 seconds for surge, impact, and recoil
+          emit('playSound', { sound: 'kraken', event: 'tentacle_attack', rate: 1.16, gain: 0.95 });
         }
         break;
 
