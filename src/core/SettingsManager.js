@@ -254,6 +254,10 @@ export class SettingsManager {
     if (!this._context) return;
     const el = fpsTarget || this._context.fpsCounter;
     if (!el) return;
+    if (this._context.directorMode?.isActive && this._context.directorMode?.uiHidden) {
+      el.style.display = 'none';
+      return;
+    }
     el.style.display = this.get('showFps') ? 'block' : 'none';
   }
 }

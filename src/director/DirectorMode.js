@@ -656,17 +656,35 @@ export class DirectorMode {
     this.uiHidden = !this.uiHidden;
     const container = this._dom.container;
     const launchBtn = this._dom.launchBtn;
-    const fps = document.getElementById('fps-counter');
+    const uiRoot = document.getElementById('ui-root');
 
     if (this.uiHidden) {
       container?.classList.add('ui-hidden');
       if (launchBtn) launchBtn.style.display = 'none';
-      if (fps) fps.style.display = 'none';
-      this._showToast("UI Hidden for Recording — Press [H] or [Esc] to restore", 3500);
+      if (uiRoot) {
+        uiRoot.classList.add('director-ui-hidden');
+        uiRoot.style.display = 'none';
+      }
+      document.body.classList.add('director-all-ui-hidden');
+      if (this._dom.gridOverlay) {
+        this._dom.gridOverlay.style.display = 'none';
+      }
+      emit('directorUIHidden', { hidden: true });
+      this._showToast("All UI Hidden for Recording — Press [H] or [Esc] to restore", 3500);
     } else {
       container?.classList.remove('ui-hidden');
       if (launchBtn) launchBtn.style.display = 'none';
-      if (fps) fps.style.display = 'block';
+      document.body.classList.remove('director-all-ui-hidden');
+      if (uiRoot) {
+        uiRoot.classList.remove('director-ui-hidden');
+        uiRoot.style.display = '';
+      }
+      if (this._dom.gridOverlay && this.gridOverlay !== 'none') {
+        this._dom.gridOverlay.style.display = '';
+      }
+      settingsManager.applyFps();
+      this._showToast("UI Restored", 2000);
+      emit('directorUIHidden', { hidden: false });
     }
   }
 
@@ -890,7 +908,7 @@ export class DirectorMode {
 
         <!-- Top Right Actions -->
         <div class="director-actions-group">
-          <button id="btn-director-hide-ui" class="director-btn" title="Hide UI for recording (H)"><span class="pixel-icon icon-hide-ui-eye size-14"></span> Hide UI (H)</button>
+          <button id="btn-director-hide-ui" class="director-btn" title="Hide all UI for recording (H)"><span class="pixel-icon icon-hide-ui-eye size-14"></span> Hide UI (H)</button>
           <button id="btn-director-exit" class="director-btn" style="background:#552222; border-color:#ff6666;" title="Exit (F8)"><span class="pixel-icon icon-close-cross size-14"></span> Exit</button>
         </div>
       </div>
@@ -1608,11 +1626,25 @@ export class DirectorMode {
   _hideContainer() {
     if (this._dom.container) {
       this._dom.container.style.display = 'none';
+      this._dom.container.classList.remove('ui-hidden');
     }
     if (this._dom.launchBtn) {
       this._dom.launchBtn.style.borderColor = 'rgba(212, 175, 55, 0.45)';
       this._dom.launchBtn.style.color = '#f3e3b4';
       this._dom.launchBtn.style.display = 'none';
+    }
+    document.body.classList.remove('director-all-ui-hidden');
+    const uiRoot = document.getElementById('ui-root');
+    if (uiRoot) {
+      uiRoot.classList.remove('director-ui-hidden');
+      uiRoot.style.display = '';
+    }
+    if (this._dom.gridOverlay) {
+      this._dom.gridOverlay.style.display = '';
+    }
+    settingsManager.applyFps();
+    if (this.uiHidden) {
+      emit('directorUIHidden', { hidden: false });
     }
     this.uiHidden = false;
     this.setAspectRatio('none');

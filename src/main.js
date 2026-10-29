@@ -239,6 +239,23 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyM' && !e.ctrlKey && !e.metaKey && !e.shiftKey) audio.toggleMute();
 });
 
+// Toggle FPS overlay with Ctrl+Shift+F
+window.addEventListener(
+  'keydown',
+  (e) => {
+    const isCtrlOrMeta = e.ctrlKey || e.metaKey;
+    const isShift = e.shiftKey;
+    const isF = e.code === 'KeyF' || e.key === 'F' || e.key === 'f';
+    if (isCtrlOrMeta && isShift && isF) {
+      e.preventDefault();
+      e.stopPropagation();
+      const next = !settingsManager.get('showFps');
+      settingsManager.set('showFps', next);
+    }
+  },
+  true
+);
+
 const buildMenu = new BuildMenu();
 const dockUI = new DockUI();
 const mainMenuUI = new MainMenuUI();
@@ -311,9 +328,14 @@ fpsCounter.style.cssText = `
   background: rgba(0,0,0,0.8); color: #0f0; padding: 5px 10px;
   font-family: monospace; border-radius: 4px; font-size: 14px;
   pointer-events: auto; cursor: pointer; user-select: none;
-  display: ${GameEnv.isDev() ? 'block' : 'none'};
+  display: ${settingsManager.get('showFps') ? 'block' : 'none'};
 `;
-fpsCounter.title = 'Click or press F3 to print live triangle & geometry audit to console';
+fpsCounter.title = 'Click or press F3 to print live triangle & geometry audit (Ctrl+Shift+F to toggle)';
+window.toggleFps = () => {
+  const next = !settingsManager.get('showFps');
+  settingsManager.set('showFps', next);
+  return next;
+};
 fpsCounter.onclick = () => window.inspectTriangles?.();
 fpsCounter.innerText = 'FPS: 0';
 document.getElementById('ui-root')?.appendChild(fpsCounter);
@@ -479,7 +501,7 @@ function logEvent(msg) {
 
 on('envModeChanged', ({ isDev }) => {
   demoUI.style.display = isDev ? 'block' : 'none';
-  fpsCounter.style.display = isDev ? 'block' : 'none';
+  settingsManager.set('showFps', isDev);
 });
 
 // ---------------------------------------------------------------------------

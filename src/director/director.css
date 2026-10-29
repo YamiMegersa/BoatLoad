@@ -62,9 +62,18 @@
   transition: opacity 0.25s ease;
 }
 
-#director-container.ui-hidden {
-  opacity: 0;
-  pointer-events: none !important;
+#director-container.ui-hidden { opacity: 0; pointer-events: none !important; }
+
+/* Clean Capture: Hide all game and modal UI when Director Mode hides UI */
+body.director-all-ui-hidden #ui-root,
+#ui-root.director-ui-hidden {
+  display: none !important;
+}
+
+body.director-all-ui-hidden .community-hub-backdrop,
+body.director-all-ui-hidden .course-publish-modal-backdrop,
+body.director-all-ui-hidden .alert-modal-backdrop {
+  display: none !important;
 }
 
 /* Top Director Transom Plaque */

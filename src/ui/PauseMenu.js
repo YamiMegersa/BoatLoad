@@ -21,6 +21,15 @@ export class PauseMenu {
     on('autoPerformanceStatus', (status) => {
       this._onAutoPerformanceStatus(status);
     });
+
+    on('settingChanged', ({ key, value }) => {
+      if (key === 'showFps' && this._el) {
+        const showFpsToggle = this._el.querySelector('#set-show-fps');
+        const showFpsBadge = this._el.querySelector('#val-show-fps');
+        if (showFpsToggle) showFpsToggle.checked = Boolean(value);
+        if (showFpsBadge) showFpsBadge.innerText = value ? 'Show' : 'Hide';
+      }
+    });
   }
 
   mount(opts = {}) {
@@ -225,7 +234,7 @@ export class PauseMenu {
             <div class="setting-item">
               <div class="setting-info">
                 <label class="setting-label" for="set-show-fps">Performance HUD (FPS / Calls / Tris)</label>
-                <span class="setting-desc">Live on-screen performance diagnostics.</span>
+                <span class="setting-desc">Live on-screen performance diagnostics. (Shortcut: Ctrl+Shift+F)</span>
               </div>
               <div class="setting-ctrl-row">
                 <label class="switch-wrap">
