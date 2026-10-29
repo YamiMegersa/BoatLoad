@@ -251,24 +251,24 @@ export class DockPlayerController {
         break;
       case 'KeyE':
         // Interaction key
-          if (this.hoveredCrab) {
-            this._interactWithCrab();
-          } else if (this.hoveredDivorcePost) {
-            this._interactWithDivorcePost();
-          } else if (this.hoveredGhost) {
-            this._interactWithGhost();
-          } else if (this.hoveredBunny) {
-            this._interactWithBunny();
-          } else if (this.hoveredDoor) {
-            this.toggleShop();
-          } else if (this.hoveredLedger) {
-            this._interactWithLedger();
-          } else if (this.hoveredShip) {
-            this._interactWithShip();
-          } else if (this.hoveredShipyard) {
-            this._interactWithShipyard();
-          }
-          break;
+        if (this.hoveredCrab) {
+          this._interactWithCrab();
+        } else if (this.hoveredDivorcePost) {
+          this._interactWithDivorcePost();
+        } else if (this.hoveredGhost) {
+          this._interactWithGhost();
+        } else if (this.hoveredBunny) {
+          this._interactWithBunny();
+        } else if (this.hoveredDoor) {
+          this.toggleShop();
+        } else if (this.hoveredLedger) {
+          this._interactWithLedger();
+        } else if (this.hoveredShip) {
+          this._interactWithShip();
+        } else if (this.hoveredShipyard) {
+          this._interactWithShipyard();
+        }
+        break;
       case 'KeyQ':
         this.toggleEmoteWheel();
         break;
@@ -536,7 +536,7 @@ export class DockPlayerController {
     const premiseCards = [
       `Port Rotgut is a shithole of a harbour, and you're the only shipwright in it who isn't a thief.`,
       `Last Friday you got blackout drunk and woke up married to Marguerite, a siren, with a ring on your finger and no memory of the vows.`,
-      `Her lawyers (a shark and a crab) want <span style="color:#ffd700; font-weight:bold;">7,000 doubloons</span> by Sunday for the divorce.<br/><span style="font-size:22px; opacity:0.9;">If you can't pay, she takes your shop, your bunny and the better half of your liver.</span>`,
+      `Her lawyer (a crab) wants <span style="color:#ffd700; font-weight:bold;">7,000 doubloons</span> by Sunday for the divorce.<br/><span style="font-size:22px; opacity:0.9;">If you can't pay, she takes your shop, your bunny and the better half of your liver.</span>`,
       `<span style="color:#ffd700; font-size:30px; letter-spacing:1px;">One customer a day. One ship a day.<br/>One repair per level.</span>`
     ];
 
@@ -547,678 +547,700 @@ export class DockPlayerController {
 
     let cardIndex = 0;
     let inWakeupPhase = false;
+    let isTransitioningCard = false;
+
+      const showCurrentCard = (initialDelayMs = 250) => {
+        if (inWakeupPhase) return;
+        this._clearCutsceneTimers();
+
+        if (cardIndex >= premiseCards.length) {
+          beginWakeupBlink();
+          return;
+        }
+
+        isTransitioningCard = true;
+        const html = premiseCards[cardIndex];
+        cardIndex++;
+
+        textEl.style.transition = 'opacity 0.75s ease';
+        textEl.style.opacity = '0';
+        const tIn = setTimeout(() => {
+          textEl.innerHTML = html;
+          textEl.style.opacity = '1';
+        isTransitioningCard = false;
+      }, initialDelayMs);
+
+      this._cutsceneTimeouts.push(tIn);
+    };
 
     const advanceCard = () => {
       if (inWakeupPhase) return;
+      // If user clicks while fade-out/in is still in progress, jump straight to showing/next
       this._clearCutsceneTimers();
 
-      if (cardIndex >= premiseCards.length) {
-        beginWakeupBlink();
+      if (isTransitioningCard) {
+        isTransitioningCard = false;
+        textEl.style.transition = 'opacity 0.25s ease';
+        textEl.style.opacity = '1';
         return;
       }
 
-      const html = premiseCards[cardIndex];
-      cardIndex++;
-
+      isTransitioningCard = true;
+      textEl.style.transition = 'opacity 0.45s ease';
       textEl.style.opacity = '0';
-      const tIn = setTimeout(() => {
-        textEl.innerHTML = html;
-        textEl.style.opacity = '1';
-      }, 350);
-
-      const tOut = setTimeout(() => {
-        textEl.style.opacity = '0';
-      }, 4200);
 
       const tNext = setTimeout(() => {
-        advanceCard();
-      }, 5300);
+      if (cardIndex >= premiseCards.length) {
+        beginWakeupBlink();
+      } else {
+        showCurrentCard(60);
+      }
+    }, 460);
+    this._cutsceneTimeouts.push(tNext);
+  };
 
-      this._cutsceneTimeouts.push(tIn, tOut, tNext);
-    };
-
-    const onAdvanceInput = (e) => {
-      if (inWakeupPhase) return;
-      if (e.type === 'keydown' && e.code !== 'Space' && e.code !== 'Enter') return;
-      if (e.type === 'keydown') e.preventDefault();
-      advanceCard();
-    };
+  const onAdvanceInput = (e) => {
+    if (inWakeupPhase) return;
+    if (e.type === 'keydown' && e.code !== 'Space' && e.code !== 'Enter') return;
+    if (e.type === 'keydown') e.preventDefault();
+    advanceCard();
+  };
 
     overlay.addEventListener('click', onAdvanceInput);
     window.addEventListener('keydown', onAdvanceInput);
     this._cleanupPremiseInput = () => {
-      overlay.removeEventListener('click', onAdvanceInput);
-      window.removeEventListener('keydown', onAdvanceInput);
-    };
+  overlay.removeEventListener('click', onAdvanceInput);
+  window.removeEventListener('keydown', onAdvanceInput);
+};
 
-    const beginWakeupBlink = () => {
-      if (inWakeupPhase) return;
-      inWakeupPhase = true;
-      if (this._cleanupPremiseInput) {
-        this._cleanupPremiseInput();
-        this._cleanupPremiseInput = null;
-      }
-
-      textEl.style.opacity = '0';
-      const skipHint = overlay.querySelector('#cutscene-skip-hint');
-      if (skipHint) skipHint.style.display = 'none';
-      overlay.style.pointerEvents = 'none';
-
-      // Close eyelids fully before lifting black background
-      eyelidTop.style.transition = 'none';
-      eyelidBot.style.transition = 'none';
-      eyelidTop.style.transform = 'translateY(0%)';
-      eyelidBot.style.transform = 'translateY(0%)';
-
-      // Crab position in world space: islandGroup (-22 + 8.5, 0.42, -18.8) * s
-      const crabWorldX = (-22 + 8.5) * s;
-      const crabWorldY = 0.55 * s;
-      const crabWorldZ = -18.8 * s;
-      const dxCrab = crabWorldX - beachX;
-      const dzCrab = crabWorldZ - beachZ;
-      const crabYaw = Math.atan2(-dxCrab, -dzCrab);
-      const crabHorizDist = Math.hypot(dxCrab, dzCrab);
-      const crabPitch = Math.atan2(crabWorldY - standEyeY, crabHorizDist);
-
-      // Start camera keyframe animation (looking around at bottles on beach -> standing up -> focusing on Crab)
-      this._cutsceneTimer = 0;
-      this._cutsceneActive = true;
-      this._cutsceneKeyframes = [
-        // t=0.0s: Lying on sand, looking left at fallen green/amber bottles
-        { t: 0.0, x: beachX, y: lowEyeY, z: beachZ, yaw: 0.62, pitch: -0.34, roll: 0.38 },
-        // t=1.8s: Blink half-open, groggily looking across nearby bottles
-        { t: 1.8, x: beachX, y: lowEyeY + 0.12 * s, z: beachZ, yaw: 0.45, pitch: -0.28, roll: 0.26 },
-        // t=3.6s: Panning right across the wine bottles and half-buried barrel on the sand
-        { t: 3.6, x: beachX, y: lowEyeY + 0.85 * s, z: beachZ, yaw: -0.68, pitch: -0.26, roll: -0.16 },
-        // t=5.2s: Pushing up to standing height on the beach
-        { t: 5.2, x: beachX, y: standEyeY, z: beachZ, yaw: -0.35, pitch: -0.12, roll: 0.04 },
-        // t=6.8s: Turning toward the water and locking eyes on the Crab Clerk in the shallows
-        { t: 6.8, x: beachX, y: standEyeY, z: beachZ, yaw: crabYaw, pitch: crabPitch, roll: 0.0 }
-      ];
-
-      // Sequence the eyelid blinks
-      const t1 = setTimeout(() => {
-        blackBg.style.opacity = '0';
-        eyelidTop.style.transition = 'transform 0.75s cubic-bezier(0.4, 0, 0.2, 1)';
-        eyelidBot.style.transition = 'transform 0.75s cubic-bezier(0.4, 0, 0.2, 1)';
-        // First groggy half-blink open
-        eyelidTop.style.transform = 'translateY(-48%)';
-        eyelidBot.style.transform = 'translateY(48%)';
-      }, 300);
-
-      const t2 = setTimeout(() => {
-        // Blink shut briefly
-        eyelidTop.style.transition = 'transform 0.35s ease-in';
-        eyelidBot.style.transition = 'transform 0.35s ease-in';
-        eyelidTop.style.transform = 'translateY(-8%)';
-        eyelidBot.style.transform = 'translateY(8%)';
-      }, 1350);
-
-      const t3 = setTimeout(() => {
-        // Blink wide open!
-        eyelidTop.style.transition = 'transform 0.95s cubic-bezier(0.22, 1, 0.36, 1)';
-        eyelidBot.style.transition = 'transform 0.95s cubic-bezier(0.22, 1, 0.36, 1)';
-        eyelidTop.style.transform = 'translateY(-100%)';
-        eyelidBot.style.transform = 'translateY(100%)';
-      }, 1850);
-
-      const t4 = setTimeout(() => {
-        // Play crab claw snap when camera turns to look at the crab in the water
-        emit('playSound', { sound: 'crab_snap' });
-      }, 5400);
-
-      this._cutsceneTimeouts.push(t1, t2, t3, t4);
-    };
-
-    advanceCard();
+const beginWakeupBlink = () => {
+  if (inWakeupPhase) return;
+  inWakeupPhase = true;
+  if (this._cleanupPremiseInput) {
+    this._cleanupPremiseInput();
+    this._cleanupPremiseInput = null;
   }
 
-  _clearCutsceneTimers() {
-    if (this._cutsceneTimeouts) {
-      this._cutsceneTimeouts.forEach(t => clearTimeout(t));
-      this._cutsceneTimeouts = [];
-    }
-    if (this._cleanupPremiseInput) {
-      this._cleanupPremiseInput();
-      this._cleanupPremiseInput = null;
-    }
+  textEl.style.opacity = '0';
+  const skipHint = overlay.querySelector('#cutscene-skip-hint');
+  if (skipHint) skipHint.style.display = 'none';
+  overlay.style.pointerEvents = 'none';
+
+  // Close eyelids fully before lifting black background
+  eyelidTop.style.transition = 'none';
+  eyelidBot.style.transition = 'none';
+  eyelidTop.style.transform = 'translateY(0%)';
+  eyelidBot.style.transform = 'translateY(0%)';
+
+  // Crab position in world space: islandGroup (-22 + 8.5, 0.42, -18.8) * s
+  const crabWorldX = (-22 + 8.5) * s;
+  const crabWorldY = 0.55 * s;
+  const crabWorldZ = -18.8 * s;
+  const dxCrab = crabWorldX - beachX;
+  const dzCrab = crabWorldZ - beachZ;
+  const crabYaw = Math.atan2(-dxCrab, -dzCrab);
+  const crabHorizDist = Math.hypot(dxCrab, dzCrab);
+  const crabPitch = Math.atan2(crabWorldY - standEyeY, crabHorizDist);
+
+  // Start camera keyframe animation (looking around at bottles on beach -> standing up -> focusing on Crab)
+  this._cutsceneTimer = 0;
+  this._cutsceneActive = true;
+  this._cutsceneKeyframes = [
+    // t=0.0s: Lying on sand, looking left at fallen green/amber bottles
+    { t: 0.0, x: beachX, y: lowEyeY, z: beachZ, yaw: 0.62, pitch: -0.34, roll: 0.38 },
+    // t=1.8s: Blink half-open, groggily looking across nearby bottles
+    { t: 1.8, x: beachX, y: lowEyeY + 0.12 * s, z: beachZ, yaw: 0.45, pitch: -0.28, roll: 0.26 },
+    // t=3.6s: Panning right across the wine bottles and half-buried barrel on the sand
+    { t: 3.6, x: beachX, y: lowEyeY + 0.85 * s, z: beachZ, yaw: -0.68, pitch: -0.26, roll: -0.16 },
+    // t=5.2s: Pushing up to standing height on the beach
+    { t: 5.2, x: beachX, y: standEyeY, z: beachZ, yaw: -0.35, pitch: -0.12, roll: 0.04 },
+    // t=6.8s: Turning toward the water and locking eyes on the Crab Clerk in the shallows
+    { t: 6.8, x: beachX, y: standEyeY, z: beachZ, yaw: crabYaw, pitch: crabPitch, roll: 0.0 }
+  ];
+
+  // Sequence the eyelid blinks
+  const t1 = setTimeout(() => {
+    blackBg.style.opacity = '0';
+    eyelidTop.style.transition = 'transform 0.75s cubic-bezier(0.4, 0, 0.2, 1)';
+    eyelidBot.style.transition = 'transform 0.75s cubic-bezier(0.4, 0, 0.2, 1)';
+    // First groggy half-blink open
+    eyelidTop.style.transform = 'translateY(-48%)';
+    eyelidBot.style.transform = 'translateY(48%)';
+  }, 300);
+
+  const t2 = setTimeout(() => {
+    // Blink shut briefly
+    eyelidTop.style.transition = 'transform 0.35s ease-in';
+    eyelidBot.style.transition = 'transform 0.35s ease-in';
+    eyelidTop.style.transform = 'translateY(-8%)';
+    eyelidBot.style.transform = 'translateY(8%)';
+  }, 1350);
+
+  const t3 = setTimeout(() => {
+    // Blink wide open!
+    eyelidTop.style.transition = 'transform 0.95s cubic-bezier(0.22, 1, 0.36, 1)';
+    eyelidBot.style.transition = 'transform 0.95s cubic-bezier(0.22, 1, 0.36, 1)';
+    eyelidTop.style.transform = 'translateY(-100%)';
+    eyelidBot.style.transform = 'translateY(100%)';
+  }, 1850);
+
+  const t4 = setTimeout(() => {
+    // Play crab claw snap when camera turns to look at the crab in the water
+    emit('playSound', { sound: 'crab_snap' });
+  }, 5400);
+
+  this._cutsceneTimeouts.push(t1, t2, t3, t4);
+};
+
+showCurrentCard(300);
   }
 
-  _updateCutscene(delta) {
-    if (!this._cutsceneActive || !this._cutsceneKeyframes || this._cutsceneKeyframes.length < 2) return;
-
-    this._cutsceneTimer += delta;
-    const frames = this._cutsceneKeyframes;
-    const lastFrame = frames[frames.length - 1];
-
-    if (this._cutsceneTimer >= lastFrame.t) {
-      // Cutscene complete — set final pose and restore player control
-      this.yawObject.position.set(lastFrame.x, lastFrame.y, lastFrame.z);
-      this.yawObject.rotation.y = lastFrame.yaw;
-      this.pitchObject.rotation.x = lastFrame.pitch;
-      this.camera.rotation.z = 0;
-
-      this._cutsceneActive = false;
-      this.mode = 'player';
-      if (this.crosshair) this.crosshair.style.display = 'block';
-      if (this.instructions) this.instructions.style.display = 'flex';
-
-      if (this._cutsceneOverlay && this._cutsceneOverlay.parentNode) {
-        this._cutsceneOverlay.parentNode.removeChild(this._cutsceneOverlay);
-        this._cutsceneOverlay = null;
-      }
-
-      this.setObjective(`🦀 Approach and speak with the <strong>Crab Clerk</strong> in the shallow water nearby <span style="color:#ffd700;">[E or Click]</span>`);
-
-      if (this._cutsceneOnComplete) {
-        const cb = this._cutsceneOnComplete;
-        this._cutsceneOnComplete = null;
-        cb();
-      }
-      return;
-    }
-
-    // Find active segment
-    let k0 = frames[0];
-    let k1 = frames[1];
-    for (let i = 0; i < frames.length - 1; i++) {
-      if (this._cutsceneTimer >= frames[i].t && this._cutsceneTimer <= frames[i + 1].t) {
-        k0 = frames[i];
-        k1 = frames[i + 1];
-        break;
-      }
-    }
-
-    const span = Math.max(0.001, k1.t - k0.t);
-    const rawU = Math.max(0, Math.min(1, (this._cutsceneTimer - k0.t) / span));
-    // Smoothstep easing for natural head/body movement
-    const u = rawU * rawU * (3 - 2 * rawU);
-
-    this.yawObject.position.set(
-      k0.x + (k1.x - k0.x) * u,
-      k0.y + (k1.y - k0.y) * u,
-      k0.z + (k1.z - k0.z) * u
-    );
-    this.yawObject.rotation.y = k0.yaw + (k1.yaw - k0.yaw) * u;
-    this.pitchObject.rotation.x = k0.pitch + (k1.pitch - k0.pitch) * u;
-    this.camera.rotation.z = k0.roll + (k1.roll - k0.roll) * u;
+_clearCutsceneTimers() {
+  if (this._cutsceneTimeouts) {
+    this._cutsceneTimeouts.forEach(t => clearTimeout(t));
+    this._cutsceneTimeouts = [];
   }
-
-  _interactWithShip() {
-    emit('playSound', { sound: 'qte_success' });
-    emit('requestPhaseChange', { phase: 'SHIPYARD' });
+  if (this._cleanupPremiseInput) {
+    this._cleanupPremiseInput();
+    this._cleanupPremiseInput = null;
   }
+}
 
-  _interactWithLedger() {
-    emit('playSound', { sound: 'qte_success' });
-    if (this.isLocked) {
-      document.exitPointerLock();
-    }
-    emit('openLevelSelector');
-  }
+_updateCutscene(delta) {
+  if (!this._cutsceneActive || !this._cutsceneKeyframes || this._cutsceneKeyframes.length < 2) return;
 
-  _interactWithShipyard() {
-    emit('playSound', { sound: 'qte_success' });
-    emit('gotoShipyard');
-  }
+  this._cutsceneTimer += delta;
+  const frames = this._cutsceneKeyframes;
+  const lastFrame = frames[frames.length - 1];
 
-  enterShop() {
-    this.mode = 'shop';
+  if (this._cutsceneTimer >= lastFrame.t) {
+    // Cutscene complete — set final pose and restore player control
+    this.yawObject.position.set(lastFrame.x, lastFrame.y, lastFrame.z);
+    this.yawObject.rotation.y = lastFrame.yaw;
+    this.pitchObject.rotation.x = lastFrame.pitch;
+    this.camera.rotation.z = 0;
 
-    // Store outside exit position just outside the enlarged door on the dock
-    // Shop local (x = 3.0 + 1.2, y = 0, z = -0.35)
-    const exitPos = new THREE.Vector3(4.2, 0, -0.35);
-    if (this.dockStall && this.dockStall.shopGroup) {
-      this.dockStall.shopGroup.localToWorld(exitPos);
-    } else {
-      exitPos.set(-2.1, 2.15, 4.35);
-    }
-    this.savedExitPosition = exitPos;
-
-    // Position player camera at the shopkeeper station inside the stall
-    const shopCamWorldPos = new THREE.Vector3();
-    if (this.dockStall && this.dockStall.shopCam) {
-      this.dockStall.shopCam.getWorldPosition(shopCamWorldPos);
-    } else {
-      shopCamWorldPos.set(2.1, 2.15 + this.eyeHeight, 4.6);
-    }
-
-    this.yawObject.position.copy(shopCamWorldPos);
-    // Face forward through the counter out toward the dock (world -Z)
-    this.yawObject.rotation.y = 0;
-    this.pitchObject.rotation.x = -0.05;
-
-    this.velocity.set(0, 0, 0);
-    this.verticalVelocity = 0;
-    this.isGrounded = true;
-    this.keys.jump = false;
-
-    emit('playSound', { sound: 'qte_success' });
-    emit('dockPlayerModeChanged', { mode: 'shop' });
-    emit('dockPlayerEnteredShop');
-  }
-
-  exitShop() {
+    this._cutsceneActive = false;
     this.mode = 'player';
+    if (this.crosshair) this.crosshair.style.display = 'block';
+    if (this.instructions) this.instructions.style.display = 'flex';
 
-    // Place player just outside the door facing outward onto the dock / island ramp
-    if (this.savedExitPosition) {
-      this.yawObject.position.set(this.savedExitPosition.x, this.savedExitPosition.y + this.eyeHeight, this.savedExitPosition.z);
-    } else {
-      this.yawObject.position.set(-2.1, 2.15 + this.eyeHeight, 4.35);
+    if (this._cutsceneOverlay && this._cutsceneOverlay.parentNode) {
+      this._cutsceneOverlay.parentNode.removeChild(this._cutsceneOverlay);
+      this._cutsceneOverlay = null;
     }
 
-    // Face outward toward the island ramp (world -X, door is behind them)
-    this.yawObject.rotation.y = Math.PI / 2;
-    this.pitchObject.rotation.x = 0;
-    this.velocity.set(0, 0, 0);
-    this.verticalVelocity = 0;
-    this.isGrounded = true;
-    this.keys.jump = false;
+    this.setObjective(`🦀 Approach and speak with the <strong>Crab Clerk</strong> in the shallow water nearby <span style="color:#ffd700;">[E or Click]</span>`);
 
-    emit('playSound', { sound: 'qte_success' });
-    emit('dockPlayerModeChanged', { mode: 'player' });
+    if (this._cutsceneOnComplete) {
+      const cb = this._cutsceneOnComplete;
+      this._cutsceneOnComplete = null;
+      cb();
+    }
+    return;
   }
 
-  // ---------------------------------------------------------------------------
-  // Frame Update
-  // ---------------------------------------------------------------------------
-
-  update(delta) {
-    if (this.mode === 'cutscene') {
-      this._updateCutscene(delta);
-      if (this.voxelArms) {
-        this.voxelArms.update(delta);
-      }
-      return;
+  // Find active segment
+  let k0 = frames[0];
+  let k1 = frames[1];
+  for (let i = 0; i < frames.length - 1; i++) {
+    if (this._cutsceneTimer >= frames[i].t && this._cutsceneTimer <= frames[i + 1].t) {
+      k0 = frames[i];
+      k1 = frames[i + 1];
+      break;
     }
+  }
 
-    if (this.mode === 'player') {
-      this._updatePlayerMovement(delta);
-    }
+  const span = Math.max(0.001, k1.t - k0.t);
+  const rawU = Math.max(0, Math.min(1, (this._cutsceneTimer - k0.t) / span));
+  // Smoothstep easing for natural head/body movement
+  const u = rawU * rawU * (3 - 2 * rawU);
 
-    this._updateInteractionRaycast();
+  this.yawObject.position.set(
+    k0.x + (k1.x - k0.x) * u,
+    k0.y + (k1.y - k0.y) * u,
+    k0.z + (k1.z - k0.z) * u
+  );
+  this.yawObject.rotation.y = k0.yaw + (k1.yaw - k0.yaw) * u;
+  this.pitchObject.rotation.x = k0.pitch + (k1.pitch - k0.pitch) * u;
+  this.camera.rotation.z = k0.roll + (k1.roll - k0.roll) * u;
+}
 
+_interactWithShip() {
+  emit('playSound', { sound: 'qte_success' });
+  emit('requestPhaseChange', { phase: 'SHIPYARD' });
+}
+
+_interactWithLedger() {
+  emit('playSound', { sound: 'qte_success' });
+  if (this.isLocked) {
+    document.exitPointerLock();
+  }
+  emit('openLevelSelector');
+}
+
+_interactWithShipyard() {
+  emit('playSound', { sound: 'qte_success' });
+  emit('gotoShipyard');
+}
+
+enterShop() {
+  this.mode = 'shop';
+
+  // Store outside exit position just outside the enlarged door on the dock
+  // Shop local (x = 3.0 + 1.2, y = 0, z = -0.35)
+  const exitPos = new THREE.Vector3(4.2, 0, -0.35);
+  if (this.dockStall && this.dockStall.shopGroup) {
+    this.dockStall.shopGroup.localToWorld(exitPos);
+  } else {
+    exitPos.set(-2.1, 2.15, 4.35);
+  }
+  this.savedExitPosition = exitPos;
+
+  // Position player camera at the shopkeeper station inside the stall
+  const shopCamWorldPos = new THREE.Vector3();
+  if (this.dockStall && this.dockStall.shopCam) {
+    this.dockStall.shopCam.getWorldPosition(shopCamWorldPos);
+  } else {
+    shopCamWorldPos.set(2.1, 2.15 + this.eyeHeight, 4.6);
+  }
+
+  this.yawObject.position.copy(shopCamWorldPos);
+  // Face forward through the counter out toward the dock (world -Z)
+  this.yawObject.rotation.y = 0;
+  this.pitchObject.rotation.x = -0.05;
+
+  this.velocity.set(0, 0, 0);
+  this.verticalVelocity = 0;
+  this.isGrounded = true;
+  this.keys.jump = false;
+
+  emit('playSound', { sound: 'qte_success' });
+  emit('dockPlayerModeChanged', { mode: 'shop' });
+  emit('dockPlayerEnteredShop');
+}
+
+exitShop() {
+  this.mode = 'player';
+
+  // Place player just outside the door facing outward onto the dock / island ramp
+  if (this.savedExitPosition) {
+    this.yawObject.position.set(this.savedExitPosition.x, this.savedExitPosition.y + this.eyeHeight, this.savedExitPosition.z);
+  } else {
+    this.yawObject.position.set(-2.1, 2.15 + this.eyeHeight, 4.35);
+  }
+
+  // Face outward toward the island ramp (world -X, door is behind them)
+  this.yawObject.rotation.y = Math.PI / 2;
+  this.pitchObject.rotation.x = 0;
+  this.velocity.set(0, 0, 0);
+  this.verticalVelocity = 0;
+  this.isGrounded = true;
+  this.keys.jump = false;
+
+  emit('playSound', { sound: 'qte_success' });
+  emit('dockPlayerModeChanged', { mode: 'player' });
+}
+
+// ---------------------------------------------------------------------------
+// Frame Update
+// ---------------------------------------------------------------------------
+
+update(delta) {
+  if (this.mode === 'cutscene') {
+    this._updateCutscene(delta);
     if (this.voxelArms) {
       this.voxelArms.update(delta);
     }
+    return;
   }
 
-  _resolveObstacleCollisions(pos) {
-    const r = this.playerRadius;
-    const s = this.scale;
-    const obstacles = [
-      // Main shop building and front counter
-      { minX: -1.05 * s, maxX: 5.25 * s, minZ: 1.10 * s, maxZ: 6.65 * s },
-      // Crates stacked beside shop on the dock
-      { minX: -2.1 * s, maxX: -1.2 * s, minZ: 2.1 * s, maxZ: 3.1 * s }
-    ];
-
-    for (let i = 0; i < obstacles.length; i++) {
-      const box = obstacles[i];
-      if (
-        pos.x > box.minX - r &&
-        pos.x < box.maxX + r &&
-        pos.z > box.minZ - r &&
-        pos.z < box.maxZ + r
-      ) {
-        const dLeft = pos.x - (box.minX - r);
-        const dRight = (box.maxX + r) - pos.x;
-        const dFront = pos.z - (box.minZ - r);
-        const dBack = (box.maxZ + r) - pos.z;
-
-        const minD = Math.min(dLeft, dRight, dFront, dBack);
-
-        if (minD === dLeft) {
-          pos.x = box.minX - r;
-        } else if (minD === dRight) {
-          pos.x = box.maxX + r;
-        } else if (minD === dFront) {
-          pos.z = box.minZ - r;
-        } else {
-          pos.z = box.maxZ + r;
-        }
-      }
-    }
+  if (this.mode === 'player') {
+    this._updatePlayerMovement(delta);
   }
 
-  _updatePlayerMovement(delta) {
-    if (this.keys.jump && this.isGrounded) {
-      this.verticalVelocity = this.jumpSpeed;
-      this.isGrounded = false;
-    }
+  this._updateInteractionRaycast();
 
-    const moveDir = new THREE.Vector3();
+  if (this.voxelArms) {
+    this.voxelArms.update(delta);
+  }
+}
 
-    if (this.keys.forward) moveDir.z -= 1;
-    if (this.keys.backward) moveDir.z += 1;
-    if (this.keys.left) moveDir.x -= 1;
-    if (this.keys.right) moveDir.x += 1;
+_resolveObstacleCollisions(pos) {
+  const r = this.playerRadius;
+  const s = this.scale;
+  const obstacles = [
+    // Main shop building and front counter
+    { minX: -1.05 * s, maxX: 5.25 * s, minZ: 1.10 * s, maxZ: 6.65 * s },
+    // Crates stacked beside shop on the dock
+    { minX: -2.1 * s, maxX: -1.2 * s, minZ: 2.1 * s, maxZ: 3.1 * s }
+  ];
 
-    const currentGround = this.yawObject.position.y - this.eyeHeight;
-    const maxStepUp = 0.65; // Max vertical step height (allows ramps, steps, decks; blocks steep cliff drops)
+  for (let i = 0; i < obstacles.length; i++) {
+    const box = obstacles[i];
+    if (
+      pos.x > box.minX - r &&
+      pos.x < box.maxX + r &&
+      pos.z > box.minZ - r &&
+      pos.z < box.maxZ + r
+    ) {
+      const dLeft = pos.x - (box.minX - r);
+      const dRight = (box.maxX + r) - pos.x;
+      const dFront = pos.z - (box.minZ - r);
+      const dBack = (box.maxZ + r) - pos.z;
 
-    if (moveDir.lengthSq() > 0) {
-      moveDir.normalize();
-      const currentSpeed = this.keys.sprint ? this.sprintSpeed : this.walkSpeed;
-      moveDir.multiplyScalar(currentSpeed * delta);
+      const minD = Math.min(dLeft, dRight, dFront, dBack);
 
-      // Rotate move vector by player yaw
-      moveDir.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yawObject.rotation.y);
-
-      // Candidate position
-      const candidate = new THREE.Vector3(
-        this.yawObject.position.x + moveDir.x,
-        this.yawObject.position.y,
-        this.yawObject.position.z + moveDir.z
-      );
-
-      // Resolve obstacle collisions against shop walls, door, and counter
-      this._resolveObstacleCollisions(candidate);
-
-      // Ground raycast check to ensure player stays on solid land / dock
-      const groundHit = this._getGroundHeightAt(candidate.x, candidate.z);
-      if (groundHit !== null && (groundHit - currentGround <= maxStepUp)) {
-        this.yawObject.position.x = candidate.x;
-        this.yawObject.position.z = candidate.z;
-        if (this.isGrounded) {
-          const targetY = groundHit + this.eyeHeight;
-          this.yawObject.position.y += (targetY - this.yawObject.position.y) * Math.min(1.0, delta * 14.0);
-        }
+      if (minD === dLeft) {
+        pos.x = box.minX - r;
+      } else if (minD === dRight) {
+        pos.x = box.maxX + r;
+      } else if (minD === dFront) {
+        pos.z = box.minZ - r;
       } else {
-        // Fallback: test sliding along X
-        const candX = new THREE.Vector3(candidate.x, this.yawObject.position.y, this.yawObject.position.z);
-        this._resolveObstacleCollisions(candX);
-        const slideXHit = this._getGroundHeightAt(candX.x, this.yawObject.position.z);
-        if (slideXHit !== null && (slideXHit - currentGround <= maxStepUp)) {
-          this.yawObject.position.x = candX.x;
-          if (this.isGrounded) {
-            this.yawObject.position.y += (slideXHit + this.eyeHeight - this.yawObject.position.y) * Math.min(1.0, delta * 14.0);
-          }
-        } else {
-          // Slide along Z
-          const candZ = new THREE.Vector3(this.yawObject.position.x, this.yawObject.position.y, candidate.z);
-          this._resolveObstacleCollisions(candZ);
-          const slideZHit = this._getGroundHeightAt(this.yawObject.position.x, candZ.z);
-          if (slideZHit !== null && (slideZHit - currentGround <= maxStepUp)) {
-            this.yawObject.position.z = candZ.z;
-            if (this.isGrounded) {
-              this.yawObject.position.y += (slideZHit + this.eyeHeight - this.yawObject.position.y) * Math.min(1.0, delta * 14.0);
-            }
-          }
-        }
+        pos.z = box.maxZ + r;
       }
-    } else if (this.isGrounded) {
-      // Idle terrain height tracking
-      const groundHit = this._getGroundHeightAt(this.yawObject.position.x, this.yawObject.position.z);
-      if (groundHit !== null) {
+    }
+  }
+}
+
+_updatePlayerMovement(delta) {
+  if (this.keys.jump && this.isGrounded) {
+    this.verticalVelocity = this.jumpSpeed;
+    this.isGrounded = false;
+  }
+
+  const moveDir = new THREE.Vector3();
+
+  if (this.keys.forward) moveDir.z -= 1;
+  if (this.keys.backward) moveDir.z += 1;
+  if (this.keys.left) moveDir.x -= 1;
+  if (this.keys.right) moveDir.x += 1;
+
+  const currentGround = this.yawObject.position.y - this.eyeHeight;
+  const maxStepUp = 0.65; // Max vertical step height (allows ramps, steps, decks; blocks steep cliff drops)
+
+  if (moveDir.lengthSq() > 0) {
+    moveDir.normalize();
+    const currentSpeed = this.keys.sprint ? this.sprintSpeed : this.walkSpeed;
+    moveDir.multiplyScalar(currentSpeed * delta);
+
+    // Rotate move vector by player yaw
+    moveDir.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yawObject.rotation.y);
+
+    // Candidate position
+    const candidate = new THREE.Vector3(
+      this.yawObject.position.x + moveDir.x,
+      this.yawObject.position.y,
+      this.yawObject.position.z + moveDir.z
+    );
+
+    // Resolve obstacle collisions against shop walls, door, and counter
+    this._resolveObstacleCollisions(candidate);
+
+    // Ground raycast check to ensure player stays on solid land / dock
+    const groundHit = this._getGroundHeightAt(candidate.x, candidate.z);
+    if (groundHit !== null && (groundHit - currentGround <= maxStepUp)) {
+      this.yawObject.position.x = candidate.x;
+      this.yawObject.position.z = candidate.z;
+      if (this.isGrounded) {
         const targetY = groundHit + this.eyeHeight;
         this.yawObject.position.y += (targetY - this.yawObject.position.y) * Math.min(1.0, delta * 14.0);
       }
-    }
-
-    // Airborne jump & gravity integration
-    if (!this.isGrounded) {
-      this.yawObject.position.y += this.verticalVelocity * delta;
-      this.verticalVelocity -= this.gravity * delta;
-
-      const groundBelow = this._getGroundHeightAt(this.yawObject.position.x, this.yawObject.position.z);
-      if (groundBelow !== null) {
-        const minCamY = groundBelow + this.eyeHeight;
-        if (this.yawObject.position.y <= minCamY) {
-          this.yawObject.position.y = minCamY;
-          if (this.verticalVelocity <= 0) {
-            this.verticalVelocity = 0;
-            this.isGrounded = true;
+    } else {
+      // Fallback: test sliding along X
+      const candX = new THREE.Vector3(candidate.x, this.yawObject.position.y, this.yawObject.position.z);
+      this._resolveObstacleCollisions(candX);
+      const slideXHit = this._getGroundHeightAt(candX.x, this.yawObject.position.z);
+      if (slideXHit !== null && (slideXHit - currentGround <= maxStepUp)) {
+        this.yawObject.position.x = candX.x;
+        if (this.isGrounded) {
+          this.yawObject.position.y += (slideXHit + this.eyeHeight - this.yawObject.position.y) * Math.min(1.0, delta * 14.0);
+        }
+      } else {
+        // Slide along Z
+        const candZ = new THREE.Vector3(this.yawObject.position.x, this.yawObject.position.y, candidate.z);
+        this._resolveObstacleCollisions(candZ);
+        const slideZHit = this._getGroundHeightAt(this.yawObject.position.x, candZ.z);
+        if (slideZHit !== null && (slideZHit - currentGround <= maxStepUp)) {
+          this.yawObject.position.z = candZ.z;
+          if (this.isGrounded) {
+            this.yawObject.position.y += (slideZHit + this.eyeHeight - this.yawObject.position.y) * Math.min(1.0, delta * 14.0);
           }
         }
       }
     }
+  } else if (this.isGrounded) {
+    // Idle terrain height tracking
+    const groundHit = this._getGroundHeightAt(this.yawObject.position.x, this.yawObject.position.z);
+    if (groundHit !== null) {
+      const targetY = groundHit + this.eyeHeight;
+      this.yawObject.position.y += (targetY - this.yawObject.position.y) * Math.min(1.0, delta * 14.0);
+    }
   }
 
-  _getGroundHeightAt(x, z) {
-    if (!this.dockStall || !this.dockStall.group) {
-      return 2.15 * this.scale; // default dock level
+  // Airborne jump & gravity integration
+  if (!this.isGrounded) {
+    this.yawObject.position.y += this.verticalVelocity * delta;
+    this.verticalVelocity -= this.gravity * delta;
+
+    const groundBelow = this._getGroundHeightAt(this.yawObject.position.x, this.yawObject.position.z);
+    if (groundBelow !== null) {
+      const minCamY = groundBelow + this.eyeHeight;
+      if (this.yawObject.position.y <= minCamY) {
+        this.yawObject.position.y = minCamY;
+        if (this.verticalVelocity <= 0) {
+          this.verticalVelocity = 0;
+          this.isGrounded = true;
+        }
+      }
     }
+  }
+}
 
-    const rayOrigin = new THREE.Vector3(x, 16.0 * this.scale, z);
-    this.downRaycaster.set(rayOrigin, new THREE.Vector3(0, -1, 0));
-    this.downRaycaster.far = 20.0;
+_getGroundHeightAt(x, z) {
+  if (!this.dockStall || !this.dockStall.group) {
+    return 2.15 * this.scale; // default dock level
+  }
 
-    // Intersect terrain and dock objects
-    const hits = this.downRaycaster.intersectObject(this.dockStall.group, true);
-    for (let i = 0; i < hits.length; i++) {
-      const hit = hits[i];
-      // Exclude roofs, overhead tie beams, high cranes, gulls, or high props (> 5.1 * scale)
-      if (hit.point.y > 5.1 * this.scale) continue;
-      // Exclude water/below water level
-      if (hit.point.y < 0.1 * this.scale) continue;
+  const rayOrigin = new THREE.Vector3(x, 16.0 * this.scale, z);
+  this.downRaycaster.set(rayOrigin, new THREE.Vector3(0, -1, 0));
+  this.downRaycaster.far = 20.0;
 
-      // Make sure the hit object isn't the door, bunny, or marked noWalk
-      if (hit.object && hit.object.userData && (hit.object.userData.isShopDoor || hit.object.userData.isBunny || hit.object.userData.noWalk)) continue;
+  // Intersect terrain and dock objects
+  const hits = this.downRaycaster.intersectObject(this.dockStall.group, true);
+  for (let i = 0; i < hits.length; i++) {
+    const hit = hits[i];
+    // Exclude roofs, overhead tie beams, high cranes, gulls, or high props (> 5.1 * scale)
+    if (hit.point.y > 5.1 * this.scale) continue;
+    // Exclude water/below water level
+    if (hit.point.y < 0.1 * this.scale) continue;
 
-      // Exclude any part of the shop stall (counter, floor, desk, apron, roof)
-      let parent = hit.object;
-      let isShopPart = false;
-      while (parent) {
-        if (parent === this.dockStall.shopGroup) {
-          isShopPart = true;
+    // Make sure the hit object isn't the door, bunny, or marked noWalk
+    if (hit.object && hit.object.userData && (hit.object.userData.isShopDoor || hit.object.userData.isBunny || hit.object.userData.noWalk)) continue;
+
+    // Exclude any part of the shop stall (counter, floor, desk, apron, roof)
+    let parent = hit.object;
+    let isShopPart = false;
+    while (parent) {
+      if (parent === this.dockStall.shopGroup) {
+        isShopPart = true;
+        break;
+      }
+      parent = parent.parent;
+    }
+    if (isShopPart) continue;
+
+    return hit.point.y;
+  }
+
+  return null; // Off edge / into water
+}
+
+_updateInteractionRaycast() {
+  if (!this.dockStall) {
+    this._setHoverState(null);
+    return;
+  }
+
+  const interactables = [];
+  if (this.dockStall.doorInteractables) {
+    interactables.push(...this.dockStall.doorInteractables);
+  }
+  if (this.dockStall.bunnyInteractables) {
+    interactables.push(...this.dockStall.bunnyInteractables);
+  }
+  if (this.dockStall.crabInteractables) {
+    interactables.push(...this.dockStall.crabInteractables);
+  }
+  if (this.dockStall.divorcePostInteractables) {
+    interactables.push(...this.dockStall.divorcePostInteractables);
+  }
+  if (this.dockStall.shipInteractables) {
+    interactables.push(...this.dockStall.shipInteractables);
+  }
+  if (this.dockStall.ledgerInteractables) {
+    interactables.push(...this.dockStall.ledgerInteractables);
+  }
+  if (this.dockStall.shipyardInteractables) {
+    interactables.push(...this.dockStall.shipyardInteractables);
+  }
+  if (this.dockStall.ghostMerchantInteractables) {
+    interactables.push(...this.dockStall.ghostMerchantInteractables);
+  }
+
+  if (interactables.length === 0) {
+    this._setHoverState(null);
+    return;
+  }
+
+  if (this.isLocked) {
+    // Raycast from camera center (crosshair)
+    this.interactRaycaster.setFromCamera({ x: 0, y: 0 }, this.camera);
+  } else {
+    // Raycast from cursor NDC
+    if (this.mouseCoords.x < -1 || this.mouseCoords.x > 1) {
+      this._setHoverState(null);
+      return;
+    }
+    this.interactRaycaster.setFromCamera(this.mouseCoords, this.camera);
+  }
+
+  const hits = this.interactRaycaster.intersectObjects(interactables, true);
+  for (let i = 0; i < hits.length; i++) {
+    const hit = hits[i];
+    if (hit.object) {
+      let cur = hit.object;
+      let isShip = false;
+      let isLedger = false;
+      while (cur) {
+        if (cur.userData && (cur.userData.isMooredShip || cur.userData.isShip)) {
+          isShip = true;
           break;
         }
-        parent = parent.parent;
+        if (cur.userData && cur.userData.isLedger) {
+          isLedger = true;
+          break;
+        }
+        cur = cur.parent;
       }
-      if (isShopPart) continue;
 
-      return hit.point.y;
+      if (isShip) {
+        if (hit.distance <= 14.0 * this.scale) {
+          this._setHoverState(hit.object, 'ship');
+          return;
+        }
+      } else if (isLedger) {
+        if (hit.distance <= 8.5 * this.scale) {
+          this._setHoverState(hit.object, 'ledger');
+          return;
+        }
+      } else if (hit.object.userData) {
+        if (hit.object.userData.isCrab) {
+          if (hit.distance <= 8.5 * this.scale) {
+            this._setHoverState(hit.object, 'crab');
+            return;
+          }
+        } else if (hit.object.userData.isDivorcePost) {
+          if (hit.distance <= 8.0 * this.scale) {
+            this._setHoverState(hit.object, 'divorcePost');
+            return;
+          }
+        } else if (hit.object.userData.isGhostMerchant) {
+          if (hit.distance <= 7.5 * this.scale) {
+            this._setHoverState(hit.object, 'ghost');
+            return;
+          }
+        } else if (hit.object.userData.isBunny) {
+          if (hit.distance <= 6.5 * this.scale) {
+            this._setHoverState(hit.object, 'bunny');
+            return;
+          }
+        } else if (hit.object.userData.isShopDoor) {
+          const maxDist = (this.mode === 'shop' ? 5.5 : 4.0) * this.scale;
+          if (hit.distance <= maxDist) {
+            this._setHoverState(hit.object, 'door');
+            return;
+          }
+        } else if (hit.object.userData.isShipyardBench) {
+          if (hit.distance <= 5.5) {
+            this._setHoverState(hit.object, 'shipyard');
+            return;
+          }
+        }
+      }
     }
-
-    return null; // Off edge / into water
   }
 
-  _updateInteractionRaycast() {
-    if (!this.dockStall) {
-      this._setHoverState(null);
-      return;
-    }
+  this._setHoverState(null);
+}
 
-    const interactables = [];
-    if (this.dockStall.doorInteractables) {
-      interactables.push(...this.dockStall.doorInteractables);
-    }
-    if (this.dockStall.bunnyInteractables) {
-      interactables.push(...this.dockStall.bunnyInteractables);
-    }
-    if (this.dockStall.crabInteractables) {
-      interactables.push(...this.dockStall.crabInteractables);
-    }
-    if (this.dockStall.divorcePostInteractables) {
-      interactables.push(...this.dockStall.divorcePostInteractables);
-    }
-    if (this.dockStall.shipInteractables) {
-      interactables.push(...this.dockStall.shipInteractables);
-    }
-    if (this.dockStall.ledgerInteractables) {
-      interactables.push(...this.dockStall.ledgerInteractables);
-    }
-    if (this.dockStall.shipyardInteractables) {
-      interactables.push(...this.dockStall.shipyardInteractables);
-    }
-    if (this.dockStall.ghostMerchantInteractables) {
-      interactables.push(...this.dockStall.ghostMerchantInteractables);
-    }
+_setHoverState(obj, type = null) {
+  this.hoveredDoor = type === 'door' ? obj : null;
+  this.hoveredBunny = type === 'bunny' ? obj : null;
+  this.hoveredCrab = type === 'crab' ? obj : null;
+  this.hoveredDivorcePost = type === 'divorcePost' ? obj : null;
+  this.hoveredShip = type === 'ship' ? obj : null;
+  this.hoveredLedger = type === 'ledger' ? obj : null;
+  this.hoveredShipyard = type === 'shipyard' ? obj : null;
+  this.hoveredGhost = type === 'ghost' ? obj : null;
 
-    if (interactables.length === 0) {
-      this._setHoverState(null);
-      return;
-    }
+  if (type) {
+    this.domElement.style.cursor = 'pointer';
+    this.crosshair.style.transform = 'translate(-50%, -50%) scale(1.6)';
+    this.crosshair.style.background = '#ffd700';
+    this.crosshair.style.borderColor = '#ffffff';
 
-    if (this.isLocked) {
-      // Raycast from camera center (crosshair)
-      this.interactRaycaster.setFromCamera({ x: 0, y: 0 }, this.camera);
+    this.prompt.style.display = 'flex';
+    if (type === 'crab') {
+      this.prompt.innerHTML = `🦀 <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click Crab Clerk to Speak`;
+    } else if (type === 'divorcePost') {
+      this.prompt.innerHTML = `<span class="pixel-icon icon-map-maker-scroll size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Read Divorce Papers`;
+    } else if (type === 'ghost') {
+      this.prompt.innerHTML = `<span class="pixel-icon icon-phantom-ghost size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click Ghost to Barter Wares`;
+    } else if (type === 'bunny') {
+      this.prompt.innerHTML = `<span class="pixel-icon icon-easter-bunny size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Pet Bunny`;
+    } else if (type === 'ledger') {
+      this.prompt.innerHTML = `<span class="pixel-icon icon-closed-logbook size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click Logbook to Select Voyage`;
+    } else if (type === 'ship') {
+      const shipName = this.dockStall?.activeShipProfile?.name || 'Vessel';
+      this.prompt.innerHTML = `<span class="pixel-icon icon-hammer size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shipyard &amp; Alter ${shipName}`;
+    } else if (type === 'shipyard') {
+      this.prompt.innerHTML = `<span class="pixel-icon icon-hammer size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shipyard`;
+    } else if (this.mode === 'player') {
+      this.prompt.innerHTML = `<span class="pixel-icon icon-cabin-door-exit size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shop`;
     } else {
-      // Raycast from cursor NDC
-      if (this.mouseCoords.x < -1 || this.mouseCoords.x > 1) {
-        this._setHoverState(null);
-        return;
-      }
-      this.interactRaycaster.setFromCamera(this.mouseCoords, this.camera);
+      this.prompt.innerHTML = `<span class="pixel-icon icon-cabin-door-exit size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Exit Shop`;
     }
+  } else {
+    this.domElement.style.cursor = 'default';
+    this.crosshair.style.transform = 'translate(-50%, -50%) scale(1.0)';
+    this.crosshair.style.background = 'rgba(255, 255, 255, 0.85)';
+    this.crosshair.style.borderColor = 'rgba(0, 0, 0, 0.6)';
+    this.prompt.style.display = 'none';
+  }
+}
 
-    const hits = this.interactRaycaster.intersectObjects(interactables, true);
-    for (let i = 0; i < hits.length; i++) {
-      const hit = hits[i];
-      if (hit.object) {
-        let cur = hit.object;
-        let isShip = false;
-        let isLedger = false;
-        while (cur) {
-          if (cur.userData && (cur.userData.isMooredShip || cur.userData.isShip)) {
-            isShip = true;
-            break;
-          }
-          if (cur.userData && cur.userData.isLedger) {
-            isLedger = true;
-            break;
-          }
-          cur = cur.parent;
-        }
+_interactWithGhost() {
+  emit('playSound', { sound: 'qte_success' });
+  if (this.isLocked && document.exitPointerLock) {
+    document.exitPointerLock();
+  }
+  emit('openShopUI');
+}
 
-        if (isShip) {
-          if (hit.distance <= 14.0 * this.scale) {
-            this._setHoverState(hit.object, 'ship');
-            return;
-          }
-        } else if (isLedger) {
-          if (hit.distance <= 8.5 * this.scale) {
-            this._setHoverState(hit.object, 'ledger');
-            return;
-          }
-        } else if (hit.object.userData) {
-            if (hit.object.userData.isCrab) {
-              if (hit.distance <= 8.5 * this.scale) {
-                this._setHoverState(hit.object, 'crab');
-                return;
-              }
-            } else if (hit.object.userData.isDivorcePost) {
-              if (hit.distance <= 8.0 * this.scale) {
-                this._setHoverState(hit.object, 'divorcePost');
-                return;
-              }
-            } else if (hit.object.userData.isGhostMerchant) {
-              if (hit.distance <= 7.5 * this.scale) {
-                this._setHoverState(hit.object, 'ghost');
-                return;
-              }
-            } else if (hit.object.userData.isBunny) {
-              if (hit.distance <= 6.5 * this.scale) {
-                this._setHoverState(hit.object, 'bunny');
-                return;
-              }
-            } else if (hit.object.userData.isShopDoor) {
-              const maxDist = (this.mode === 'shop' ? 5.5 : 4.0) * this.scale;
-              if (hit.distance <= maxDist) {
-                this._setHoverState(hit.object, 'door');
-                return;
-              }
-            } else if (hit.object.userData.isShipyardBench) {
-              if (hit.distance <= 5.5) {
-                this._setHoverState(hit.object, 'shipyard');
-                return;
-              }
-            }
-          }
-        }
-      }
+// ---------------------------------------------------------------------------
+// Disposal & Teardown
+// ---------------------------------------------------------------------------
 
-      this._setHoverState(null);
-    }
+dispose() {
+  this._clearCutsceneTimers();
+  if (this._cutsceneOverlay && this._cutsceneOverlay.parentNode) {
+    this._cutsceneOverlay.parentNode.removeChild(this._cutsceneOverlay);
+    this._cutsceneOverlay = null;
+  }
+  this._unbindEvents();
 
-    _setHoverState(obj, type = null) {
-      this.hoveredDoor = type === 'door' ? obj : null;
-      this.hoveredBunny = type === 'bunny' ? obj : null;
-      this.hoveredCrab = type === 'crab' ? obj : null;
-      this.hoveredDivorcePost = type === 'divorcePost' ? obj : null;
-      this.hoveredShip = type === 'ship' ? obj : null;
-      this.hoveredLedger = type === 'ledger' ? obj : null;
-      this.hoveredShipyard = type === 'shipyard' ? obj : null;
-      this.hoveredGhost = type === 'ghost' ? obj : null;
+  if (this.voxelArms) {
+    this.voxelArms.dispose();
+    this.voxelArms = null;
+  }
 
-      if (type) {
-        this.domElement.style.cursor = 'pointer';
-        this.crosshair.style.transform = 'translate(-50%, -50%) scale(1.6)';
-        this.crosshair.style.background = '#ffd700';
-        this.crosshair.style.borderColor = '#ffffff';
+  if (this.emoteWheel) {
+    this.emoteWheel.dispose();
+    this.emoteWheel = null;
+  }
 
-        this.prompt.style.display = 'flex';
-          if (type === 'crab') {
-            this.prompt.innerHTML = `🦀 <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click Crab Clerk to Speak`;
-          } else if (type === 'divorcePost') {
-            this.prompt.innerHTML = `<span class="pixel-icon icon-map-maker-scroll size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Read Divorce Papers`;
-          } else if (type === 'ghost') {
-            this.prompt.innerHTML = `<span class="pixel-icon icon-phantom-ghost size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click Ghost to Barter Wares`;
-          } else if (type === 'bunny') {
-            this.prompt.innerHTML = `<span class="pixel-icon icon-easter-bunny size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Pet Bunny`;
-          } else if (type === 'ledger') {
-            this.prompt.innerHTML = `<span class="pixel-icon icon-closed-logbook size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click Logbook to Select Voyage`;
-          } else if (type === 'ship') {
-            const shipName = this.dockStall?.activeShipProfile?.name || 'Vessel';
-            this.prompt.innerHTML = `<span class="pixel-icon icon-hammer size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shipyard &amp; Alter ${shipName}`;
-          } else if (type === 'shipyard') {
-            this.prompt.innerHTML = `<span class="pixel-icon icon-hammer size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shipyard`;
-          } else if (this.mode === 'player') {
-            this.prompt.innerHTML = `<span class="pixel-icon icon-cabin-door-exit size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shop`;
-          } else {
-            this.prompt.innerHTML = `<span class="pixel-icon icon-cabin-door-exit size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Exit Shop`;
-          }
-        } else {
-          this.domElement.style.cursor = 'default';
-          this.crosshair.style.transform = 'translate(-50%, -50%) scale(1.0)';
-          this.crosshair.style.background = 'rgba(255, 255, 255, 0.85)';
-          this.crosshair.style.borderColor = 'rgba(0, 0, 0, 0.6)';
-          this.prompt.style.display = 'none';
-        }
-      }
+  if (document.pointerLockElement === this.domElement) {
+    document.exitPointerLock();
+  }
 
-      _interactWithGhost() {
-        emit('playSound', { sound: 'qte_success' });
-        if (this.isLocked && document.exitPointerLock) {
-          document.exitPointerLock();
-        }
-        emit('openShopUI');
-      }
+  if (this.yawObject && this.yawObject.parent) {
+    this.yawObject.parent.remove(this.yawObject);
+  }
 
-      // ---------------------------------------------------------------------------
-      // Disposal & Teardown
-      // ---------------------------------------------------------------------------
-
-      dispose() {
-        this._clearCutsceneTimers();
-        if (this._cutsceneOverlay && this._cutsceneOverlay.parentNode) {
-          this._cutsceneOverlay.parentNode.removeChild(this._cutsceneOverlay);
-          this._cutsceneOverlay = null;
-        }
-        this._unbindEvents();
-
-        if (this.voxelArms) {
-          this.voxelArms.dispose();
-          this.voxelArms = null;
-        }
-
-        if (this.emoteWheel) {
-          this.emoteWheel.dispose();
-          this.emoteWheel = null;
-        }
-
-        if (document.pointerLockElement === this.domElement) {
-          document.exitPointerLock();
-        }
-
-        if (this.yawObject && this.yawObject.parent) {
-          this.yawObject.parent.remove(this.yawObject);
-        }
-
-        if (this.uiContainer && this.uiContainer.parentNode) {
-          this.uiContainer.parentNode.removeChild(this.uiContainer);
-        }
-      }
+  if (this.uiContainer && this.uiContainer.parentNode) {
+    this.uiContainer.parentNode.removeChild(this.uiContainer);
+  }
+}
     }
