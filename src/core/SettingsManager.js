@@ -208,7 +208,7 @@ export class SettingsManager {
       renderer.shadowMap.type = THREE.BasicShadowMap;
     } else {
       renderer.shadowMap.enabled = true;
-      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.shadowMap.type = THREE.PCFShadowMap;
     }
 
     // Update lights shadow map sizes if available
@@ -231,16 +231,6 @@ export class SettingsManager {
     const ambVol    = Number(this.get('ambientVolume'));
     const musicVol  = Number(this.get('musicVolume'));
 
-    // Broadcast on EventBus so AudioManager & MusicManager always stay in sync
-    emit('setAudioVolume', { volume: masterVol });
-    emit('setAudioMute', { muted: isMuted });
-    emit('setSfxVolume', { volume: sfxVol });
-    emit('setAmbientVolume', { volume: ambVol });
-    emit('setMusicVolume', { volume: musicVol });
-
-    if (!this._context) return;
-    const audio = audioTarget || this._context.audio;
-    if (!audio) return;
 
     if (typeof audio.setMasterVolume === 'function') audio.setMasterVolume(masterVol);
     if (typeof audio.setMuted === 'function') audio.setMuted(isMuted);

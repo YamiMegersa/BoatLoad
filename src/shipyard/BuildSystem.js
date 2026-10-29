@@ -553,7 +553,7 @@ export class BuildSystem {
       emit('budgetInsufficient', { required: totalCost, remaining: this._budgetManager.remaining });
       emit('notification', {
         type: 'warning',
-        text: `Cannot afford repair! Cost: $${totalCost} (Remaining: $${this._budgetManager.remaining})`
+        text: `Cannot afford repair! Cost: ${totalCost} Doubloons (Remaining: ${this._budgetManager.remaining} Doubloons)`
       });
       return false;
     }

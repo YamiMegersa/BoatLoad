@@ -5,4 +5,4 @@
  * ship hitbox wireframe, the `window.__dev` test helpers, and verbose logs.
  * The iteration-2 test matrix relies on these (docs/iteration-2-implementation-plan.md).
  */
-export const DEBUG = new URLSearchParams(location.search).has('debug');
+export const DEBUG = typeof location !== 'undefined' ? new URLSearchParams(location.search).has('debug') : false;

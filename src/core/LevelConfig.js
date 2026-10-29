@@ -80,6 +80,34 @@ export class LevelConfig {
   static get krakenUrl() { return this._krakenUrl; }
 
   /**
+   * Generates a pristine, empty level configuration with only the harbor dock present.
+   * Used when initializing the level editor from scratch.
+   * @param {object} [overrides]
+   * @returns {object}
+   */
+  static createEmptyLevel(overrides = {}) {
+    return {
+      ship: DEFAULT_SHIP_ID,
+      budget: 300,
+      worldSize: 200,
+      globalWindDir: 0,
+      fogDensity: 0.006,
+      timeOfDay: 8.0,
+      isStormy: false,
+      godRays: true,
+      hasDock: true,
+      shipSpawn: null,
+      endLocation: { position: { x: 0, y: 0, z: -220 }, radius: 16 },
+      obstacles: [],
+      sirens: [],
+      kraken: null,
+      voxels: null,
+      damage: [],
+      ...overrides
+    };
+  }
+
+  /**
    * Load the ship definition and level config for a given day.
    * Results are cached so repeated loads are instant.
    *

@@ -201,6 +201,17 @@ body {
   color: #94a3b8;
 }
 
+.shipyard-top-bar .hud-budget-box.over-budget {
+  background: rgba(239, 68, 68, 0.18) !important;
+  border-color: #ef4444 #7f1d1d #450a0a #b91c1c !important;
+  box-shadow: inset 1px 1px 0 rgba(239, 68, 68, 0.4), 0 0 10px rgba(239, 68, 68, 0.35) !important;
+}
+
+.shipyard-top-bar .hud-budget-box.over-budget .hud-stat-label,
+.shipyard-top-bar .hud-budget-box.over-budget .hud-budget-total {
+  color: #fca5a5 !important;
+}
+
 @keyframes leakPulse {
   0% { border-color: rgba(239, 68, 68, 0.4); box-shadow: 0 0 0 rgba(239, 68, 68, 0); }
   100% { border-color: rgba(239, 68, 68, 1.0); box-shadow: 0 0 12px rgba(239, 68, 68, 0.5); }
@@ -527,6 +538,7 @@ body {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: top center;
   border-radius: 6px;
   display: block;
 }
@@ -568,82 +580,401 @@ body {
   background: #4a7a4a;
 }
 
-/* Minimap */
-#minimap {
+/* ===========================================================================
+   Nautical Paper Chart & Smart Minimap System
+   =========================================================================== */
+
+/* Revamped Brass Compass Minimap */
+#minimap.nautical-minimap-compass {
   position: absolute;
-  right: 20px;
-  top: 20px;
-  width: 200px;
-  height: 200px;
+  right: 22px;
+  top: 22px;
+  width: 220px;
+  height: 220px;
   border-radius: 50%;
-  background: rgba(71, 75, 107, 0.8);
-  border: 2px solid #9A5B2E;
+  background: #f4ecd8;
+  border: 7px solid #7d5225;
+  box-shadow: 
+    0 10px 28px rgba(0, 0, 0, 0.65),
+    inset 0 2px 4px rgba(255, 230, 160, 0.5),
+    inset 0 -3px 6px rgba(40, 20, 5, 0.8),
+    0 0 0 2px #3c2410;
   overflow: hidden;
   pointer-events: none;
   z-index: 100;
+  transition: transform 0.25s ease;
 }
 
 #minimap-content {
   position: relative;
   width: 100%;
   height: 100%;
-}
-
-.minimap-bg {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 182px;
-  /* 200 radius mapped to ~91px */
-  height: 182px;
   border-radius: 50%;
-  border: 1px dashed rgba(255, 255, 255, 0.2);
+  overflow: hidden;
 }
 
-
-.minimap-kill-radius {
+#minimap-canvas {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 200px;
-  /* 220 radius mapped to 100px */
-  height: 200px;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
-  border: 2px solid rgba(255, 0, 0, 0.4);
+  display: block;
 }
 
-#minimap-wind-arrow {
+.minimap-brass-bezel {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 4px;
-  height: 90%;
-  background: linear-gradient(to top, rgba(0, 200, 255, 0) 50%, rgba(0, 200, 255, 0.4) 50%, rgba(0, 200, 255, 0.8) 100%);
-  transform-origin: center;
-  z-index: 0;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.minimap-cardinal-n,
+.minimap-cardinal-s,
+.minimap-cardinal-e,
+.minimap-cardinal-w {
+  position: absolute;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  line-height: 1;
+  text-shadow: 0 1px 3px rgba(255, 245, 215, 0.9), 0 0 2px rgba(0, 0, 0, 0.5);
   pointer-events: none;
 }
 
-#minimap-wind-arrow::after {
-  content: '';
-  position: absolute;
-  top: 0;
+.minimap-cardinal-n {
+  top: 4px;
   left: 50%;
   transform: translateX(-50%);
-  border-left: 8px solid transparent;
-  border-right: 8px solid transparent;
-  border-bottom: 12px solid rgba(0, 200, 255, 0.9);
+  color: #b82210; /* Vibrant cardinal North */
 }
 
-.minimap-dot {
+.minimap-cardinal-s {
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #4a3016;
+}
+
+.minimap-cardinal-e {
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #4a3016;
+}
+
+.minimap-cardinal-w {
+  left: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #4a3016;
+}
+
+/* ===========================================================================
+   Pre-Sail Tactical Sea Chart Modal (Briefing Screen)
+   =========================================================================== */
+
+.nautical-chart-backdrop {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle at center, rgba(18, 24, 32, 0.85) 0%, rgba(8, 12, 16, 0.96) 100%);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 4500; /* Under pause menu (5000), above standard HUD */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: chartBackdropFadeIn 0.3s ease-out forwards;
+}
+
+.nautical-chart-table {
+  position: relative;
+  max-width: 980px;
+  width: 100%;
+  max-height: 94vh;
+  background: linear-gradient(135deg, #2b180d 0%, #1c0e06 100%);
+  border: 8px solid #4a2d16;
+  border-radius: 12px;
+  box-shadow: 
+    0 24px 60px rgba(0, 0, 0, 0.85),
+    inset 0 2px 4px rgba(255, 220, 150, 0.3),
+    inset 0 -4px 8px rgba(0, 0, 0, 0.8);
+  padding: 14px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.nautical-chart-frame {
+  position: relative;
+  background: #f4ecd8 url('/assets/ui/hud/parchment_subtle.png') repeat;
+  border: 2px solid #5a3d24;
+  border-radius: 6px;
+  box-shadow: inset 0 0 40px rgba(110, 75, 40, 0.25), 0 4px 14px rgba(0, 0, 0, 0.4);
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: chartUnroll 0.42s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: top center;
+}
+
+.chart-unroll-exit {
+  animation: chartRollUp 0.38s cubic-bezier(0.7, 0, 0.84, 0) forwards !important;
+}
+
+.nautical-chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid rgba(90, 61, 36, 0.4);
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+}
+
+.nautical-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nautical-title-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.nautical-chart-title {
+  margin: 0;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: #3b2311;
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.6);
+}
+
+.nautical-chart-subtitle {
+  font-family: 'Courier New', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: #7a532e;
+  margin-top: 3px;
+}
+
+.nautical-header-stats {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nautical-stat-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  background: rgba(220, 200, 165, 0.55);
+  border: 1px solid rgba(120, 85, 45, 0.35);
+  border-radius: 4px;
+  padding: 4px 10px;
+}
+
+.nautical-stat-pill .stat-label {
+  font-family: 'Courier New', monospace;
+  font-size: 9px;
+  font-weight: 700;
+  color: #6e4822;
+}
+
+.nautical-stat-pill .stat-val {
+  font-family: Georgia, serif;
+  font-size: 13px;
+  font-weight: 800;
+  color: #2b180d;
+}
+
+.nautical-canvas-wrapper {
+  position: relative;
+  width: 100%;
+  height: 480px;
+  max-height: 58vh;
+  border: 1px solid #7a532e;
+  background: #f4ecd8;
+  box-shadow: inset 0 2px 8px rgba(90, 60, 30, 0.2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+#presail-chart-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.nautical-chart-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(90, 61, 36, 0.3);
+}
+
+.nautical-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-family: Georgia, serif;
+  font-size: 12px;
+  color: #4a3016;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  border: 1px solid #2b180d;
+}
+
+.legend-swatch.rock {
+  background: #2d1d11;
+  position: relative;
+}
+.legend-swatch.rock::after {
+  content: '+';
   position: absolute;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
+  top: 50%;
+  left: 50%;
   transform: translate(-50%, -50%);
-  z-index: 1;
+  color: #fff;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.legend-swatch.siren {
+  background: #8b2361;
+}
+
+.legend-swatch.goal {
+  background: #e6a117;
+}
+
+.legend-swatch.ship {
+  background: #1e303d;
+}
+
+.nautical-action-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nautical-sail-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  padding: 10px 24px;
+  background: linear-gradient(180deg, #2e7d32 0%, #1b5e20 100%);
+  border: 2px solid #81c784;
+  border-radius: 6px;
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(27, 94, 32, 0.45), inset 0 1px 2px rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.nautical-sail-btn:hover {
+  transform: translateY(-2px);
+  background: linear-gradient(180deg, #388e3c 0%, #2e7d32 100%);
+  box-shadow: 0 6px 18px rgba(46, 125, 50, 0.6), inset 0 1px 2px rgba(255, 255, 255, 0.6);
+}
+
+.nautical-sail-btn:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 6px rgba(27, 94, 32, 0.5);
+}
+
+.nautical-sail-btn .btn-icon {
+  font-size: 18px;
+}
+
+.nautical-sail-btn .btn-hotkey {
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  opacity: 0.85;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-left: 4px;
+}
+
+@keyframes chartBackdropFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes chartUnroll {
+  0% {
+    opacity: 0;
+    transform: scaleY(0.1) scaleX(0.9);
+  }
+  60% {
+    transform: scaleY(1.03) scaleX(1.01);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes chartRollUp {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scaleY(0.08) scaleX(0.85);
+  }
+}
+
+@media (max-width: 768px) {
+  #minimap.nautical-minimap-compass {
+    width: 160px;
+    height: 160px;
+    right: 12px;
+    top: 12px;
+    border-width: 5px;
+  }
+  .nautical-chart-table {
+    padding: 8px;
+    border-width: 5px;
+  }
+  .nautical-chart-frame {
+    padding: 10px 12px;
+  }
+  .nautical-canvas-wrapper {
+    height: 320px;
+  }
+  .nautical-chart-title {
+    font-size: 16px;
+  }
+  .nautical-chart-legend {
+    display: none;
+  }
 }
 
 .minimap-dot.player {
@@ -1144,7 +1475,7 @@ body {
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -42%);
+  transform: translate(-50%, -12%);
   width: clamp(260px, 44vw, 460px);
   height: clamp(280px, 48vw, 520px);
   pointer-events: none;
@@ -1187,7 +1518,7 @@ body {
   #hud-pedestal {
     width: clamp(200px, 58vw, 300px);
     height: clamp(220px, 64vw, 340px);
-    transform: translate(-50%, -42%);
+    transform: translate(-50%, -12%);
   }
   #hud-score {
     top: 15px;
@@ -1504,9 +1835,9 @@ body {
    ========================================================================= */
 
 .pause-screen-backdrop {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  z-index: 200;
+  z-index: 5000;
   background: radial-gradient(circle at center, rgba(14, 26, 44, 0.88), rgba(6, 12, 20, 0.96));
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
@@ -5346,15 +5677,11 @@ body {
 
 .results-container {
   width: min(92vw, 560px);
-  background: #101722;
-  border-style: solid !important;
-  border-width: 28px !important;
-  border-image: url('/assets/ui/frames/frame_results_manifest.png') 32 fill stretch !important;
-  image-rendering: pixelated;
-  image-rendering: crisp-edges;
-  box-shadow: 0 16px 45px rgba(0, 0, 0, 0.95), 0 0 30px rgba(212, 175, 55, 0.3) !important;
-  border-radius: 0 !important;
-  padding: 20px 24px 28px 24px;
+  background: radial-gradient(circle at 50% 0%, #1e293b 0%, #0f172a 75%, #090d16 100%);
+  border: 2px solid #d4af37;
+  box-shadow: 0 0 40px rgba(212, 175, 55, 0.25), 0 20px 45px rgba(0, 0, 0, 0.95);
+  border-radius: 12px;
+  padding: 26px 24px 28px 24px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -5458,6 +5785,75 @@ body {
   color: #ffd700;
 }
 
+.ledger-section-title {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #38bdf8;
+  margin-top: 8px;
+  margin-bottom: 2px;
+  font-family: 'Cinzel', serif, Georgia;
+}
+
+.ledger-divider.thick {
+  height: 3px;
+  background: #3b506d;
+}
+
+.text-penalty {
+  color: #f87171 !important;
+}
+
+.total-debt {
+  color: #ef4444 !important;
+  font-size: 18px !important;
+  text-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+  font-weight: 800;
+}
+
+.debt-negative {
+  color: #ef4444 !important;
+  text-shadow: 0 0 6px rgba(239, 68, 68, 0.4);
+}
+
+.debt-tag {
+  color: #ef4444;
+  font-size: 11px;
+  font-weight: 800;
+  margin-left: 4px;
+}
+
+.title-wreck {
+  color: #ef4444 !important;
+  text-shadow: 0 0 10px rgba(239, 68, 68, 0.5) !important;
+}
+
+.crest-wreck {
+  border-color: #ef4444 !important;
+  background: #2a1215 !important;
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.4) !important;
+}
+
+.action-priority {
+  animation: pulsePriority 2s infinite ease-in-out;
+  border-color: #ffd700 !important;
+}
+
+@keyframes pulsePriority {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 6px rgba(234, 179, 8, 0.4); }
+  50% { transform: scale(1.02); box-shadow: 0 0 12px rgba(234, 179, 8, 0.7); }
+}
+
+.shop-wallet-pill.debt {
+  border-color: #ef4444 !important;
+  background: #2a1215 !important;
+}
+
+.shop-wallet-coins.debt {
+  color: #ef4444 !important;
+  text-shadow: 0 0 8px rgba(239, 68, 68, 0.5) !important;
+}
+
 .ledger-wallet-row {
   margin-top: 8px;
   padding-top: 8px;
@@ -5517,15 +5913,19 @@ body {
 }
 
 .dock-action {
-  background: #16202c;
-  color: #cbd5e1;
-  border-color: #3b506d #0f1724 #090e17 #2a3d54;
+  background: #1c324a;
+  color: #ffd700;
+  border-color: #ffd700 #1b263b #0f172a #60a5fa;
+  font-size: 13.5px;
+  padding: 12px 18px;
 }
 
 .dock-action:hover {
-  background: #25364e;
-  color: white;
-  border-color: #ffd700 #4d3a0e #332609 #c49e29;
+  background: #2a4365;
+  color: #ffffff;
+  border-color: #ffe082 #ffd700 #1b263b #93c5fd;
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.2), 0 0 16px rgba(255, 215, 0, 0.45);
+  transform: translateY(-1px);
 }
 
 .shipyard-action {
@@ -5552,6 +5952,22 @@ body {
   color: white;
   border-color: #86efac #22c55e #14532d #4ade80;
   box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.2), 0 0 14px rgba(74, 222, 128, 0.5);
+  transform: translateY(-1px);
+}
+
+.community-action {
+  background: #1c324a;
+  color: #ffd700;
+  border-color: #ffd700 #1b263b #0f172a #60a5fa;
+  font-size: 13.5px;
+  padding: 12px 18px;
+}
+
+.community-action:hover {
+  background: #2a4365;
+  color: #ffffff;
+  border-color: #ffe082 #ffd700 #1b263b #93c5fd;
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.2), 0 0 16px rgba(255, 215, 0, 0.45);
   transform: translateY(-1px);
 }
 
@@ -5780,6 +6196,49 @@ body {
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8), 0 0 20px rgba(212, 175, 55, 0.25) !important;
   padding: 24px 36px 44px 36px !important;
 }
+
+/* ==========================================================================
+   Dock Scene Doubloon HUD Widget
+   ========================================================================== */
+.dock-doubloon-hud {
+  position: fixed;
+  top: 14px;
+  right: 18px;
+  z-index: 100;
+  pointer-events: auto;
+  user-select: none;
+  animation: hudFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dock-doubloon-hud .shop-wallet-pill {
+  cursor: default;
+  background: rgba(18, 25, 36, 0.92);
+  backdrop-filter: blur(4px);
+  padding: 6px 14px;
+  border-width: 2px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.8), inset 1px 1px 0 rgba(255, 230, 140, 0.25);
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.dock-doubloon-hud:hover .shop-wallet-pill {
+  transform: translateY(-1px);
+  border-color: #ffe082 #6d5218 #43330f #ffd700;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.9), 0 0 10px rgba(255, 215, 0, 0.3);
+}
+
+.dock-doubloon-hud .shop-wallet-coins {
+  font-size: 17px;
+  font-weight: 800;
+  color: #ffd700;
+}
+
+.dock-doubloon-hud .shop-wallet-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: #e2e8f0;
+}
+
 
 
 

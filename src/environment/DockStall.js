@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { VoxelLopBunny } from './VoxelLopBunny.js';
+import { VoxelCrab } from './VoxelCrab.js';
 import { DockNPC } from './DockNPC.js';
 import { GhostMerchant } from './GhostMerchant.js';
 import { mergeStaticMeshes } from '../utils/StaticMerge.js';
@@ -297,6 +298,11 @@ export class DockStall {
     this.doorInteractables = [];
     this.bunny = null;
     this.bunnyInteractables = [];
+    this.crab = null;
+    this.crabInteractables = [];
+    this.divorcePostInteractables = [];
+    this.divorcePostAura = null;
+    this.divorceScrollGroup = null;
     this.shipInteractables = [];
     this.ledgerInteractables = [];
     this.shipNeedsRepair = false;
@@ -321,10 +327,10 @@ export class DockStall {
     this.group.scale.setScalar(DOCK_SCALE);
 
     // Generate stylized voxel wood textures
-    const texWoodHi   = createVoxelWoodTexture(181, 139, 94, 0.16);
-    const texWoodMid  = createVoxelWoodTexture(120, 83, 50, 0.20);
+    const texWoodHi = createVoxelWoodTexture(181, 139, 94, 0.16);
+    const texWoodMid = createVoxelWoodTexture(120, 83, 50, 0.20);
     const texWoodDark = createVoxelWoodTexture(61, 39, 22, 0.22);
-    const texPlank    = createVoxelWoodTexture(155, 122, 90, 0.18);
+    const texPlank = createVoxelWoodTexture(155, 122, 90, 0.18);
 
     // Voxel Material Palette
     const mats = {
@@ -442,8 +448,8 @@ export class DockStall {
     const pilingLocations = [
       [-8, -4.5], [-8, 0], [-8, 4.5], [-8, 8.0],
       [-3, -4.5], [-3, 0], [-3, 4.5], [-3, 8.0],
-      [2, -4.5],  [2, 0],  [2, 4.5],  [2, 8.0],
-      [8, -4.5],  [8, 0],  [8, 4.5],  [8, 8.0]
+      [2, -4.5], [2, 0], [2, 4.5], [2, 8.0],
+      [8, -4.5], [8, 0], [8, 4.5], [8, 8.0]
     ];
     pilingLocations.forEach(([x, z]) => {
       // Main square pile
@@ -502,12 +508,17 @@ export class DockStall {
     this._buildExpandedIsland(islandGroup, mats);
     this._buildIslandFoliageAndDetails(islandGroup, mats);
     this._buildIslandTrailAndLookout(islandGroup, mats);
+    this._buildOpeningBeachAndDivorcePost(islandGroup, mats);
     this._buildShipyardSkeleton(islandGroup, mats);
     this._buildGhostMerchantStall(islandGroup, mats);
 
     // Easter Egg: Voxel Lop-Eared Bunny hopping around island grass meadow
     this.bunny = new VoxelLopBunny(islandGroup, new THREE.Vector3(0, 2.0, 2.5), this.group);
     this.bunnyInteractables = this.bunny.interactables;
+
+    // Day 0 Opening Cutscene: Clerk Crab in the shallow surf near the northeast beach
+    this.crab = new VoxelCrab(islandGroup, new THREE.Vector3(8.5, 0.42, -18.8));
+    this.crabInteractables = this.crab.interactables;
 
     // =========================================================================
     // 3. CHANDLERY SHOP STALL (Voxel Architecture, Roof & Interior)
@@ -616,7 +627,7 @@ export class DockStall {
 
     // Solid wall panels below and above the porthole
     const yBottomSill = portholeY - portholeR; // 2.35m
-    const yTopHeader  = portholeY + portholeR; // 3.65m
+    const yTopHeader = portholeY + portholeR; // 3.65m
 
     const wallLower = createVoxelBox(0.22, yBottomSill, shopD - 0.45, mats.woodMid);
     wallLower.position.set(0.11, yBottomSill / 2, 0);
@@ -1353,7 +1364,8 @@ export class DockStall {
 
     // Performance: merge hundreds of static voxel boxes into a few meshes per material.
     const keep = new Set([
-      ...this.doorInteractables, ...this.bunnyInteractables, ...this.shipInteractables,
+      ...this.doorInteractables, ...this.bunnyInteractables, ...this.crabInteractables,
+      ...this.divorcePostInteractables, ...this.shipInteractables,
       ...this.ledgerInteractables, ...this.shipyardInteractables, ...this.ghostMerchantInteractables
     ]);
     const stats = mergeStaticMeshes(this.group, {
@@ -1362,7 +1374,8 @@ export class DockStall {
       excludeSubtrees: [
         ...keep,
         this.signPivot, this.ghostSignPivot, this.shopDoor, this.bookAura,
-        this.bunny?.group, this.dockNPC?.group, this.dockNPC?.mesh,
+        this.divorcePostAura, this.divorceScrollGroup,
+        this.bunny?.group, this.crab?.group, this.dockNPC?.group, this.dockNPC?.mesh,
         this.ghostMerchant?.group, ...this.gulls.map(g => g.mesh)
       ]
     });
@@ -1412,14 +1425,32 @@ export class DockStall {
     islandGroup.add(knoll2);
 
     // Layer 2: Central Highlands Ridge Base (Elevated spine connecting East to West)
-    // Sits at Y = 2.65. Local X: -5 to -27, Z: -20 to +20
-    const highlandsDirt = createVoxelBox(22, 0.95, 38, mats.dirt);
-    highlandsDirt.position.set(-16, 2.15, 0);
+    // Sits at Y = 2.65. Local X: -5 to -24.2, Z: -20 to +20
+    const highlandsDirt = createVoxelBox(19.2, 0.95, 38, mats.dirt);
+    highlandsDirt.position.set(-14.6, 2.15, 0);
     islandGroup.add(highlandsDirt);
 
-    const highlandsGrass = createVoxelBox(22.2, 0.35, 38.2, mats.grassTop);
-    highlandsGrass.position.set(-16, 2.65, 0);
+    const highlandsGrass = createVoxelBox(19.4, 0.35, 38.2, mats.grassTop);
+    highlandsGrass.position.set(-14.6, 2.65, 0);
     islandGroup.add(highlandsGrass);
+
+    // East Meadow-to-Highlands stepped terrace ledge (top at Y = 2.41)
+    const eastStepDirt = createVoxelBox(1.6, 0.75, 24.0, mats.dirt);
+    eastStepDirt.position.set(-4.6, 1.9, 0);
+    islandGroup.add(eastStepDirt);
+
+    const eastStepGrass = createVoxelBox(1.8, 0.28, 24.2, mats.grassDark);
+    eastStepGrass.position.set(-4.6, 2.27, 0);
+    islandGroup.add(eastStepGrass);
+
+    // West Highlands-to-Shipyard stepped threshold terrace (top at Y = 2.30)
+    const westStepDirt = createVoxelBox(1.4, 0.65, 36.0, mats.dirt);
+    westStepDirt.position.set(-24.4, 1.85, 0);
+    islandGroup.add(westStepDirt);
+
+    const westStepGrass = createVoxelBox(1.6, 0.28, 36.2, mats.grassDark);
+    westStepGrass.position.set(-24.4, 2.16, 0);
+    islandGroup.add(westStepGrass);
 
     // Layer 3: North Bluff (Pine Ridge & Crags)
     // Tier 2: top at Y = 3.55 (X: -8 to -24, Z: -5 to -19)
@@ -1483,14 +1514,15 @@ export class DockStall {
     islandGroup.add(southCliff2);
 
     // Layer 5: West Shipyard Terrace & Waterfront Shore
-    // Local X: -26 to -54, Z: -18 to +18
-    const yardDirt = createVoxelBox(24, 0.95, 36, mats.dirt);
-    yardDirt.position.set(-39, 1.15, 0);
+    // Local X: -24 to -51, Z: -18 to +18
+    const yardDirt = createVoxelBox(27, 0.95, 36, mats.dirt);
+    yardDirt.position.set(-37.5, 1.15, 0);
     islandGroup.add(yardDirt);
 
-    // Packed yard surface (weathered packed sand/gravel at Y = 1.62)
-    const yardSurface = createVoxelBox(24.2, 0.28, 36.2, mats.sandWet);
-    yardSurface.position.set(-39, 1.62, 0);
+    // Packed yard surface (weathered packed sand/gravel at Y = 1.62, top at Y = 1.76)
+    const yardSurface = createVoxelBox(27.2, 0.28, 36.2, mats.sandWet);
+    yardDirt.position.set(-37.5, 1.15, 0);
+    yardSurface.position.set(-37.5, 1.62, 0);
     islandGroup.add(yardSurface);
 
     // Sturdy oak work planks under the workshop area (local X: -31 to -40, Z: 6 to 16)
@@ -1814,11 +1846,15 @@ export class DockStall {
       islandGroup.add(border2);
     }
 
-    // Section B: Trail through Central Pass (X = 1 to X = -16, climbing gently from Y = 2.05 to Y = 2.75)
+    // Section B: Trail through Central Pass (X = 1 to X = -14, climbing onto Central Highlands)
     for (let i = 0; i < 8; i++) {
-      const t = i / 7;
       const stepX = 1.0 - i * 2.15; // Reaches X = -14.05
-      const stepY = 2.05 + t * 0.7; // Climbs from 2.05 up to 2.75
+      let stepY = 2.76;
+      if (stepX > -3.5) {
+        stepY = 1.98;
+      } else if (stepX > -5.0) {
+        stepY = 2.38;
+      }
       const stepZ = Math.sin(i * 0.7) * 0.6;
       const step = createVoxelBox(2.2, 0.24, 1.5, i % 2 === 0 ? mats.stonePath : mats.plankDark);
       step.position.set(stepX, stepY, stepZ);
@@ -1832,11 +1868,15 @@ export class DockStall {
       islandGroup.add(border2);
     }
 
-    // Section C: Trail descent into Shipyard (X = -16 to X = -27, descending from Y = 2.75 to Y = 1.75)
+    // Section C: Trail descent into Shipyard (X = -16 to X = -26.5, descending into Shipyard at Y = 1.76)
     for (let i = 0; i < 6; i++) {
-      const t = i / 5;
       const stepX = -16.0 - i * 2.1; // Reaches X = -26.5
-      const stepY = 2.75 - t * 1.0;  // Descends down to 1.75
+      let stepY = 2.76;
+      if (stepX < -25.5) {
+        stepY = 1.72;
+      } else if (stepX < -23.5) {
+        stepY = 2.24;
+      }
       const stepZ = -Math.sin(i * 0.6) * 0.5;
       const step = createVoxelBox(2.2, 0.24, 1.6, i % 2 === 0 ? mats.stonePath : mats.stoneDark);
       step.position.set(stepX, stepY, stepZ);
@@ -1853,8 +1893,8 @@ export class DockStall {
     // Smooth invisible ramps along trail sections for fluid navigation
     const pathColliders = [
       { x: 7.5, y: 1.95, z: 0, w: 13.5, h: 0.35, d: 2.6, rotZ: 0 },
-      { x: -6.5, y: 2.4, z: 0, w: 15.5, h: 0.35, d: 2.6, rotZ: 0.045 },
-      { x: -21.5, y: 2.25, z: 0, w: 12.0, h: 0.35, d: 2.6, rotZ: -0.09 }
+      { x: -4.5, y: 2.25, z: 0, w: 4.8, h: 0.35, d: 3.2, rotZ: -0.20 },
+      { x: -24.5, y: 2.15, z: 0, w: 4.8, h: 0.35, d: 3.6, rotZ: 0.23 }
     ];
     pathColliders.forEach(pc => {
       const col = new THREE.Mesh(
@@ -1996,6 +2036,206 @@ export class DockStall {
     lookoutGroup.add(railMid);
 
     islandGroup.add(lookoutGroup);
+  }
+
+  // =========================================================================
+  // 2C-2. DAY 0 OPENING BEACH (Empty Bottles, Sand Slope & Divorce Papers Post)
+  // =========================================================================
+  _buildOpeningBeachAndDivorcePost(islandGroup, mats) {
+    // 1. Gentle sandy slope & steps connecting the Northeast Beach (y = 1.15, z = -15)
+    //    up onto the East Meadow (y = 2.0, z = -11.5) near the dock entrance
+    const beachSlopeStep1 = createVoxelBox(5.5, 0.36, 2.8, mats.sand);
+    beachSlopeStep1.position.set(8.8, 1.32, -13.0);
+    islandGroup.add(beachSlopeStep1);
+
+    const beachSlopeStep2 = createVoxelBox(5.2, 0.36, 2.4, mats.sand);
+    beachSlopeStep2.position.set(9.2, 1.66, -11.6);
+    islandGroup.add(beachSlopeStep2);
+
+    // Smooth invisible ramp collider so player walks effortlessly between beach, crab, and meadow
+    const beachRampCol = new THREE.Mesh(
+      new THREE.BoxGeometry(5.6, 0.28, 6.2),
+      new THREE.MeshBasicMaterial({ visible: false, colorWrite: false, depthWrite: false })
+    );
+    beachRampCol.position.set(9.0, 1.55, -12.6);
+    beachRampCol.rotation.x = -0.22;
+    islandGroup.add(beachRampCol);
+
+    // 2. Scattered Empty Rum / Wine Bottles around the beach wakeup spot (local X ~ 7.8, Y = 1.15, Z ~ -15.2)
+    const bottleColors = [Palette.bottleGreen, Palette.bottleAmber, Palette.bottleWine, Palette.bottleBlue];
+    const corkMat = createVoxelMat(Palette.cork);
+    const labelMat = mats.paper;
+
+    const bottlePlacements = [
+      // Close around the player's wakeup spot so they see them immediately on blinking open
+      { x: 6.7, z: -15.8, color: Palette.bottleGreen, fallen: true, rotY: 0.6, rotZ: Math.PI / 2 - 0.12, scale: 1.35 },
+      { x: 8.9, z: -15.9, color: Palette.bottleAmber, fallen: true, rotY: -0.8, rotZ: Math.PI / 2 - 0.08, scale: 1.4 },
+      { x: 7.2, z: -16.5, color: Palette.bottleWine, fallen: false, rotY: 0.3, rotZ: 0.08, scale: 1.35 },
+      { x: 8.5, z: -16.7, color: Palette.bottleGreen, fallen: true, rotY: 1.4, rotZ: Math.PI / 2 - 0.1, scale: 1.3 },
+      { x: 6.3, z: -14.7, color: Palette.bottleBlue, fallen: false, rotY: -0.4, rotZ: -0.1, scale: 1.3 },
+      { x: 9.3, z: -14.8, color: Palette.bottleWine, fallen: true, rotY: 2.1, rotZ: Math.PI / 2 - 0.15, scale: 1.45 },
+      { x: 7.9, z: -13.9, color: Palette.bottleAmber, fallen: true, rotY: -1.6, rotZ: Math.PI / 2 - 0.06, scale: 1.35 },
+      { x: 6.9, z: -14.1, color: Palette.bottleGreen, fallen: false, rotY: 0.9, rotZ: 0.05, scale: 1.25 },
+      { x: 8.8, z: -17.4, color: Palette.bottleBlue, fallen: true, rotY: 0.4, rotZ: Math.PI / 2 - 0.1, scale: 1.35 }
+    ];
+
+    bottlePlacements.forEach((bp, idx) => {
+      const bGroup = new THREE.Group();
+      const bMat = createVoxelMat(bp.color || bottleColors[idx % bottleColors.length], {
+        roughness: 0.18,
+        metalness: 0.1,
+        transparent: true,
+        opacity: 0.86
+      });
+
+      const bodyH = 0.32;
+      const bodyW = 0.14;
+      const bottleBody = createVoxelBox(bodyW, bodyH, bodyW, bMat, false, false);
+      bottleBody.position.y = bodyH / 2;
+      bGroup.add(bottleBody);
+
+      // Rum label strip
+      const label = createVoxelBox(bodyW + 0.01, 0.11, bodyW + 0.01, labelMat, false, false);
+      label.position.y = bodyH * 0.48;
+      bGroup.add(label);
+
+      // Bottle shoulder & neck
+      const shoulder = createVoxelBox(0.10, 0.05, 0.10, bMat, false, false);
+      shoulder.position.y = bodyH + 0.025;
+      bGroup.add(shoulder);
+
+      const neck = createVoxelBox(0.06, 0.11, 0.06, bMat, false, false);
+      neck.position.y = bodyH + 0.095;
+      bGroup.add(neck);
+
+      // Popped cork lying next to fallen bottles, or half-uncorked on upright ones
+      const cork = createVoxelBox(0.055, 0.045, 0.055, corkMat, false, false);
+      if (bp.fallen) {
+        cork.position.set(0.08, 0.48, 0.04);
+      } else {
+        cork.position.set(0, bodyH + 0.16, 0);
+      }
+      bGroup.add(cork);
+
+      bGroup.scale.setScalar(bp.scale || 1.3);
+      const baseSandY = bp.z < -16.8 ? 0.98 : 1.15;
+      bGroup.position.set(bp.x, bp.fallen ? baseSandY + 0.07 : baseSandY, bp.z);
+      bGroup.rotation.y = bp.rotY || 0;
+      bGroup.rotation.z = bp.rotZ || 0;
+
+      bGroup.traverse(child => {
+        if (child.isMesh) child.userData.noWalk = true;
+      });
+      islandGroup.add(bGroup);
+    });
+
+    // Half-buried grog barrel on the beach beside the bottles
+    const beachBarrel = createVoxelBarrel(0.38, 0.82, mats.woodMid, mats.iron);
+    beachBarrel.position.set(6.0, 1.25, -16.2);
+    beachBarrel.rotation.z = 0.45;
+    beachBarrel.rotation.y = 0.6;
+    beachBarrel.traverse(child => {
+      if (child.isMesh) child.userData.noWalk = true;
+    });
+    islandGroup.add(beachBarrel);
+
+    // 3. Notice Post with Nailed Divorce Papers Scroll (Just after the dock meets land: local X = 11.8, Y = 2.0, Z = -2.0)
+    const postGroup = new THREE.Group();
+    postGroup.position.set(11.8, 2.0, -2.0);
+    postGroup.rotation.y = -0.35; // Angled slightly toward both the beach trail and the dock ramp
+    this.divorceScrollGroup = postGroup;
+
+    // Sturdy timber post & base plinth
+    const plinth = createVoxelBox(0.56, 0.18, 0.56, mats.stoneDark);
+    plinth.position.y = 0.09;
+    postGroup.add(plinth);
+
+    const mainPost = createVoxelBox(0.30, 2.45, 0.30, mats.woodDark);
+    mainPost.position.y = 1.22;
+    postGroup.add(mainPost);
+
+    // Backing notice board
+    const board = createVoxelBox(0.95, 1.05, 0.10, mats.woodMid);
+    board.position.set(0, 1.65, 0.16);
+    postGroup.add(board);
+
+    // Slanted rain hood over notice board
+    const hood = createVoxelBox(1.08, 0.10, 0.38, mats.woodTrim);
+    hood.position.set(0, 2.22, 0.18);
+    hood.rotation.x = 0.25;
+    postGroup.add(hood);
+
+    // Parchment Divorce Scroll nailed to the board
+    const scrollSheet = createVoxelBox(0.68, 0.78, 0.03, mats.paper);
+    scrollSheet.position.set(0, 1.64, 0.22);
+    postGroup.add(scrollSheet);
+
+    // Top & bottom rolled parchment cylinders
+    const rollTop = createVoxelBox(0.74, 0.08, 0.08, mats.paper);
+    rollTop.position.set(0, 2.03, 0.24);
+    postGroup.add(rollTop);
+
+    const rollBot = createVoxelBox(0.74, 0.08, 0.08, mats.paper);
+    rollBot.position.set(0, 1.25, 0.24);
+    postGroup.add(rollBot);
+
+    // Heavy iron nail driven through the top of the scroll into the post
+    const ironNailShaft = createVoxelBox(0.05, 0.05, 0.14, mats.iron);
+    ironNailShaft.position.set(0, 1.94, 0.26);
+    postGroup.add(ironNailShaft);
+
+    const ironNailHead = createVoxelBox(0.11, 0.11, 0.04, mats.ironLight);
+    ironNailHead.position.set(0, 1.94, 0.33);
+    postGroup.add(ironNailHead);
+
+    // Red Wax Seal ("CLAW & FIN") at bottom-right of scroll
+    const sealMat = createVoxelMat(Palette.sealRed, { roughness: 0.4 });
+    const waxSeal = createVoxelBox(0.16, 0.16, 0.035, sealMat);
+    waxSeal.position.set(0.16, 1.38, 0.245);
+    postGroup.add(waxSeal);
+
+    // Dark ink text lines on the parchment
+    [-0.18, -0.06, 0.06, 0.18].forEach((ly, i) => {
+      const lineW = i === 0 ? 0.48 : 0.52 - (i % 2) * 0.08;
+      const inkLine = createVoxelBox(lineW, 0.025, 0.01, mats.woodTrim, false, false);
+      inkLine.position.set(0, 1.66 - ly, 0.24);
+      postGroup.add(inkLine);
+    });
+
+    // Glowing golden aura ring around the scroll post so the player can easily spot it
+    const auraMat = createVoxelMat(0xffd700, {
+      emissive: 0xffaa00,
+      emissiveIntensity: 1.2,
+      transparent: true,
+      opacity: 0.65
+    });
+    this.divorcePostAura = createVoxelOctagonRing(0.58, 0.06, 0.06, auraMat);
+    this.divorcePostAura.rotation.x = Math.PI / 2;
+    this.divorcePostAura.position.set(0, 0.35, 0.12);
+    postGroup.add(this.divorcePostAura);
+
+    // Generous raycast hitbox for interacting with the Divorce Papers Post
+    const postHitMat = new THREE.MeshBasicMaterial({
+      color: 0xffff00,
+      transparent: true,
+      opacity: 0.0,
+      depthWrite: false,
+      colorWrite: false
+    });
+    const postHitBox = new THREE.Mesh(new THREE.BoxGeometry(1.4, 2.6, 1.2), postHitMat);
+    postHitBox.position.set(0, 1.3, 0.15);
+    postHitBox.userData.isDivorcePost = true;
+    postGroup.add(postHitBox);
+
+    postGroup.traverse(child => {
+      if (child.isMesh) {
+        child.userData.isDivorcePost = true;
+        child.userData.noWalk = true;
+      }
+    });
+    this.divorcePostInteractables.push(postHitBox, scrollSheet, board, mainPost);
+
+    islandGroup.add(postGroup);
   }
 
   // =========================================================================
@@ -3057,9 +3297,9 @@ export class DockStall {
     const postThickness = 0.36;
     const postLocations = [
       [-baseW / 2 + 0.28, -baseD / 2 + 0.28],
-      [ baseW / 2 - 0.28, -baseD / 2 + 0.28],
-      [-baseW / 2 + 0.28,  baseD / 2 - 0.28],
-      [ baseW / 2 - 0.28,  baseD / 2 - 0.28],
+      [baseW / 2 - 0.28, -baseD / 2 + 0.28],
+      [-baseW / 2 + 0.28, baseD / 2 - 0.28],
+      [baseW / 2 - 0.28, baseD / 2 - 0.28],
     ];
     postLocations.forEach(([px, pz]) => {
       const post = createVoxelBox(postThickness, postHeight, postThickness, mats.woodDark);
@@ -3277,6 +3517,13 @@ export class DockStall {
     if (this.bunny) {
       this.bunny.update(delta, time);
     }
+    if (this.crab) {
+      this.crab.update(delta, time);
+    }
+    if (this.divorcePostAura) {
+      this.divorcePostAura.rotation.z = time * 1.4;
+      this.divorcePostAura.position.y = 0.35 + Math.sin(time * 2.8) * 0.08;
+    }
     if (this.bookLight) {
       this.bookLight.intensity = 1.1 + Math.sin(time * 3.5) * 0.45;
     }
@@ -3312,6 +3559,10 @@ export class DockStall {
     if (this.bunny) {
       this.bunny.dispose();
       this.bunny = null;
+    }
+    if (this.crab) {
+      this.crab.dispose();
+      this.crab = null;
     }
     this.group.traverse(child => {
       if (child.isMesh) {

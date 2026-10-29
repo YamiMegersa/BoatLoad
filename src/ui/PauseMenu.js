@@ -296,7 +296,7 @@ export class PauseMenu {
             <div class="setting-item">
               <div class="setting-info">
                 <label for="set-vol-music" class="setting-label">Music Volume</label>
-                <span class="setting-desc">Ambient harbor melodies and dynamic sailing tracks.</span>
+
               </div>
               <div class="setting-ctrl-row">
                 <input type="range" id="set-vol-music" class="setting-slider" min="0" max="100" step="1">
@@ -356,10 +356,18 @@ export class PauseMenu {
       emit('restartPhase');
     });
 
-    this._el.querySelector('#btn-shipyard')?.addEventListener('click', () => {
-      emit('resumeGame');
-      emit('gotoShipyard');
-    });
+    const shipyardBtn = this._el.querySelector('#btn-shipyard');
+    if (shipyardBtn) {
+      if (window.gameState?._isEditorPlay) {
+        shipyardBtn.innerHTML = '<span class="pixel-icon icon-map-maker-scroll size-18"></span> Return to Editor';
+      } else if (window.gameState?._isCommunityCourse || window.gameState?._activeCommunityCourseCode) {
+        shipyardBtn.innerHTML = '<span class="pixel-icon icon-anchor size-18"></span> Return to Community Menu';
+      }
+      shipyardBtn.addEventListener('click', () => {
+        emit('resumeGame');
+        emit('gotoShipyard');
+      });
+    }
 
     this._el.querySelector('#btn-title')?.addEventListener('click', () => {
       emit('resumeGame');

@@ -52,6 +52,8 @@ export class BoatDestructionWorkshop {
     this._activeBrush = DamageBrushType.CANNONBALL;
     this._brushSize = BrushSize.MEDIUM;
     this._mirrorMode = false;
+    this._rotation = 0; // 0, 1, 2, 3 (multiples of 90 degrees around Y)
+    this._pitch = 0;    // 0 = horizontal, 1 = upright/vertical (swaps Y and Z)
 
     // Baseline stats
     this._pristineHullCount = 0;
@@ -140,7 +142,10 @@ export class BoatDestructionWorkshop {
       this._workshopGroup.add(this._studioLightGroup);
     }
 
-    // Setup OrbitControls
+    // Setup StudioFlyControls (WASD flight + right-drag freelook, matching repair phase)
+    if (window.gameState?._orbitControls) {
+      window.gameState._orbitControls.enabled = false;
+    }
     this._setupControls();
 
     // Build the ship grid & renderer
@@ -339,6 +344,18 @@ export class BoatDestructionWorkshop {
     emit('workshopMirrorChanged', { enabled: this._mirrorMode });
   }
 
+  rotate() {
+    this._rotation = (this._rotation + 1) % 4;
+    this._updateHoverPreview();
+    emit('workshopRotationChanged', { rotation: this._rotation });
+  }
+
+  togglePitch() {
+    this._pitch = (this._pitch + 1) % 2;
+    this._updateHoverPreview();
+    emit('workshopPitchChanged', { pitch: this._pitch });
+  }
+
   /**
    * Compute affected cells for the given brush and seed coordinate.
    *
@@ -409,7 +426,7 @@ export class BoatDestructionWorkshop {
       }
 
       case DamageBrushType.COLLISION: {
-        // Linear gouge/scrape along hull
+        // Linear gouge/scrape along hull with full rotation (R) and upright pitch (T) support
         const lengthMap = {
           [BrushSize.SMALL]: 3,
           [BrushSize.MEDIUM]: 5,
@@ -419,10 +436,35 @@ export class BoatDestructionWorkshop {
         const radius = 1.3;
         const rSq = radius * radius;
 
-        for (let dz = -halfLen; dz <= halfLen; dz++) {
-          for (let dx = -1; dx <= 1; dx++) {
-            for (let dy = -1; dy <= 1; dy++) {
-              if (dx * dx + dy * dy <= rSq) {
+        for (let l = -halfLen; l <= halfLen; l++) {
+          for (let u = -1; u <= 1; u++) {
+            for (let v = -1; v <= 1; v++) {
+              if (u * u + v * v <= rSq) {
+                let dx = u;
+                let dy = v;
+                let dz = l;
+
+                // Pitch flip (T key): swap Y and Z for vertical gashes
+                if (this._pitch === 1) {
+                  const tmp = dy;
+                  dy = dz;
+                  dz = tmp;
+                }
+
+                // Rotation around Y (R key): 90-degree increments
+                if (this._rotation === 1) {
+                  const tmp = dx;
+                  dx = -dz;
+                  dz = tmp;
+                } else if (this._rotation === 2) {
+                  dx = -dx;
+                  dz = -dz;
+                } else if (this._rotation === 3) {
+                  const tmp = dx;
+                  dx = dz;
+                  dz = -tmp;
+                }
+
                 addCell(cx + dx, cy + dy, cz + dz);
               }
             }
@@ -876,14 +918,20 @@ export class BoatDestructionWorkshop {
     if (!this._isOpen) return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
 
-    if (e.code === 'KeyM') {
+    if (e.code === 'KeyR') {
+      e.preventDefault();
+      this.rotate();
+    } else if (e.code === 'KeyT') {
+      e.preventDefault();
+      this.togglePitch();
+    } else if (e.code === 'KeyM' && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
       e.preventDefault();
       this.toggleMirror();
-    } else if (e.code === 'KeyZ' && (e.ctrlKey || e.metaKey)) {
+    } else if (e.code === 'KeyZ') {
       e.preventDefault();
       if (e.shiftKey) this.redo();
       else this.undo();
-    } else if (e.code === 'KeyY' && (e.ctrlKey || e.metaKey)) {
+    } else if (e.code === 'KeyY') {
       e.preventDefault();
       this.redo();
     } else if (e.code === 'Digit1') {
