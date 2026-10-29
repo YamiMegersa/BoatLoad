@@ -9,9 +9,12 @@ import { CellState, CELL_SIZE } from './VoxelGrid.js';
 const intactMaterial = new THREE.MeshLambertMaterial({ color: 0xffffff });
 const damagedMaterial = new THREE.MeshLambertMaterial({ color: 0x5c3317 });
 
-/** Missing/Broken cell — red outline */
+/** Missing/Broken/Damaged cell — prominent red outline */
 const missingMaterial = new THREE.LineBasicMaterial({
-  color: 0xff0000,
+  color: 0xff1533,
+  transparent: true,
+  opacity: 0.95,
+  depthTest: false,
 });
 
 /** Flooded bilge — translucent ocean blue */
@@ -21,15 +24,14 @@ const floodedMaterial = new THREE.MeshPhongMaterial({
   opacity: 0.62,
 });
 
-
-
 /**
  * Maximum number of simultaneously active individual (DAMAGED/FLOODED) meshes.
  * When the cap is reached, the oldest mesh is recycled.
  */
 const MAX_INDIVIDUAL_MESHES = 1024;
 const BOX_GEO = new THREE.BoxGeometry(CELL_SIZE, CELL_SIZE, CELL_SIZE);
-const EDGES_GEO = new THREE.EdgesGeometry(BOX_GEO);
+const OUTLINE_BOX_GEO = new THREE.BoxGeometry(CELL_SIZE * 1.04, CELL_SIZE * 1.04, CELL_SIZE * 1.04);
+const EDGES_GEO = new THREE.EdgesGeometry(OUTLINE_BOX_GEO);
 
 // ---------------------------------------------------------------------------
 // ChunkRenderer
@@ -201,7 +203,9 @@ export class ChunkRenderer {
 
     for (const mesh of this._individualMeshes.values()) {
       this.container.remove(mesh);
-      mesh.geometry.dispose();
+      if (mesh.geometry !== BOX_GEO && mesh.geometry !== EDGES_GEO && mesh.geometry !== OUTLINE_BOX_GEO) {
+        mesh.geometry.dispose();
+      }
       if (mesh.material && mesh.material !== missingMaterial && mesh.material !== damagedMaterial && mesh.material !== floodedMaterial) {
         mesh.material.dispose();
       }
@@ -384,15 +388,12 @@ export class ChunkRenderer {
         break;
 
       case CellState.MISSING:
+      case CellState.DAMAGED:
         if (this._showMissingOutlines) {
           this._spawnIndividual(grid, x, y, z, flatIdx, missingMaterial, true);
         } else {
           this._removeIndividual(flatIdx);
         }
-        break;
-
-      case CellState.DAMAGED:
-        this._spawnIndividual(grid, x, y, z, flatIdx, damagedMaterial);
         break;
 
       case CellState.FLOODED:
@@ -409,7 +410,7 @@ export class ChunkRenderer {
    */
   _disposeIndividualMesh(mesh) {
     this.container.remove(mesh);
-    if (mesh.geometry !== BOX_GEO && mesh.geometry !== EDGES_GEO) {
+    if (mesh.geometry !== BOX_GEO && mesh.geometry !== EDGES_GEO && mesh.geometry !== OUTLINE_BOX_GEO) {
       mesh.geometry.dispose();
     }
   }
@@ -433,6 +434,9 @@ export class ChunkRenderer {
 
     const obj = isOutline ? new THREE.LineSegments(EDGES_GEO, material) : new THREE.Mesh(BOX_GEO, material);
     obj.position.copy(grid.toWorldPos(x, y, z));
+    if (isOutline) {
+      obj.renderOrder = 999;
+    }
     this.container.add(obj);
 
     this._individualMeshes.set(flatIdx, obj);
