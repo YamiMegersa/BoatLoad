@@ -436,11 +436,6 @@ export class DockPlayerController {
           this.showLockedHint('🔒 <b>Shop Locked:</b> Read the <b>Divorce Notice</b> nailed to the post where the dock meets land first!');
           return;
         }
-        if (this.tutorialStep === 'VISIT_SHIPYARD') {
-          emit('playSound', { sound: 'qte_fail' });
-          this.showLockedHint('🔒 <b>Shop Locked:</b> Head West along the stone trail and step into the <b>Shipyard</b> location circle first!');
-          return;
-        }
       }
       this.enterShop();
     } else {
@@ -628,22 +623,6 @@ export class DockPlayerController {
       this.setObjective(
         `📜 <span style="color:#ffd700;">Step 2/4:</span> Walk up the beach trail to where the dock meets land and read the <strong>Divorce Notice</strong> on the post <span style="color:#ffd700;">[E or Click]</span>`
       );
-    } else if (step === 'VISIT_SHIPYARD') {
-      if (this.dockStall) {
-        this.dockStall.setDivorcePostRingVisible(false);
-        this.dockStall.setShipyardTutorialCircleVisible(true);
-        this.dockStall.setShopDoorGlowVisible(false);
-      }
-      this.setObjective(
-        `⚓ <span style="color:#ffd700;">Step 3/4:</span> Follow the stone trail <strong>West</strong> across the island to the <strong>Shipyard</strong> and step into the glowing circle`
-      );
-      this.showAreaPopup({
-        icon: '📜',
-        areaName: 'Area 2 of 4 • Harbor Crossroads',
-        title: 'Notice Post & Island Trail',
-        purposeText: 'The Notice Post sits at the crossroads where the East Harbor Pier meets the island. From here, the stone lantern path winds West over the ridge directly to your Drydock Shipyard.',
-        actionText: 'Before you can open your shop for the week, follow the stone path <b>West</b> through the mountain pass to the <b>Shipyard</b> and step into the glowing <b>Location Circle</b>.'
-      });
     } else if (step === 'ENTER_SHOP') {
       if (this.dockStall) {
         this.dockStall.setDivorcePostRingVisible(false);
@@ -651,30 +630,46 @@ export class DockPlayerController {
         this.dockStall.setShopDoorGlowVisible(true);
       }
       this.setObjective(
-        `🏠 <span style="color:#ffd700;">Step 4/4:</span> Head back <strong>East</strong> to the pier and enter your <strong>Shipwright Shop</strong> <span style="color:#ffd700;">[E or Click Door]</span>`
+        `🏠 <span style="color:#ffd700;">Step 3/4:</span> Walk <strong>East</strong> onto the harbor pier and enter your glowing <strong>Shipwright Shop</strong> <span style="color:#ffd700;">[E or Click Door]</span>`
       );
       this.showAreaPopup({
-        icon: '⚓',
-        areaName: 'Area 3 of 4 • West Drydock',
-        title: 'The Drydock & Shipyard',
-        purposeText: 'Whenever you accept a repair contract, the customer\'s damaged vessel is towed to this berth. Here you inspect hull breaches, patch broken or flooded voxel timbers within budget, and launch the ship for its sea trial.',
-        actionText: 'Your drydock is ready for business! Follow the stone trail back <b>East</b> across the island onto the main pier and enter your glowing <b>Shipwright Shop Door</b>.'
+        icon: '📜',
+        areaName: 'Area 2 of 4 • Harbor Crossroads',
+        title: 'Notice Post & East Harbor Pier',
+        purposeText: 'The Notice Post sits at the crossroads where the East Harbor Pier meets Dock Island. Straight ahead along the timber pier stands your <b>Shipwright Shop</b>, while the stone lantern trail winds West across the ridge to your <b>Drydock Shipyard</b>.',
+        actionText: 'Walk <b>East</b> onto the harbor pier and enter your glowing <b>Shipwright Shop Door</b> (<b>[E]</b> or <b>Click</b>) to see how your business works.'
       });
-    } else if (step === 'OPEN_LOGBOOK') {
+    } else if (step === 'VISIT_SHIPYARD') {
+      if (this.dockStall) {
+        this.dockStall.setDivorcePostRingVisible(false);
+        this.dockStall.setShipyardTutorialCircleVisible(true);
+        this.dockStall.setShopDoorGlowVisible(false);
+      }
+      this.setObjective(
+        `⚓ <span style="color:#ffd700;">Step 4/4:</span> Exit the shop, follow the stone trail <strong>West</strong> to the <strong>Shipyard</strong>, and step into the glowing circle`
+      );
+      this.showAreaPopup({
+        icon: '🏠',
+        areaName: 'Area 3 of 4 • Shipwright Stall',
+        title: 'The Shipwright Shop & Daily Game Loop',
+        purposeText: 'Here is how you\'ll earn the <b>7,000 doubloons</b> for Marguerite\'s divorce settlement by Sunday:<br/>• <b>1. Morning Contract (Shop):</b> Each morning, a captain arrives at your counter to explain how they wrecked their ship and haggle over a repair budget.<br/>• <b>2. Hull Repair (Shipyard):</b> Their vessel is moored at the West Shipyard, where you patch broken timbers within budget.<br/>• <b>3. Sea Trial (Ocean):</b> You sail the repaired ship through Port Rotgut\'s hazards to earn your daily payout and keep any unspent budget!',
+        actionText: 'Before taking on paying captains, <b>an old customer left a battered ship at the West Shipyard for scrap</b> — and you can practice on it! Exit the shop door (<b>[E]</b> or <b>Click</b>), follow the stone trail <b>West</b> across the island to the <b>Shipyard</b>, and step into the glowing <b>Location Circle</b>.'
+      });
+    } else if (step === 'PRACTICE_SHIP') {
       if (this.dockStall) {
         this.dockStall.setDivorcePostRingVisible(false);
         this.dockStall.setShipyardTutorialCircleVisible(false);
         this.dockStall.setShopDoorGlowVisible(false);
       }
       this.setObjective(
-        `📖 <span style="color:#00ffaa;">Harbor Tour Complete!</span> Open the glowing <strong>Harbor Logbook</strong> on the counter to begin <strong>Day 1</strong> <span style="color:#ffd700;">[E or Click]</span>`
+        `🛠️ <span style="color:#00ffaa;">Harbor Tour Complete!</span> Interact with the glowing <strong>Shipyard Workbench</strong> or the <strong>Abandoned Scrap Sloop</strong> to practice <span style="color:#ffd700;">[E or Click]</span>`
       );
       this.showAreaPopup({
-        icon: '🏠',
-        areaName: 'Area 4 of 4 • Shipwright Stall',
-        title: 'The Shipwright Shop & Counter',
-        purposeText: 'This is where captains arrive each morning to explain how they wrecked their vessel and haggle over the repair budget. Any repair budget you save — plus your sea-trial payout — goes toward paying off Marguerite\'s 7,000 doubloon divorce settlement.',
-        actionText: 'Click or press <b>[E]</b> on the glowing <b>Harbor Logbook</b> on the counter and select <b>Day 1</b> to welcome your first customer!'
+        icon: '⚓',
+        areaName: 'Area 4 of 4 • West Drydock',
+        title: 'The Shipyard & Abandoned Scrap Ship',
+        purposeText: 'Welcome to your <b>West Drydock & Shipyard</b>! That battered vessel moored at the pier is the ship <b>an old customer abandoned here for scrap</b>. Since nobody is coming back for it, you can use it to practice your hull repairs and sea trials risk-free.',
+        actionText: 'Approach the glowing <b>Shipyard Workbench</b> or the moored <b>Abandoned Scrap Sloop</b> and press <b>[E]</b> or <b>Click</b> to practice on it (or return to the Shop <b>Logbook</b> whenever you\'re ready).'
       });
     }
   }
@@ -682,7 +677,7 @@ export class DockPlayerController {
   _completeShipyardTutorialStep() {
     if (!this.tutorialActive || this.tutorialStep !== 'VISIT_SHIPYARD') return;
     emit('playSound', { sound: 'qte_success' });
-    this.advanceTutorialStep('ENTER_SHOP');
+    this.advanceTutorialStep('PRACTICE_SHIP');
   }
 
   setObjective(html) {
@@ -1038,11 +1033,30 @@ _updateCutscene(delta) {
 }
 
 _interactWithShip() {
+  if (this.tutorialActive && this.tutorialStep !== 'PRACTICE_SHIP') {
+    if (this.tutorialStep === 'VISIT_SHIPYARD') {
+      this._completeShipyardTutorialStep();
+      return;
+    }
+    emit('playSound', { sound: 'qte_fail' });
+    const msg = this.tutorialStep === 'TALK_CRAB'
+      ? '🔒 <b>Shipyard Locked:</b> Speak with <b>Clawdius Pinch, Esq.</b> on the beach first!'
+      : (this.tutorialStep === 'READ_NOTICE'
+        ? '🔒 <b>Shipyard Locked:</b> Read the <b>Divorce Notice</b> nailed to the post where the dock meets land first!'
+        : '🔒 <b>Shipyard Locked:</b> Head East to your <b>Shipwright Shop</b> on the pier first to learn how the business works!');
+    this.showLockedHint(msg);
+    return;
+  }
   emit('playSound', { sound: 'qte_success' });
   emit('requestPhaseChange', { phase: 'SHIPYARD' });
 }
 
 _interactWithLedger() {
+  if (this.tutorialActive && this.tutorialStep !== 'PRACTICE_SHIP') {
+    emit('playSound', { sound: 'qte_fail' });
+    this.showLockedHint('🔒 <b>Logbook Locked:</b> Exit the shop and head <b>West to the Shipyard</b> to inspect the abandoned scrap ship first!');
+    return;
+  }
   emit('playSound', { sound: 'qte_success' });
   if (this.isLocked) {
     document.exitPointerLock();
@@ -1051,13 +1065,18 @@ _interactWithLedger() {
 }
 
 _interactWithShipyard() {
-  if (this.tutorialActive) {
+  if (this.tutorialActive && this.tutorialStep !== 'PRACTICE_SHIP') {
     if (this.tutorialStep === 'VISIT_SHIPYARD') {
       this._completeShipyardTutorialStep();
       return;
     }
     emit('playSound', { sound: 'qte_fail' });
-    this.showLockedHint('🔒 <b>No Vessel Berthed:</b> Head to your <b>Shipwright Shop</b> and open the <b>Logbook</b> to begin Day 1!');
+    const msg = this.tutorialStep === 'TALK_CRAB'
+      ? '🔒 <b>Shipyard Locked:</b> Speak with <b>Clawdius Pinch, Esq.</b> on the beach first!'
+      : (this.tutorialStep === 'READ_NOTICE'
+        ? '🔒 <b>Shipyard Locked:</b> Read the <b>Divorce Notice</b> nailed to the post where the dock meets land first!'
+        : '🔒 <b>Shipyard Locked:</b> Head East to your <b>Shipwright Shop</b> on the pier first to learn how the business works!');
+    this.showLockedHint(msg);
     return;
   }
   emit('playSound', { sound: 'qte_success' });
@@ -1100,7 +1119,7 @@ enterShop() {
   emit('dockPlayerEnteredShop');
 
   if (this.tutorialActive && this.tutorialStep === 'ENTER_SHOP') {
-    this.advanceTutorialStep('OPEN_LOGBOOK');
+    this.advanceTutorialStep('VISIT_SHIPYARD');
   }
 }
 
@@ -1478,7 +1497,7 @@ _setHoverState(obj, type = null) {
         this.prompt.innerHTML = `<span class="pixel-icon icon-map-maker-scroll size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Read Divorce Papers`;
       }
     } else if (type === 'ghost') {
-      if (this.tutorialActive && this.tutorialStep !== 'OPEN_LOGBOOK') {
+      if (this.tutorialActive && this.tutorialStep !== 'PRACTICE_SHIP') {
         this.prompt.innerHTML = `🔒 <span style="color:#ff9b94;">Complete Harbor Tour First</span>`;
       } else {
         this.prompt.innerHTML = `<span class="pixel-icon icon-phantom-ghost size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click Ghost to Barter Wares`;
@@ -1486,17 +1505,35 @@ _setHoverState(obj, type = null) {
     } else if (type === 'bunny') {
       this.prompt.innerHTML = `<span class="pixel-icon icon-easter-bunny size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Pet Bunny`;
     } else if (type === 'ledger') {
-      this.prompt.innerHTML = `<span class="pixel-icon icon-closed-logbook size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click Logbook to Select Voyage`;
+      if (this.tutorialActive && this.tutorialStep !== 'PRACTICE_SHIP') {
+        this.prompt.innerHTML = `🔒 <span style="color:#ff9b94;">Visit West Shipyard &amp; Scrap Ship First</span>`;
+      } else {
+        this.prompt.innerHTML = `<span class="pixel-icon icon-closed-logbook size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click Logbook to Select Voyage`;
+      }
     } else if (type === 'ship') {
-      const shipName = this.dockStall?.activeShipProfile?.name || 'Vessel';
-      this.prompt.innerHTML = `<span class="pixel-icon icon-hammer size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shipyard &amp; Alter ${shipName}`;
-    } else if (type === 'shipyard') {
-      this.prompt.innerHTML = `<span class="pixel-icon icon-hammer size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shipyard`;
-    } else if (this.mode === 'player') {
-      if (this.tutorialActive && (this.tutorialStep === 'TALK_CRAB' || this.tutorialStep === 'READ_NOTICE' || this.tutorialStep === 'VISIT_SHIPYARD')) {
+      if (this.tutorialActive && (this.tutorialStep === 'TALK_CRAB' || this.tutorialStep === 'READ_NOTICE' || this.tutorialStep === 'ENTER_SHOP')) {
         const reason = this.tutorialStep === 'TALK_CRAB'
           ? 'Speak with Crab Lawyer First'
-          : (this.tutorialStep === 'READ_NOTICE' ? 'Read Notice Post First' : 'Visit Shipyard Circle First');
+          : (this.tutorialStep === 'READ_NOTICE' ? 'Read Notice Post First' : 'Visit Shipwright Shop First');
+        this.prompt.innerHTML = `🔒 <span style="color:#ff9b94;">Shipyard Locked — ${reason}</span>`;
+      } else {
+        const shipName = this.dockStall?.activeShipProfile?.name || 'Vessel';
+        this.prompt.innerHTML = `<span class="pixel-icon icon-hammer size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shipyard &amp; Alter ${shipName}`;
+      }
+    } else if (type === 'shipyard') {
+      if (this.tutorialActive && (this.tutorialStep === 'TALK_CRAB' || this.tutorialStep === 'READ_NOTICE' || this.tutorialStep === 'ENTER_SHOP')) {
+        const reason = this.tutorialStep === 'TALK_CRAB'
+          ? 'Speak with Crab Lawyer First'
+          : (this.tutorialStep === 'READ_NOTICE' ? 'Read Notice Post First' : 'Visit Shipwright Shop First');
+        this.prompt.innerHTML = `🔒 <span style="color:#ff9b94;">Shipyard Locked — ${reason}</span>`;
+      } else {
+        this.prompt.innerHTML = `<span class="pixel-icon icon-hammer size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shipyard`;
+      }
+    } else if (this.mode === 'player') {
+      if (this.tutorialActive && (this.tutorialStep === 'TALK_CRAB' || this.tutorialStep === 'READ_NOTICE')) {
+        const reason = this.tutorialStep === 'TALK_CRAB'
+          ? 'Speak with Crab Lawyer First'
+          : 'Read Notice Post First';
         this.prompt.innerHTML = `🔒 <span style="color:#ff9b94;">Shop Locked — ${reason}</span>`;
       } else {
         this.prompt.innerHTML = `<span class="pixel-icon icon-cabin-door-exit size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shop`;
@@ -1514,7 +1551,7 @@ _setHoverState(obj, type = null) {
 }
 
 _interactWithGhost() {
-  if (this.tutorialActive && this.tutorialStep !== 'OPEN_LOGBOOK') {
+  if (this.tutorialActive && this.tutorialStep !== 'PRACTICE_SHIP') {
     emit('playSound', { sound: 'qte_fail' });
     this.showLockedHint('🔒 <b>Ghost Merchant Locked:</b> Complete your harbor tour first! Check the instruction at the top.');
     return;

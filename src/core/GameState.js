@@ -779,13 +779,16 @@ export class GameState {
     this._mooredShipProfile = shipProfile;
 
     // Re-trigger ship arrival if level or day changed
+    // On Day 0, an old customer's abandoned scrap ship is already moored at the West Shipyard
     if (this._lastDockLevel !== activeShipId || this._lastDockDay !== this.day) {
-      this._dockShipArrived = false;
+      this._dockShipArrived = (this.day === 0);
       this._lastDockLevel = activeShipId;
       this._lastDockDay = this.day;
       if (this._dockStall && this._dockStall.dockNPC) {
         this._dockStall.dockNPC.reset();
       }
+    } else if (this.day === 0) {
+      this._dockShipArrived = true;
     }
 
     // Build or update ship model if needed so it displays moored in the dock
@@ -1002,8 +1005,9 @@ export class GameState {
       this._lastDockDay = this.day;
 
       // 3. Reset ship and NPC arrival state so cutscene replays for the selected day
-      this._dockShipArrived = false;
-      this._shipDocked = false;
+      // (On Day 0, the abandoned scrap ship is already moored at the West Shipyard)
+      this._dockShipArrived = (this.day === 0);
+      this._shipDocked = (this.day === 0);
       this._shipArriving = false;
       if (this._dockStall && this._dockStall.dockNPC) {
         this._dockStall.dockNPC.setSprite(customer.spritePath);
@@ -1060,16 +1064,22 @@ export class GameState {
         c.userData.isMooredShip = true;
       });
 
-      this._dockMooredGroup.position.copy(this._dockMooredP0);
-      this._dockMooredGroup.rotation.set(0, Math.atan2(this._dockMooredP1.x - this._dockMooredP0.x, this._dockMooredP1.z - this._dockMooredP0.z), 0);
-      this._dockMooredGroup.visible = false;
+      if (this._dockShipArrived) {
+        this._dockMooredGroup.position.copy(this._dockMooredTargetPos);
+        this._dockMooredGroup.rotation.set(0, 0, 0);
+        this._dockMooredGroup.visible = true;
+      } else {
+        this._dockMooredGroup.position.copy(this._dockMooredP0);
+        this._dockMooredGroup.rotation.set(0, Math.atan2(this._dockMooredP1.x - this._dockMooredP0.x, this._dockMooredP1.z - this._dockMooredP0.z), 0);
+        this._dockMooredGroup.visible = false;
+      }
 
       // 5. Update stall interactables & repair state
       const integrity = this._grid ? DamageSystem.getSummary(this._grid).integrityPct : 100;
       if (this._dockStall) {
         this._dockStall.shipNeedsRepair = integrity < 100;
         this._dockStall.activeShipProfile = { ...shipProfile, name: customer?.shipName || shipProfile?.name };
-        this._dockStall.shipInteractables = [];
+        this._dockStall.shipInteractables = this._dockShipArrived ? [this._dockMooredGroup] : [];
       }
 
       emit('updateLoading', { progress: 0.75 });
@@ -1143,7 +1153,7 @@ export class GameState {
     this._onDivorcePapersRead = () => {
       if (this.day === 0 && this._dockPlayerController) {
         if (!this._dockPlayerController.tutorialActive || this._dockPlayerController.tutorialStep === 'READ_NOTICE') {
-          this._dockPlayerController.advanceTutorialStep('VISIT_SHIPYARD');
+          this._dockPlayerController.advanceTutorialStep('ENTER_SHOP');
         }
       }
     };
