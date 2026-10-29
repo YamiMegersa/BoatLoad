@@ -499,6 +499,7 @@ export class EditorSystem {
       if (this._editorGroup) this._editorGroup.visible = true;
       if (window.gameState?._orbitControls) {
         window.gameState._orbitControls.enabled = true;
+        window.gameState._orbitControls.update();
       }
       if (this._camera && this._savedEditorCameraPos.lengthSq() > 0) {
         this._camera.position.copy(this._savedEditorCameraPos);
@@ -516,6 +517,8 @@ export class EditorSystem {
 
     on('workshopSelectBrush', ({ brush }) => this._destructionWorkshop?.setBrush(brush));
     on('workshopSelectSize', ({ size }) => this._destructionWorkshop?.setBrushSize(size));
+    on('workshopRotateBrush', () => this._destructionWorkshop?.rotate());
+    on('workshopTogglePitch', () => this._destructionWorkshop?.togglePitch());
     on('workshopToggleMirror', () => this._destructionWorkshop?.toggleMirror());
     on('workshopToggleOutlines', () => this._destructionWorkshop?.toggleOutlines());
     on('workshopUndo', () => this._destructionWorkshop?.undo());

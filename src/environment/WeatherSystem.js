@@ -99,12 +99,25 @@ export class WeatherSystem {
     }
   }
 
-  applyWeather(w, { ambient, sun, ocean, sky, lanternLight, scene }, weatherName) {
+  applyWeather(w, { ambient, sun, ocean, sky, lanternLight, scene, clouds }, weatherName) {
     this.currentWeather = w;
     this.sun = sun;
     this.ambient = ambient;
     this.sky = sky;
     this.weatherName = weatherName;
+
+    const targetClouds = clouds || this.clouds;
+    if (targetClouds) {
+      this.clouds = targetClouds;
+      const isStorm = (weatherName === 'stormy' || weatherName === 'gale');
+      const stormFactor = isStorm ? 1.0 : (weatherName === 'foggy' ? 0.45 : 0.0);
+      if (typeof targetClouds.setTargetStorm === 'function') {
+        targetClouds.setTargetStorm(stormFactor);
+      }
+      if (targetClouds.mesh) {
+        targetClouds.mesh.visible = true;
+      }
+    }
 
     if (scene) {
       if (weatherName === 'foggy') {

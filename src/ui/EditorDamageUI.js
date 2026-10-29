@@ -48,6 +48,22 @@ export class EditorDamageUI {
       this._updateMirrorButton();
     };
 
+    this._rotation = 0;
+    this._pitch = 0;
+    this._boundOnRotationChanged = ({ rotation }) => {
+      this._rotation = rotation;
+      const lbl = this._el.querySelector('#label-damage-rotate');
+      if (lbl) lbl.textContent = `Rotate [R] ${rotation * 90}°`;
+    };
+
+    this._boundOnPitchChanged = ({ pitch }) => {
+      this._pitch = pitch;
+      const btn = this._el.querySelector('#btn-damage-pitch');
+      if (btn) btn.classList.toggle('active', pitch === 1);
+      const lbl = this._el.querySelector('#label-damage-pitch');
+      if (lbl) lbl.textContent = pitch === 1 ? 'Pitch [T] Upright' : 'Pitch [T] Flat';
+    };
+
     this._outlinesEnabled = false;
     this._boundOnOutlinesChanged = ({ enabled }) => {
       this._outlinesEnabled = Boolean(enabled);
@@ -61,6 +77,8 @@ export class EditorDamageUI {
     on('workshopBrushChanged', this._boundOnBrushChanged);
     on('workshopBrushSizeChanged', this._boundOnSizeChanged);
     on('workshopMirrorChanged', this._boundOnMirrorChanged);
+    on('workshopRotationChanged', this._boundOnRotationChanged);
+    on('workshopPitchChanged', this._boundOnPitchChanged);
     on('workshopOutlinesChanged', this._boundOnOutlinesChanged);
 
     this._buildHTML();
@@ -87,6 +105,8 @@ export class EditorDamageUI {
     off('workshopBrushChanged', this._boundOnBrushChanged);
     off('workshopBrushSizeChanged', this._boundOnSizeChanged);
     off('workshopMirrorChanged', this._boundOnMirrorChanged);
+    off('workshopRotationChanged', this._boundOnRotationChanged);
+    off('workshopPitchChanged', this._boundOnPitchChanged);
     off('workshopOutlinesChanged', this._boundOnOutlinesChanged);
   }
 
@@ -632,25 +652,33 @@ export class EditorDamageUI {
 
         <div class="damage-ribbon-divider"></div>
 
-        <!-- 3. SYMMETRY & HISTORY -->
+        <!-- 3. PLACEMENT TOOLS & CONTROLS -->
         <div class="damage-ribbon-group">
-          <span class="damage-ribbon-label">3. Symmetry &amp; Controls</span>
+          <span class="damage-ribbon-label">3. Placement Tools <strong style="color: #cbd5e1;">[R / T / M]</strong></span>
           <div class="damage-ribbon-row">
+            <button class="damage-tool-btn" id="btn-damage-rotate" title="Rotate brush 90° (Hotkey: R)">
+              <span class="pixel-icon icon-rotate-arrow size-16"></span>
+              <span id="label-damage-rotate">Rotate [R]</span>
+            </button>
+            <button class="damage-tool-btn" id="btn-damage-pitch" title="Toggle horizontal or upright orientation (Hotkey: T)">
+              <span class="pixel-icon icon-calipers size-16"></span>
+              <span id="label-damage-pitch">Pitch [T]</span>
+            </button>
             <button class="damage-tool-btn" id="btn-damage-mirror" title="Toggle port/starboard symmetry (Hotkey: M)">
               <span class="pixel-icon icon-mirror size-16"></span>
               <span>Symmetry [M]</span>
             </button>
             <button class="damage-tool-btn" id="btn-damage-outlines" title="Toggle red wireframe breach outlines">
-              <span class="pixel-icon icon-calipers size-16"></span>
+              <span class="pixel-icon icon-compass size-16"></span>
               <span id="label-damage-outlines">Outlines: Off</span>
             </button>
-            <button class="damage-tool-btn" id="btn-damage-undo" title="Undo previous stroke (Ctrl+Z)">
+            <button class="damage-tool-btn" id="btn-damage-undo" title="Undo previous stroke (Hotkey: Ctrl+Z or Z)">
               <span class="pixel-icon icon-undo size-16"></span>
-              <span>Undo [Z]</span>
+              <span>Undo [Ctrl+Z]</span>
             </button>
-            <button class="damage-tool-btn" id="btn-damage-redo" title="Redo previous stroke (Ctrl+Y)">
+            <button class="damage-tool-btn" id="btn-damage-redo" title="Redo previous stroke (Hotkey: Ctrl+Y or Y)">
               <span class="pixel-icon icon-redo size-16"></span>
-              <span>Redo [Y]</span>
+              <span>Redo [Ctrl+Y]</span>
             </button>
           </div>
         </div>
@@ -706,6 +734,17 @@ export class EditorDamageUI {
     const mirrorBtn = this._el.querySelector('#btn-damage-mirror');
     if (mirrorBtn) {
       mirrorBtn.onclick = () => emit('workshopToggleMirror');
+    }
+
+    // Rotate & Pitch
+    const rotateBtn = this._el.querySelector('#btn-damage-rotate');
+    if (rotateBtn) {
+      rotateBtn.onclick = () => emit('workshopRotateBrush');
+    }
+
+    const pitchBtn = this._el.querySelector('#btn-damage-pitch');
+    if (pitchBtn) {
+      pitchBtn.onclick = () => emit('workshopTogglePitch');
     }
 
     // Outlines Toggle

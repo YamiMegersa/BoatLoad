@@ -831,7 +831,8 @@ async function boot() {
     on('editorSetPaperWobble', d => paperFilter.setWobbleIntensity(d.intensity));
 
     on('requestPhaseChange', async (opts) => {
-      const phase = opts?.phase;
+      try {
+        const phase = opts?.phase;
         if (opts?.day !== undefined) {
           gameState.day = opts.day;
         }
@@ -856,14 +857,14 @@ async function boot() {
           const activeShipId = opts?.shipDef?.id || gameState._levelCfg?.ship || level.levelCfg?.ship || DEFAULT_SHIP_ID;
           const activeShipDef = opts?.shipDef || LevelConfig.getShipDef(activeShipId);
           const activeLevelCfg = opts?.levelCfg || gameState._levelCfg || level.levelCfg;
-          gameState.transition(GamePhase.DOCK, { shipDef: activeShipDef, levelCfg: activeLevelCfg, fishModels: level.fishModels, openShop: opts?.openShop });
+          await gameState.transition(GamePhase.DOCK, { shipDef: activeShipDef, levelCfg: activeLevelCfg, fishModels: level.fishModels, openShop: opts?.openShop, day: opts?.day }, true);
         } else if (phase === GamePhase.SHIPYARD) {
           logEvent('Entering Shipyard...');
           emit('showLoading', { title: 'Entering Shipyard', message: 'Entering outfitting berth & inspecting hull...', progress: 0.1 });
           await syncLevel();
           const activeShipId = gameState._levelCfg?.ship || level.levelCfg?.ship || DEFAULT_SHIP_ID;
           const activeShipDef = LevelConfig.getShipDef(activeShipId);
-          gameState.transition(GamePhase.SHIPYARD, { shipDef: activeShipDef, levelCfg: gameState._levelCfg || level.levelCfg, fishModels: level.fishModels });
+          await gameState.transition(GamePhase.SHIPYARD, { shipDef: activeShipDef, levelCfg: gameState._levelCfg || level.levelCfg, fishModels: level.fishModels });
         } else if (phase === GamePhase.OBSTACLE) {
           if (gameState.currentPhase === GamePhase.EDITOR) {
             emit('editorRequestPlay');
@@ -879,7 +880,7 @@ async function boot() {
           if (gameState._grid) {
             hp = Math.round((DamageSystem.getSummary(gameState._grid).integrityPct / 100) * profile.hullHP);
           }
-          gameState.transition(GamePhase.OBSTACLE, {
+          await gameState.transition(GamePhase.OBSTACLE, {
             shipDef: activeShipDef,
             levelCfg: gameState._levelCfg || level.levelCfg,
             shipStats: { hullHP: hp },
@@ -891,9 +892,13 @@ async function boot() {
           logEvent('Opening Map Maker / Level Editor...');
           emit('showLoading', { title: 'Level Editor', message: 'Opening map maker...', progress: 0.1 });
           await syncLevel();
-          gameState.transition(GamePhase.EDITOR, editorPayload(opts?.levelCfg));
+          await gameState.transition(GamePhase.EDITOR, editorPayload(opts?.levelCfg));
         }
-      });
+      } catch (err) {
+        console.error('[main] requestPhaseChange error:', err);
+        emit('hideLoading');
+      }
+    });
 
     // Pause handling
     function setPaused(paused) {
