@@ -5877,6 +5877,49 @@ body {
   padding: 24px 36px 44px 36px !important;
 }
 
+/* ==========================================================================
+   Dock Scene Doubloon HUD Widget
+   ========================================================================== */
+.dock-doubloon-hud {
+  position: fixed;
+  top: 14px;
+  right: 18px;
+  z-index: 100;
+  pointer-events: auto;
+  user-select: none;
+  animation: hudFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dock-doubloon-hud .shop-wallet-pill {
+  cursor: default;
+  background: rgba(18, 25, 36, 0.92);
+  backdrop-filter: blur(4px);
+  padding: 6px 14px;
+  border-width: 2px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.8), inset 1px 1px 0 rgba(255, 230, 140, 0.25);
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.dock-doubloon-hud:hover .shop-wallet-pill {
+  transform: translateY(-1px);
+  border-color: #ffe082 #6d5218 #43330f #ffd700;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.9), 0 0 10px rgba(255, 215, 0, 0.3);
+}
+
+.dock-doubloon-hud .shop-wallet-coins {
+  font-size: 17px;
+  font-weight: 800;
+  color: #ffd700;
+}
+
+.dock-doubloon-hud .shop-wallet-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: #e2e8f0;
+}
+
+
 
 
 

@@ -25,6 +25,7 @@ import { WindParticles }      from '../environment/WindParticles.js';
 import { SirenManager }       from '../monsters/SirenManager.js';
 import { KrakenBoss }         from '../monsters/KrakenBoss.js';
 import { Sky }                from '../environment/Sky.js';
+import { StormClouds }        from '../environment/StormClouds.js';
 import { DockStall, DOCK_SCALE } from '../environment/DockStall.js';
 import { DockPlayerController } from '../environment/DockPlayerController.js';
 import { WeatherSystem }      from '../environment/WeatherSystem.js';
@@ -144,6 +145,7 @@ export class GameState {
     this._time            = 0;
     this._sky             = new Sky();
     this._sky.init(this._scene);
+    this._clouds          = new StormClouds(this._scene);
     this._weather         = new WeatherSystem();
     this._dockStall       = new DockStall();
     this._hasDock         = true;
@@ -573,6 +575,11 @@ export class GameState {
     this._time += delta;
     this._ocean.update(delta);
     if (this._weather) this._weather.update(delta);
+    if (this._clouds && (this.currentPhase !== GamePhase.OBSTACLE || !this._environmentManager)) {
+      const camPos = this.activeCamera ? this.activeCamera.position : this._camera.position;
+      const windDir = this._windManager?.getWindDirection?.() || new THREE.Vector3(0, 0, -1);
+      this._clouds.update(delta, camPos, windDir);
+    }
 
     switch (this.currentPhase) {
       case GamePhase.DOCK:
@@ -882,12 +889,13 @@ export class GameState {
       sun: this._sun,
       ocean: this._ocean,
       sky: this._sky,
+      clouds: this._clouds,
       lanternLight: this._dockStall.lanternLight,
       scene: this._scene
     });
 
     // Wind particles and wind manager on island for this day
-    const dayCfg = weatherResult?.levelData || payload?.levelCfg || this._levelCfg || {};
+    const dayCfg = weatherResult?.levelData || opts?.levelCfg || this._levelCfg || {};
     this._windManager = new WindManager(dayCfg);
     if (this._dockWindParticles) {
       this._dockWindParticles.dispose();
@@ -1052,6 +1060,7 @@ export class GameState {
           sun: this._sun,
           ocean: this._ocean,
           sky: this._sky,
+          clouds: this._clouds,
           lanternLight: this._dockStall?.lanternLight,
           scene: this._scene
         });
@@ -1076,6 +1085,12 @@ export class GameState {
     on('dockPlayerEnteredShop', this._onDockPlayerEnteredShop);
 
     emit('uiMount', { screen: 'dock', dockStall: this._dockStall, gameState: this, dockPlayerController: this._dockPlayerController });
+
+    if (opts?.day !== undefined) {
+      setTimeout(() => {
+        if (this._startLevelCutscene) this._startLevelCutscene();
+      }, 400);
+    }
 
     if (opts?.openShop) {
       setTimeout(() => emit('openShopUI'), 300);
@@ -1165,6 +1180,7 @@ export class GameState {
       sun: this._sun,
       ocean: this._ocean,
       sky: this._sky,
+      clouds: this._clouds,
       lanternLight: this._dockStall.lanternLight,
       scene: this._scene
     });
@@ -1250,6 +1266,7 @@ export class GameState {
       sun: this._sun,
       ocean: this._ocean,
       sky: this._sky,
+      clouds: this._clouds,
       lanternLight: this._dockStall.lanternLight,
       scene: this._scene
     });
@@ -1785,7 +1802,7 @@ export class GameState {
     this._obstacleManager = new ObstacleManager();
     this._obstacleManager.init(levelCfg, this._scene, rockModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, this._qteSystem);
     this._environmentManager = new EnvironmentManager();
-    this._environmentManager.init(this._scene, fishModels, levelCfg, this._qteSystem, this._ocean);
+    this._environmentManager.init(this._scene, fishModels, levelCfg, this._qteSystem, this._ocean, this._clouds);
     this._sirenManager = new SirenManager();
     this._sirenManager.init(levelCfg, this._scene, sirenModel, rockModels, this._qteSystem);
     
@@ -1876,13 +1893,13 @@ export class GameState {
     if (this._isCountdownActive && this._playerShip) {
       this._playerShip.halt();
     }
-    this._qteSystem?.update(delta);
+    this._qteSystem?.update?.(delta);
     // Pass WindManager instead of static windDir
-    this._playerShip?.update(delta, this._ocean, this._windManager);
-    this._obstacleManager?.update(delta, this._playerShip, this._windManager, this._voxelTerrain);
-    this._voxelTerrain?.updateCulling(this.activeCamera?.position || this._camera?.position);
-    this._environmentManager?.update(delta, this._windManager, this._playerShip);
-    this._sirenManager?.update(delta, this._playerShip);
+    this._playerShip?.update?.(delta, this._ocean, this._windManager);
+    this._obstacleManager?.update?.(delta, this._playerShip, this._windManager, this._voxelTerrain);
+    this._voxelTerrain?.updateCulling?.(this.activeCamera?.position || this._camera?.position);
+    this._environmentManager?.update?.(delta, this._windManager, this._playerShip);
+    this._sirenManager?.update?.(delta, this._playerShip);
 
     // Cull the dock village/island only once it is fully beyond the draw distance
     // (bounding radius ~45m accounts for the whole island + shipyard footprint).
@@ -2503,6 +2520,20 @@ export class GameState {
     };
     on('editorCameraPreset', this._onEditorCameraPreset);
 
+    this._onEditorOpenWorkshop = () => {
+      if (this._orbitControls) {
+        this._orbitControls.enabled = false;
+      }
+    };
+    this._onEditorCloseWorkshop = () => {
+      if (this._orbitControls && this.currentPhase === GamePhase.EDITOR) {
+        this._orbitControls.enabled = true;
+        this._orbitControls.update();
+      }
+    };
+    on('editorOpenDamageWorkshop', this._onEditorOpenWorkshop);
+    on('editorCloseDamageWorkshop', this._onEditorCloseWorkshop);
+
     emit('uiMount', { screen: 'editor', levelCfg: this._levelCfg, openPublish: Boolean(openPublish) });
   }
 
@@ -2512,6 +2543,9 @@ export class GameState {
     }
 
     if (this._editorSystem?._destructionWorkshop?.isOpen) {
+      if (this._orbitControls && this._orbitControls.enabled) {
+        this._orbitControls.enabled = false;
+      }
       return;
     }
 
@@ -2554,6 +2588,14 @@ export class GameState {
     if (this._onEditorToggleDock) {
       off('editorToggleDock', this._onEditorToggleDock);
       this._onEditorToggleDock = null;
+    }
+    if (this._onEditorOpenWorkshop) {
+      off('editorOpenDamageWorkshop', this._onEditorOpenWorkshop);
+      this._onEditorOpenWorkshop = null;
+    }
+    if (this._onEditorCloseWorkshop) {
+      off('editorCloseDamageWorkshop', this._onEditorCloseWorkshop);
+      this._onEditorCloseWorkshop = null;
     }
 
     if (this._dockStall?.group && this._dockStall.group.parent === this._scene) {

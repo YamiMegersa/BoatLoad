@@ -105,6 +105,9 @@ export class PlayerShip {
     this.roll = 0;
     this.pitchVelocity = 0;
     this.rollVelocity = 0;
+    this.smoothedWavePitch = 0;
+    this.smoothedWaveRoll = 0;
+    this.smoothedWaveHeight = 0;
 
     // Pinball-like knockback velocity (retained for backward compatibility)
     this.knockbackVelocity = new THREE.Vector3();
@@ -703,21 +706,53 @@ const _defaultWind = new THREE.Vector3(1, 0, -1).normalize();
       this.knockbackVelocity.lerp(_zeroVec, 5.0 * delta);
     }
 
-    // Sample the ocean wave height and normal at the ship's center
+    // Multi-point ocean wave sampling & hydrodynamic inertia damping
+    // Eliminates weightless, arcade-like rapid jitter on large ships by averaging wave crests
+    // along the vessel's waterline and dampening rotational response proportional to ship mass/scale.
+    const scaleRatio = Math.max(1.0, (this.shipScale || 0.10) / 0.10);
+    const halfLength = this.grid ? Math.max(2.5, (this.grid.depth || 40) * this.shipScale * 0.42) : (3.5 * scaleRatio);
+    const halfBeam = this.grid ? Math.max(1.2, (this.grid.width || 20) * this.shipScale * 0.42) : (1.5 * scaleRatio);
+
     let waveHeight = 0;
-    _waveNormal.set(0, 1, 0);
+    let targetPitch = 0;
+    let targetRoll = 0;
+
     if (ocean) {
-      const info = ocean.getWaveInfo(this.mesh.position.x, this.mesh.position.z, _waveNormal);
-      waveHeight = info.height;
+      _waveNormal.set(0, 1, 0);
+      const hCenter = ocean.getWaveInfo(this.mesh.position.x, this.mesh.position.z, _waveNormal).height;
+      const hBow = ocean.getWaveInfo(this.mesh.position.x + _shipDir.x * halfLength, this.mesh.position.z + _shipDir.z * halfLength).height;
+      const hStern = ocean.getWaveInfo(this.mesh.position.x - _shipDir.x * halfLength, this.mesh.position.z - _shipDir.z * halfLength).height;
+
+      // Lateral vector (starboard = +90 degrees from shipDir in XZ plane)
+      const starX = -_shipDir.z;
+      const starZ = _shipDir.x;
+      const hStarboard = ocean.getWaveInfo(this.mesh.position.x + starX * halfBeam, this.mesh.position.z + starZ * halfBeam).height;
+      const hPort = ocean.getWaveInfo(this.mesh.position.x - starX * halfBeam, this.mesh.position.z - starZ * halfBeam).height;
+
+      // Multi-point pitch (along heading) and roll (across beam)
+      const rawPitch = -Math.atan2(hBow - hStern, halfLength * 2.0);
+      const rawRoll = Math.atan2(hStarboard - hPort, halfBeam * 2.0);
+      const targetWaveHeight = (hCenter * 2.0 + hBow + hStern + hStarboard + hPort) / 6.0;
+
+      // Inertia & hydrodynamic mass damping:
+      // Small vessels ride surface ripples; massive hulls have rotational inertia and smoothly filter waves
+      const rotLerpRate = Math.max(1.2, 7.5 / scaleRatio);
+      const heightLerpRate = Math.max(2.5, 11.0 / Math.sqrt(scaleRatio));
+
+      this.smoothedWavePitch = THREE.MathUtils.lerp(this.smoothedWavePitch, rawPitch, Math.min(1.0, rotLerpRate * delta));
+      this.smoothedWaveRoll = THREE.MathUtils.lerp(this.smoothedWaveRoll, rawRoll, Math.min(1.0, rotLerpRate * delta));
+      this.smoothedWaveHeight = THREE.MathUtils.lerp(this.smoothedWaveHeight, targetWaveHeight, Math.min(1.0, heightLerpRate * delta));
+
+      waveHeight = this.smoothedWaveHeight;
+      targetPitch = this.smoothedWavePitch;
+      targetRoll = this.smoothedWaveRoll;
     }
 
-    // Natural bobbing (Pitch and Roll) from wave normal
-    // _waveNormal.z is the slope along the Z axis (forward), which translates to Pitch (X rotation)
-    // _waveNormal.x is the slope along the X axis (sideways), which translates to Roll (Z rotation)
-    const clampedZ = THREE.MathUtils.clamp(-_waveNormal.z, -1, 1);
-    const clampedX = THREE.MathUtils.clamp(_waveNormal.x, -1, 1);
-    const targetPitch = Math.asin(clampedZ) + Math.sin(time * 2.0) * 0.02;
-    const targetRoll = Math.asin(clampedX) + Math.cos(time * 1.5) * 0.02;
+    // Heavy ship ambient swell (slower harmonic period, reduced high-frequency wobble for massive hulls)
+    const bobFreq = 2.0 / Math.sqrt(scaleRatio);
+    const bobAmp = 0.02 / Math.pow(scaleRatio, 0.75);
+    targetPitch += Math.sin(time * bobFreq) * bobAmp;
+    targetRoll += Math.cos(time * (bobFreq * 0.75)) * bobAmp;
 
     // Apply spring physics for impact bobbing
     this.pitchVelocity *= 0.9; // damping
