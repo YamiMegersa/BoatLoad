@@ -88,8 +88,8 @@ export class ResultsUI {
             <span>Shipyard &amp; Repairs</span>
           </button>
           <button class="results-btn next-action" id="res-btn-next">
-            <span class="pixel-icon icon-sloop size-18"></span>
-            <span>Next Voyage (Day ${Math.min(7, day + 1)})</span>
+            <span class="pixel-icon ${day >= 7 ? 'icon-nautical-star' : 'icon-sloop'} size-18"></span>
+            <span>${day >= 7 ? 'Roll Credits (Voyage Complete!)' : `Next Voyage (Day ${Math.min(7, day + 1)})`}</span>
           </button>
         </div>
       </div>
@@ -112,6 +112,17 @@ export class ResultsUI {
 
     this.root.querySelector('#res-btn-next').onclick = () => {
       this.unmount();
+      if (day >= 7) {
+        emit('requestPhaseChange', {
+          phase: GamePhase.CREDITS,
+          gameCompleted: true,
+          day,
+          baseReward,
+          multiplier,
+          bonusCoins: totalAwarded
+        });
+        return;
+      }
       const nextDay = Math.min(7, day + 1);
       this.gameState.day = nextDay;
       emit('levelSelected', { day: nextDay });

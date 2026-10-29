@@ -46,6 +46,7 @@ export const GamePhase = Object.freeze({
   OBSTACLE: 'OBSTACLE',
   EDITOR:   'EDITOR',
   RESULTS:  'RESULTS',
+  CREDITS:  'CREDITS',
 });
 
 // Mooring position & orientation at the West yard dock (T-head perpendicular berth across west pier terminus)
@@ -333,6 +334,63 @@ export class GameState {
     emit('uiUnmount', { screen: 'results' });
   }
 
+  async _enterCredits(opts = {}) {
+    this.activeCamera = null;
+
+    // Hide any lingering moored or player ship meshes and show calm golden-hour ocean
+    if (this._chunkRenderer && this._chunkRenderer.container) {
+      this._chunkRenderer.container.visible = false;
+      this._chunkRenderer.container.position.set(0, -999, 0);
+    }
+    if (this._playerShip && this._playerShip.mesh) {
+      this._playerShip.mesh.visible = false;
+      this._playerShip.mesh.position.set(0, -999, 0);
+    }
+
+    this._ocean.breakwaterEnabled = false;
+    this._camera.position.set(0, 6, 22);
+    this._camera.lookAt(0, 4, -120);
+
+    // Load golden sunset atmosphere (Day 3 weather preset) for the credits backdrop
+    if (this._weather) {
+      await this._weather.loadLevel(3, {
+        ambient: this._ambient,
+        sun: this._sun,
+        ocean: this._ocean,
+        sky: this._sky,
+        lanternLight: this._dockStall?.lanternLight,
+        scene: this._scene
+      });
+    }
+
+    emit('uiMount', {
+      screen: 'credits',
+      data: {
+        day: opts.day ?? this.day ?? 7,
+        coins: this.coins,
+        baseReward: opts.baseReward ?? 0,
+        multiplier: opts.multiplier ?? 1,
+        bonusCoins: opts.bonusCoins ?? 0,
+        gameCompleted: opts.gameCompleted ?? (this.day >= 7),
+        credits: opts.credits ?? null
+      }
+    });
+
+    emit('playSound', { sound: 'success' });
+  }
+
+  _updateCredits(delta) {
+    // Gentle panoramic drift over the sunset ocean during credits roll
+    const swayX = Math.sin(this._time * 0.22) * 3.5;
+    const swayY = 6.0 + Math.sin(this._time * 0.45) * 0.35;
+    this._camera.position.set(swayX, swayY, 22);
+    this._camera.lookAt(swayX * 0.3, 4.2, -120);
+  }
+
+  _exitCredits() {
+    emit('uiUnmount', { screen: 'credits' });
+  }
+
   // -------------------------------------------------------------------------
   // Transition
   // -------------------------------------------------------------------------
@@ -354,7 +412,8 @@ export class GameState {
         [GamePhase.OBSTACLE]: 'Setting Sail',
         [GamePhase.EDITOR]: 'Level Editor',
         [GamePhase.MAIN_MENU]: 'Returning to Port',
-        [GamePhase.RESULTS]: 'Voyage Complete'
+        [GamePhase.RESULTS]: 'Voyage Complete',
+        [GamePhase.CREDITS]: 'Voyage Concluded'
       };
 
       const messages = {
@@ -363,7 +422,8 @@ export class GameState {
         [GamePhase.OBSTACLE]: 'Navigating past treacherous waters & reefs...',
         [GamePhase.EDITOR]: 'Charting map layout & terrain...',
         [GamePhase.MAIN_MENU]: 'Returning to harbor tavern...',
-        [GamePhase.RESULTS]: 'Calculating voyage ledger & repairs...'
+        [GamePhase.RESULTS]: 'Calculating voyage ledger & repairs...',
+        [GamePhase.CREDITS]: 'Unfurling the Grand Honour Roll & Credits...'
       };
 
       const loadingTitle = opts.loadingTitle || titles[newPhase] || 'Navigating Seas';
@@ -556,6 +616,10 @@ export class GameState {
         this._updateEditor(delta);
         break;
 
+      case GamePhase.CREDITS:
+        this._updateCredits(delta);
+        break;
+
       default:
         break;
     }
@@ -591,6 +655,10 @@ export class GameState {
         await this._enterResults(opts);
         break;
 
+      case GamePhase.CREDITS:
+        await this._enterCredits(opts);
+        break;
+
       default:
         break;
     }
@@ -623,6 +691,10 @@ export class GameState {
 
       case GamePhase.RESULTS:
         this._exitResults();
+        break;
+
+      case GamePhase.CREDITS:
+        this._exitCredits();
         break;
 
       default:
@@ -1752,6 +1824,10 @@ export class GameState {
     // Kraken boss — FSM + tentacles + cinematics
     if (this._krakenBoss) {
       this._krakenBoss.update(delta);
+    }
+
+
+    if (this._krakenBoss) {
       // During cinematic, skip normal camera updates and keep chase targets synchronized
       if (this._krakenBoss.isCinematicActive()) {
         this._wasCinematicActive = true;
@@ -2003,7 +2079,25 @@ export class GameState {
 
       if (dist <= (this._endLocation.radius || 16)) {
         emit('playSound', { sound: 'qte_success' });
-        this.transition(GamePhase.RESULTS, { passed: true });
+        const day = this.day || 1;
+        if (day >= 7) {
+          // Final day completed — award final voyage bounty and roll the game credits!
+          const baseReward = 150 + day * 75;
+          const multiplier = this.getPedestalMultiplier();
+          const totalAwarded = Math.round(baseReward * multiplier);
+          this.addCoins(totalAwarded);
+          emit('gameCompleted', { day, bonusCoins: totalAwarded, totalCoins: this.coins });
+          this.transition(GamePhase.CREDITS, {
+            passed: true,
+            gameCompleted: true,
+            day,
+            baseReward,
+            multiplier,
+            bonusCoins: totalAwarded
+          });
+        } else {
+          this.transition(GamePhase.RESULTS, { passed: true });
+        }
         return;
       }
     }

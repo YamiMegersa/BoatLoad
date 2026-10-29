@@ -244,9 +244,14 @@ export class MainMenuUI {
             <span class="pixel-icon icon-helm-wheel size-20"></span> Play / Select Level
           </button>
 
-          <button class="pirate-btn" id="btn-menu-codex">
-            <span class="pixel-icon icon-closed-logbook size-20"></span> Captain's Codex
-          </button>
+          <div class="menu-btn-grid">
+            <button class="pirate-btn" id="btn-menu-codex">
+              <span class="pixel-icon icon-closed-logbook size-20"></span> Codex
+            </button>
+            <button class="pirate-btn" id="btn-menu-credits">
+              <span class="pixel-icon icon-quill-author size-20"></span> Credits
+            </button>
+          </div>
 
           <div id="menu-dev-shortcuts" style="display: ${GameEnv.isDev() ? 'flex' : 'none'}; flex-direction: column; gap: 8px; margin-top: 6px; border-top: 1px dashed rgba(212, 175, 55, 0.4); padding-top: 8px;">
             <div style="font-size: 11px; color: #ffd700; text-transform: uppercase; letter-spacing: 1px; font-weight: bold; text-align: center;">Dev Fast-Travel (mode=dev)</div>
@@ -477,6 +482,10 @@ export class MainMenuUI {
 
     bindBtn('#btn-menu-editor', () => {
       emit('requestPhaseChange', { phase: 'EDITOR' });
+    });
+
+    bindBtn('#btn-menu-credits', () => {
+      emit('requestPhaseChange', { phase: 'CREDITS' });
     });
 
     // Env mode changed handler

@@ -14,6 +14,7 @@ import { LoadingScreenUI } from './ui/LoadingScreenUI.js';
 import { AnchorCountdownUI } from './ui/AnchorCountdownUI.js';
 import { ShopUI } from './ui/ShopUI.js';
 import { ResultsUI } from './ui/ResultsUI.js';
+import { CreditsUI } from './ui/CreditsUI.js';
 import { ParticleSystem } from './environment/ParticleSystem.js';
 import { DamageSystem } from './shipyard/DamageSystem.js';
 import { GodRays } from './environment/GodRays.js';
@@ -208,8 +209,9 @@ if (DEBUG) {
     setWater: (n)  => { if (gameState._playerShip) gameState._playerShip.waterLevel = n; },
     damage:   (n)  => gameState._playerShip?.takeDamage(n, 'dev'),
     day:      (n)  => { gameState.day = n; },
+    credits:  (list) => gameState.transition(GamePhase.CREDITS, { credits: list }),
   };
-  console.info('[BoatLoad] Debug mode — window.__dev helpers: sink(), setWater(n), damage(n), day(n)');
+  console.info('[BoatLoad] Debug mode — window.__dev helpers: sink(), setWater(n), damage(n), day(n), credits(list)');
 }
 
 // Audio: one global instance. Browsers suspend AudioContexts until the first
@@ -233,6 +235,8 @@ const loadingScreenUI = new LoadingScreenUI();
 const anchorCountdownUI = new AnchorCountdownUI();
 const shopUI = new ShopUI(gameState);
 const resultsUI = new ResultsUI(gameState);
+const creditsUI = new CreditsUI(gameState);
+window.creditsUI = creditsUI;
 const particles = new ParticleSystem(scene);
 
 const directorMode = new DirectorMode({
@@ -379,7 +383,7 @@ function tick() {
   // Re-apply camera FOV and far clipping plane based on Settings
   settingsManager.applyCamera(activeCam);
 
-  const isMainMenu = gameState.currentPhase === GamePhase.MAIN_MENU;
+  const isMainMenu = gameState.currentPhase === GamePhase.MAIN_MENU || gameState.currentPhase === GamePhase.CREDITS;
   const paperSetting = settingsManager.get('paperShader');
   let usePaperShader = false;
   if (paperSetting === 'off') {
@@ -445,6 +449,7 @@ demoUI.innerHTML = `
     <button id="btn-shipyard" style="flex:1; padding: 8px; cursor: pointer;">Shipyard</button>
     <button id="btn-obstacle" style="flex:1; padding: 8px; cursor: pointer;">Sailing</button>
     <button id="btn-editor" style="flex:1; padding: 8px; cursor: pointer; background: #474b6b; color: white; border: 1px solid #556;">Editor</button>
+    <button id="btn-credits" style="flex:1; padding: 8px; cursor: pointer; background: #854d0e; color: white; border: 1px solid #eab308;">Credits</button>
     <button id="btn-mesh-borders" style="flex:1; padding: 8px; cursor: pointer; background: #059669; color: white; border: 1px solid #10b981;" title="Toggle Mesh Borders (Ctrl+Shift+M)">Borders</button>
   </div>
 `;
@@ -614,6 +619,13 @@ async function boot() {
       await syncLevel();
       gameState.transition(GamePhase.EDITOR, editorPayload());
     };
+    const btnCredits = document.getElementById('btn-credits');
+    if (btnCredits) {
+      btnCredits.onclick = () => {
+        logEvent('Transitioning to Credits...');
+        gameState.transition(GamePhase.CREDITS);
+      };
+    }
     const btnBorders = document.getElementById('btn-mesh-borders');
     if (btnBorders) {
       btnBorders.onclick = () => meshBorderOverlay.toggle();
@@ -755,6 +767,10 @@ async function boot() {
         emit('showLoading', { title: 'Level Editor', message: 'Opening map maker...', progress: 0.1 });
         await syncLevel();
         gameState.transition(GamePhase.EDITOR, editorPayload());
+      } else if (phase === GamePhase.CREDITS) {
+        logEvent('Unfurling Credits...');
+        emit('showLoading', { title: 'Voyage Concluded', message: 'Unfurling the Grand Honour Roll & Credits...', progress: 0.1 });
+        gameState.transition(GamePhase.CREDITS, opts);
       }
     });
 
@@ -771,7 +787,7 @@ async function boot() {
     }
 
     function togglePause() {
-      if (gameState.currentPhase === GamePhase.MAIN_MENU || directorMode.isActive) return;
+      if (gameState.currentPhase === GamePhase.MAIN_MENU || gameState.currentPhase === GamePhase.CREDITS || directorMode.isActive) return;
       setPaused(!isPaused);
     }
 
