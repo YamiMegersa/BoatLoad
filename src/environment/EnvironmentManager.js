@@ -1,17 +1,17 @@
 import * as THREE from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { emit }           from '../core/EventBus.js';
-import { FishAnimator }    from './FishAnimator.js';
-import { WindParticles }   from './WindParticles.js';
-import { RainManager }     from './RainManager.js';
-import { FogVolume }       from './FogVolume.js';
-import { StormClouds }     from './StormClouds.js';
+import { emit, on, off } from '../core/EventBus.js';
+import { FishAnimator } from './FishAnimator.js';
+import { WindParticles } from './WindParticles.js';
+import { RainManager } from './RainManager.js';
+import { FogVolume } from './FogVolume.js';
+import { StormClouds } from './StormClouds.js';
 import { harpoonFlightDuration } from './ParticleSystem.js';
 
 const TIME_STOPS = [
-  { time: 0,  sun: 0x111122, amb: 0x050511, sky: 0x020511, fog: 0x020511 }, // Midnight
-  { time: 5,  sun: 0x223355, amb: 0x112233, sky: 0x112233, fog: 0x112233 }, // Pre-dawn
-  { time: 7,  sun: 0xffaa55, amb: 0x443333, sky: 0xcc5533, fog: 0xcc5533 }, // Dawn
+  { time: 0, sun: 0x111122, amb: 0x050511, sky: 0x020511, fog: 0x020511 }, // Midnight
+  { time: 5, sun: 0x223355, amb: 0x112233, sky: 0x112233, fog: 0x112233 }, // Pre-dawn
+  { time: 7, sun: 0xffaa55, amb: 0x443333, sky: 0xcc5533, fog: 0xcc5533 }, // Dawn
   { time: 10, sun: 0xfff5e0, amb: 0x8899aa, sky: 0x5588cc, fog: 0x5588cc }, // Morning
   { time: 12, sun: 0xffffee, amb: 0x99aabb, sky: 0x6699ff, fog: 0x6699ff }, // Noon
   { time: 16, sun: 0xfff5e0, amb: 0x8899aa, sky: 0x5588cc, fog: 0x5588cc }, // Afternoon
@@ -37,11 +37,11 @@ const STORM_COLORS = {
 
 export class EnvironmentManager {
   constructor() {
-    this._scene      = null;
+    this._scene = null;
     this._fishModels = null;
-    this._sharks     = [];
-    this.qteSystem   = null;
-    this._ocean      = null;
+    this._sharks = [];
+    this.qteSystem = null;
+    this._ocean = null;
     this._windParticles = null;
     this._rainManager = null;
     this._fogVolume = null;
@@ -56,6 +56,92 @@ export class EnvironmentManager {
     this._moonLight = null;
     this._sunRadius = 60;
     this._godRaysEnabled = true;
+    this._camera = null;
+  }
+
+  setCamera(camera) {
+    this._camera = camera ?? null;
+  }
+
+  /**
+   * Checks whether a given world position is within the visible camera view frustum.
+   * Uses NDC projection with padding so targets sit comfortably within view margins.
+   * @param {THREE.Vector3} pos
+   * @param {THREE.Camera} camera
+   * @returns {boolean}
+   */
+  _isPointInView(pos, camera) {
+    if (!camera?.matrixWorldInverse || !camera?.projectionMatrix) return false;
+    const p = pos.clone().project(camera);
+    // NDC: z in (0, 1) is in front of camera and within far clipping plane.
+    // Padding ensures the target is safely inside screen margins.
+    return p.z > 0 && p.z < 1 && Math.abs(p.x) <= 0.80 && Math.abs(p.y) <= 0.75;
+  }
+
+  /**
+   * Guarantees that a shark is positioned within the player's camera view and forward screen area,
+   * never hidden behind the stern, out of shot, or clipped off-screen.
+   * @param {object} shark
+   * @param {object} playerShip
+   * @param {THREE.Camera} [camera]
+   */
+  _ensureSharkInView(shark, playerShip, camera = null) {
+    if (!shark?.mesh || !playerShip?.mesh) return;
+
+    const shipPos = playerShip.mesh.position;
+    const shipYaw = playerShip.yaw ?? playerShip.mesh.rotation.y ?? 0;
+    const shipForward = new THREE.Vector3(-Math.sin(shipYaw), 0, -Math.cos(shipYaw)).normalize();
+    const shipRight = new THREE.Vector3(Math.cos(shipYaw), 0, -Math.sin(shipYaw)).normalize();
+
+    const toShark = shark.mesh.position.clone().sub(shipPos);
+    const forwardDist = toShark.dot(shipForward);
+    const lateralDist = toShark.dot(shipRight);
+
+    const activeCamera = camera || this._camera;
+    let inScreen = false;
+    if (activeCamera) {
+      inScreen = this._isPointInView(shark.mesh.position, activeCamera);
+    }
+
+    // A shark is safely in view if it is comfortably in front of the ship (7m to 25m),
+    // within the lateral forward cone, and on-screen according to camera projection.
+    const inForwardCone = forwardDist >= 7.0 && forwardDist <= 25.0 && Math.abs(lateralDist) <= (forwardDist * 0.85);
+    const safelyVisible = activeCamera ? (inScreen && forwardDist >= 6.0) : inForwardCone;
+
+    if (safelyVisible) {
+      return;
+    }
+
+    // Determine approach flank (starboard +1 vs port -1) based on existing relative lateral position
+    const side = (lateralDist >= 0) ? 1 : -1;
+
+    // Place shark in primary camera shot: ~14.5m forward, offset 4.2m to starboard/port
+    const targetForwardDist = 14.5;
+    const targetLateralDist = side * 4.2;
+
+    const targetPos = shipPos.clone()
+      .add(shipForward.clone().multiplyScalar(targetForwardDist))
+      .add(shipRight.clone().multiplyScalar(targetLateralDist));
+
+    // Align shark position and orientation
+    shark.mesh.position.x = targetPos.x;
+    shark.mesh.position.z = targetPos.z;
+
+    // Stalking yaw: angled inward across the bow path
+    const stalkYaw = Math.atan2(-shipForward.x, -shipForward.z) + (side * -0.45);
+    shark.baseYaw = stalkYaw;
+    shark.mesh.rotation.y = stalkYaw;
+
+    const surface = this._surfaceY(shark.mesh.position);
+    shark.baseY = surface - 0.9;
+    shark.mesh.position.y = shark.baseY + (shark.animator?.bobOffset ?? 0);
+
+    if (shark.telegraph) {
+      shark.telegraph.position.copy(shark.mesh.position);
+      shark.telegraph.position.y = surface;
+      shark.telegraph.rotation.y = stalkYaw;
+      shark.telegraph.visible = true;
+    }
   }
 
   /**
@@ -65,14 +151,25 @@ export class EnvironmentManager {
    * @param {object}      [qteSystem] - QTESystem instance
    * @param {object}      [ocean]     - Ocean instance (used to find the live water height)
    * @param {object}      [existingClouds] - Pre-instantiated shared StormClouds
+   * @param {THREE.Camera} [camera]   - Active chase camera
    */
-  init(scene, fishModels, levelCfg, qteSystem, ocean, existingClouds = null) {
-    this._scene      = scene;
+  init(scene, fishModels, levelCfg, qteSystem, ocean, existingClouds = null, camera = null) {
+    this._scene = scene;
     this._fishModels = fishModels;
-    this.qteSystem   = qteSystem;
-    this._ocean      = ocean ?? null;
-    this._sharks     = [];
+    this.qteSystem = qteSystem;
+    this._ocean = ocean ?? null;
+    this._camera = camera ?? null;
+    this._sharks = [];
     this._elapsedTime = 0;
+
+    // Visual strike cue: while the harpoon strike window is open, the active
+    // shark's dorsal fin breaches higher so the player can time the tap by eye.
+    this._strikeOpen = false;
+    if (this._onStrikeWindow) off('qteStrikeWindow', this._onStrikeWindow);
+    this._onStrikeWindow = ({ open, source }) => {
+      if (source === 'shark') this._strikeOpen = Boolean(open);
+    };
+    on('qteStrikeWindow', this._onStrikeWindow);
 
     // Sculpted shark dorsal fin geometry (raked leading edge, curved tip)
     const finShape = new THREE.Shape();
@@ -111,26 +208,26 @@ export class EnvironmentManager {
       scene.add(this._moonLight);
     }
 
-    
+
     const initialDensity = levelCfg && levelCfg.fogDensity !== undefined ? levelCfg.fogDensity : 0.006;
-    
+
     // Enable true depth-based fog to obscure objects like islands and the ship
     scene.fog = new THREE.FogExp2(0x1a2430, initialDensity);
     emit('weatherChanged', { density: initialDensity, isDense: (initialDensity >= 0.05) });
-    
+
     if (initialDensity >= 0.05) {
       this._isDenseFog = true;
     } else {
       this._isDenseFog = false;
     }
-    
+
     this._timeOfDay = levelCfg && levelCfg.timeOfDay !== undefined ? levelCfg.timeOfDay : 8.0;
     const isStormWeather = Boolean(levelCfg?.weather === 'stormy' || levelCfg?.weather === 'gale');
     this._isStormy = levelCfg && levelCfg.isStormy !== undefined ? Boolean(levelCfg.isStormy) : isStormWeather;
     if (levelCfg && levelCfg.godRays !== undefined) {
       this._godRaysEnabled = !!levelCfg.godRays;
     }
-    
+
     this._windParticles = new WindParticles(scene);
     this._rainManager = new RainManager(scene);
     this._fogVolume = new FogVolume(scene);
@@ -166,13 +263,13 @@ export class EnvironmentManager {
           const baseZ = (Math.random() - 0.5) * 400;
           const baseYaw = Math.random() * Math.PI * 2;
           const fishModel = this._fishModels[Math.floor(Math.random() * this._fishModels.length)];
-          
-          for(let j = 0; j < schoolSize; j++) {
+
+          for (let j = 0; j < schoolSize; j++) {
             this._spawnShark(
-              fishModel, 
-              baseX + (Math.random() - 0.5) * 4, 
-              baseY + (Math.random() - 0.5) * 2, 
-              baseZ + (Math.random() - 0.5) * 4, 
+              fishModel,
+              baseX + (Math.random() - 0.5) * 4,
+              baseY + (Math.random() - 0.5) * 2,
+              baseZ + (Math.random() - 0.5) * 4,
               baseYaw + (Math.random() - 0.5) * 0.4
             );
           }
@@ -197,7 +294,7 @@ export class EnvironmentManager {
     const y = py !== null ? py : (isShark ? -3.0 : -4 - Math.random() * 4);
     const z = pz !== null ? pz : (Math.random() - 0.5) * 400;
     const ry = yaw !== null ? yaw : Math.random() * Math.PI * 2;
-    
+
     mesh.position.set(x, y, z);
     mesh.rotation.set((Math.random() - 0.5) * 0.1, ry, 0);
 
@@ -209,7 +306,7 @@ export class EnvironmentManager {
     mesh.traverse(c => {
       if (c.isMesh || c.isSkinnedMesh) {
         // Submerged fish underwater do not need shadow map rendering
-        c.castShadow    = false;
+        c.castShadow = false;
         c.receiveShadow = false;
         c.frustumCulled = true;
       }
@@ -219,18 +316,21 @@ export class EnvironmentManager {
 
     this._scene.add(mesh);
 
-    const speed     = 2.0 + Math.random() * 2.5;
-    const animator  = new FishAnimator(mesh, 0.8 + Math.random() * 0.4);
+    const speed = 2.0 + Math.random() * 2.5;
+    const animator = new FishAnimator(mesh, 0.8 + Math.random() * 0.4);
+    this._nextSharkId = (this._nextSharkId || 0) + 1;
 
     this._sharks.push({
+      id: isShark ? `shark_${this._nextSharkId}` : null,
       mesh,
       animator,
       speed,
-      baseY:   mesh.position.y,
+      baseY: mesh.position.y,
       baseYaw: mesh.rotation.y,
       baseScale: baseScale,
       qteTriggered: false,
       qteActive: false,
+      qteRetryCooldown: 0,
       shrinking: false,
       hitPending: false,
       hitResolved: false,
@@ -255,7 +355,8 @@ export class EnvironmentManager {
     return pos;
   }
 
-  update(delta, windManager, shipOrPlayer) {
+  update(delta, windManager, shipOrPlayer, camera = null) {
+    if (camera) this._camera = camera;
     this._elapsedTime = (this._elapsedTime || 0) + delta;
     if (this._windParticles) {
       this._windParticles.update(delta, windManager);
@@ -291,11 +392,23 @@ export class EnvironmentManager {
       // surfacing the shark out of the waves to meet the incoming spear.
       if (shark.hitPending) {
         shark.flightElapsed = (shark.flightElapsed || 0) + delta;
-        const riseT = THREE.MathUtils.clamp(shark.flightElapsed / Math.max(0.15, shark.flightDuration || 0.45), 0, 1);
+        const riseT = THREE.MathUtils.clamp(shark.flightElapsed / Math.max(0.12, shark.flightDuration || 0.35), 0, 1);
         const smoothRise = 1 - Math.pow(1 - riseT, 2.2);
         const targetBreachY = this._surfaceY(shark.mesh.position) + SHARK_BREACH_LIFT;
         const startY = shark.startSurfacingY ?? (targetBreachY - 1.8);
         shark.baseY = THREE.MathUtils.lerp(startY, targetBreachY, smoothRise);
+
+        // Keep shark ahead of ship if player is sailing fast so target remains in view
+        if (playerShip?.mesh) {
+          const sPos = playerShip.mesh.position;
+          const sYaw = playerShip.yaw ?? playerShip.mesh.rotation.y ?? 0;
+          const sForward = new THREE.Vector3(-Math.sin(sYaw), 0, -Math.cos(sYaw));
+          const toS = shark.mesh.position.clone().sub(sPos);
+          const fDist = toS.dot(sForward);
+          if (fDist < 6.0) {
+            shark.mesh.position.add(sForward.multiplyScalar(6.0 - fDist));
+          }
+        }
 
         if (shark.telegraph) {
           shark.telegraph.visible = riseT < 0.7;
@@ -310,12 +423,27 @@ export class EnvironmentManager {
       } else if (shark.flashing) {
         shark.baseY = this._surfaceY(shark.mesh.position) + SHARK_BREACH_LIFT;
         shark.flashTimer -= delta;
+
+        // Keep shark ahead in view during the crimson impact flash
+        if (playerShip?.mesh) {
+          const sPos = playerShip.mesh.position;
+          const sYaw = playerShip.yaw ?? playerShip.mesh.rotation.y ?? 0;
+          const sForward = new THREE.Vector3(-Math.sin(sYaw), 0, -Math.cos(sYaw));
+          const toS = shark.mesh.position.clone().sub(sPos);
+          const fDist = toS.dot(sForward);
+          if (fDist < 6.0) {
+            shark.mesh.position.add(sForward.multiplyScalar(6.0 - fDist));
+          }
+        }
+
         const flashRatio = Math.max(0, shark.flashTimer / 0.8);
-        for (const uniforms of shark.hitMaterials ?? []) uniforms.uRimIntensity.value = flashRatio * 2.5;
+        for (const uniforms of shark.hitMaterials ?? []) uniforms.uRimIntensity.value = flashRatio * 3.0;
+        for (const mat of shark.hitEmissiveMaterials ?? []) mat.emissiveIntensity = flashRatio * 2.5;
         if (shark.flashTimer <= 0) {
           shark.flashing = false;
           shark.sinking = true;
           for (const uniforms of shark.hitMaterials ?? []) uniforms.uRimIntensity.value = 0;
+          for (const mat of shark.hitEmissiveMaterials ?? []) mat.emissiveIntensity = 0;
         }
       } else if (shark.sinking) {
         for (const uniforms of shark.hitMaterials ?? []) uniforms.uDissolve.value = Math.min(1, uniforms.uDissolve.value + delta * 1.1);
@@ -344,6 +472,14 @@ export class EnvironmentManager {
         const dist2D = Math.sqrt(dx * dx + dz * dz);
         this._updateSharkTelegraph(shark, dist2D);
 
+        if (shark.qteRetryCooldown > 0) {
+          shark.qteRetryCooldown -= delta;
+          if (shark.qteRetryCooldown <= 0) {
+            shark.qteRetryCooldown = 0;
+            shark.qteTriggered = false; // Re-arm QTE trigger after timeout
+          }
+        }
+
         if (shark.qteActive || (dist2D < closestAimDist && !shark.hitResolved)) {
           closestAimDist = shark.qteActive ? 0 : dist2D;
           closestAimShark = shark;
@@ -362,11 +498,16 @@ export class EnvironmentManager {
         if (dist2D < 22 && !shark.qteTriggered && this.qteSystem) {
           const success = this.qteSystem.trigger({
             source: 'shark',
+            metadata: { instanceId: shark.id },
             onSuccess: (timing = {}) => {
               shark.qteActive = false;
+              shark.qteRetryCooldown = 0;
               shark.hitPending = true;
               shark.hitPoints = timing.points ?? 0;
               shark.hitResolved = false;
+
+              // Ensure the shark is guaranteed to be in the player's view before firing
+              this._ensureSharkInView(shark, playerShip, this._camera);
 
               const surfaceY = this._surfaceY(shark.mesh.position);
               shark.startSurfacingY = surfaceY - 1.1;
@@ -382,7 +523,7 @@ export class EnvironmentManager {
               const flightDur = harpoonFlightDuration(launch.origin.distanceTo(impactPoint));
               shark.flightElapsed = 0;
               shark.flightDuration = flightDur;
-              shark.impactTimeout = Math.max(1.0, flightDur + 0.35);
+              shark.impactTimeout = Math.max(0.35, flightDur + 0.1);
 
               emit('spawnParticles', {
                 type: 'harpoon',
@@ -397,6 +538,7 @@ export class EnvironmentManager {
               shark.qteActive = false;
               if (queued) {
                 shark.qteTriggered = false;
+                shark.qteRetryCooldown = 0;
                 return;
               }
               console.log('[Shark] Harpoon missed! Shark attacks the ship.');
@@ -413,13 +555,18 @@ export class EnvironmentManager {
                 speedRatio: playerShip.speedRatio || 0,
                 maneuver: playerShip.maneuverIntensity || 0,
               });
+
+              // Allow the same shark to circle back and re-trigger QTE after a short timeout
+              shark.qteRetryCooldown = 3.0;
+              shark.qteTriggered = true;
             }
           });
 
           if (success) {
             shark.qteTriggered = true;
             shark.qteActive = true;
-            this._updateSharkTelegraph(shark, dist2D);
+            this._ensureSharkInView(shark, playerShip, this._camera);
+            this._updateSharkTelegraph(shark, 15.0);
           }
         }
       }
@@ -436,14 +583,15 @@ export class EnvironmentManager {
       // Wrap around the play area (200 radius = -200 to 200)
       const p = shark.mesh.position;
       let wrapped = false;
-      if (p.z >  200) { p.z -= 400; wrapped = true; }
+      if (p.z > 200) { p.z -= 400; wrapped = true; }
       if (p.z < -200) { p.z += 400; wrapped = true; }
-      if (p.x >  200) { p.x -= 400; wrapped = true; }
+      if (p.x > 200) { p.x -= 400; wrapped = true; }
       if (p.x < -200) { p.x += 400; wrapped = true; }
 
       if (wrapped) {
         shark.qteTriggered = false;
         shark.qteActive = false;
+        shark.qteRetryCooldown = 0;
       }
     }
 
@@ -499,6 +647,16 @@ export class EnvironmentManager {
     shark.telegraph.position.copy(shark.mesh.position);
     shark.telegraph.position.y = this._surfaceY(shark.mesh.position);
     shark.telegraph.rotation.y = shark.mesh.rotation.y;
+
+    // Strike rush: fin breaches and swells while the strike window is open.
+    const fin = shark.telegraph.userData?.fin;
+    if (fin) {
+      const breaching = shark.qteActive && this._strikeOpen;
+      const targetScale = breaching ? 1.45 : 1.0;
+      const targetY = breaching ? 0.95 : 0.58;
+      fin.scale.setScalar(THREE.MathUtils.lerp(fin.scale.x, targetScale, 0.35));
+      fin.position.y = THREE.MathUtils.lerp(fin.position.y, targetY, 0.35);
+    }
   }
 
   _resolveHarpoonImpact(shark) {
@@ -520,35 +678,49 @@ export class EnvironmentManager {
     emit('sharkHitConfirmed', { points: shark.hitPoints ?? 0 });
 
     shark.hitMaterials = [];
+    shark.hitEmissiveMaterials = [];
+    const applyHitMaterial = (mat) => {
+      if (!mat) return mat;
+      let cloned = mat;
+      if (!cloned.userData.hasClonedMaterial) {
+        cloned = mat.clone();
+        cloned.userData.hasClonedMaterial = true;
+      }
+      cloned.color?.setHex(0xff1111);
+      if (cloned.emissive) {
+        cloned.emissive = new THREE.Color(0xff2200);
+        cloned.emissiveIntensity = 2.5;
+        shark.hitEmissiveMaterials.push(cloned);
+      }
+      cloned.transparent = true;
+      cloned.depthWrite = true;
+      cloned.renderOrder = 10;
+      const supportsRim = (cloned.isMeshStandardMaterial || cloned.isMeshPhongMaterial || cloned.isMeshLambertMaterial) && !cloned.flatShading;
+      if (supportsRim) {
+        const uniforms = { uRimIntensity: { value: 3.0 }, uDissolve: { value: 0 } };
+        cloned.onBeforeCompile = (shader) => {
+          shader.uniforms.uRimIntensity = uniforms.uRimIntensity;
+          shader.uniforms.uDissolve = uniforms.uDissolve;
+          shader.vertexShader = `varying vec3 vHitLocal;\n${shader.vertexShader}`.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vHitLocal = position;');
+          shader.fragmentShader = `uniform float uRimIntensity;\nuniform float uDissolve;\nvarying vec3 vHitLocal;\n${shader.fragmentShader}`.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+            float hitNoise = fract(sin(dot(floor(vHitLocal * 6.0), vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+            if (uDissolve > 0.0 && hitNoise < uDissolve) discard;
+            float hitRim = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.5);
+            totalEmissiveRadiance += vec3(1.0, 0.12, 0.05) * hitRim * uRimIntensity;`);
+        };
+        cloned.needsUpdate = true;
+        shark.hitMaterials.push(uniforms);
+      }
+      return cloned;
+    };
+
     shark.mesh.traverse(c => {
       if (!(c.isMesh || c.isSkinnedMesh) || !c.material) return;
-      if (!c.userData.hasClonedMaterial) {
-        c.material = c.material.clone();
-        c.userData.hasClonedMaterial = true;
+      if (Array.isArray(c.material)) {
+        c.material = c.material.map(applyHitMaterial);
+      } else {
+        c.material = applyHitMaterial(c.material);
       }
-      c.material.color.setHex(0xff2200);
-      if (c.material.emissive) {
-        c.material.emissive = new THREE.Color(0x330000);
-        c.material.emissiveIntensity = 1.0;
-      }
-      c.material.transparent = true;
-      c.material.depthWrite = true;
-      c.renderOrder = 10;
-      const supportsRim = (c.material.isMeshStandardMaterial || c.material.isMeshPhongMaterial || c.material.isMeshLambertMaterial) && !c.material.flatShading;
-      if (!supportsRim) return;
-      const uniforms = { uRimIntensity: { value: 2.5 }, uDissolve: { value: 0 } };
-      c.material.onBeforeCompile = (shader) => {
-        shader.uniforms.uRimIntensity = uniforms.uRimIntensity;
-        shader.uniforms.uDissolve = uniforms.uDissolve;
-        shader.vertexShader = `varying vec3 vHitLocal;\n${shader.vertexShader}`.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vHitLocal = position;');
-        shader.fragmentShader = `uniform float uRimIntensity;\nuniform float uDissolve;\nvarying vec3 vHitLocal;\n${shader.fragmentShader}`.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
-          float hitNoise = fract(sin(dot(floor(vHitLocal * 6.0), vec3(12.9898, 78.233, 37.719))) * 43758.5453);
-          if (uDissolve > 0.0 && hitNoise < uDissolve) discard;
-          float hitRim = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.5);
-          totalEmissiveRadiance += vec3(1.0, 0.12, 0.05) * hitRim * uRimIntensity;`);
-      };
-      c.material.needsUpdate = true;
-      shark.hitMaterials.push(uniforms);
     });
   }
 
@@ -563,13 +735,13 @@ export class EnvironmentManager {
     let prev = TIME_STOPS[0];
     let next = TIME_STOPS[TIME_STOPS.length - 1];
     for (let i = 0; i < TIME_STOPS.length - 1; i++) {
-      if (this._timeOfDay >= TIME_STOPS[i].time && this._timeOfDay < TIME_STOPS[i+1].time) {
+      if (this._timeOfDay >= TIME_STOPS[i].time && this._timeOfDay < TIME_STOPS[i + 1].time) {
         prev = TIME_STOPS[i];
-        next = TIME_STOPS[i+1];
+        next = TIME_STOPS[i + 1];
         break;
       }
     }
-    
+
     const t = (this._timeOfDay - prev.time) / (next.time - prev.time);
 
     const cSun = new THREE.Color(prev.sun).lerp(new THREE.Color(next.sun), t);
@@ -586,7 +758,7 @@ export class EnvironmentManager {
 
     // Celestial trajectories:
     // Sun rises at 6h, peaks at 12h, sets at 18h
-    const sunTheta = ((this._timeOfDay - 6) / 12) * Math.PI; 
+    const sunTheta = ((this._timeOfDay - 6) / 12) * Math.PI;
     const sunX = Math.cos(sunTheta) * this._sunRadius;
     const sunY = Math.sin(sunTheta) * this._sunRadius;
     const sunZ = Math.sin(sunTheta) * 20;
@@ -633,7 +805,7 @@ export class EnvironmentManager {
         this._scene.fog.color.copy(cFog);
       }
       if (!this._isDenseFog) {
-         this._scene.background = cSky;
+        this._scene.background = cSky;
       }
 
       // Update Sky Shader uniforms
@@ -680,25 +852,25 @@ export class EnvironmentManager {
     if (this._rainManager) {
       this._rainManager.setIntensity(this._isStormy ? 1.0 : 0.0);
     }
-    
+
     // Dynamically adjust cloud storm-factor between calm cumulus and dark storm
     if (this._stormClouds) {
-       this._stormClouds.mesh.visible = true;
-       this._stormClouds.setTargetStorm(this._isStormy ? 1.0 : 0.0);
+      this._stormClouds.mesh.visible = true;
+      this._stormClouds.setTargetStorm(this._isStormy ? 1.0 : 0.0);
     }
 
     return this._isStormy;
   }
 
   toggleTimeSpeed() {
-     if (this._timeSpeed > 5.0) {
-       this._timeSpeed = 0.0;
-     } else if (this._timeSpeed > 0.0) {
-       this._timeSpeed = 10.0; // Fast forward
-     } else {
-       this._timeSpeed = 1.0; // Play
-     }
-     return this._timeSpeed;
+    if (this._timeSpeed > 5.0) {
+      this._timeSpeed = 0.0;
+    } else if (this._timeSpeed > 0.0) {
+      this._timeSpeed = 10.0; // Fast forward
+    } else {
+      this._timeSpeed = 1.0; // Play
+    }
+    return this._timeSpeed;
   }
 
   toggleDenseFog(forceState) {
@@ -707,21 +879,21 @@ export class EnvironmentManager {
     } else {
       this._isDenseFog = !this._isDenseFog;
     }
-    
+
     if (this._scene && this._scene.fog) {
       // 0.05 is very dense, simulating Silent Hill style limited visibility
       this._scene.fog.density = this._isDenseFog ? 0.05 : 0.006;
       this._scene.background = this._isDenseFog ? this._scene.fog.color : new THREE.Color(0x222233);
     }
-    
+
     if (this._fogVolume && this._fogVolume.mesh) {
       this._fogVolume.mesh.visible = this._isDenseFog;
     }
-    
+
     if (this._stormClouds && this._stormClouds.mesh) {
       this._stormClouds.mesh.visible = !this._isDenseFog;
     }
-    
+
     return this._isDenseFog;
   }
 
@@ -742,6 +914,11 @@ export class EnvironmentManager {
 
   dispose() {
     this._ocean = null;
+    if (this._onStrikeWindow) {
+      off('qteStrikeWindow', this._onStrikeWindow);
+      this._onStrikeWindow = null;
+    }
+    this._strikeOpen = false;
     for (const shark of this._sharks) {
       this._scene?.remove(shark.mesh);
       if (shark.telegraph) this._scene?.remove(shark.telegraph);

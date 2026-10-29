@@ -67,6 +67,7 @@ export class QTEStationController {
       timing: {
         state: 'idle',
         type: null,
+        input: null,
         source: null,
         label: null,
         sweetSpot: [0.4, 0.6],
@@ -79,6 +80,7 @@ export class QTEStationController {
       bail: {
         state: 'idle',
         type: null,
+        input: null,
         source: null,
         label: null,
         result: null,
@@ -89,6 +91,7 @@ export class QTEStationController {
       siren: {
         state: 'idle',
         type: null,
+        input: null,
         source: null,
         label: null,
         side: 'right',
@@ -128,6 +131,7 @@ export class QTEStationController {
     entry.seq += 1;
     entry.state = 'active';
     entry.type = event.type;
+    entry.input = event.input ?? null;
     entry.source = event.source ?? event?.metadata?.source ?? null;
     entry.label = event.label ?? event.type;
     entry.result = null;
@@ -152,6 +156,7 @@ export class QTEStationController {
     const entry = this.stations[station];
     entry.queuedType = event.type;
     entry.queuedLabel = event.label ?? event.type;
+    entry.queuedInput = event.input ?? null;
     if (station === 'timing' && Array.isArray(event.sweetSpot) && entry.state !== 'active') {
       entry.sweetSpot = [...event.sweetSpot];
     }

@@ -1580,47 +1580,72 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 95px;
-  height: 95px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 35%, #ff5252, #d32f2f 60%, #8b0000);
-  border: 3px solid #ffeb3b;
-  color: #fff;
+  width: 90px;
+  height: 90px;
+  border-radius: 0;
+  border: 3px solid;
+  border-color: #f7d57f #7d5218 #4a300a #c99e32;
+  background-color: #2b180d;
+  background-image: repeating-linear-gradient(0deg,
+      transparent 0 4px,
+      rgba(255, 255, 255, 0.03) 4px 5px);
+  color: #fbf5df;
   cursor: pointer;
-  box-shadow: 0 0 25px rgba(229, 57, 53, 0.8), 0 4px 12px rgba(0, 0, 0, 0.6);
-  animation: harpoonPulse 0.8s infinite alternate;
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.25),
+    inset -1px -1px 0 rgba(0, 0, 0, 0.7),
+    3px 3px 0 #120904,
+    0 4px 12px rgba(0, 0, 0, 0.7);
   touch-action: manipulation;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  transition: transform 60ms ease, box-shadow 60ms ease, border-color 120ms ease;
 }
 
 #btn-mobile-harpoon:active {
-  transform: scale(0.92);
-  filter: brightness(1.2);
+  transform: translate(2px, 2px);
+  box-shadow:
+    inset 2px 2px 0 #000,
+    1px 1px 0 #120904;
+  filter: brightness(1.15);
+}
+
+#btn-mobile-harpoon.strike-pulse {
+  border-color: #00e5ff #00838f #004d40 #80deea;
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.4),
+    0 0 20px rgba(0, 229, 255, 0.75),
+    3px 3px 0 #120904;
+  animation: mobileStrikePulse 0.35s ease-in-out infinite alternate;
+}
+
+@keyframes mobileStrikePulse {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.06);
+  }
 }
 
 .harpoon-icon {
-  font-size: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   line-height: 1;
+  margin-bottom: 2px;
 }
 
 .harpoon-text {
+  font-family: 'Cinzel', Georgia, serif;
   font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0.5px;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
-}
-
-@keyframes harpoonPulse {
-  0% {
-    transform: scale(1);
-    box-shadow: 0 0 15px rgba(229, 57, 53, 0.6);
-  }
-
-  100% {
-    transform: scale(1.08);
-    box-shadow: 0 0 28px rgba(255, 235, 59, 0.95);
-  }
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fbf5df;
+  text-shadow: 1px 1px 0 #000;
 }
 
 /* Siren pull edge cues */
@@ -6341,44 +6366,56 @@ body {
    ========================================================================== */
 
 .qte-station {
-  --qte-ink: #132028;
-  --qte-wood: #3e2415;
-  --qte-brass: #d7b35a;
-  --qte-paper: #ead9ad;
+  --qte-ink: #100a06;
+  --qte-wood: #2a180e;
+  --qte-brass: #d4af37;
+  --qte-paper: #fbf5df;
   --qte-theme: #00bcd4;
   position: fixed;
   z-index: var(--qte-station-z, 150);
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  color: #f6edcf;
-  background-color: rgba(19, 32, 40, 0.92);
-  background-image: repeating-linear-gradient(0deg,
-      transparent 0 6px,
-      rgba(255, 255, 255, 0.022) 6px 7px);
-  border: 2px solid rgba(215, 179, 90, 0.65);
-  outline: 1px solid rgba(62, 36, 21, 0.85);
-  outline-offset: -4px;
-  box-shadow: 3px 3px 0 #3e2415, 0 6px 16px rgba(0, 0, 0, 0.55);
-  font: 700 11px/1.25 ui-monospace, "Courier New", monospace;
+  color: #fbf5df;
+  background-color: #1c1009;
+  background-image: repeating-linear-gradient(180deg,
+      #2a180e 0 6px,
+      #24150b 6px 12px,
+      #1c1009 12px 14px,
+      #120904 14px 15px);
+  border: 2px solid;
+  border-color: #f7d57f #7d5218 #4a300a #c99e32;
+  border-radius: 0;
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.22),
+    inset -1px -1px 0 #120904,
+    3px 3px 0 #120904;
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 11px;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
   pointer-events: none;
   user-select: none;
-  transition: opacity 180ms ease, border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+  transition: opacity 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
 }
 
 /* 1. Idle State — always visible on the HUD as a quiet nautical bridge instrument */
 .qte-station.is-idle {
-  opacity: 0.42;
-  filter: saturate(0.75);
+  opacity: 0.40;
+  filter: saturate(0.65);
   pointer-events: none;
 }
 
 /* 2. Queued State — pre-warms with a brass pulse while waiting in line */
 .qte-station.is-queued {
-  opacity: 0.84;
-  border-color: #ffd56b;
-  box-shadow: 3px 3px 0 #3e2415, 0 0 14px rgba(255, 213, 107, 0.45);
-  animation: qteQueuedPulse 0.9s ease-in-out infinite alternate;
+  opacity: 0.88;
+  border-color: #ffd56b #7d5218 #4a300a #f0c040;
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.25),
+    inset -1px -1px 0 #120904,
+    3px 3px 0 #120904,
+    0 0 0 1px #ffd56b;
+  animation: qteQueuedPulse 0.9s steps(2, jump-none) infinite alternate;
 }
 
 /* 3. Active State — full illumination & interactive touch fallback */
@@ -6386,32 +6423,45 @@ body {
   opacity: 1;
   filter: saturate(1.05);
   pointer-events: auto;
-  border-color: var(--qte-theme, #d7b35a);
+  border-color: var(--qte-theme, #f7d57f);
   box-shadow:
-    3px 3px 0 #3e2415,
-    0 0 22px rgba(215, 179, 90, 0.45),
-    inset 0 0 14px rgba(215, 179, 90, 0.14);
+    inset 1px 1px 0 rgba(255, 255, 255, 0.35),
+    inset -1px -1px 0 #120904,
+    3px 3px 0 #120904,
+    0 0 0 1px rgba(212, 175, 55, 0.5);
 }
 
 /* 4. Resolving State — brief result stamp before returning to idle */
 .qte-station.is-resolving {
-  opacity: 0.96;
+  opacity: 0.98;
   pointer-events: none;
 }
 
 .qte-station.is-resolving.result-perfect {
-  border-color: #ffd700;
-  box-shadow: 3px 3px 0 #3e2415, 0 0 24px rgba(255, 215, 0, 0.75);
+  border-color: #ffd700 #8b6508 #553e05 #ffd700;
+  box-shadow:
+    inset 1px 1px 0 #ffffff,
+    inset -1px -1px 0 #553e05,
+    3px 3px 0 #120904,
+    0 0 0 1px #ffd700;
 }
 
 .qte-station.is-resolving.result-good {
-  border-color: #4ade80;
-  box-shadow: 3px 3px 0 #3e2415, 0 0 20px rgba(74, 222, 128, 0.65);
+  border-color: #4ade80 #166534 #0e3b20 #4ade80;
+  box-shadow:
+    inset 1px 1px 0 #ffffff,
+    inset -1px -1px 0 #0e3b20,
+    3px 3px 0 #120904,
+    0 0 0 1px #4ade80;
 }
 
 .qte-station.is-resolving.result-miss {
-  border-color: #f87171;
-  box-shadow: 3px 3px 0 #3e2415, 0 0 20px rgba(248, 113, 113, 0.65);
+  border-color: #f87171 #991b1b #5c0f0f #f87171;
+  box-shadow:
+    inset 1px 1px 0 #ffffff,
+    inset -1px -1px 0 #5c0f0f,
+    3px 3px 0 #120904,
+    0 0 0 1px #f87171;
 }
 
 /* Shared Station Header, Timer & Footer */
@@ -6421,11 +6471,16 @@ body {
   justify-content: space-between;
   gap: 6px;
   width: 100%;
-  padding: 4px 7px;
+  padding: 4px 6px;
   box-sizing: border-box;
-  background: rgba(62, 36, 21, 0.78);
-  border-bottom: 1px solid rgba(215, 179, 90, 0.5);
-  letter-spacing: 0.06em;
+  background: #2b180d;
+  background-image: repeating-linear-gradient(180deg,
+      #351e10 0 4px,
+      #22130a 4px 8px,
+      #1b0f07 8px 9px);
+  border-bottom: 2px solid #120904;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  letter-spacing: 0.08em;
 }
 
 .qte-station-header .qte-icon {
@@ -6433,43 +6488,60 @@ body {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  image-rendering: pixelated;
 }
 
 .qte-station-header .qte-label {
   flex: 1;
-  color: #f6edcf;
+  color: #fbf5df;
+  font-family: 'Cinzel', Georgia, serif;
   font-size: 11px;
   font-weight: 800;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-shadow: 1px 1px 0 #000;
 }
 
 .qte-state-pill,
 .qte-progress {
-  padding: 1px 5px;
-  border: 1px solid rgba(215, 179, 90, 0.6);
-  background: rgba(9, 16, 21, 0.85);
-  color: var(--qte-theme, #ead9ad);
-  font-size: 9.5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 6px;
+  border-radius: 0;
+  border: 1px solid #c49e29;
+  background: #120904;
+  color: var(--qte-theme, #f7d57f);
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 9px;
   font-weight: 800;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
+  box-shadow: inset 1px 1px 0 rgba(0, 0, 0, 0.8), 1px 1px 0 #120904;
+  text-shadow: 1px 1px 0 #000;
 }
 
 .qte-timer-track {
   width: 100%;
-  height: 4px;
-  background: rgba(8, 14, 18, 0.85);
-  border-top: 1px solid rgba(215, 179, 90, 0.35);
-  border-bottom: 1px solid rgba(215, 179, 90, 0.35);
+  height: 6px;
+  background: #0d0704;
+  border-top: 1px solid #332609;
+  border-bottom: 1px solid #120904;
+  box-sizing: border-box;
   overflow: hidden;
+  border-radius: 0;
 }
 
 .qte-timer-fill {
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, var(--qte-theme, #d7b35a), #ffe082);
+  background: var(--qte-theme, #d4af37);
+  background-image: repeating-linear-gradient(90deg,
+      rgba(255, 255, 255, 0.25) 0 4px,
+      transparent 4px 8px);
   transition: width 50ms linear;
+  border-radius: 0;
+  image-rendering: pixelated;
 }
 
 .qte-station-footer {
@@ -6478,32 +6550,40 @@ body {
   justify-content: space-between;
   gap: 6px;
   width: 100%;
-  padding: 4px 7px 2px;
+  padding: 3px 6px 2px;
   box-sizing: border-box;
   min-height: 18px;
+  background: #140b06;
+  border-top: 1px solid #2b180d;
+  box-shadow: inset 0 1px 0 #120904;
 }
 
 .qte-station-hint {
   color: #d9c89e;
-  font-size: 9.5px;
+  font-family: 'IM Fell English', Georgia, serif;
+  font-style: italic;
+  font-size: 10px;
   letter-spacing: 0.04em;
 }
 
 .qte-result {
   min-height: 14px;
-  font-size: 11px;
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 12px;
   font-weight: 900;
   letter-spacing: 0.08em;
   color: #ffd700;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  text-shadow: 1px 1px 0 #000, 0 0 6px rgba(255, 215, 0, 0.6);
 }
 
 .qte-station.result-good .qte-result {
   color: #4ade80;
+  text-shadow: 1px 1px 0 #000, 0 0 6px rgba(74, 222, 128, 0.6);
 }
 
 .qte-station.result-miss .qte-result {
   color: #f87171;
+  text-shadow: 1px 1px 0 #000, 0 0 6px rgba(248, 113, 113, 0.6);
 }
 
 /* --------------------------------------------------------------------------
@@ -6522,10 +6602,12 @@ body {
 }
 
 .qte-timing-station.in-sweet-spot {
+  border-color: #4ade80 #166534 #0e3b20 #4ade80 !important;
   box-shadow:
-    3px 3px 0 #3e2415,
-    0 0 26px rgba(74, 222, 128, 0.7),
-    inset 0 0 16px rgba(74, 222, 128, 0.22);
+    inset 1px 1px 0 rgba(255, 255, 255, 0.45),
+    inset -1px -1px 0 #0e3b20,
+    3px 3px 0 #120904,
+    0 0 0 2px #4ade80 !important;
 }
 
 .qte-dial {
@@ -6542,66 +6624,100 @@ body {
   width: 100%;
   height: 100%;
   overflow: visible;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
 }
 
 .qte-dial-track-bg {
-  fill: rgba(9, 17, 22, 0.75);
-  stroke: rgba(234, 217, 173, 0.45);
-  stroke-width: 7;
-  stroke-linecap: butt;
+  fill: #0c0805;
+  stroke: #2e1d10;
+  stroke-width: 8;
+  stroke-linecap: square;
 }
 
 .qte-dial-tick {
-  stroke: rgba(234, 217, 173, 0.65);
-  stroke-width: 1.6;
+  stroke: #d4af37;
+  stroke-width: 2;
+  stroke-linecap: square;
 }
 
 .qte-sweet-arc {
   fill: none;
   stroke: var(--qte-theme, #00bcd4);
   stroke-width: 8;
-  stroke-linecap: butt;
-  opacity: 0.42;
-  transition: opacity 150ms ease, stroke 150ms ease;
+  stroke-linecap: square;
+  opacity: 0.75;
+  transition: opacity 120ms ease;
 }
 
 .qte-timing-station.is-active .qte-sweet-arc {
-  opacity: 0.92;
-  filter: drop-shadow(0 0 4px var(--qte-theme, #00bcd4));
+  opacity: 1;
+  stroke: #38bdf8;
 }
 
 .qte-perfect-arc {
   fill: none;
   stroke: #ffd700;
   stroke-width: 9;
-  stroke-linecap: butt;
-  opacity: 0.45;
+  stroke-linecap: square;
+  opacity: 0.95;
 }
 
 .qte-timing-station.is-active .qte-perfect-arc {
   opacity: 1;
-  filter: drop-shadow(0 0 5px rgba(255, 215, 0, 0.9));
+  stroke: #ffea79;
 }
 
 .qte-dial-hub {
-  fill: #d7b35a;
-  stroke: #3e2415;
-  stroke-width: 2;
+  fill: #d4af37;
+  stroke: #120904;
+  stroke-width: 2.5;
 }
 
 .qte-needle {
   position: absolute;
-  bottom: 9px;
+  bottom: 8px;
   left: 50%;
-  width: 4px;
-  height: 48px;
-  transform-origin: 50% 100%;
+  width: 16px;
+  height: 52px;
+  transform-origin: 50% 92%;
   transform: translateX(-50%) rotate(var(--qte-needle, -90deg));
   pointer-events: none;
-  background: linear-gradient(180deg, #ffffff 0%, #ffe082 40%, #d7b35a 100%);
-  border: 1px solid #23140b;
-  border-radius: 2px 2px 0 0;
-  box-shadow: 0 0 6px rgba(255, 246, 217, 0.7);
+  background: url('/assets/ui/hud/qte_needle_hand.png') no-repeat center bottom / contain;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  filter: drop-shadow(1px 1px 0 #000);
+}
+
+/* Peripheral Strike Cue Vignette & Station Highlight */
+#hud.hud-strike-open::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 140;
+  box-shadow:
+    inset 0 0 0 6px #00e5ff,
+    inset 0 0 0 10px #004d40;
+  animation: strikeEdgePulse 0.3s steps(2, jump-none) infinite alternate;
+}
+
+@keyframes strikeEdgePulse {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1.0;
+  }
+}
+
+.qte-timing-station.strike-cue-active {
+  border-color: #00e5ff #00838f #004d40 #80deea !important;
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.45),
+    0 0 0 2px #00e5ff,
+    3px 3px 0 #120904 !important;
+  transform: scale(1.02);
 }
 
 /* --------------------------------------------------------------------------
@@ -6630,9 +6746,20 @@ body {
   width: 136px;
   height: 136px;
   border-radius: 50%;
-  border: 3px solid #d7b35a;
-  box-shadow: inset 0 0 16px rgba(0, 0, 0, 0.85), 0 2px 6px rgba(0, 0, 0, 0.6);
-  background: radial-gradient(circle at center, #0e222d 0%, #071218 75%, #040a0e 100%);
+  border: 4px solid;
+  border-color: #f7d57f #7d5218 #4a300a #c99e32;
+  outline: 2px solid #120904;
+  outline-offset: -2px;
+  background-color: #08141d;
+  background-image: url('/assets/ui/hud/water_flood_wave_tile.png');
+  background-repeat: repeat;
+  background-size: 32px 32px;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  box-shadow:
+    inset 2px 2px 0 rgba(255, 255, 255, 0.25),
+    inset -2px -2px 0 #120904,
+    3px 3px 0 #120904;
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -6640,10 +6767,12 @@ body {
 }
 
 .qte-bail-station.is-active .qte-bail-well {
-  border-color: #75d9ec;
+  border-color: #75d9ec #0284c7 #0369a1 #38bdf8;
   box-shadow:
-    inset 0 0 18px rgba(56, 189, 248, 0.25),
-    0 0 14px rgba(117, 217, 236, 0.45);
+    inset 2px 2px 0 rgba(255, 255, 255, 0.4),
+    inset -2px -2px 0 #082f49,
+    0 0 0 1px #75d9ec,
+    3px 3px 0 #120904;
 }
 
 #qte-station-bail #hud-qte-draw {
@@ -6663,6 +6792,7 @@ body {
   pointer-events: none;
   opacity: 0.45;
   transition: opacity 150ms ease;
+  image-rendering: pixelated;
 }
 
 .qte-bail-station.is-active .qte-bail-center-icon {
@@ -6677,12 +6807,12 @@ body {
 .qte-siren-station {
   left: max(208px, calc(env(safe-area-inset-left) + 188px));
   bottom: max(22px, env(safe-area-inset-bottom));
-  width: 76px;
+  width: 80px;
   height: 202px;
-  padding: 6px;
+  padding: 6px 5px;
   align-items: center;
   justify-content: space-between;
-  gap: 5px;
+  gap: 4px;
   --qte-theme: #e066ff;
   cursor: pointer;
 }
@@ -6693,12 +6823,18 @@ body {
 
 .qte-siren-station.is-active.side-left {
   border-left-color: #ff66cc;
-  box-shadow: -4px 0 14px rgba(255, 102, 204, 0.55), 3px 3px 0 #3e2415;
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.3),
+    -3px 0 0 #ff66cc,
+    3px 3px 0 #120904;
 }
 
 .qte-siren-station.is-active.side-right {
   border-right-color: #ff66cc;
-  box-shadow: 4px 0 14px rgba(255, 102, 204, 0.55), 3px 3px 0 #3e2415;
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.3),
+    3px 0 0 #ff66cc,
+    3px 3px 0 #120904;
 }
 
 .qte-siren-header,
@@ -6712,15 +6848,18 @@ body {
 }
 
 .qte-siren-title {
+  font-family: 'Cinzel', Georgia, serif;
   font-size: 10px;
-  font-weight: 900;
+  font-weight: 800;
   letter-spacing: 0.08em;
   color: #ffd9f8;
+  text-shadow: 1px 1px 0 #000;
 }
 
 .qte-siren-hint {
-  font-size: 9px;
-  font-weight: 800;
+  font-family: 'IM Fell English', Georgia, serif;
+  font-style: italic;
+  font-size: 9.5px;
   color: #f3d5ee;
   letter-spacing: 0.04em;
 }
@@ -6732,24 +6871,30 @@ body {
   gap: 4px;
   padding: 4px 3px;
   box-sizing: border-box;
-  background: rgba(8, 13, 18, 0.8);
-  border: 1px solid rgba(215, 179, 90, 0.45);
+  background: #120914;
+  border: 1px solid #4a284e;
+  border-radius: 0;
+  box-shadow: inset 1px 1px 0 #000;
 }
 
 .qte-pips i {
   display: block;
   width: 100%;
-  height: 9px;
+  height: 10px;
   box-sizing: border-box;
-  border: 1px solid rgba(255, 185, 242, 0.45);
-  background: rgba(36, 18, 42, 0.65);
-  transition: background 70ms ease, box-shadow 70ms ease;
+  border: 2px solid;
+  border-color: #4a284e #1a0d1b #1a0d1b #3a1a3e;
+  background: #201323;
+  border-radius: 0;
+  image-rendering: pixelated;
+  transition: background 60ms ease, box-shadow 60ms ease, border-color 60ms ease;
 }
 
 .qte-pips i.filled {
-  background: linear-gradient(90deg, #ff66cc, #75d9ec);
-  border-color: #ffffff;
-  box-shadow: 0 0 8px rgba(255, 102, 204, 0.85);
+  background: #e066ff;
+  background-image: repeating-linear-gradient(90deg, #ff66cc 0 3px, #e066ff 3px 6px);
+  border-color: #ffd9f8 #8b1e8d #8b1e8d #ffd9f8;
+  box-shadow: inset 1px 1px 0 #ffffff;
 }
 
 .sr-only {
@@ -6909,8 +7054,9 @@ body {
 
   .qte-needle {
     bottom: 6px;
-    width: 3px;
-    height: 33px;
+    width: 12px;
+    height: 36px;
+    transform-origin: 50% 92%;
   }
 
   /* 2. Siren Ward: horizontal 8-pip gauge on left edge below Boat Status Cluster */

@@ -23,8 +23,8 @@ export function computePoints(source, isPerfect, streak) {
 export const QTE_DEFINITIONS = Object.freeze({
   [QTEType.HARPOON]: {
     input: 'timing', keys: { tap: 'Space' }, windowMs: 2000, priority: 30,
-    label: 'HARPOON!', prompt: 'Tap in the green zone', sweetSpot: [0.40, 0.60],
-    theme: { color: '#4fc3f7', icon: '<span class="pixel-icon icon-target size-18"></span>', sound: 'harpoon' },
+    label: 'HARPOON!', prompt: 'Strike when the fin breaches', sweetSpot: [0.55, 0.80],
+    theme: { color: '#4fc3f7', icon: '<span class="pixel-icon icon-harpoon size-18"></span>', sound: 'harpoon' },
   },
   [QTEType.BAIL]: {
     input: 'draw', keys: { assist: 'Space' }, windowMs: 8000, priority: 100,
@@ -32,8 +32,9 @@ export const QTE_DEFINITIONS = Object.freeze({
     theme: { color: '#2196f3', icon: '<span class="pixel-icon icon-bailer-bucket size-18"></span>', sound: 'bail' },
   },
   [QTEType.SIREN]: {
-    input: 'mash', keys: { tap: 'Space' }, windowMs: 3000, priority: 70,
-    label: 'RESIST THE SONG!', prompt: 'Press SPACE repeatedly', mashTarget: 8,
+    input: 'hold', keys: { holdStart: 'Space', tap: 'Space' }, windowMs: 5000, priority: 70,
+    label: 'BRACE THE HELM!', prompt: 'Hold SPACE to brace against the song',
+    mashTarget: 8, holdDurationSec: 1.8, decayRatePerSec: 0.15,
     theme: { color: '#ff66cc', icon: '<span class="pixel-icon icon-siren-note size-18"></span>', sound: 'siren_resist' },
   },
 });
@@ -48,6 +49,15 @@ const INPUT_HANDLERS = {
       if (ratio >= start && ratio <= end) system._succeed();
       else system._fail('mistimed');
     },
+    onUpdate(system, qte) {
+      const ratio = system._elapsedRatio(qte);
+      const [start, end] = system._sweetSpot(qte);
+      const open = ratio >= start && ratio <= end;
+      if (open !== Boolean(qte.strikeOpen)) {
+        qte.strikeOpen = open;
+        emit('qteStrikeWindow', { open, source: qte.sourceName, type: qte.type, metadata: qte.metadata });
+      }
+    },
   },
   mash: {
     onInput(system, qte, input) {
@@ -58,6 +68,55 @@ const INPUT_HANDLERS = {
       if (qte.progress >= qte.definition.mashTarget) system._succeed();
     },
   },
+  hold: {
+    onInput(system, qte, input) {
+      const targetPips = qte.definition.mashTarget ?? 8;
+      if (input.kind === 'holdStart') {
+        emit('playSound', { sound: 'qte_tick' });
+        if (system._tapToLatch) {
+          qte.isHolding = !qte.isHolding;
+        } else {
+          qte.isHolding = true;
+        }
+        system._emitUpdate();
+        return;
+      }
+      if (input.kind === 'holdEnd') {
+        if (!system._tapToLatch) {
+          qte.isHolding = false;
+          system._emitUpdate();
+        }
+        return;
+      }
+      if (input.kind === 'tap') {
+        emit('playSound', { sound: 'qte_tick' });
+        if (system._tapToLatch) {
+          qte.isHolding = !qte.isHolding;
+        }
+        const step = 1 / targetPips;
+        qte.resolve = Math.min(1, (qte.resolve ?? 0) + step);
+        qte.progress = Math.min(targetPips, qte.resolve * targetPips);
+        system._emitUpdate();
+        if (qte.resolve >= 1 - 1e-6) system._succeed();
+      }
+    },
+    onUpdate(system, qte, delta) {
+      if (!(delta > 0)) return;
+      const targetPips = qte.definition.mashTarget ?? 8;
+      const chargeRate = 1 / (qte.definition.holdDurationSec ?? 1.8);
+      const decayRate = qte.definition.decayRatePerSec ?? 0.15;
+      const prevResolve = qte.resolve ?? 0;
+      if (qte.isHolding) {
+        qte.resolve = Math.min(1, prevResolve + chargeRate * delta);
+      } else if (prevResolve > 0) {
+        qte.resolve = Math.max(0, prevResolve - decayRate * delta);
+      }
+      qte.progress = (qte.resolve ?? 0) * targetPips;
+      if ((qte.resolve ?? 0) >= 1 - 1e-6) {
+        system._succeed();
+      }
+    },
+  },
   draw: {
     onInput(system, qte, input) {
       if (input.kind === 'drawCancel') {
@@ -66,7 +125,7 @@ const INPUT_HANDLERS = {
         system._emitUpdate();
         return;
       }
-      if (input.kind === 'assist') {
+      if (input.kind === 'assist' || input.kind === 'bailAssist') {
         qte.accuracy = 0.5;
         system._succeed();
         return;
@@ -145,13 +204,37 @@ export class QTESystem {
     this._queue = [];
     this._nextId = 1;
     this._streak = 0;
-    this._stats = { byType: {}, bySource: {} };
+    this._stats = { byType: {}, bySource: {}, collisionsDuringQTE: 0, collisionsBaseline: 0 };
     this._paused = false;
+    this._hazardCheck = typeof tuning.hazardCheck === 'function' ? tuning.hazardCheck : null;
+    this._tapToLatch = Boolean(tuning.tapToLatch);
     this._tuning = this._createTuning(tuning, abilities);
     this._onInput = input => this._handleInput(input);
     this._onPaused = ({ paused }) => this.setPaused(paused);
+    this._onObstacleHit = () => {
+      if (this._active) this._stats.collisionsDuringQTE++;
+      else this._stats.collisionsBaseline++;
+    };
+    this._onSettingChanged = ({ key, value }) => {
+      if (key === 'qteTapToLatch') this._tapToLatch = Boolean(value);
+    };
     on('qteInput', this._onInput);
     on('gamePaused', this._onPaused);
+    on('obstacleHit', this._onObstacleHit);
+    on('settingChanged', this._onSettingChanged);
+  }
+
+  setHazardCheck(fn) {
+    this._hazardCheck = typeof fn === 'function' ? fn : null;
+  }
+
+  setTapToLatch(enabled) {
+    this._tapToLatch = Boolean(enabled);
+  }
+
+  getActiveResolve(sourceName = 'siren') {
+    if (!this._active || (sourceName && this._active.sourceName !== sourceName)) return 0;
+    return Math.max(0, Math.min(1, this._active.resolve ?? 0));
   }
 
   trigger(options) {
@@ -166,10 +249,17 @@ export class QTESystem {
     const dedupeKey = options.dedupeKey ?? options.metadata?.instanceId ?? sourceName;
     if (this._active?.dedupeKey === dedupeKey || this._queue.some(qte => qte.dedupeKey === dedupeKey)) return false;
 
+    const isUrgent = Boolean(options.urgent || options.metadata?.urgent);
+    const isDebug = Boolean(options.debug || options.metadata?.debug);
+    if (this._hazardCheck && !isDebug && !isUrgent) {
+      if (!this._hazardCheck({ ...options, type, sourceName })) return false;
+    }
+
     const windowMs = Math.round((options.windowMs ?? definition.windowMs) * this._tuning.windowScale);
     const qte = {
       id: this._nextId++, type, sourceName, dedupeKey, source, definition, windowMs, remainingMs: windowMs,
       queueRemainingMs: options.queueExpiryMs ?? Math.max(windowMs * 2, 4000), progress: 0,
+      resolve: 0, isHolding: false,
       onSuccess: options.onSuccess ?? (() => {}), onFail: options.onFail ?? (() => {}),
       metadata: { ...options.metadata, source: sourceName },
     };
@@ -187,6 +277,8 @@ export class QTESystem {
     this._updateQueue(delta);
     if (!this._active) return this._startNext();
     this._active.remainingMs -= delta * 1000;
+    INPUT_HANDLERS[this._active.definition.input]?.onUpdate?.(this, this._active, delta);
+    if (!this._active) return;
     this._emitUpdate();
     if (this._active.remainingMs <= 0) this._fail('timeout');
   }
@@ -196,6 +288,9 @@ export class QTESystem {
     if (this._paused && this._active?.definition.input === 'draw') {
       this._active.points = [];
       this._active.progress = 0;
+    }
+    if (this._paused && this._active?.definition.input === 'hold' && !this._tapToLatch) {
+      this._active.isHolding = false;
     }
   }
 
@@ -214,7 +309,13 @@ export class QTESystem {
   }
 
   getStats() {
-    return { streak: this._streak, byType: structuredClone(this._stats.byType), bySource: structuredClone(this._stats.bySource) };
+    return {
+      streak: this._streak,
+      byType: structuredClone(this._stats.byType),
+      bySource: structuredClone(this._stats.bySource),
+      collisionsDuringQTE: this._stats.collisionsDuringQTE,
+      collisionsBaseline: this._stats.collisionsBaseline,
+    };
   }
 
   dispose() {
@@ -222,6 +323,8 @@ export class QTESystem {
     this._queue.length = 0;
     off('qteInput', this._onInput);
     off('gamePaused', this._onPaused);
+    off('obstacleHit', this._onObstacleHit);
+    off('settingChanged', this._onSettingChanged);
   }
 
   _handleInput(input) {
@@ -276,6 +379,7 @@ export class QTESystem {
     const points = qte.metadata.debug ? 0 : earnedPoints;
     const timing = { elapsed: qte.windowMs - qte.remainingMs, ratio, isPerfect, streak, multiplier, points, accuracy: qte.accuracy };
     this._active = null;
+    this._closeStrikeWindow(qte);
     if (!qte.metadata.debug) this._record(qte, isPerfect ? 'perfect' : 'good');
     emit('qteSuccess', { type: qte.type, source: qte.sourceName, dedupeKey: qte.dedupeKey, ...timing, metadata: qte.metadata });
     if (points > 0) emit('scoreAdded', { points, label: isPerfect ? 'PERFECT!' : 'GOOD!', isPerfect, streak, multiplier, source: qte.sourceName });
@@ -288,6 +392,7 @@ export class QTESystem {
     const qte = this._active;
     if (!qte) return;
     this._active = null;
+    this._closeStrikeWindow(qte);
     if (!qte.metadata.debug) {
       this._record(qte, 'miss');
       this._streak = 0;
@@ -296,6 +401,12 @@ export class QTESystem {
     emit('playSound', { sound: 'qte_fail' });
     qte.onFail({ reason, queued: false, metadata: qte.metadata });
     this._startNext();
+  }
+
+  _closeStrikeWindow(qte) {
+    if (!qte?.strikeOpen) return;
+    qte.strikeOpen = false;
+    emit('qteStrikeWindow', { open: false, source: qte.sourceName, type: qte.type, metadata: qte.metadata });
   }
 
   _record(qte, result) {
@@ -327,6 +438,8 @@ export class QTESystem {
       type: qte.type, source: qte.sourceName, dedupeKey: qte.dedupeKey, input: qte.definition.input, keys: qte.definition.keys,
       label: qte.definition.label, prompt: qte.definition.prompt, theme: qte.definition.theme, windowMs: qte.windowMs,
       mashTarget: qte.definition.mashTarget ?? 1,
+      resolve: qte.resolve ?? 0,
+      isHolding: Boolean(qte.isHolding),
       accuracy: qte.accuracy,
       drawProgress: qte.definition.input === 'draw' ? qte.progress : 0,
       sweetSpot: qte.definition.input === 'timing' ? this._sweetSpot(qte) : null, metadata: qte.metadata,

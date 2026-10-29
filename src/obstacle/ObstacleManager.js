@@ -651,6 +651,72 @@ export class ObstacleManager {
     this._qteSystem = null;
   }
 
+  /**
+   * Returns true when no solid collision hazard lies within the ship's forward
+   * safety cone/corridor, ensuring QTEs never start while a crash is imminent.
+   * @param {import('./PlayerShip.js').PlayerShip} playerShip
+   * @param {number} [forwardDistance=25]
+   * @param {number} [halfAngleDeg=35]
+   * @returns {boolean}
+   */
+  isForwardHazardClear(playerShip, forwardDistance = 25, halfAngleDeg = 35) {
+    if (!playerShip || !playerShip.mesh) return true;
+    if (playerShip.blockedNormal) return false;
+
+    const sx = playerShip.mesh.position.x;
+    const sz = playerShip.mesh.position.z;
+
+    let fwdX = -Math.sin(playerShip.yaw || 0);
+    let fwdZ = -Math.cos(playerShip.yaw || 0);
+    if (playerShip.mesh.quaternion) {
+      const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(playerShip.mesh.quaternion);
+      const len = Math.hypot(dir.x, dir.z);
+      if (len > 1e-4) {
+        fwdX = dir.x / len;
+        fwdZ = dir.z / len;
+      }
+    }
+
+    const cosThreshold = Math.cos((halfAngleDeg * Math.PI) / 180);
+
+    for (const obs of this._obstacles) {
+      if (!obs || !obs.active || !obs.mesh) continue;
+      if (obs.type === 'pickup' || obs.type === 'seaweed' || obs.type === 'whirlpool' || obs.type === 'wind_zone') {
+        continue;
+      }
+
+      const dx = obs.mesh.position.x - sx;
+      const dz = obs.mesh.position.z - sz;
+      const dist = Math.hypot(dx, dz);
+
+      let obsRadius = 1.5;
+      if (obs.sphere && Number.isFinite(obs.sphere.radius)) {
+        obsRadius = obs.sphere.radius;
+      } else if (obs.obb?.halfSize) {
+        obsRadius = Math.max(obs.obb.halfSize.x || 0, obs.obb.halfSize.z || 0);
+      } else if (obs.baseOBB?.halfSize) {
+        obsRadius = Math.max(obs.baseOBB.halfSize.x || 0, obs.baseOBB.halfSize.z || 0);
+      }
+
+      const surfaceDist = Math.max(0, dist - obsRadius);
+      if (surfaceDist > forwardDistance) continue;
+      if (surfaceDist <= 2.5) return false;
+
+      const dirX = dx / (dist || 1);
+      const dirZ = dz / (dist || 1);
+      const dot = fwdX * dirX + fwdZ * dirZ;
+      if (dot >= cosThreshold) return false;
+
+      const forwardProj = dx * fwdX + dz * fwdZ;
+      const lateralDist = Math.abs(dx * (-fwdZ) + dz * fwdX);
+      if (forwardProj > 0 && (forwardProj - obsRadius) <= forwardDistance && lateralDist <= (obsRadius + 2.0)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   // -------------------------------------------------------------------------
   // Collision resolution
   // -------------------------------------------------------------------------

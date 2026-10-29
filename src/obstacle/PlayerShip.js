@@ -572,10 +572,11 @@ export class PlayerShip {
       }
     }
 
-    // Trigger sinking QTE
-    if (this.waterLevel > this.maxWaterLevel * 0.75 && !this._bailingWater && this._bailCooldown <= 0 && this.qteSystem) {
+    // Trigger bailing QTE from 50% water level so player can bail proactively
+    if (this.waterLevel > this.maxWaterLevel * 0.50 && !this._bailingWater && this._bailCooldown <= 0 && this.qteSystem) {
       const accepted = this.qteSystem.trigger({
         source: 'bail',
+        metadata: { source: 'bail', urgent: this.waterLevel >= this.maxWaterLevel * 0.88 },
         onSuccess: ({ accuracy = 0, metadata }) => {
           this._bailingWater = false;
           this._bailCooldown = 1.25;
@@ -593,10 +594,10 @@ export class PlayerShip {
           emit('waterBailed', { accuracy: Math.round(accuracy * 100), removed: Math.round(removed) });
           emit('spawnParticles', { type: 'splash', position: this.mesh.position });
         },
-        onFail: ({ metadata }) => {
+        onFail: ({ metadata, queued = false }) => {
           this._bailingWater = false;
-          this._bailCooldown = 10.0;
-          if (!metadata.debug) emit('waterBailFailed', { cooldown: 10 });
+          this._bailCooldown = queued ? 0.5 : 4.0;
+          if (!metadata.debug && !queued) emit('waterBailFailed', { cooldown: 4 });
         }
       });
       this._bailingWater = accepted;

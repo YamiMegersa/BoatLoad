@@ -87,3 +87,34 @@ test('Siren failure temporarily disorients then permits another QTE', () => {
   manager.dispose();
   clear();
 });
+
+test('active resolve damps siren pull torque', () => {
+  let resolve = 0;
+  const mockQTE = {
+    trigger: () => true,
+    getActiveResolve: (source) => (source === 'siren' ? resolve : 0),
+  };
+  const { manager, ship } = createSirenHarness([
+    { position: { x: 5, y: 0, z: -10 }, attractRadius: 30, intensity: 1.0 },
+  ]);
+  manager._qteSystem = mockQTE;
+
+  // Unbraced (resolve = 0)
+  resolve = 0;
+  ship.yawVelocity = 0;
+  manager.update(1.0, ship);
+  const unbracedTorque = ship.yawVelocity;
+
+  // Braced (resolve = 1.0 -> braceDamping = 1 - 0.85 = 0.15)
+  resolve = 1.0;
+  ship.yawVelocity = 0;
+  manager.update(1.0, ship);
+  const bracedTorque = ship.yawVelocity;
+
+  assert.ok(Math.abs(unbracedTorque) > 0);
+  assert.ok(Math.abs(bracedTorque) < Math.abs(unbracedTorque));
+  assert.ok(Math.abs(bracedTorque / unbracedTorque - 0.15) < 0.01);
+
+  manager.dispose();
+  clear();
+});

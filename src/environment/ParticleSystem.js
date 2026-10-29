@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { on, off } from '../core/EventBus.js';
 
 export function harpoonFlightDuration(distance) {
-  return THREE.MathUtils.clamp(distance / 85, 0.16, 0.32);
+  return THREE.MathUtils.clamp(distance / 120, 0.10, 0.20);
 }
 
 /**
@@ -256,17 +256,7 @@ export class ParticleSystem {
     const initialAim = interpolateHarpoonFlight(start, end, 0.08, arcHeight);
     group.lookAt(initialAim);
 
-    const tailWorld = new THREE.Vector3(0, 0, -1.76).applyMatrix4(group.matrixWorld);
-    const tetherGeometry = new THREE.BufferGeometry().setFromPoints([start, tailWorld]);
-    const tetherMaterial = new THREE.LineBasicMaterial({
-      color: 0xd8c396,
-      transparent: true,
-      opacity: 0.88,
-    });
-    const tether = new THREE.Line(tetherGeometry, tetherMaterial);
-    tether.frustumCulled = false;
-
-    this._scene.add(group, tether);
+    this._scene.add(group);
     this._projectiles.push({
       mesh: group,
       velocity,
@@ -277,7 +267,6 @@ export class ParticleSystem {
       start: start.clone(),
       end: end.clone(),
       arcHeight,
-      tether,
       onImpact,
       getOrigin,
       getTarget,
@@ -300,22 +289,6 @@ export class ParticleSystem {
     const velocity = end.clone().sub(start).multiplyScalar(1 / duration);
     this._scene.add(mesh);
     this._projectiles.push({ mesh, velocity, life: duration, maxLife: duration, type: 'cannonball' });
-  }
-
-  _updateHarpoonTether(p) {
-    if (!p.tether) return;
-    if (typeof p.getOrigin === 'function') {
-      try {
-        const dynamicOrigin = p.getOrigin();
-        if (dynamicOrigin) p.start.copy(dynamicOrigin);
-      } catch (_) {
-        // Keep last known origin if callback fails
-      }
-    }
-    p.mesh.updateMatrixWorld(true);
-    const tailPos = new THREE.Vector3(0, 0, -1.76).applyMatrix4(p.mesh.matrixWorld);
-    p.tether.geometry.setFromPoints([p.start, tailPos]);
-    p.tether.geometry.attributes.position.needsUpdate = true;
   }
 
   update(delta) {
@@ -453,18 +426,6 @@ export class ParticleSystem {
             // Keep position if target was disposed
           }
         }
-        if (p.tether) {
-          const holdRatio = p.life / (p.maxImpactHold || 0.65);
-          if (holdRatio > 0.35 && !p.isMiss) {
-            p.tether.material.opacity = THREE.MathUtils.clamp((holdRatio - 0.35) * 1.35, 0, 0.85);
-            this._updateHarpoonTether(p);
-          } else {
-            this._scene.remove(p.tether);
-            p.tether.geometry.dispose();
-            p.tether.material.dispose();
-            p.tether = null;
-          }
-        }
         continue;
       }
 
@@ -487,9 +448,7 @@ export class ParticleSystem {
         }
 
         const flash = p.mesh.children[4];
-        if (flash) flash.visible = p.life > p.maxLife - 0.09;
-
-        this._updateHarpoonTether(p);
+        if (flash) flash.visible = p.life > p.maxLife - 0.06;
 
         if (p.life <= 0) {
           p.mesh.position.copy(p.end);
@@ -498,12 +457,6 @@ export class ParticleSystem {
           const impactDir = p.end.clone().sub(preImpact);
           if (impactDir.lengthSq() > 0.0001) {
             p.mesh.lookAt(p.end.clone().add(impactDir));
-          }
-          if (p.isMiss && p.tether) {
-            this._scene.remove(p.tether);
-            p.tether.geometry.dispose();
-            p.tether.material.dispose();
-            p.tether = null;
           }
           p.phase = 'impact';
           p.life = p.impactHold;
@@ -533,11 +486,6 @@ export class ParticleSystem {
     const p = this._projectiles[index];
     if (!p) return;
     this._scene.remove(p.mesh);
-    if (p.tether) {
-      this._scene.remove(p.tether);
-      p.tether.geometry.dispose();
-      p.tether.material.dispose();
-    }
     this._projectiles.splice(index, 1);
   }
 
@@ -559,11 +507,6 @@ export class ParticleSystem {
 
     for (const p of this._projectiles) {
       this._scene.remove(p.mesh);
-      if (p.tether) {
-        this._scene.remove(p.tether);
-        p.tether.geometry.dispose();
-        p.tether.material.dispose();
-      }
     }
     this._projectiles = [];
     this._splashes = [];

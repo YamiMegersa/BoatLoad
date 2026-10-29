@@ -19,6 +19,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   sfxVolume: 0.8,         // 0.0 to 1.0
   ambientVolume: 0.8,     // 0.0 to 1.0
   musicVolume: 0.7,       // 0.0 to 1.0
+  qteTapToLatch: false,   // Accessibility: tap Space / thumb pad to latch the Siren brace instead of holding
 });
 
 export class SettingsManager {

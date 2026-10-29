@@ -37,6 +37,7 @@ import { ShopRegistry, ItemType } from '../config/ShopRegistry.js';
 import { getCustomerForDay } from '../config/CustomerScript.js';
 import { getAssetUrl } from '../utils/paths.js';
 import { emit, on, off, clear } from './EventBus.js';
+import { settingsManager } from './SettingsManager.js';
 
 // ---------------------------------------------------------------------------
 // Phase enum
@@ -1942,6 +1943,7 @@ export class GameState {
 
     const qteTuning = { ...(levelCfg?.qte ?? {}) };
     if (levelCfg?.tutorialPrompts) qteTuning.windowScale = (qteTuning.windowScale ?? 1) * 1.25;
+    qteTuning.tapToLatch = Boolean(settingsManager?.get?.('qteTapToLatch'));
     this._qteSystem = new QTESystem(qteTuning, levelCfg?.rewardAbilities);
     this._inputRouter = new QTEInputRouter({
       target: window,
@@ -1993,8 +1995,18 @@ export class GameState {
     }
     this._obstacleManager = new ObstacleManager();
     this._obstacleManager.init(levelCfg, this._scene, rockModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, this._qteSystem);
+
+    // "Don't start in danger": defer any QTE while a solid hazard is directly
+    // ahead, so the player is never forced to choose between a crash and a QTE.
+    // Bailing uses a slightly shorter corridor (20m) as it is a survival action.
+    this._qteSystem.setHazardCheck(({ sourceName }) => {
+      const ship = this._playerShip;
+      if (!ship || !this._obstacleManager) return true;
+      const distance = sourceName === 'bail' ? 20 : 25;
+      return this._obstacleManager.isForwardHazardClear(ship, distance, 35);
+    });
     this._environmentManager = new EnvironmentManager();
-    this._environmentManager.init(this._scene, fishModels, levelCfg, this._qteSystem, this._ocean, this._clouds);
+    this._environmentManager.init(this._scene, fishModels, levelCfg, this._qteSystem, this._ocean, this._clouds, this.activeCamera || this._camera);
     this._sirenManager = new SirenManager();
     this._sirenManager.init(levelCfg, this._scene, sirenModel, rockModels, this._qteSystem);
 
@@ -2078,7 +2090,7 @@ export class GameState {
     this._playerShip?.update?.(delta, this._ocean, this._windManager);
     this._obstacleManager?.update?.(delta, this._playerShip, this._windManager, this._voxelTerrain);
     this._voxelTerrain?.updateCulling?.(this.activeCamera?.position || this._camera?.position);
-    this._environmentManager?.update?.(delta, this._windManager, this._playerShip);
+    this._environmentManager?.update?.(delta, this._windManager, this._playerShip, this.activeCamera || this._camera);
     this._sirenManager?.update?.(delta, this._playerShip);
 
     // Cull the dock village/island only once it is fully beyond the draw distance
@@ -2159,11 +2171,11 @@ export class GameState {
       const krakenAudio = this._krakenBoss
         ? this._krakenBoss.getAudioState(this._playerShip)
         : {
-            hasKraken: Boolean(this._levelCfg?.kraken),
-            state: 'idle',
-            intensity: this._levelCfg?.kraken ? 0.22 : 0,
-            proximity: this._levelCfg?.kraken ? 0.22 : 0,
-          };
+          hasKraken: Boolean(this._levelCfg?.kraken),
+          state: 'idle',
+          intensity: this._levelCfg?.kraken ? 0.22 : 0,
+          proximity: this._levelCfg?.kraken ? 0.22 : 0,
+        };
 
       emit('sailingAudioUpdate', {
         active: !isSinkingNow,

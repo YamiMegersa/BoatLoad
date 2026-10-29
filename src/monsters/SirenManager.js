@@ -276,14 +276,16 @@ export class SirenManager {
         // Torque applied to ship yawVelocity:
         // Player's rudder turnAccel is ~2.0 rad/s².
         // By scaling torque up to ~2.6 rad/s² near the center, the Siren exerts
-        // a compelling pull that requires deliberate counter-steering to fight off.
-        const torque = turnDir * turnFactor * (2.6 * intensity) * t;
+        // a compelling pull that requires deliberate counter-steering or bracing to fight off.
+        const activeResolve = Math.max(0, Math.min(1, this._qteSystem?.getActiveResolve?.('siren') ?? 0));
+        const braceDamping = 1 - 0.85 * activeResolve;
+        const torque = turnDir * turnFactor * (2.6 * intensity) * t * braceDamping;
         playerShip.yawVelocity += torque * delta;
 
         // Visceral physical leaning into the forced turn
-        playerShip.rollVelocity -= turnDir * t * 0.4 * delta;
+        playerShip.rollVelocity -= turnDir * t * 0.4 * braceDamping * delta;
 
-        const pullStrength = t * intensity;
+        const pullStrength = t * intensity * braceDamping;
         if (pullStrength > maxIntensityThisFrame) {
           maxIntensityThisFrame = pullStrength;
           // In HUD conventions: positive steerInput is RIGHT, negative is LEFT.
