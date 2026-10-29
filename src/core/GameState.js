@@ -82,12 +82,14 @@ export class GameState {
 
     this.currentPhase = null;
 
-    // Day / session data
-    this.day = 1;
+    // Day / session data (Default starting day is Day 0 opening & tutorial)
+    this.day = 0;
+    this.unlockedDay = 0;
     this.shipId = 'sloop';
     this.abilityInventory = [];
 
-    // Economy and Shop System (Unified Doubloons)
+    // Progression & Economy System (Unified Doubloons)
+    this._loadProgression();
     this.coins = 350;
     this.inventory = ['wheel_default', 'pedestal_lvl0', 'lantern_lvl1'];
     this.equippedItems = ShopRegistry.getDefaultEquipped();
@@ -95,10 +97,10 @@ export class GameState {
 
     // Active customer contract & sailing damage baseline
     this.currentContract = {
-      day: 1,
-      baseBudget: 400,
+      day: 0,
+      baseBudget: 0,
       bargainBonus: 0,
-      agreedBudget: 400,
+      agreedBudget: 0,
       spentOnRepairs: 0
     };
     this._sailInitialIntactCount = null;
@@ -222,6 +224,50 @@ export class GameState {
         this._ocean.setWorldSize(d.size);
       }
     });
+  }
+
+  // -------------------------------------------------------------------------
+  // Campaign Progression System
+  // -------------------------------------------------------------------------
+
+  _loadProgression() {
+    try {
+      const data = localStorage.getItem('boatload_progression');
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (typeof parsed.unlockedDay === 'number' && !isNaN(parsed.unlockedDay)) {
+          this.unlockedDay = Math.max(0, Math.min(7, Math.floor(parsed.unlockedDay)));
+        }
+      }
+    } catch (e) {
+      console.warn('[GameState] Could not load progression from localStorage:', e);
+    }
+  }
+
+  _saveProgression() {
+    try {
+      const payload = {
+        unlockedDay: this.unlockedDay
+      };
+      localStorage.setItem('boatload_progression', JSON.stringify(payload));
+    } catch (e) {
+      console.warn('[GameState] Could not save progression to localStorage:', e);
+    }
+  }
+
+  unlockDay(day) {
+    if (typeof day !== 'number' || isNaN(day)) return;
+    const clamped = Math.max(0, Math.min(7, Math.floor(day)));
+    if (clamped > this.unlockedDay) {
+      this.unlockedDay = clamped;
+      this._saveProgression();
+      emit('progressionUpdated', { unlockedDay: this.unlockedDay });
+    }
+  }
+
+  isDayUnlocked(day) {
+    if (day === 0) return true;
+    return day <= this.unlockedDay;
   }
 
   // -------------------------------------------------------------------------
@@ -393,6 +439,9 @@ export class GameState {
     if (!isCommunity) {
       netPayout = leftoverProfit + sailingBonus - totalDamageIncurred;
       this.applyPayout(netPayout);
+      if (isPassed) {
+        this.unlockDay(day + 1);
+      }
     }
 
     emit('uiMount', {

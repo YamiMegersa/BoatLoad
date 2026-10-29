@@ -44,6 +44,11 @@ export class ResultsUI {
     const isPassed = data.isPassed !== false && !data.failed && !data.isSunk;
     const isSunk = Boolean(data.failed || data.isSunk);
 
+    // If campaign level was passed, unlock the next day in progression
+    if (!isCommunity && isPassed && this.gameState) {
+      this.gameState.unlockDay(day + 1);
+    }
+
     // 1. Contract Breakdown
     const contract = data.contract || {
       baseBudget: 200,
@@ -269,6 +274,7 @@ export class ResultsUI {
           this.unmount();
           if (day === 0 && isPassed) {
             this.gameState.day = 1;
+            this.gameState.unlockDay?.(1);
             emit('levelSelected', { day: 1 });
           }
           emit('requestPhaseChange', { phase: GamePhase.DOCK });
@@ -297,11 +303,13 @@ export class ResultsUI {
           this.unmount();
           if (day === 0) {
             this.gameState.day = 1;
+            this.gameState.unlockDay?.(1);
             emit('levelSelected', { day: 1 });
             emit('requestPhaseChange', { phase: GamePhase.DOCK });
           } else {
             const nextDay = Math.min(7, day + 1);
             this.gameState.day = nextDay;
+            this.gameState.unlockDay?.(nextDay);
             emit('levelSelected', { day: nextDay });
             emit('startSailing');
           }
