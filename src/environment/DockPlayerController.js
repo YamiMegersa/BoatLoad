@@ -43,11 +43,16 @@ export class DockPlayerController {
       backward: false,
       left: false,
       right: false,
-      sprint: false
+      sprint: false,
+      jump: false
     };
     this.walkSpeed = 6.0 * this.scale;
     this.sprintSpeed = 10.5 * this.scale;
     this.velocity = new THREE.Vector3();
+    this.verticalVelocity = 0;
+    this.isGrounded = true;
+    this.gravity = 22.0 * this.scale;
+    this.jumpSpeed = 8.2 * this.scale;
 
     // Raycasters for terrain following & interaction
     this.downRaycaster = new THREE.Raycaster();
@@ -60,10 +65,20 @@ export class DockPlayerController {
     this.mouseCoords = new THREE.Vector2(-999, -999);
     this.hoveredDoor = null;
     this.hoveredBunny = null;
+    this.hoveredCrab = null;
+    this.hoveredDivorcePost = null;
     this.hoveredShip = null;
     this.hoveredLedger = null;
     this.hoveredShipyard = null;
     this.hoveredGhost = null;
+
+    // Cutscene state
+    this._cutsceneActive = false;
+    this._cutsceneTimer = 0;
+    this._cutsceneKeyframes = null;
+    this._cutsceneOnComplete = null;
+    this._cutsceneOverlay = null;
+    this._cutsceneTimeouts = [];
 
     // UI elements
     this._createUI();
@@ -129,6 +144,8 @@ export class DockPlayerController {
       <span>|</span>
       <span><b>WASD</b> Walk</span>
       <span>|</span>
+      <span><b>Space</b> Jump</span>
+      <span>|</span>
       <span><b>Shift</b> Sprint</span>
       <span>|</span>
       <span><b>Q</b> Emotes</span>
@@ -136,6 +153,21 @@ export class DockPlayerController {
       <span><b>Esc</b> Unlock Mouse</span>
     `;
     this.uiContainer.appendChild(this.instructions);
+
+    // Day 0 / Quest Objective Banner (top center)
+    this.objectiveBanner = document.createElement('div');
+    this.objectiveBanner.id = 'dock-objective-banner';
+    this.objectiveBanner.style.cssText = `
+      position: absolute; top: 22px; left: 50%; transform: translateX(-50%);
+      background: linear-gradient(180deg, rgba(32, 22, 14, 0.92) 0%, rgba(18, 12, 8, 0.92) 100%);
+      color: #f8ecd1; padding: 10px 22px;
+      border: 2px solid #d4af37; border-radius: 8px;
+      font-family: Georgia, 'Times New Roman', serif; font-size: 15px; font-weight: bold;
+      letter-spacing: 0.4px; display: none; align-items: center; gap: 10px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65); text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+      user-select: none; z-index: 90;
+    `;
+    this.uiContainer.appendChild(this.objectiveBanner);
 
     const uiRoot = document.getElementById('ui-root') || document.body;
     uiRoot.appendChild(this.uiContainer);
@@ -188,6 +220,7 @@ export class DockPlayerController {
 
   _onKeyDown(e) {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (this.mode === 'cutscene') return;
 
     switch (e.code) {
       case 'KeyW':
@@ -210,22 +243,32 @@ export class DockPlayerController {
       case 'ShiftRight':
         this.keys.sprint = true;
         break;
-      case 'KeyE':
-        // Interaction key
-        if (this.hoveredGhost) {
-          this._interactWithGhost();
-        } else if (this.hoveredBunny) {
-          this._interactWithBunny();
-        } else if (this.hoveredDoor) {
-          this.toggleShop();
-        } else if (this.hoveredLedger) {
-          this._interactWithLedger();
-        } else if (this.hoveredShip) {
-          this._interactWithShip();
-        } else if (this.hoveredShipyard) {
-          this._interactWithShipyard();
+      case 'Space':
+        if (this.mode === 'player') {
+          e.preventDefault();
+          this.keys.jump = true;
         }
         break;
+      case 'KeyE':
+        // Interaction key
+          if (this.hoveredCrab) {
+            this._interactWithCrab();
+          } else if (this.hoveredDivorcePost) {
+            this._interactWithDivorcePost();
+          } else if (this.hoveredGhost) {
+            this._interactWithGhost();
+          } else if (this.hoveredBunny) {
+            this._interactWithBunny();
+          } else if (this.hoveredDoor) {
+            this.toggleShop();
+          } else if (this.hoveredLedger) {
+            this._interactWithLedger();
+          } else if (this.hoveredShip) {
+            this._interactWithShip();
+          } else if (this.hoveredShipyard) {
+            this._interactWithShipyard();
+          }
+          break;
       case 'KeyQ':
         this.toggleEmoteWheel();
         break;
@@ -254,10 +297,14 @@ export class DockPlayerController {
       case 'ShiftRight':
         this.keys.sprint = false;
         break;
+      case 'Space':
+        this.keys.jump = false;
+        break;
     }
   }
 
   _onMouseMove(e) {
+    if (this.mode === 'cutscene') return;
     if (this.isLocked) {
       const movementX = e.movementX || 0;
       const movementY = e.movementY || 0;
@@ -279,7 +326,18 @@ export class DockPlayerController {
   _onPointerDown(e) {
     // Left click
     if (e.button !== 0) return;
+    if (this.mode === 'cutscene') return;
     if (this.emoteWheel && this.emoteWheel.isOpen) return;
+
+    if (this.hoveredCrab) {
+      this._interactWithCrab();
+      return;
+    }
+
+    if (this.hoveredDivorcePost) {
+      this._interactWithDivorcePost();
+      return;
+    }
 
     if (this.hoveredGhost) {
       this._interactWithGhost();
@@ -355,6 +413,337 @@ export class DockPlayerController {
     }
   }
 
+  _interactWithCrab() {
+    emit('playSound', { sound: 'crab_snap' });
+    if (this.isLocked && document.exitPointerLock) {
+      document.exitPointerLock();
+    }
+    if (this.dockStall && this.dockStall.crab) {
+      const playerPos = new THREE.Vector3();
+      this.camera.getWorldPosition(playerPos);
+      this.dockStall.crab.interact(playerPos);
+    }
+    emit('interactWithCrab');
+  }
+
+  _interactWithDivorcePost() {
+    if (this.isLocked && document.exitPointerLock) {
+      document.exitPointerLock();
+    }
+    emit('openDivorcePapers');
+  }
+
+  setObjective(html) {
+    if (!this.objectiveBanner) return;
+    if (!html) {
+      this.objectiveBanner.style.display = 'none';
+      return;
+    }
+    this.objectiveBanner.innerHTML = html;
+    this.objectiveBanner.style.display = 'flex';
+  }
+
+  hideObjective() {
+    if (this.objectiveBanner) {
+      this.objectiveBanner.style.display = 'none';
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Day 0 Opening Cutscene (Premise Cards -> Eyelid Blink -> Beach Wakeup -> Crab)
+  // ---------------------------------------------------------------------------
+
+  startDay0OpeningCutscene(onComplete) {
+    this._clearCutsceneTimers();
+    if (this.isLocked && document.exitPointerLock) {
+      document.exitPointerLock();
+    }
+
+    this.mode = 'cutscene';
+    this._cutsceneActive = false;
+    this._cutsceneOnComplete = onComplete || null;
+    this._setHoverState(null);
+    if (this.crosshair) this.crosshair.style.display = 'none';
+    if (this.instructions) this.instructions.style.display = 'none';
+    this.hideObjective();
+
+    // Ensure calm harbor background music is playing during the premise fade-in
+    emit('setMusicState', { state: 'calm', fade: 1.2 });
+
+    // Place player on the northeast sandy beach surrounded by empty bottles
+    // islandGroup is at (-22, 0, 0) inside dockStall.group (scaled by DOCK_SCALE)
+    const s = this.scale;
+    const beachX = (-22 + 7.8) * s;
+    const beachGroundY = 1.15 * s;
+    const beachZ = -15.2 * s;
+
+    // Initial lying-down pose on the sand
+    const lowEyeY = beachGroundY + 0.48 * s;
+    const standEyeY = beachGroundY + this.eyeHeight;
+    this.yawObject.position.set(beachX, lowEyeY, beachZ);
+    this.yawObject.rotation.y = 0.55; // Facing left bottles
+    this.pitchObject.rotation.x = -0.32;
+    this.camera.rotation.z = 0.36; // Head tilted on sand
+
+    // Create full-screen black premise & eyelid blink overlay
+    if (this._cutsceneOverlay && this._cutsceneOverlay.parentNode) {
+      this._cutsceneOverlay.parentNode.removeChild(this._cutsceneOverlay);
+    }
+    const overlay = document.createElement('div');
+    overlay.id = 'day0-cutscene-overlay';
+    overlay.style.cssText = `
+      position: fixed; inset: 0; z-index: 250;
+      pointer-events: auto; user-select: none; overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+    `;
+    overlay.innerHTML = `
+      <div id="cutscene-black-bg" style="
+        position: absolute; inset: 0; background: #050507;
+        opacity: 1; transition: opacity 1.4s ease;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        padding: 36px;
+      ">
+        <div id="cutscene-premise-text" style="
+          max-width: 720px; text-align: center;
+          color: #f3e5c8; font-family: Georgia, 'Times New Roman', serif;
+          font-size: 26px; line-height: 1.55; letter-spacing: 0.4px;
+          text-shadow: 0 2px 16px rgba(0, 0, 0, 0.95);
+          opacity: 0; transition: opacity 1.05s ease;
+        "></div>
+        <div id="cutscene-skip-hint" style="
+          position: absolute; bottom: 28px; right: 36px;
+          color: rgba(243, 229, 200, 0.45); font-family: monospace; font-size: 12px;
+          letter-spacing: 0.5px;
+        ">Click or Press Space to Continue</div>
+      </div>
+      <div id="cutscene-eyelid-top" style="
+        position: absolute; top: 0; left: 0; right: 0; height: 55%;
+        background: linear-gradient(180deg, #040406 80%, rgba(4,4,6,0.0) 100%);
+        transform: translateY(-100%); transition: transform 0.65s cubic-bezier(0.4, 0, 0.2, 1);
+        pointer-events: none;
+      "></div>
+      <div id="cutscene-eyelid-bot" style="
+        position: absolute; bottom: 0; left: 0; right: 0; height: 55%;
+        background: linear-gradient(0deg, #040406 80%, rgba(4,4,6,0.0) 100%);
+        transform: translateY(100%); transition: transform 0.65s cubic-bezier(0.4, 0, 0.2, 1);
+        pointer-events: none;
+      "></div>
+    `;
+    const uiRoot = document.getElementById('ui-root') || document.body;
+    uiRoot.appendChild(overlay);
+    this._cutsceneOverlay = overlay;
+
+    const premiseCards = [
+      `Port Rotgut is a shithole of a harbour, and you're the only shipwright in it who isn't a thief.`,
+      `Last Friday you got blackout drunk and woke up married to Marguerite, a siren, with a ring on your finger and no memory of the vows.`,
+      `Her lawyers (a shark and a crab) want <span style="color:#ffd700; font-weight:bold;">7,000 doubloons</span> by Sunday for the divorce.<br/><span style="font-size:22px; opacity:0.9;">If you can't pay, she takes your shop, your bunny and the better half of your liver.</span>`,
+      `<span style="color:#ffd700; font-size:30px; letter-spacing:1px;">One customer a day. One ship a day.<br/>One repair per level.</span>`
+    ];
+
+    const textEl = overlay.querySelector('#cutscene-premise-text');
+    const blackBg = overlay.querySelector('#cutscene-black-bg');
+    const eyelidTop = overlay.querySelector('#cutscene-eyelid-top');
+    const eyelidBot = overlay.querySelector('#cutscene-eyelid-bot');
+
+    let cardIndex = 0;
+    let inWakeupPhase = false;
+
+    const advanceCard = () => {
+      if (inWakeupPhase) return;
+      this._clearCutsceneTimers();
+
+      if (cardIndex >= premiseCards.length) {
+        beginWakeupBlink();
+        return;
+      }
+
+      const html = premiseCards[cardIndex];
+      cardIndex++;
+
+      textEl.style.opacity = '0';
+      const tIn = setTimeout(() => {
+        textEl.innerHTML = html;
+        textEl.style.opacity = '1';
+      }, 350);
+
+      const tOut = setTimeout(() => {
+        textEl.style.opacity = '0';
+      }, 4200);
+
+      const tNext = setTimeout(() => {
+        advanceCard();
+      }, 5300);
+
+      this._cutsceneTimeouts.push(tIn, tOut, tNext);
+    };
+
+    const onAdvanceInput = (e) => {
+      if (inWakeupPhase) return;
+      if (e.type === 'keydown' && e.code !== 'Space' && e.code !== 'Enter') return;
+      if (e.type === 'keydown') e.preventDefault();
+      advanceCard();
+    };
+
+    overlay.addEventListener('click', onAdvanceInput);
+    window.addEventListener('keydown', onAdvanceInput);
+    this._cleanupPremiseInput = () => {
+      overlay.removeEventListener('click', onAdvanceInput);
+      window.removeEventListener('keydown', onAdvanceInput);
+    };
+
+    const beginWakeupBlink = () => {
+      if (inWakeupPhase) return;
+      inWakeupPhase = true;
+      if (this._cleanupPremiseInput) {
+        this._cleanupPremiseInput();
+        this._cleanupPremiseInput = null;
+      }
+
+      textEl.style.opacity = '0';
+      const skipHint = overlay.querySelector('#cutscene-skip-hint');
+      if (skipHint) skipHint.style.display = 'none';
+      overlay.style.pointerEvents = 'none';
+
+      // Close eyelids fully before lifting black background
+      eyelidTop.style.transition = 'none';
+      eyelidBot.style.transition = 'none';
+      eyelidTop.style.transform = 'translateY(0%)';
+      eyelidBot.style.transform = 'translateY(0%)';
+
+      // Crab position in world space: islandGroup (-22 + 8.5, 0.42, -18.8) * s
+      const crabWorldX = (-22 + 8.5) * s;
+      const crabWorldY = 0.55 * s;
+      const crabWorldZ = -18.8 * s;
+      const dxCrab = crabWorldX - beachX;
+      const dzCrab = crabWorldZ - beachZ;
+      const crabYaw = Math.atan2(-dxCrab, -dzCrab);
+      const crabHorizDist = Math.hypot(dxCrab, dzCrab);
+      const crabPitch = Math.atan2(crabWorldY - standEyeY, crabHorizDist);
+
+      // Start camera keyframe animation (looking around at bottles on beach -> standing up -> focusing on Crab)
+      this._cutsceneTimer = 0;
+      this._cutsceneActive = true;
+      this._cutsceneKeyframes = [
+        // t=0.0s: Lying on sand, looking left at fallen green/amber bottles
+        { t: 0.0, x: beachX, y: lowEyeY, z: beachZ, yaw: 0.62, pitch: -0.34, roll: 0.38 },
+        // t=1.8s: Blink half-open, groggily looking across nearby bottles
+        { t: 1.8, x: beachX, y: lowEyeY + 0.12 * s, z: beachZ, yaw: 0.45, pitch: -0.28, roll: 0.26 },
+        // t=3.6s: Panning right across the wine bottles and half-buried barrel on the sand
+        { t: 3.6, x: beachX, y: lowEyeY + 0.85 * s, z: beachZ, yaw: -0.68, pitch: -0.26, roll: -0.16 },
+        // t=5.2s: Pushing up to standing height on the beach
+        { t: 5.2, x: beachX, y: standEyeY, z: beachZ, yaw: -0.35, pitch: -0.12, roll: 0.04 },
+        // t=6.8s: Turning toward the water and locking eyes on the Crab Clerk in the shallows
+        { t: 6.8, x: beachX, y: standEyeY, z: beachZ, yaw: crabYaw, pitch: crabPitch, roll: 0.0 }
+      ];
+
+      // Sequence the eyelid blinks
+      const t1 = setTimeout(() => {
+        blackBg.style.opacity = '0';
+        eyelidTop.style.transition = 'transform 0.75s cubic-bezier(0.4, 0, 0.2, 1)';
+        eyelidBot.style.transition = 'transform 0.75s cubic-bezier(0.4, 0, 0.2, 1)';
+        // First groggy half-blink open
+        eyelidTop.style.transform = 'translateY(-48%)';
+        eyelidBot.style.transform = 'translateY(48%)';
+      }, 300);
+
+      const t2 = setTimeout(() => {
+        // Blink shut briefly
+        eyelidTop.style.transition = 'transform 0.35s ease-in';
+        eyelidBot.style.transition = 'transform 0.35s ease-in';
+        eyelidTop.style.transform = 'translateY(-8%)';
+        eyelidBot.style.transform = 'translateY(8%)';
+      }, 1350);
+
+      const t3 = setTimeout(() => {
+        // Blink wide open!
+        eyelidTop.style.transition = 'transform 0.95s cubic-bezier(0.22, 1, 0.36, 1)';
+        eyelidBot.style.transition = 'transform 0.95s cubic-bezier(0.22, 1, 0.36, 1)';
+        eyelidTop.style.transform = 'translateY(-100%)';
+        eyelidBot.style.transform = 'translateY(100%)';
+      }, 1850);
+
+      const t4 = setTimeout(() => {
+        // Play crab claw snap when camera turns to look at the crab in the water
+        emit('playSound', { sound: 'crab_snap' });
+      }, 5400);
+
+      this._cutsceneTimeouts.push(t1, t2, t3, t4);
+    };
+
+    advanceCard();
+  }
+
+  _clearCutsceneTimers() {
+    if (this._cutsceneTimeouts) {
+      this._cutsceneTimeouts.forEach(t => clearTimeout(t));
+      this._cutsceneTimeouts = [];
+    }
+    if (this._cleanupPremiseInput) {
+      this._cleanupPremiseInput();
+      this._cleanupPremiseInput = null;
+    }
+  }
+
+  _updateCutscene(delta) {
+    if (!this._cutsceneActive || !this._cutsceneKeyframes || this._cutsceneKeyframes.length < 2) return;
+
+    this._cutsceneTimer += delta;
+    const frames = this._cutsceneKeyframes;
+    const lastFrame = frames[frames.length - 1];
+
+    if (this._cutsceneTimer >= lastFrame.t) {
+      // Cutscene complete — set final pose and restore player control
+      this.yawObject.position.set(lastFrame.x, lastFrame.y, lastFrame.z);
+      this.yawObject.rotation.y = lastFrame.yaw;
+      this.pitchObject.rotation.x = lastFrame.pitch;
+      this.camera.rotation.z = 0;
+
+      this._cutsceneActive = false;
+      this.mode = 'player';
+      if (this.crosshair) this.crosshair.style.display = 'block';
+      if (this.instructions) this.instructions.style.display = 'flex';
+
+      if (this._cutsceneOverlay && this._cutsceneOverlay.parentNode) {
+        this._cutsceneOverlay.parentNode.removeChild(this._cutsceneOverlay);
+        this._cutsceneOverlay = null;
+      }
+
+      this.setObjective(`🦀 Approach and speak with the <strong>Crab Clerk</strong> in the shallow water nearby <span style="color:#ffd700;">[E or Click]</span>`);
+
+      if (this._cutsceneOnComplete) {
+        const cb = this._cutsceneOnComplete;
+        this._cutsceneOnComplete = null;
+        cb();
+      }
+      return;
+    }
+
+    // Find active segment
+    let k0 = frames[0];
+    let k1 = frames[1];
+    for (let i = 0; i < frames.length - 1; i++) {
+      if (this._cutsceneTimer >= frames[i].t && this._cutsceneTimer <= frames[i + 1].t) {
+        k0 = frames[i];
+        k1 = frames[i + 1];
+        break;
+      }
+    }
+
+    const span = Math.max(0.001, k1.t - k0.t);
+    const rawU = Math.max(0, Math.min(1, (this._cutsceneTimer - k0.t) / span));
+    // Smoothstep easing for natural head/body movement
+    const u = rawU * rawU * (3 - 2 * rawU);
+
+    this.yawObject.position.set(
+      k0.x + (k1.x - k0.x) * u,
+      k0.y + (k1.y - k0.y) * u,
+      k0.z + (k1.z - k0.z) * u
+    );
+    this.yawObject.rotation.y = k0.yaw + (k1.yaw - k0.yaw) * u;
+    this.pitchObject.rotation.x = k0.pitch + (k1.pitch - k0.pitch) * u;
+    this.camera.rotation.z = k0.roll + (k1.roll - k0.roll) * u;
+  }
+
   _interactWithShip() {
     emit('playSound', { sound: 'qte_success' });
     emit('requestPhaseChange', { phase: 'SHIPYARD' });
@@ -400,6 +789,9 @@ export class DockPlayerController {
     this.pitchObject.rotation.x = -0.05;
 
     this.velocity.set(0, 0, 0);
+    this.verticalVelocity = 0;
+    this.isGrounded = true;
+    this.keys.jump = false;
 
     emit('playSound', { sound: 'qte_success' });
     emit('dockPlayerModeChanged', { mode: 'shop' });
@@ -420,6 +812,9 @@ export class DockPlayerController {
     this.yawObject.rotation.y = Math.PI / 2;
     this.pitchObject.rotation.x = 0;
     this.velocity.set(0, 0, 0);
+    this.verticalVelocity = 0;
+    this.isGrounded = true;
+    this.keys.jump = false;
 
     emit('playSound', { sound: 'qte_success' });
     emit('dockPlayerModeChanged', { mode: 'player' });
@@ -430,6 +825,14 @@ export class DockPlayerController {
   // ---------------------------------------------------------------------------
 
   update(delta) {
+    if (this.mode === 'cutscene') {
+      this._updateCutscene(delta);
+      if (this.voxelArms) {
+        this.voxelArms.update(delta);
+      }
+      return;
+    }
+
     if (this.mode === 'player') {
       this._updatePlayerMovement(delta);
     }
@@ -459,10 +862,10 @@ export class DockPlayerController {
         pos.z > box.minZ - r &&
         pos.z < box.maxZ + r
       ) {
-        const dLeft   = pos.x - (box.minX - r);
-        const dRight  = (box.maxX + r) - pos.x;
-        const dFront  = pos.z - (box.minZ - r);
-        const dBack   = (box.maxZ + r) - pos.z;
+        const dLeft = pos.x - (box.minX - r);
+        const dRight = (box.maxX + r) - pos.x;
+        const dFront = pos.z - (box.minZ - r);
+        const dBack = (box.maxZ + r) - pos.z;
 
         const minD = Math.min(dLeft, dRight, dFront, dBack);
 
@@ -480,12 +883,20 @@ export class DockPlayerController {
   }
 
   _updatePlayerMovement(delta) {
+    if (this.keys.jump && this.isGrounded) {
+      this.verticalVelocity = this.jumpSpeed;
+      this.isGrounded = false;
+    }
+
     const moveDir = new THREE.Vector3();
 
-    if (this.keys.forward)  moveDir.z -= 1;
+    if (this.keys.forward) moveDir.z -= 1;
     if (this.keys.backward) moveDir.z += 1;
-    if (this.keys.left)     moveDir.x -= 1;
-    if (this.keys.right)    moveDir.x += 1;
+    if (this.keys.left) moveDir.x -= 1;
+    if (this.keys.right) moveDir.x += 1;
+
+    const currentGround = this.yawObject.position.y - this.eyeHeight;
+    const maxStepUp = 0.65; // Max vertical step height (allows ramps, steps, decks; blocks steep cliff drops)
 
     if (moveDir.lengthSq() > 0) {
       moveDir.normalize();
@@ -505,17 +916,15 @@ export class DockPlayerController {
       // Resolve obstacle collisions against shop walls, door, and counter
       this._resolveObstacleCollisions(candidate);
 
-      const currentGround = this.yawObject.position.y - this.eyeHeight;
-      const maxStepUp = 0.45; // Max vertical step height (allows ramps, steps, decks; blocks steep cliff drops)
-
       // Ground raycast check to ensure player stays on solid land / dock
       const groundHit = this._getGroundHeightAt(candidate.x, candidate.z);
       if (groundHit !== null && (groundHit - currentGround <= maxStepUp)) {
         this.yawObject.position.x = candidate.x;
         this.yawObject.position.z = candidate.z;
-        // Smooth vertical ground alignment
-        const targetY = groundHit + this.eyeHeight;
-        this.yawObject.position.y += (targetY - this.yawObject.position.y) * Math.min(1.0, delta * 14.0);
+        if (this.isGrounded) {
+          const targetY = groundHit + this.eyeHeight;
+          this.yawObject.position.y += (targetY - this.yawObject.position.y) * Math.min(1.0, delta * 14.0);
+        }
       } else {
         // Fallback: test sliding along X
         const candX = new THREE.Vector3(candidate.x, this.yawObject.position.y, this.yawObject.position.z);
@@ -523,7 +932,9 @@ export class DockPlayerController {
         const slideXHit = this._getGroundHeightAt(candX.x, this.yawObject.position.z);
         if (slideXHit !== null && (slideXHit - currentGround <= maxStepUp)) {
           this.yawObject.position.x = candX.x;
-          this.yawObject.position.y += (slideXHit + this.eyeHeight - this.yawObject.position.y) * Math.min(1.0, delta * 14.0);
+          if (this.isGrounded) {
+            this.yawObject.position.y += (slideXHit + this.eyeHeight - this.yawObject.position.y) * Math.min(1.0, delta * 14.0);
+          }
         } else {
           // Slide along Z
           const candZ = new THREE.Vector3(this.yawObject.position.x, this.yawObject.position.y, candidate.z);
@@ -531,16 +942,36 @@ export class DockPlayerController {
           const slideZHit = this._getGroundHeightAt(this.yawObject.position.x, candZ.z);
           if (slideZHit !== null && (slideZHit - currentGround <= maxStepUp)) {
             this.yawObject.position.z = candZ.z;
-            this.yawObject.position.y += (slideZHit + this.eyeHeight - this.yawObject.position.y) * Math.min(1.0, delta * 14.0);
+            if (this.isGrounded) {
+              this.yawObject.position.y += (slideZHit + this.eyeHeight - this.yawObject.position.y) * Math.min(1.0, delta * 14.0);
+            }
           }
         }
       }
-    } else {
+    } else if (this.isGrounded) {
       // Idle terrain height tracking
       const groundHit = this._getGroundHeightAt(this.yawObject.position.x, this.yawObject.position.z);
       if (groundHit !== null) {
         const targetY = groundHit + this.eyeHeight;
         this.yawObject.position.y += (targetY - this.yawObject.position.y) * Math.min(1.0, delta * 14.0);
+      }
+    }
+
+    // Airborne jump & gravity integration
+    if (!this.isGrounded) {
+      this.yawObject.position.y += this.verticalVelocity * delta;
+      this.verticalVelocity -= this.gravity * delta;
+
+      const groundBelow = this._getGroundHeightAt(this.yawObject.position.x, this.yawObject.position.z);
+      if (groundBelow !== null) {
+        const minCamY = groundBelow + this.eyeHeight;
+        if (this.yawObject.position.y <= minCamY) {
+          this.yawObject.position.y = minCamY;
+          if (this.verticalVelocity <= 0) {
+            this.verticalVelocity = 0;
+            this.isGrounded = true;
+          }
+        }
       }
     }
   }
@@ -596,6 +1027,12 @@ export class DockPlayerController {
     }
     if (this.dockStall.bunnyInteractables) {
       interactables.push(...this.dockStall.bunnyInteractables);
+    }
+    if (this.dockStall.crabInteractables) {
+      interactables.push(...this.dockStall.crabInteractables);
+    }
+    if (this.dockStall.divorcePostInteractables) {
+      interactables.push(...this.dockStall.divorcePostInteractables);
     }
     if (this.dockStall.shipInteractables) {
       interactables.push(...this.dockStall.shipInteractables);
@@ -657,110 +1094,131 @@ export class DockPlayerController {
             return;
           }
         } else if (hit.object.userData) {
-          if (hit.object.userData.isGhostMerchant) {
-            if (hit.distance <= 7.5 * this.scale) {
-              this._setHoverState(hit.object, 'ghost');
-              return;
-            }
-          } else if (hit.object.userData.isBunny) {
-            if (hit.distance <= 6.5 * this.scale) {
-              this._setHoverState(hit.object, 'bunny');
-              return;
-            }
-          } else if (hit.object.userData.isShopDoor) {
-            const maxDist = (this.mode === 'shop' ? 5.5 : 4.0) * this.scale;
-            if (hit.distance <= maxDist) {
-              this._setHoverState(hit.object, 'door');
-              return;
-            }
-          } else if (hit.object.userData.isShipyardBench) {
-            if (hit.distance <= 5.5) {
-              this._setHoverState(hit.object, 'shipyard');
-              return;
+            if (hit.object.userData.isCrab) {
+              if (hit.distance <= 8.5 * this.scale) {
+                this._setHoverState(hit.object, 'crab');
+                return;
+              }
+            } else if (hit.object.userData.isDivorcePost) {
+              if (hit.distance <= 8.0 * this.scale) {
+                this._setHoverState(hit.object, 'divorcePost');
+                return;
+              }
+            } else if (hit.object.userData.isGhostMerchant) {
+              if (hit.distance <= 7.5 * this.scale) {
+                this._setHoverState(hit.object, 'ghost');
+                return;
+              }
+            } else if (hit.object.userData.isBunny) {
+              if (hit.distance <= 6.5 * this.scale) {
+                this._setHoverState(hit.object, 'bunny');
+                return;
+              }
+            } else if (hit.object.userData.isShopDoor) {
+              const maxDist = (this.mode === 'shop' ? 5.5 : 4.0) * this.scale;
+              if (hit.distance <= maxDist) {
+                this._setHoverState(hit.object, 'door');
+                return;
+              }
+            } else if (hit.object.userData.isShipyardBench) {
+              if (hit.distance <= 5.5) {
+                this._setHoverState(hit.object, 'shipyard');
+                return;
+              }
             }
           }
         }
       }
+
+      this._setHoverState(null);
     }
 
-    this._setHoverState(null);
-  }
+    _setHoverState(obj, type = null) {
+      this.hoveredDoor = type === 'door' ? obj : null;
+      this.hoveredBunny = type === 'bunny' ? obj : null;
+      this.hoveredCrab = type === 'crab' ? obj : null;
+      this.hoveredDivorcePost = type === 'divorcePost' ? obj : null;
+      this.hoveredShip = type === 'ship' ? obj : null;
+      this.hoveredLedger = type === 'ledger' ? obj : null;
+      this.hoveredShipyard = type === 'shipyard' ? obj : null;
+      this.hoveredGhost = type === 'ghost' ? obj : null;
 
-  _setHoverState(obj, type = null) {
-    this.hoveredDoor = type === 'door' ? obj : null;
-    this.hoveredBunny = type === 'bunny' ? obj : null;
-    this.hoveredShip = type === 'ship' ? obj : null;
-    this.hoveredLedger = type === 'ledger' ? obj : null;
-    this.hoveredShipyard = type === 'shipyard' ? obj : null;
-    this.hoveredGhost = type === 'ghost' ? obj : null;
+      if (type) {
+        this.domElement.style.cursor = 'pointer';
+        this.crosshair.style.transform = 'translate(-50%, -50%) scale(1.6)';
+        this.crosshair.style.background = '#ffd700';
+        this.crosshair.style.borderColor = '#ffffff';
 
-    if (type) {
-      this.domElement.style.cursor = 'pointer';
-      this.crosshair.style.transform = 'translate(-50%, -50%) scale(1.6)';
-      this.crosshair.style.background = '#ffd700';
-      this.crosshair.style.borderColor = '#ffffff';
-
-      this.prompt.style.display = 'flex';
-      if (type === 'ghost') {
-        this.prompt.innerHTML = `<span class="pixel-icon icon-phantom-ghost size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click Ghost to Barter Wares`;
-      } else if (type === 'bunny') {
-        this.prompt.innerHTML = `<span class="pixel-icon icon-easter-bunny size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Pet Bunny`;
-      } else if (type === 'ledger') {
-        this.prompt.innerHTML = `<span class="pixel-icon icon-closed-logbook size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click Logbook to Select Voyage`;
-      } else if (type === 'ship') {
-        const shipName = this.dockStall?.activeShipProfile?.name || 'Vessel';
-        this.prompt.innerHTML = `<span class="pixel-icon icon-hammer size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shipyard &amp; Alter ${shipName}`;
-      } else if (type === 'shipyard') {
-        this.prompt.innerHTML = `<span class="pixel-icon icon-hammer size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shipyard`;
-      } else if (this.mode === 'player') {
-        this.prompt.innerHTML = `<span class="pixel-icon icon-cabin-door-exit size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shop`;
-      } else {
-        this.prompt.innerHTML = `<span class="pixel-icon icon-cabin-door-exit size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Exit Shop`;
+        this.prompt.style.display = 'flex';
+          if (type === 'crab') {
+            this.prompt.innerHTML = `🦀 <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click Crab Clerk to Speak`;
+          } else if (type === 'divorcePost') {
+            this.prompt.innerHTML = `<span class="pixel-icon icon-map-maker-scroll size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Read Divorce Papers`;
+          } else if (type === 'ghost') {
+            this.prompt.innerHTML = `<span class="pixel-icon icon-phantom-ghost size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click Ghost to Barter Wares`;
+          } else if (type === 'bunny') {
+            this.prompt.innerHTML = `<span class="pixel-icon icon-easter-bunny size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Pet Bunny`;
+          } else if (type === 'ledger') {
+            this.prompt.innerHTML = `<span class="pixel-icon icon-closed-logbook size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click Logbook to Select Voyage`;
+          } else if (type === 'ship') {
+            const shipName = this.dockStall?.activeShipProfile?.name || 'Vessel';
+            this.prompt.innerHTML = `<span class="pixel-icon icon-hammer size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shipyard &amp; Alter ${shipName}`;
+          } else if (type === 'shipyard') {
+            this.prompt.innerHTML = `<span class="pixel-icon icon-hammer size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shipyard`;
+          } else if (this.mode === 'player') {
+            this.prompt.innerHTML = `<span class="pixel-icon icon-cabin-door-exit size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shop`;
+          } else {
+            this.prompt.innerHTML = `<span class="pixel-icon icon-cabin-door-exit size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Exit Shop`;
+          }
+        } else {
+          this.domElement.style.cursor = 'default';
+          this.crosshair.style.transform = 'translate(-50%, -50%) scale(1.0)';
+          this.crosshair.style.background = 'rgba(255, 255, 255, 0.85)';
+          this.crosshair.style.borderColor = 'rgba(0, 0, 0, 0.6)';
+          this.prompt.style.display = 'none';
+        }
       }
-    } else {
-      this.domElement.style.cursor = 'default';
-      this.crosshair.style.transform = 'translate(-50%, -50%) scale(1.0)';
-      this.crosshair.style.background = 'rgba(255, 255, 255, 0.85)';
-      this.crosshair.style.borderColor = 'rgba(0, 0, 0, 0.6)';
-      this.prompt.style.display = 'none';
+
+      _interactWithGhost() {
+        emit('playSound', { sound: 'qte_success' });
+        if (this.isLocked && document.exitPointerLock) {
+          document.exitPointerLock();
+        }
+        emit('openShopUI');
+      }
+
+      // ---------------------------------------------------------------------------
+      // Disposal & Teardown
+      // ---------------------------------------------------------------------------
+
+      dispose() {
+        this._clearCutsceneTimers();
+        if (this._cutsceneOverlay && this._cutsceneOverlay.parentNode) {
+          this._cutsceneOverlay.parentNode.removeChild(this._cutsceneOverlay);
+          this._cutsceneOverlay = null;
+        }
+        this._unbindEvents();
+
+        if (this.voxelArms) {
+          this.voxelArms.dispose();
+          this.voxelArms = null;
+        }
+
+        if (this.emoteWheel) {
+          this.emoteWheel.dispose();
+          this.emoteWheel = null;
+        }
+
+        if (document.pointerLockElement === this.domElement) {
+          document.exitPointerLock();
+        }
+
+        if (this.yawObject && this.yawObject.parent) {
+          this.yawObject.parent.remove(this.yawObject);
+        }
+
+        if (this.uiContainer && this.uiContainer.parentNode) {
+          this.uiContainer.parentNode.removeChild(this.uiContainer);
+        }
+      }
     }
-  }
-
-  _interactWithGhost() {
-    emit('playSound', { sound: 'qte_success' });
-    if (this.isLocked && document.exitPointerLock) {
-      document.exitPointerLock();
-    }
-    emit('openShopUI');
-  }
-
-  // ---------------------------------------------------------------------------
-  // Disposal & Teardown
-  // ---------------------------------------------------------------------------
-
-  dispose() {
-    this._unbindEvents();
-
-    if (this.voxelArms) {
-      this.voxelArms.dispose();
-      this.voxelArms = null;
-    }
-
-    if (this.emoteWheel) {
-      this.emoteWheel.dispose();
-      this.emoteWheel = null;
-    }
-
-    if (document.pointerLockElement === this.domElement) {
-      document.exitPointerLock();
-    }
-
-    if (this.yawObject && this.yawObject.parent) {
-      this.yawObject.parent.remove(this.yawObject);
-    }
-
-    if (this.uiContainer && this.uiContainer.parentNode) {
-      this.uiContainer.parentNode.removeChild(this.uiContainer);
-    }
-  }
-}

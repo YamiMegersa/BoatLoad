@@ -1,38 +1,39 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { StudioFlyControls } from './StudioFlyControls.js';
-import { ShipBuilder }    from '../shipyard/ShipBuilder.js';
-import { ChunkRenderer }  from '../shipyard/ChunkRenderer.js';
+import { ShipBuilder } from '../shipyard/ShipBuilder.js';
+import { ChunkRenderer } from '../shipyard/ChunkRenderer.js';
 import { VoxelGrid, CellState } from '../shipyard/VoxelGrid.js';
-import { ShipRaycaster }  from '../shipyard/ShipRaycaster.js';
-import { BuildSystem }    from '../shipyard/BuildSystem.js';
-import { DamageSystem }   from '../shipyard/DamageSystem.js';
-import { BudgetManager }  from '../shipyard/BudgetManager.js';
-import { PlayerShip }     from '../obstacle/PlayerShip.js';
+import { ShipRaycaster } from '../shipyard/ShipRaycaster.js';
+import { BuildSystem } from '../shipyard/BuildSystem.js';
+import { DamageSystem } from '../shipyard/DamageSystem.js';
+import { BudgetManager } from '../shipyard/BudgetManager.js';
+import { PlayerShip } from '../obstacle/PlayerShip.js';
 import { ObstacleManager } from '../obstacle/ObstacleManager.js';
 import { QTEInputRouter } from '../obstacle/QTEInputRouter.js';
 import { EnvironmentManager } from '../environment/EnvironmentManager.js';
-import { SharkSkinRepair }    from '../environment/SharkSkinRepair.js';
-import { FishAnimator }       from '../environment/FishAnimator.js';
-import { Ocean }              from '../environment/Ocean.js';
-import { QTESystem }      from '../obstacle/QTESystem.js';
-import { Minimap }        from '../ui/Minimap.js';
-import { EditorUI }       from '../ui/EditorUI.js';
-import { EditorSystem }   from '../editor/EditorSystem.js';
-import { VoxelTerrain }   from '../editor/VoxelTerrain.js';
-import { WindManager }        from '../environment/WindManager.js';
-import { WindParticles }      from '../environment/WindParticles.js';
-import { SirenManager }       from '../monsters/SirenManager.js';
-import { KrakenBoss }         from '../monsters/KrakenBoss.js';
-import { Sky }                from '../environment/Sky.js';
+import { SharkSkinRepair } from '../environment/SharkSkinRepair.js';
+import { FishAnimator } from '../environment/FishAnimator.js';
+import { Ocean } from '../environment/Ocean.js';
+import { QTESystem } from '../obstacle/QTESystem.js';
+import { Minimap } from '../ui/Minimap.js';
+import { EditorUI } from '../ui/EditorUI.js';
+import { EditorSystem } from '../editor/EditorSystem.js';
+import { VoxelTerrain } from '../editor/VoxelTerrain.js';
+import { WindManager } from '../environment/WindManager.js';
+import { WindParticles } from '../environment/WindParticles.js';
+import { SirenManager } from '../monsters/SirenManager.js';
+import { KrakenBoss } from '../monsters/KrakenBoss.js';
+import { Sky } from '../environment/Sky.js';
 import { DockStall, DOCK_SCALE } from '../environment/DockStall.js';
 import { DockPlayerController } from '../environment/DockPlayerController.js';
-import { WeatherSystem }      from '../environment/WeatherSystem.js';
-import { DEBUG }              from '../utils/debug.js';
-import { LevelConfig }        from './LevelConfig.js';
-import { ClearCheckManager }   from '../community/ClearCheckManager.js';
+import { WeatherSystem } from '../environment/WeatherSystem.js';
+import { DEBUG } from '../utils/debug.js';
+import { LevelConfig } from './LevelConfig.js';
+import { ClearCheckManager } from '../community/ClearCheckManager.js';
 import { ShipRegistry, DEFAULT_SHIP_ID } from '../config/ShipRegistry.js';
 import { ShopRegistry, ItemType } from '../config/ShopRegistry.js';
+import { getCustomerForDay } from '../config/CustomerScript.js';
 import { getAssetUrl } from '../utils/paths.js';
 import { emit, on, off, clear } from './EventBus.js';
 
@@ -41,12 +42,12 @@ import { emit, on, off, clear } from './EventBus.js';
 // ---------------------------------------------------------------------------
 
 export const GamePhase = Object.freeze({
-  MAIN_MENU:'MAIN_MENU',
-  DOCK:     'DOCK',
+  MAIN_MENU: 'MAIN_MENU',
+  DOCK: 'DOCK',
   SHIPYARD: 'SHIPYARD',
   OBSTACLE: 'OBSTACLE',
-  EDITOR:   'EDITOR',
-  RESULTS:  'RESULTS',
+  EDITOR: 'EDITOR',
+  RESULTS: 'RESULTS',
 });
 
 // Mooring position & orientation at the West yard dock (T-head perpendicular berth across west pier terminus)
@@ -71,8 +72,8 @@ export class GameState {
    * @param {THREE.WebGLRenderer} renderer
    */
   constructor(scene, camera, renderer) {
-    this._scene    = scene;
-    this._camera   = camera;
+    this._scene = scene;
+    this._camera = camera;
     this._renderer = renderer;
 
     // Global ocean instance (persists across phases)
@@ -82,8 +83,8 @@ export class GameState {
     this.currentPhase = null;
 
     // Day / session data
-    this.day           = 1;
-    this.shipId        = 'sloop';
+    this.day = 1;
+    this.shipId = 'sloop';
     this.abilityInventory = [];
 
     // Economy and Shop System (Unified Doubloons)
@@ -95,63 +96,63 @@ export class GameState {
     // Active customer contract & sailing damage baseline
     this.currentContract = {
       day: 1,
-      baseBudget: 200,
+      baseBudget: 400,
       bargainBonus: 0,
-      agreedBudget: 200,
+      agreedBudget: 400,
       spentOnRepairs: 0
     };
     this._sailInitialIntactCount = null;
 
     // Phase-specific instances (null when not active)
-    this._grid          = null;
-    this._zones         = null;
-    this._levelCfg      = null;
-    this._docket        = null;   // current repair docket (shipyard)
+    this._grid = null;
+    this._zones = null;
+    this._levelCfg = null;
+    this._docket = null;   // current repair docket (shipyard)
     this._damageDebugOverlay = null;
-    this._sinkSnapshot  = null;   // wreck grid captured on playerSunk
+    this._sinkSnapshot = null;   // wreck grid captured on playerSunk
     this._allRepairsEmitted = false;
     this._onCellRepaired = null;
     this._onShipyardGridDirty = null;
-    this._shipDef       = null;
+    this._shipDef = null;
 
     this._chunkRenderer = null;
-    this._raycaster     = null;
-    this._buildSystem   = null;
+    this._raycaster = null;
+    this._buildSystem = null;
     this._orbitControls = null;
-    this._mouseNDC      = new THREE.Vector2();
+    this._mouseNDC = new THREE.Vector2();
 
     // Debug prototyping
-    this._debugShark      = null;
-    this._debugSharkAnim  = null;
+    this._debugShark = null;
+    this._debugSharkAnim = null;
     this._debugSharkBaseY = 0;
 
-    this._playerShip      = null;
+    this._playerShip = null;
     this._obstacleManager = null;
     this._environmentManager = null;
-    this._qteSystem       = null;
-    this._inputRouter     = null;
-    this._onPlayerSunk    = null;
-    this._minimap         = new Minimap();
-    this.score            = 0;
-    this._onScoreAdded    = (d) => { this.score += (d.points || 0); };
+    this._qteSystem = null;
+    this._inputRouter = null;
+    this._onPlayerSunk = null;
+    this._minimap = new Minimap();
+    this.score = 0;
+    this._onScoreAdded = (d) => { this.score += (d.points || 0); };
     on('scoreAdded', this._onScoreAdded);
-    this._editorUI        = new EditorUI();
-    this._editorSystem    = null;
-    this._windManager     = null;
+    this._editorUI = new EditorUI();
+    this._editorSystem = null;
+    this._windManager = null;
     this._dockWindParticles = null;
-    this._sirenManager    = null;
-    this._krakenBoss      = null;
-    this._time            = 0;
-    this._sky             = new Sky();
+    this._sirenManager = null;
+    this._krakenBoss = null;
+    this._time = 0;
+    this._sky = new Sky();
     this._sky.init(this._scene);
-    this._weather         = new WeatherSystem();
-    this._dockStall       = new DockStall();
-    this._hasDock         = true;
+    this._weather = new WeatherSystem();
+    this._dockStall = new DockStall();
+    this._hasDock = true;
     this._isCountdownActive = false;
     this._camShudderTrauma = 0;
-    this._onCameraShudder  = (d) => { this._camShudderTrauma = Math.min(1.0, (this._camShudderTrauma || 0) + (d.intensity || 0.4)); };
+    this._onCameraShudder = (d) => { this._camShudderTrauma = Math.min(1.0, (this._camShudderTrauma || 0) + (d.intensity || 0.4)); };
     on('cameraShudder', this._onCameraShudder);
-    
+
     // Ship arrival cutscene state
     this._shipDocked = true;
     this._shipArriving = false;
@@ -205,9 +206,9 @@ export class GameState {
     document.addEventListener('visibilitychange', this._boundClearKeys);
 
     this._boundPointerDown = this._onPointerDown.bind(this);
-    this._boundPointerUp   = this._onPointerUp.bind(this);
+    this._boundPointerUp = this._onPointerUp.bind(this);
     this._boundPointerMove = this._onPointerMove.bind(this);
-    this._pointerDownPos   = null;
+    this._pointerDownPos = null;
 
     on('toggleDenseFogUI', (d) => {
       if (this._environmentManager) {
@@ -278,9 +279,11 @@ export class GameState {
   }
 
   initContract(day, baseBudget) {
-    const b = typeof baseBudget === 'number' && !isNaN(baseBudget) ? baseBudget : 200;
+    const targetDay = (day !== undefined && day !== null) ? day : (this.day ?? 1);
+    const defaultBudget = getCustomerForDay(targetDay).basePay;
+    const b = typeof baseBudget === 'number' && !isNaN(baseBudget) ? baseBudget : defaultBudget;
     this.currentContract = {
-      day: day || this.day || 1,
+      day: targetDay,
       baseBudget: b,
       bargainBonus: 0,
       agreedBudget: b,
@@ -365,7 +368,8 @@ export class GameState {
     const isSunk = Boolean(opts.failed || opts.isSunk);
 
     // 1. Customer Repair Contract Accounting
-    const baseBudget = this.currentContract?.baseBudget ?? (this._levelCfg?.budget !== undefined ? this._levelCfg.budget : 200);
+    const defaultDayBudget = getCustomerForDay(day).basePay;
+    const baseBudget = this.currentContract?.baseBudget ?? (this._levelCfg?.budget !== undefined ? this._levelCfg.budget : defaultDayBudget);
     const bargainBonus = this.currentContract?.bargainBonus ?? 0;
     const agreedBudget = baseBudget + bargainBonus;
     const repairSpent = this.currentContract?.spentOnRepairs ?? (this._budgetManager?.spent ?? 0);
@@ -628,23 +632,23 @@ export class GameState {
 
             // Cubic Bezier interpolation: P = u^3*P0 + 3*u^2*tt*P1 + 3*u*tt^2*P2 + tt^3*P3
             const bx = u * u * u * this._dockMooredP0.x +
-                       3 * u * u * tt * this._dockMooredP1.x +
-                       3 * u * tt * tt * this._dockMooredP2.x +
-                       tt * tt * tt * this._dockMooredTargetPos.x;
+              3 * u * u * tt * this._dockMooredP1.x +
+              3 * u * tt * tt * this._dockMooredP2.x +
+              tt * tt * tt * this._dockMooredTargetPos.x;
 
             const bz = u * u * u * this._dockMooredP0.z +
-                       3 * u * u * tt * this._dockMooredP1.z +
-                       3 * u * tt * tt * this._dockMooredP2.z +
-                       tt * tt * tt * this._dockMooredTargetPos.z;
+              3 * u * u * tt * this._dockMooredP1.z +
+              3 * u * tt * tt * this._dockMooredP2.z +
+              tt * tt * tt * this._dockMooredTargetPos.z;
 
             // Analytical tangent derivative dP/d(ease) for realistic boat heading
             const tx = 3 * u * u * (this._dockMooredP1.x - this._dockMooredP0.x) +
-                       6 * u * tt * (this._dockMooredP2.x - this._dockMooredP1.x) +
-                       3 * tt * tt * (this._dockMooredTargetPos.x - this._dockMooredP2.x);
+              6 * u * tt * (this._dockMooredP2.x - this._dockMooredP1.x) +
+              3 * tt * tt * (this._dockMooredTargetPos.x - this._dockMooredP2.x);
 
             const tz = 3 * u * u * (this._dockMooredP1.z - this._dockMooredP0.z) +
-                       6 * u * tt * (this._dockMooredP2.z - this._dockMooredP1.z) +
-                       3 * tt * tt * (this._dockMooredTargetPos.z - this._dockMooredP2.z);
+              6 * u * tt * (this._dockMooredP2.z - this._dockMooredP1.z) +
+              3 * tt * tt * (this._dockMooredTargetPos.z - this._dockMooredP2.z);
 
             const tangentYaw = Math.atan2(tx, tz);
             // Smoothly align parallel to the pier (yaw = 0) in the final docking stretch
@@ -810,13 +814,16 @@ export class GameState {
       this._dockShipArrived = false;
       this._lastDockLevel = activeShipId;
       this._lastDockDay = this.day;
+      if (this._dockStall && this._dockStall.dockNPC) {
+        this._dockStall.dockNPC.reset();
+      }
     }
 
     // Build or update ship model if needed so it displays moored in the dock
     if (!this._grid || this._currentShipId !== activeShipId) {
       this._currentShipId = activeShipId;
       const { grid, zones, def, gltfScene } = await ShipBuilder.build(activeShipDef, this._levelCfg);
-      this._grid  = grid;
+      this._grid = grid;
       this._zones = zones;
       if (this._chunkRenderer) {
         this._chunkRenderer.dispose(this._scene);
@@ -852,7 +859,7 @@ export class GameState {
       const pierCenterZ = 12.0;
       const halfBeam = (this._grid?.width || 24) * s * 0.5;
       const draft = (shipProfile.waterlineY || 4) * s;
-      
+
       this._dockMooredTargetPos = new THREE.Vector3(pierTerminusX - halfBeam - 0.8, -draft, pierCenterZ);
       // Cubic Bezier curve control points:
       // P0: Off-screen to the far right (+X, seaward)
@@ -891,17 +898,21 @@ export class GameState {
 
     // Check if repairs are required
     const integrity = this._grid ? DamageSystem.getSummary(this._grid).integrityPct : 100;
+    const initialCustomer = getCustomerForDay(this.day);
     if (this._dockStall) {
       this._dockStall.shipNeedsRepair = integrity < 100;
-      this._dockStall.activeShipProfile = shipProfile;
+      this._dockStall.activeShipProfile = { ...shipProfile, name: initialCustomer?.shipName || shipProfile?.name };
     }
     // Set up fixed cinematic camera
     this._camera.position.set(0, 5, 20);
     this._camera.lookAt(0, 2, 0);
-    
+
     // Setup environment
     const stallGroup = this._dockStall.build();
-        stallGroup.visible = true; // undo draw-distance culling from a previous sailing run
+    if (this._dockStall.dockNPC && initialCustomer?.spritePath) {
+      this._dockStall.dockNPC.setSprite(initialCustomer.spritePath);
+    }
+    stallGroup.visible = true; // undo draw-distance culling from a previous sailing run
     if (stallGroup.parent !== this._scene) {
       this._scene.add(stallGroup);
     }
@@ -937,12 +948,27 @@ export class GameState {
 
     // Trigger cutscene & dialogue when a level is chosen in the logbook
     this._startLevelCutscene = () => {
+      if (this.day === 0) {
+        if (this._dockStall?.crab) {
+          this._dockStall.crab.reset();
+        }
+        if (this._dockPlayerController) {
+          this._dockPlayerController.startDay0OpeningCutscene();
+        }
+        return;
+      }
+
       if (this._shipArriving) return;
       this._dockShipArrived = false;
       this._shipDocked = false;
+      if (this._dockPlayerController) {
+        this._dockPlayerController.hideObjective();
+      }
 
-      // Start 2D humanoid sprite walk animation from island to counter if not already at counter
-      if (this._dockStall && this._dockStall.dockNPC && !this._dockStall.dockNPC.hasArrived) {
+      // Start 2D humanoid sprite walk animation from island to counter for the selected day's customer
+      const customer = getCustomerForDay(this.day);
+      if (this._dockStall && this._dockStall.dockNPC) {
+        this._dockStall.dockNPC.setSprite(customer.spritePath);
         this._dockStall.dockNPC.startWalkToCounter(() => {
           this._triggerShipArrivalAndDialogue();
         });
@@ -967,26 +993,25 @@ export class GameState {
           this._dockStall.shipInteractables = [this._dockMooredGroup];
         }
 
-        const shipName = this._mooredShipProfile?.name || shipProfile?.name || 'Vessel';
+        const customer = getCustomerForDay(this.day);
+        const spritePath = customer.spritePath || 'assets/npc/custom_npc.png';
         emit('showDialogue', {
           dialogue: {
-            portrait: `<img src="${getAssetUrl('assets/npc/custom_npc.png')}" alt="Captain Barlow" />`,
-            name: 'Captain Barlow',
-            lines: [
-              `Ahoy there shipwright! We ran into treacherous hazards offshore on Day ${this.day}!`,
-              `Look out your shop window—my crew is navigating the ${shipName} to the pier now!`,
-              `Head out and board her at the dock to repair her hull before we set sail again!`
-            ]
+            portrait: `<img src="${getAssetUrl(spritePath)}" alt="${customer.customerName}" />`,
+            name: `${customer.customerName} (${customer.customerRole})`,
+            lines: customer.lines,
+            voice: customer.voice
           }
         });
       }
     };
 
     this._onLevelSelected = async (data) => {
-      const day = data?.day || 1;
+      const day = (data?.day !== undefined && data?.day !== null) ? data.day : 1;
+      const customer = getCustomerForDay(day);
       emit('showLoading', {
-        title: `Summoning Day ${day}`,
-        message: `Preparing vessel & harbor conditions...`,
+        title: `Day ${day}: ${customer.shipName}`,
+        message: `Summoning ${customer.customerName} & preparing harbor conditions...`,
         progress: 0.15
       });
       this.day = day;
@@ -995,7 +1020,7 @@ export class GameState {
       const level = await LevelConfig.load(day);
       this._levelCfg = level.levelCfg;
       this._shipDef = level.shipDef;
-      this.initContract(day, this._levelCfg?.budget !== undefined ? this._levelCfg.budget : 200);
+      this.initContract(day, this._levelCfg?.budget !== undefined ? this._levelCfg.budget : customer.basePay);
       emit('updateLoading', { progress: 0.45 });
 
       // 2. Identify active ship & profile (Day 3 specifies 'sloop')
@@ -1007,10 +1032,14 @@ export class GameState {
       this._lastDockLevel = activeShipId;
       this._lastDockDay = this.day;
 
-      // 3. Reset ship arrival state so cutscene replays
+      // 3. Reset ship and NPC arrival state so cutscene replays for the selected day
       this._dockShipArrived = false;
       this._shipDocked = false;
       this._shipArriving = false;
+      if (this._dockStall && this._dockStall.dockNPC) {
+        this._dockStall.dockNPC.setSprite(customer.spritePath);
+        this._dockStall.dockNPC.reset();
+      }
 
       // 4. Rebuild the ship voxel grid and models for the selected day
       const { grid, zones, def, gltfScene } = await ShipBuilder.build(activeShipDef, this._levelCfg);
@@ -1070,7 +1099,7 @@ export class GameState {
       const integrity = this._grid ? DamageSystem.getSummary(this._grid).integrityPct : 100;
       if (this._dockStall) {
         this._dockStall.shipNeedsRepair = integrity < 100;
-        this._dockStall.activeShipProfile = shipProfile;
+        this._dockStall.activeShipProfile = { ...shipProfile, name: customer?.shipName || shipProfile?.name };
         this._dockStall.shipInteractables = [];
       }
 
@@ -1106,10 +1135,49 @@ export class GameState {
     };
     on('dockPlayerEnteredShop', this._onDockPlayerEnteredShop);
 
+    this._onInteractWithCrab = () => {
+      const crabCustomer = getCustomerForDay(0);
+      emit('showDialogue', {
+        dialogue: {
+          id: 'day0_crab',
+          portrait: `<div style="font-size: 56px; line-height: 1; display:flex; align-items:center; justify-content:center; width:100%; height:100%; background: radial-gradient(circle, #2a4d5e 0%, #152630 100%);">🦀</div>`,
+          name: `${crabCustomer.customerName} (${crabCustomer.customerRole})`,
+          lines: crabCustomer.lines,
+          voice: crabCustomer.voice,
+          onComplete: () => {
+            if (this._dockStall?.crab) {
+              this._dockStall.crab.scuttleOff();
+            }
+            emit('playSound', { sound: 'sinking_bell' });
+            if (this._dockPlayerController) {
+              this._dockPlayerController.setObjective(
+                `📜 Inspect the <strong>Divorce Papers</strong> nailed to the post where the dock meets land <span style="color:#ffd700;">[E or Click]</span>`
+              );
+            }
+          }
+        }
+      });
+    };
+    on('interactWithCrab', this._onInteractWithCrab);
+
+    this._onDivorcePapersRead = () => {
+      if (this.day === 0 && this._dockPlayerController) {
+        this._dockPlayerController.setObjective(
+          `🏠 Head into your <strong>Shipwright Shop</strong> on the dock and open the <strong>Logbook</strong> to begin repairs`
+        );
+      }
+    };
+    on('divorcePapersRead', this._onDivorcePapersRead);
+
     emit('uiMount', { screen: 'dock', dockStall: this._dockStall, gameState: this, dockPlayerController: this._dockPlayerController });
 
     if (opts?.openShop) {
       setTimeout(() => emit('openShopUI'), 300);
+    } else if (this.day === 0) {
+      if (this._dockStall?.crab) {
+        this._dockStall.crab.reset();
+      }
+      this._dockPlayerController.startDay0OpeningCutscene();
     }
   }
 
@@ -1121,6 +1189,14 @@ export class GameState {
     if (this._onDockPlayerEnteredShop) {
       off('dockPlayerEnteredShop', this._onDockPlayerEnteredShop);
       this._onDockPlayerEnteredShop = null;
+    }
+    if (this._onInteractWithCrab) {
+      off('interactWithCrab', this._onInteractWithCrab);
+      this._onInteractWithCrab = null;
+    }
+    if (this._onDivorcePapersRead) {
+      off('divorcePapersRead', this._onDivorcePapersRead);
+      this._onDivorcePapersRead = null;
     }
     emit('hideDialogue');
 
@@ -1182,7 +1258,7 @@ export class GameState {
       this._playerShip.mesh.visible = false;
       this._playerShip.mesh.position.set(0, -999, 0);
     }
-    
+
     // Set an unobstructed panoramic view of the open ocean and horizon
     this._camera.position.set(0, 5, 20);
     this._camera.lookAt(0, 5, -120);
@@ -1269,7 +1345,7 @@ export class GameState {
 
     // Setup island environment and breakwater
     const stallGroup = this._dockStall.build();
-        stallGroup.visible = true; // undo draw-distance culling from a previous sailing run
+    stallGroup.visible = true; // undo draw-distance culling from a previous sailing run
     if (stallGroup.parent !== this._scene) {
       this._scene.add(stallGroup);
     }
@@ -1307,7 +1383,7 @@ export class GameState {
       }
       this._currentShipId = activeShipId;
       const { grid, zones, def: builtDef, gltfScene } = await ShipBuilder.build(activeShipDef, this._levelCfg);
-      this._grid  = grid;
+      this._grid = grid;
       this._zones = zones;
       def = builtDef;
 
@@ -1324,7 +1400,11 @@ export class GameState {
     this._raycaster.build(this._grid, this._scene, this._chunkRenderer.container);
 
     // Budget manager for level repairs
-    const levelBudget = this.currentContract?.agreedBudget ?? (this._levelCfg?.budget !== undefined ? this._levelCfg.budget : 300);
+    if (!this.currentContract || this.currentContract.day !== this.day) {
+      const defaultBudget = this._levelCfg?.budget !== undefined ? this._levelCfg.budget : getCustomerForDay(this.day).basePay;
+      this.initContract(this.day, defaultBudget);
+    }
+    const levelBudget = this.currentContract?.agreedBudget ?? (this._levelCfg?.budget !== undefined ? this._levelCfg.budget : getCustomerForDay(this.day).basePay);
     if (!this._budgetManager) {
       this._budgetManager = new BudgetManager(levelBudget);
     } else {
@@ -1369,17 +1449,17 @@ export class GameState {
       this._debugShark.scale.setScalar(normScale);
       this._debugShark.position.set(shipWorldCenter.x - 2.5, shipWorldCenter.y - 0.4, shipWorldCenter.z + 1.2);
       this._scene.add(this._debugShark);
-      
+
       // Repair the missing skin so the Tail bone can deform the mesh
       const repair = SharkSkinRepair.repair(this._debugShark);
-      
+
       // Turn off frustum culling so the shark stays visible while animated
       this._debugShark.traverse(c => {
         if (c.isMesh || c.isSkinnedMesh) c.frustumCulled = false;
       });
 
       this._debugSharkBaseY = shipWorldCenter.y - 0.4;
-      this._debugSharkAnim  = new FishAnimator(
+      this._debugSharkAnim = new FishAnimator(
         this._debugShark,
         1.0
       );
@@ -1396,10 +1476,11 @@ export class GameState {
       const activeLeaks = DamageSystem.getActiveLeaks(this._grid, 4);
       const leaks = activeLeaks.length;
       const profile = ShipRegistry.get(activeShipId);
+      const customer = getCustomerForDay(this.day);
       emit('shipyardSummaryUpdated', {
         ...summary,
         leaks,
-        shipName: profile?.name || activeShipDef?.name || 'Vessel',
+        shipName: customer?.shipName || profile?.name || activeShipDef?.name || 'Vessel',
         shipIcon: profile?.icon || '<span class="pixel-icon icon-sloop size-20"></span>'
       });
     };
@@ -1462,14 +1543,14 @@ export class GameState {
     this._buildSystem?.reset();
     this._shipyardFlyControls?.dispose();
     this._shipyardFlyControls = null;
-    
+
     if (this._chunkRenderer && this._chunkRenderer.container) {
       this._chunkRenderer.container.scale.set(1, 1, 1);
     }
-    
+
     if (this._debugShark) {
       this._scene.remove(this._debugShark);
-      this._debugShark     = null;
+      this._debugShark = null;
       this._debugSharkAnim = null;
     }
 
@@ -1477,10 +1558,10 @@ export class GameState {
       this.currentContract.spentOnRepairs = this._budgetManager.spent;
     }
 
-    this._zones         = null;
-    this._docket        = null;
-    this._raycaster     = null;
-    this._buildSystem   = null;
+    this._zones = null;
+    this._docket = null;
+    this._raycaster = null;
+    this._buildSystem = null;
     this._orbitControls = null;
 
     emit('uiUnmount', { screen: 'shipyard' });
@@ -1576,8 +1657,8 @@ export class GameState {
 
     const rect = this._renderer.domElement.getBoundingClientRect();
     this._mouseNDC.set(
-      ((event.clientX - rect.left) / rect.width)  *  2 - 1,
-      -((event.clientY - rect.top)  / rect.height) *  2 + 1,
+      ((event.clientX - rect.left) / rect.width) * 2 - 1,
+      -((event.clientY - rect.top) / rect.height) * 2 + 1,
     );
 
     const result = this._raycaster.cast(this._mouseNDC, this._camera);
@@ -1591,8 +1672,8 @@ export class GameState {
 
     const rect = this._renderer.domElement.getBoundingClientRect();
     this._mouseNDC.set(
-      ((event.clientX - rect.left) / rect.width)  *  2 - 1,
-      -((event.clientY - rect.top)  / rect.height) *  2 + 1,
+      ((event.clientX - rect.left) / rect.width) * 2 - 1,
+      -((event.clientY - rect.top) / rect.height) * 2 + 1,
     );
 
     const result = this._raycaster.cast(this._mouseNDC, this._camera);
@@ -1653,7 +1734,7 @@ export class GameState {
         this._chunkRenderer = null;
       }
       const { grid, zones, def, gltfScene } = await ShipBuilder.build(activeShipDef, this._levelCfg);
-      this._grid  = grid;
+      this._grid = grid;
       this._zones = zones;
       this._chunkRenderer = new ChunkRenderer();
       this._chunkRenderer.init(grid, this._scene, gltfScene);
@@ -1675,7 +1756,7 @@ export class GameState {
 
     if (hasDock) {
       const stallGroup = this._dockStall.build();
-        stallGroup.visible = true; // undo draw-distance culling from a previous sailing run
+      stallGroup.visible = true; // undo draw-distance culling from a previous sailing run
       if (stallGroup.parent !== this._scene) {
         this._scene.add(stallGroup);
       }
@@ -1823,7 +1904,7 @@ export class GameState {
     this._environmentManager.init(this._scene, fishModels, levelCfg, this._qteSystem, this._ocean);
     this._sirenManager = new SirenManager();
     this._sirenManager.init(levelCfg, this._scene, sirenModel, rockModels, this._qteSystem);
-    
+
     this._windManager = new WindManager(levelCfg);
 
     // Pre-settle ship stably on ocean surface and orient camera
@@ -1996,7 +2077,7 @@ export class GameState {
         );
         return;
       }
-      
+
       const shipDir = new THREE.Vector3(-Math.sin(shipYaw), 0, -Math.cos(shipYaw));
       const rightDir = new THREE.Vector3(Math.cos(shipYaw), 0, -Math.sin(shipYaw));
 
@@ -2035,12 +2116,12 @@ export class GameState {
         );
         return;
       }
-      
+
       // Push camera outward relative to turn speed. 
       // If turning right (negative yawVel), targetOvershoot becomes negative.
       // rightDir is positive X (when facing -Z), so negative rightDir pushes left (outside the turn).
       const targetOvershoot = shipYawVel * 15.0; // scale factor
-      
+
       // Spring physics for the overshoot
       const springK = 25.0;
       const springDamp = 6.0;
@@ -2170,7 +2251,7 @@ export class GameState {
         this._camLookTarget.lerp(targetLook, Math.min(1.0, 8.0 * delta));
         this._camera.lookAt(this._camLookTarget);
       }
-      
+
       // Update Minimap
       this._minimap?.update(
         p,
@@ -2192,7 +2273,7 @@ export class GameState {
       const dx = shipPos.x - this._endLocation.position.x;
       const dz = shipPos.z - this._endLocation.position.z;
       const dist = Math.hypot(dx, dz);
-      
+
       emit('goalDistanceUpdate', {
         distance: Math.round(dist),
         targetRadius: this._endLocation.radius || 16
@@ -2363,15 +2444,15 @@ export class GameState {
     this._qteSystem?.dispose();
     this._chunkRenderer?.dispose(this._scene);
 
-    this._playerShip      = null;
+    this._playerShip = null;
     this._obstacleManager = null;
     this._environmentManager = null;
-    this._sirenManager       = null;
-    this._qteSystem       = null;
-    this._inputRouter     = null;
-    this._chunkRenderer   = null;
-    this._grid            = null;
-    this._windManager     = null;
+    this._sirenManager = null;
+    this._qteSystem = null;
+    this._inputRouter = null;
+    this._chunkRenderer = null;
+    this._grid = null;
+    this._windManager = null;
 
     if (this._voxelTerrain) {
       this._voxelTerrain.dispose();
@@ -2435,7 +2516,7 @@ export class GameState {
 
     if (hasDock) {
       const stallGroup = this._dockStall.build();
-        stallGroup.visible = true; // undo draw-distance culling from a previous sailing run
+      stallGroup.visible = true; // undo draw-distance culling from a previous sailing run
       if (stallGroup.parent !== this._scene) {
         this._scene.add(stallGroup);
       }
@@ -2485,11 +2566,11 @@ export class GameState {
       this._camera.position.set(0, 30, 20);
       this._camera.lookAt(0, 0, -5);
     }
-    
+
     if (this._ocean) {
       this._ocean.setWorldSize(levelCfg?.worldSize || 200);
     }
-    
+
     this._orbitControls = new OrbitControls(this._camera, this._renderer.domElement);
     this._orbitControls.mouseButtons = {
       LEFT: THREE.MOUSE.NONE,
@@ -2505,7 +2586,7 @@ export class GameState {
 
     this._editorSystem = new EditorSystem();
     this._editorSystem.init(
-      this._scene, this._camera, this._renderer, 
+      this._scene, this._camera, this._renderer,
       levelCfg, rockModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel
     );
 
@@ -2551,12 +2632,12 @@ export class GameState {
     if (this._orbitControls && this._orbitControls.enabled) {
       // WASD panning for editor
       const speed = 40 * delta;
-      
+
       const forward = new THREE.Vector3();
       this._camera.getWorldDirection(forward);
       forward.y = 0;
       forward.normalize();
-      
+
       const right = new THREE.Vector3();
       right.crossVectors(forward, this._camera.up).normalize();
 
@@ -2565,7 +2646,7 @@ export class GameState {
       if (this._keys['KeyS']) move.sub(forward);
       if (this._keys['KeyA']) move.sub(right);
       if (this._keys['KeyD']) move.add(right);
-      
+
       if (this._keys['KeyE'] || this._keys['Space']) move.y += 1;
       if (this._keys['KeyQ'] || this._keys['ShiftLeft']) move.y -= 1;
 
@@ -2598,7 +2679,7 @@ export class GameState {
 
     this._editorSystem?.dispose();
     this._editorSystem = null;
-    
+
     this._orbitControls?.dispose();
     this._orbitControls = null;
 

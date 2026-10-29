@@ -35,15 +35,7 @@ export class DockUI {
       btn.onmouseenter = () => btn.style.borderColor = '#ffd700';
       btn.onmouseleave = () => btn.style.borderColor = '#8c6507';
       btn.onclick = async () => {
-        this.gameState.day = i;
-        await this.gameState._weather.loadLevel(i, {
-          ambient: this.gameState._ambient,
-          sun: this.gameState._sun,
-          ocean: this.gameState._ocean,
-          sky: this.gameState._sky,
-          lanternLight: this.dockStall.lanternLight,
-          scene: this.gameState._scene
-        });
+        emit('levelSelected', { day: i });
       };
       dayButtons.appendChild(btn);
     }
