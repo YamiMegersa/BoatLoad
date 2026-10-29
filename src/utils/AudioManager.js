@@ -1553,20 +1553,23 @@ export class AudioManager {
 
     if (!isRoughOcean) {
       // Tranquil waters: ONLY calm sailing noises (`Sailing.mp3`) play; `rough_ocean` is 0.
-      const sailingBase = 0.08 + Math.min(1.1, speedRatio) * 0.24 + steerAggression * 0.06;
+      // Generous, crisp base presence and dynamic speed/steering scaling so gentle water hull wash
+      // and splashing are clearly audible and blend with background music.
+      const sailingBase = 0.58 + Math.min(1.2, speedRatio) * 0.52 + steerAggression * 0.32;
       sailingGain = sailingBase * globalDuck;
-      sailingRate = Math.max(0.80, Math.min(1.28,
-        0.86 + speedRatio * 0.22 + steerAggression * 0.10 + swellWave
+      sailingRate = Math.max(0.84, Math.min(1.36,
+        0.90 + speedRatio * 0.28 + steerAggression * 0.16 + swellWave
       ));
-      sailingFilterFreq = Math.round(1050 + speedRatio * 1850 + steerAggression * 400);
+      // Open up filter (4.2 kHz up to 11 kHz) to let the sparkling water splashes and wash ring through
+      sailingFilterFreq = Math.round(4200 + Math.min(1.2, speedRatio) * 4600 + steerAggression * 2200);
     } else {
       // Rough ocean level: ONLY rough ocean sounds (`rough_ocean.mp3`) play; calm `sailing` is 0.
       const roughEnergy = Math.min(1.0, 0.45 + waveRoughness * 0.35 + steerAggression * 0.35 + speedRatio * 0.20);
-      roughGain = (0.22 + roughEnergy * 0.24) * globalDuck;
-      roughRate = Math.max(0.82, Math.min(1.34,
-        0.88 + speedRatio * 0.18 + steerAggression * 0.18 + waveRoughness * 0.06 + swellWave
+      roughGain = (0.38 + roughEnergy * 0.48) * globalDuck;
+      roughRate = Math.max(0.84, Math.min(1.36,
+        0.88 + speedRatio * 0.22 + steerAggression * 0.20 + waveRoughness * 0.08 + swellWave
       ));
-      roughFilterFreq = Math.round(850 + roughEnergy * 1950 + speedRatio * 450);
+      roughFilterFreq = Math.round(3200 + roughEnergy * 5500 + speedRatio * 1500);
     }
 
     // 2. HOWLING WIND / WHIRLPOOL (`Sea-storm-wind-308764.mp3`)
@@ -1583,7 +1586,7 @@ export class AudioManager {
       if (isRoughOcean) {
         // Ensure rough ocean slightly overtakes the howling wind sound
         if (roughGain < rawWindGain * 1.25) {
-          roughGain = Math.min(0.52 * globalDuck, rawWindGain * 1.25);
+          roughGain = Math.min(0.85 * globalDuck, rawWindGain * 1.25);
         }
         rawWindGain = Math.min(rawWindGain, roughGain * 0.76);
       }
@@ -1750,7 +1753,7 @@ export class AudioManager {
 
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(target.filterFreq || 1400, t);
+    filter.frequency.setValueAtTime(target.filterFreq || 5200, t);
 
     const gainNode = ctx.createGain();
     gainNode.gain.setValueAtTime(0.0001, t);
