@@ -32,7 +32,9 @@ test('ResultsUI: non-community level results menu is streamlined with only saili
   assert.match(resultsSrc, /emit\('requestPhaseChange',\s*\{\s*phase:\s*GamePhase\.DOCK/, 'Dock button must emit requestPhaseChange to DOCK');
 });
 
-test('ResultsUI: ui.css styles dock-action prominently', () => {
+test('ResultsUI: ui.css styles dock-action prominently and does not display over paper roster png', () => {
   const css = fs.readFileSync(path.join(__dirname, '../src/ui/ui.css'), 'utf8');
   assert.match(css, /\.dock-action\s*\{[^}]*color:\s*#ffd700;/, 'dock-action must have gold text accent');
+  assert.ok(!css.includes('frame_results_manifest.png'), 'Must not display over frame_results_manifest.png paper roster');
+  assert.match(css, /\.results-container\s*\{[^}]*background:\s*radial-gradient/, 'results-container must use dark gradient background');
 });

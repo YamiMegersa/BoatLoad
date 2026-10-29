@@ -5677,15 +5677,11 @@ body {
 
 .results-container {
   width: min(92vw, 560px);
-  background: #101722;
-  border-style: solid !important;
-  border-width: 28px !important;
-  border-image: url('/assets/ui/frames/frame_results_manifest.png') 32 fill stretch !important;
-  image-rendering: pixelated;
-  image-rendering: crisp-edges;
-  box-shadow: 0 16px 45px rgba(0, 0, 0, 0.95), 0 0 30px rgba(212, 175, 55, 0.3) !important;
-  border-radius: 0 !important;
-  padding: 20px 24px 28px 24px;
+  background: radial-gradient(circle at 50% 0%, #1e293b 0%, #0f172a 75%, #090d16 100%);
+  border: 2px solid #d4af37;
+  box-shadow: 0 0 40px rgba(212, 175, 55, 0.25), 0 20px 45px rgba(0, 0, 0, 0.95);
+  border-radius: 12px;
+  padding: 26px 24px 28px 24px;
   display: flex;
   flex-direction: column;
   align-items: center;
