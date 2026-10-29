@@ -12,7 +12,6 @@ import {
 const wheelImage = getAssetUrl('assets/wheels/wheel_threshold.png');
 
 const DEFAULT_TIMING_ICON = '<span class="pixel-icon icon-harpoon size-16"></span>';
-const CANNON_TIMING_ICON = '<span class="pixel-icon icon-swivel-cannon size-16"></span>';
 
 /**
  * HUD — obstacle phase HUD overlay.
@@ -21,11 +20,10 @@ const CANNON_TIMING_ICON = '<span class="pixel-icon icon-swivel-cannon size-16">
  *  - Hull HP & Water Ingress widget (top-left)
  *  - Day & Doubloon counter pill (top-left)
  *  - Three permanent, screen-anchored Nautical QTE Instrument Stations:
- *      1. Starboard Chronometer (#qte-station-timing) — HARPOON / SHOOT
+ *      1. Starboard Chronometer (#qte-station-timing) — HARPOON
  *      2. Port Bilge Pump Well (#qte-station-bail)    — BAIL
  *      3. Gunwale Siren Ward Rail (#qte-station-siren) — SIREN
  *  - Mobile Harpoon Quick Action Button (bottom-left on coarse pointers)
- *  - Cannon ammo & FIRE prompt (bottom)
  *  - On-screen Steering wheel (bottom-right)
  */
 export class HUD {
@@ -48,9 +46,6 @@ export class HUD {
     this._score = 0;
     this._qteResolveTimers = new Map();
     this._bannerTimer = null;
-    this._ammoState = { ammo: 0, cannon: false };
-    this._canFire = false;
-    this._fireBtnEl = null;
 
     // Kraken boss HUD state
     this._bossHPBar = null;
@@ -82,9 +77,6 @@ export class HUD {
     on('sirenWarning', d => this._showBanner(d));
     this._onSirenPull = d => { this._stationController.noteSirenPull(d); this._updateSirenPull(d); };
     on('sirenPulling', this._onSirenPull);
-    on('ammoChanged', d => this._updateAmmo(d));
-    on('cannonPrompt', d => this._updateCannonPrompt(d));
-    on('cannonResult', d => this._showBanner({ label: d.result === 'hit' ? 'DIRECT HIT — BARREL CLEARED' : 'SHOT MISSED' }));
     on('waterBailed', d => this._showBanner({ label: `BAILED ${d.removed}% WATER — CIRCLE ${d.accuracy}%` }));
     on('waterBailFailed', () => this._showBanner({ label: 'INCOMPLETE LOOP — TRY AGAIN' }));
     on('qteDebugResult', d => this._showDebugQTEResult(d));
@@ -245,7 +237,6 @@ export class HUD {
         </div>
         <div id="hud-qte-debug" style="margin-top: 10px; pointer-events: auto;">
           <span>QTE Debug:</span>
-          <button type="button" data-qte-source="barrel">Shoot</button>
           <button type="button" data-qte-source="shark">Harpoon</button>
           <button type="button" data-qte-source="bail">Bail</button>
           <button type="button" data-qte-source="siren">Siren</button>
@@ -254,7 +245,7 @@ export class HUD {
       </div>
 
       <!-- Permanent Static QTE Nautical HUD Instruments -->
-      <!-- 1. Starboard Chronometer Gauge (HARPOON & SHOOT) -->
+      <!-- 1. Starboard Chronometer Gauge (HARPOON) -->
       <section id="qte-station-timing" class="qte-station qte-timing-station is-idle" aria-hidden="false">
         <div class="qte-station-header">
           <span class="qte-icon">${DEFAULT_TIMING_ICON}</span>
@@ -334,11 +325,6 @@ export class HUD {
 
       <!-- Floating Points Notification Container -->
       <div id="hud-bonus-container"></div>
-
-      <div id="hud-ammo"><span class="pixel-icon icon-swivel-cannon size-18"></span> ∞</div>
-
-      <!-- Cannon FIRE prompt (edge-triggered while a barrel is in range) -->
-      <button id="hud-fire-btn" type="button" style="display: none;"><span class="pixel-icon icon-cannon-flash size-18"></span> FIRE (Space)</button>
 
       <!-- Dark Souls-inspired Kraken Boss HUD (slimmer, smaller, bottom of screen) -->
       <div id="hud-boss" class="dark-souls-boss-bar" style="display:none;">
@@ -498,23 +484,12 @@ export class HUD {
       });
     }
 
-    // Cannon: the touch button starts a shot; keyboard Space is routed centrally.
-    this._fireBtnEl = this._el.querySelector('#hud-fire-btn');
-    this._fireBtnEl?.addEventListener('pointerdown', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      emit('cannonFire');
-    });
-
     // Pause / Settings trigger button
     this._el.querySelector('#hud-btn-pause')?.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
       emit('requestPause');
     });
-
-    // ammoChanged fires in _enterObstacle before uiMount — replay stored state
-    this._applyAmmo();
 
     // Steering Wheel Interaction
     this._wheelAngle = 0;
@@ -666,8 +641,6 @@ export class HUD {
       off('denseFogChanged', this._onDenseFogChanged);
       this._onDenseFogChanged = null;
     }
-    this._fireBtnEl = null;
-    this._canFire = false;
     if (this._onSirenPulling) {
       off('sirenPulling', this._onSirenPulling);
       this._onSirenPulling = null;
@@ -908,17 +881,14 @@ export class HUD {
       if (perfectArcEl) perfectArcEl.setAttribute('d', arcs.perfectPath);
 
       if (entry.state === 'active') {
-        const defaultIcon = entry.type === 'SHOOT' ? CANNON_TIMING_ICON : DEFAULT_TIMING_ICON;
-        const defaultColor = entry.type === 'SHOOT' ? '#ff9800' : '#00bcd4';
-        el.style.setProperty('--qte-theme', theme?.color ?? defaultColor);
-        if (iconEl) iconEl.innerHTML = theme?.icon ?? defaultIcon;
-        if (labelEl) labelEl.textContent = entry.label || (entry.type === 'SHOOT' ? 'CANNON' : 'HARPOON');
+        el.style.setProperty('--qte-theme', theme?.color ?? '#00bcd4');
+        if (iconEl) iconEl.innerHTML = theme?.icon ?? DEFAULT_TIMING_ICON;
+        if (labelEl) labelEl.textContent = entry.label || 'HARPOON';
         if (pillEl) pillEl.textContent = entry.queuedType ? 'LOCK+1' : 'LOCKED';
         if (hintEl) hintEl.textContent = 'TAP / [SPACE] IN ZONE';
         if (resultEl) resultEl.textContent = '';
       } else if (entry.state === 'queued') {
-        const queuedIcon = entry.type === 'SHOOT' ? CANNON_TIMING_ICON : DEFAULT_TIMING_ICON;
-        if (iconEl) iconEl.innerHTML = theme?.icon ?? queuedIcon;
+        if (iconEl) iconEl.innerHTML = theme?.icon ?? DEFAULT_TIMING_ICON;
         if (labelEl) labelEl.textContent = entry.label || 'INCOMING';
         if (pillEl) pillEl.textContent = 'QUEUED';
         if (hintEl) hintEl.textContent = 'LOCKING TARGET...';
@@ -1201,25 +1171,6 @@ export class HUD {
     });
   }
 
-  /** Cannon ammo pill: real count on cannon days, ∞ placeholder on day 1. */
-  _updateAmmo({ ammo = 0, cannon = false } = {}) {
-    const spentLastShell = this._ammoState.cannon && this._ammoState.ammo > 0 && cannon && ammo === 0;
-    this._ammoState = { ammo, cannon };
-    this._applyAmmo();
-    if (spentLastShell) this._showBanner({ label: 'LAST SHELL FIRED — CANNON EMPTY' });
-  }
-
-  _applyAmmo() {
-    const el = this._el?.querySelector('#hud-ammo');
-    if (el) el.innerHTML = this._ammoState.cannon ? `<span class="pixel-icon icon-swivel-cannon size-18"></span> ${this._ammoState.ammo}` : '<span class="pixel-icon icon-swivel-cannon size-18"></span> ∞';
-  }
-
-  /** Toggle the FIRE prompt; Space fires only while it is visible. */
-  _updateCannonPrompt({ canFire = false } = {}) {
-    this._canFire = canFire;
-    if (this._fireBtnEl) this._fireBtnEl.style.display = canFire ? 'block' : 'none';
-  }
-
   // -----------------------------------------------------------------------
   // Kraken Boss HUD methods
   // -----------------------------------------------------------------------
@@ -1295,9 +1246,6 @@ export class HUD {
     off('qteSuccess', this._onQTESuccess); off('qteFail', this._onQTEFail);
     off('sirenPulling', this._onSirenPull);
     off('scoreAdded', this._onScore);
-    off('ammoChanged');
-    off('cannonPrompt');
-    off('cannonResult');
     off('waterBailed');
     off('waterBailFailed');
     off('qteDebugResult');

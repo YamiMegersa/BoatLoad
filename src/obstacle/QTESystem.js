@@ -1,7 +1,6 @@
 import { emit, on, off } from '../core/EventBus.js';
 
 export const QTEType = Object.freeze({
-  SHOOT: 'SHOOT',
   HARPOON: 'HARPOON',
   BAIL: 'BAIL',
   SIREN: 'SIREN',
@@ -11,10 +10,8 @@ export const QTE_SOURCES = Object.freeze({
   // Shark harpoon hits grant extra doubloons (up to 25);
   // every other source resolves gameplay but awards no points.
   shark: { type: QTEType.HARPOON, reward: 15, perfectReward: 25, streakBonus: false },
-  barrel: { type: QTEType.SHOOT, reward: 0, perfectReward: 0, streakBonus: false },
   siren: { type: QTEType.SIREN, reward: 0, perfectReward: 0, streakBonus: false },
   bail: { type: QTEType.BAIL, reward: 0, perfectReward: 0, streakBonus: false },
-  cannon: { type: QTEType.SHOOT, reward: 0, perfectReward: 0, streakBonus: false },
 });
 
 export function computePoints(source, isPerfect, streak) {
@@ -24,11 +21,6 @@ export function computePoints(source, isPerfect, streak) {
 }
 
 export const QTE_DEFINITIONS = Object.freeze({
-  [QTEType.SHOOT]: {
-    input: 'timing', keys: { tap: 'Space' }, windowMs: 1800, priority: 20,
-    label: 'FIRE!', prompt: 'Tap in the green zone', sweetSpot: [0.42, 0.62],
-    theme: { color: '#ff9800', icon: '<span class="pixel-icon icon-explosion-burst size-18"></span>', sound: 'barrel_shot' },
-  },
   [QTEType.HARPOON]: {
     input: 'timing', keys: { tap: 'Space' }, windowMs: 2000, priority: 30,
     label: 'HARPOON!', prompt: 'Tap in the green zone', sweetSpot: [0.40, 0.60],

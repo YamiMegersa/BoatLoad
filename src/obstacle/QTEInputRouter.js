@@ -18,13 +18,11 @@ export class QTEInputRouter {
     target = globalThis.window,
     documentRef = globalThis.document,
     qteSystem,
-    canFire = () => false,
     isDirectorActive = () => false,
   }) {
     this._target = target;
     this._document = documentRef;
     this._qteSystem = qteSystem;
-    this._canFire = canFire;
     this._isDirectorActive = isDirectorActive;
     this._down = false;
     this._consumedDown = false;
@@ -66,12 +64,6 @@ export class QTEInputRouter {
         this._consume(event);
         emit('qteInput', { kind });
       }
-      return;
-    }
-
-    if (this._canFire()) {
-      this._consume(event);
-      emit('cannonFire');
     }
   }
 

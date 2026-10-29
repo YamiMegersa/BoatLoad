@@ -18,7 +18,6 @@ import { GamePhase } from '../core/GameState.js';
  * @property {THREE.Sphere|null} sphere  Bounding sphere (barrels)
  * @property {number}          scrollSpeed  Z units per second
  * @property {boolean}         active    false = collision disabled, pending removal
- * @property {boolean}         qteResolved  barrel-specific: true = QTE shot succeeded
  * @property {number}          damage    HP to deduct on hit
  * @property {number|null}     pullForce Whirlpool lateral force magnitude
  */
@@ -406,7 +405,6 @@ export class ObstacleManager {
     this._islandModels = islandModels;
     this._sirenModel = sirenModel;
     this._qteSystem = qteSystem ?? null;
-    this._cannonCfg = levelCfg?.cannon ?? null; // days with a cannon fire manually
     this._obstacles = [];
     this.playRadius = levelCfg.worldSize || 200;
     this._waveTime = 0;
@@ -632,8 +630,6 @@ export class ObstacleManager {
         }
       }
 
-      this._triggerBarrelQTE(obs, playerShip, distSq);
-
       // Check collision
       this._checkCollision(obs, playerShip, delta, distSq);
     }
@@ -738,9 +734,8 @@ export class ObstacleManager {
       return;
     }
 
-    // Barrel — sphere collision; skip if QTE resolved
+    // Barrel — sphere collision
     if (obs.type === 'barrel') {
-      if (obs.qteResolved) { obs.active = false; return; }
       if (ship.obb.intersectsSphere(obs.sphere)) {
         obs.active = false;
         obs.mesh.visible = false;
@@ -807,48 +802,6 @@ export class ObstacleManager {
       }
       this._resolveSolidCollision(obs, ship, delta);
     }
-  }
-
-  _triggerBarrelQTE(obs, ship, distSq) {
-    if (obs.type !== 'barrel' || obs.qteTriggered || !this._qteSystem || !ship) return;
-    // Days with a cannon (levelCfg.cannon) shoot barrels manually via the FIRE
-    // prompt; the free proximity QTE remains the day-1 tutorial only.
-    if (this._cannonCfg) return;
-    if (distSq !== undefined ? distSq > 100 : obs.mesh.position.distanceTo(ship.mesh.position) > 10) return;
-
-    const accepted = this._qteSystem.trigger({
-      source: 'barrel',
-      metadata: { source: 'barrel' },
-      onSuccess: () => {
-        obs.qteResolved = true;
-        obs.active = false;
-        obs.mesh.visible = false;
-        emit('spawnParticles', { type: 'massiveSplash', position: obs.mesh.position.clone() });
-      },
-    });
-    if (accepted) obs.qteTriggered = true;
-  }
-
-  /**
-   * Nearest shootable obstacle (barrels today; mines or sharks later) within
-   * range of the ship, or null. Powers the cannon FIRE prompt.
-   * @param {number} range  World units
-   * @param {import('./PlayerShip.js').PlayerShip} ship
-   * @returns {ObstacleDesc|null}
-   */
-  findShootTarget(range, ship) {
-    if (!ship) return null;
-    let best = null;
-    let bestDist = Infinity;
-    for (const obs of this._obstacles) {
-      if (!obs.active || obs.type !== 'barrel' || obs.qteResolved) continue;
-      const dist = obs.mesh.position.distanceTo(ship.mesh.position);
-      if (dist <= range && dist < bestDist) {
-        best = obs;
-        bestDist = dist;
-      }
-    }
-    return best;
   }
 
   /**

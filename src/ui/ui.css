@@ -1402,11 +1402,6 @@ body {
   transition: color 0.2s ease, text-shadow 0.2s ease;
 }
 
-#hud-ammo {
-  font-size: 16px;
-  font-weight: bold;
-}
-
 /* #hud is position:absolute, so these must be fixed to be placed against the
    screen. As absolute they were placed against the small HUD panel instead,
    which put the +points text on top of the Hull HP / Water box. */
@@ -1701,10 +1696,6 @@ body {
   #hud-mobile-harpoon {
     left: 20px;
     bottom: max(20px, env(safe-area-inset-bottom));
-  }
-
-  #hud-fire-btn {
-    bottom: max(18px, env(safe-area-inset-bottom));
   }
 
   #btn-mobile-harpoon {
@@ -4068,32 +4059,6 @@ body {
 
 .level-cards-list .level-card strong {
   color: #ffd700 !important;
-}
-
-/* Gameplay HUD refinements (kept last to override legacy center-card rules). */
-#hud #hud-fire-btn {
-  position: fixed;
-  left: 50%;
-  bottom: 24px;
-  transform: translateX(-50%);
-  padding: 11px 20px;
-  border: 2px solid #d7b77c;
-  border-radius: 5px;
-  background: linear-gradient(#72502f, #39291d);
-  color: #fff1cc;
-  font: 700 16px/1.2 serif;
-  letter-spacing: 1px;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.55);
-  cursor: pointer;
-  z-index: 150;
-  pointer-events: auto;
-  touch-action: manipulation;
-}
-
-@media (max-width: 600px) {
-  #hud #hud-fire-btn {
-    bottom: max(18px, env(safe-area-inset-bottom));
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

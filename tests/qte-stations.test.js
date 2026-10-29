@@ -9,7 +9,6 @@ import {
 } from '../src/ui/QTEStations.js';
 
 test('routes every QTE type to its fixed station', () => {
-  assert.equal(stationFor('SHOOT'), 'timing');
   assert.equal(stationFor('HARPOON'), 'timing');
   assert.equal(stationFor('BAIL'), 'bail');
   assert.equal(stationFor('SIREN'), 'siren');
@@ -62,15 +61,15 @@ test('finishResolve with stale sequence token never clobbers a newly started QTE
   const firstResolveSeq = controller.stations.timing.seq;
   assert.equal(controller.stations.timing.state, 'resolving');
 
-  // Before the 520ms resolve timer finishes, a queued SHOOT QTE starts on the same timing station
-  controller.start({ type: 'SHOOT', label: 'SHOOT!', sweetSpot: [0.35, 0.65] });
+  // Before the 520ms resolve timer finishes, a new HARPOON QTE starts on the same timing station
+  controller.start({ type: 'HARPOON', label: 'SECOND HARPOON!', sweetSpot: [0.35, 0.65] });
   assert.equal(controller.stations.timing.state, 'active');
-  assert.equal(controller.stations.timing.type, 'SHOOT');
+  assert.equal(controller.stations.timing.type, 'HARPOON');
 
   // The stale timer fires and must be ignored
   assert.equal(controller.finishResolve('timing', firstResolveSeq), false);
   assert.equal(controller.stations.timing.state, 'active');
-  assert.equal(controller.stations.timing.type, 'SHOOT');
+  assert.equal(controller.stations.timing.type, 'HARPOON');
 });
 
 test('chronometer dial math maps ratios and sweet-spot arcs accurately', () => {

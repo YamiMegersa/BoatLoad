@@ -1,7 +1,7 @@
 /** Pure routing, state machine, and SVG dial math for the static QTE HUD instruments. */
 
 export const stationFor = type => (
-  { SHOOT: 'timing', HARPOON: 'timing', BAIL: 'bail', SIREN: 'siren' }[type] ?? null
+  { HARPOON: 'timing', BAIL: 'bail', SIREN: 'siren' }[type] ?? null
 );
 
 const clamp01 = value => Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));

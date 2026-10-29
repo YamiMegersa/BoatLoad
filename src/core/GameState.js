@@ -1946,7 +1946,6 @@ export class GameState {
     this._inputRouter = new QTEInputRouter({
       target: window,
       qteSystem: this._qteSystem,
-      canFire: () => this._hasCannon && this._ammo > 0 && this._canFire,
       isDirectorActive: () => Boolean(window.directorMode?.isActive),
     });
 
@@ -2046,16 +2045,6 @@ export class GameState {
       emit('qteDebugResult', { source, accepted });
     };
     if (DEBUG) on('qteDebugTrigger', this._onDebugQTE);
-
-    // Cannon: ammo is per-run (restocked every Set Sail). Day 1 has no cannon
-    // config, so the free proximity barrel QTE stays as the tutorial.
-    this._hasCannon = Boolean(levelCfg?.cannon);
-    this._cannonRange = levelCfg?.cannon?.range ?? 14;
-    this._ammo = levelCfg?.cannon?.ammo ?? 0;
-    this._canFire = false;
-    this._onCannonFire = () => this._fireCannon();
-    on('cannonFire', this._onCannonFire);
-    emit('ammoChanged', { ammo: this._ammo, cannon: this._hasCannon });
 
     // Subtle camera impulse when a harpooned shark is hit
     this._camImpulse = 0;
@@ -2211,17 +2200,6 @@ export class GameState {
     }
 
     if (this._playerShip) {
-      // Edge-triggered FIRE prompt: shown only while shells remain and a
-      // barrel is in range, so Space stays free for the active QTE otherwise.
-      if (this._hasCannon && this._obstacleManager && this._qteSystem) {
-        const canFire = this._ammo > 0 &&
-          Boolean(this._obstacleManager.findShootTarget(this._cannonRange, this._playerShip));
-        if (canFire !== this._canFire) {
-          this._canFire = canFire;
-          emit('cannonPrompt', { canFire });
-        }
-      }
-
       const p = this._playerShip.mesh.position;
       const shipYaw = this._playerShip.yaw;
       const shipYawVel = this._playerShip.yawVelocity;
@@ -2614,7 +2592,6 @@ export class GameState {
 
     off('steer', this._onSteer);
     if (DEBUG) off('qteDebugTrigger', this._onDebugQTE);
-    off('cannonFire', this._onCannonFire);
     off('sharkHitConfirmed', this._onSharkHit);
     if (this._onPlayerSunk) off('playerSunk', this._onPlayerSunk);
     this._onPlayerSunk = null;
@@ -2659,48 +2636,6 @@ export class GameState {
     }
 
     emit('uiUnmount', { screen: 'obstacle' });
-  }
-
-  /**
-   * FIRE input: open the SHOOT timing QTE on the nearest in-range barrel.
-   * The shell is spent only when the trigger is accepted — while a cannon QTE
-   * is already active/queued trigger() returns false, so Space spam can't
-   * waste ammo.
-   */
-  _fireCannon() {
-    if (!this._hasCannon || this._ammo <= 0 || this._qteSystem?.hasActive()) return;
-    const target = this._obstacleManager?.findShootTarget(this._cannonRange, this._playerShip);
-    if (!target) return;
-
-    const start = this._playerShip.mesh.localToWorld(new THREE.Vector3(0.65, 0.8, -2));
-    const targetPosition = target.mesh.position.clone();
-    const accepted = this._qteSystem?.trigger({
-      source: 'cannon',
-      metadata: { source: 'cannon' },
-      onSuccess: ({ metadata }) => {
-        if (metadata.debug) return;
-        if (!target.active || target.qteResolved) {
-          emit('cannonResult', { result: 'miss' });
-          return;
-        }
-        target.qteResolved = true;
-        target.active = false;
-        target.mesh.visible = false;
-        emit('spawnParticles', { type: 'explosion', position: target.mesh.position.clone() });
-        emit('cannonResult', { result: 'hit' });
-      },
-      onFail: ({ metadata }) => {
-        if (metadata.debug) return;
-        const splashPosition = start.clone().lerp(targetPosition, 0.8);
-        emit('spawnParticles', { type: 'splash', position: splashPosition });
-        emit('cannonResult', { result: 'miss' });
-      },
-    });
-    if (!accepted) return;
-
-    emit('spawnParticles', { type: 'cannonShot', start, end: targetPosition });
-    this._ammo--;
-    emit('ammoChanged', { ammo: this._ammo, cannon: this._hasCannon });
   }
 
   // =========================================================================
