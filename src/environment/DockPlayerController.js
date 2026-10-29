@@ -80,6 +80,13 @@ export class DockPlayerController {
     this._cutsceneOverlay = null;
     this._cutsceneTimeouts = [];
 
+    // Day 0 Tutorial state
+    this.tutorialActive = false;
+    this.tutorialStep = null; // 'TALK_CRAB' | 'READ_NOTICE' | 'VISIT_SHIPYARD' | 'ENTER_SHOP' | 'OPEN_LOGBOOK'
+    this._tutorialPopupEl = null;
+    this._cleanupTutorialPopupInput = null;
+    this._lockedToastTimer = null;
+
     // UI elements
     this._createUI();
 
@@ -159,15 +166,30 @@ export class DockPlayerController {
     this.objectiveBanner.id = 'dock-objective-banner';
     this.objectiveBanner.style.cssText = `
       position: absolute; top: 22px; left: 50%; transform: translateX(-50%);
-      background: linear-gradient(180deg, rgba(32, 22, 14, 0.92) 0%, rgba(18, 12, 8, 0.92) 100%);
+      background: linear-gradient(180deg, rgba(32, 22, 14, 0.94) 0%, rgba(18, 12, 8, 0.94) 100%);
       color: #f8ecd1; padding: 10px 22px;
       border: 2px solid #d4af37; border-radius: 8px;
       font-family: Georgia, 'Times New Roman', serif; font-size: 15px; font-weight: bold;
       letter-spacing: 0.4px; display: none; align-items: center; gap: 10px;
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65); text-shadow: 0 1px 3px rgba(0,0,0,0.9);
-      user-select: none; z-index: 90;
+      user-select: none; z-index: 90; max-width: 86vw; text-align: center;
     `;
     this.uiContainer.appendChild(this.objectiveBanner);
+
+    // Soft-lock warning toast right below the objective banner
+    this.lockedToast = document.createElement('div');
+    this.lockedToast.id = 'dock-locked-toast';
+    this.lockedToast.style.cssText = `
+      position: absolute; top: 76px; left: 50%; transform: translateX(-50%);
+      background: linear-gradient(180deg, rgba(110, 22, 18, 0.95) 0%, rgba(72, 12, 10, 0.95) 100%);
+      color: #ffe4e1; padding: 8px 18px;
+      border: 1.5px solid #ff7b72; border-radius: 6px;
+      font-family: 'Segoe UI', system-ui, sans-serif; font-size: 13px; font-weight: 600;
+      letter-spacing: 0.3px; display: none; align-items: center; gap: 8px;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6); text-shadow: 0 1px 2px rgba(0,0,0,0.85);
+      user-select: none; z-index: 91;
+    `;
+    this.uiContainer.appendChild(this.lockedToast);
 
     const uiRoot = document.getElementById('ui-root') || document.body;
     uiRoot.appendChild(this.uiContainer);
@@ -221,6 +243,7 @@ export class DockPlayerController {
   _onKeyDown(e) {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     if (this.mode === 'cutscene') return;
+    if (this._tutorialPopupEl) return;
 
     switch (e.code) {
       case 'KeyW':
@@ -305,6 +328,7 @@ export class DockPlayerController {
 
   _onMouseMove(e) {
     if (this.mode === 'cutscene') return;
+    if (this._tutorialPopupEl) return;
     if (this.isLocked) {
       const movementX = e.movementX || 0;
       const movementY = e.movementY || 0;
@@ -327,6 +351,7 @@ export class DockPlayerController {
     // Left click
     if (e.button !== 0) return;
     if (this.mode === 'cutscene') return;
+    if (this._tutorialPopupEl) return;
     if (this.emoteWheel && this.emoteWheel.isOpen) return;
 
     if (this.hoveredCrab) {
@@ -399,6 +424,24 @@ export class DockPlayerController {
 
   toggleShop() {
     if (this.mode === 'player') {
+      // Enforce Day 0 tutorial soft-lock before entering the shop
+      if (this.tutorialActive) {
+        if (this.tutorialStep === 'TALK_CRAB') {
+          emit('playSound', { sound: 'qte_fail' });
+          this.showLockedHint('🔒 <b>Shop Locked:</b> Speak with <b>Clawdius Pinch, Esq.</b> on the beach first!');
+          return;
+        }
+        if (this.tutorialStep === 'READ_NOTICE') {
+          emit('playSound', { sound: 'qte_fail' });
+          this.showLockedHint('🔒 <b>Shop Locked:</b> Read the <b>Divorce Notice</b> nailed to the post where the dock meets land first!');
+          return;
+        }
+        if (this.tutorialStep === 'VISIT_SHIPYARD') {
+          emit('playSound', { sound: 'qte_fail' });
+          this.showLockedHint('🔒 <b>Shop Locked:</b> Head West along the stone trail and step into the <b>Shipyard</b> location circle first!');
+          return;
+        }
+      }
       this.enterShop();
     } else {
       this.exitShop();
@@ -427,10 +470,219 @@ export class DockPlayerController {
   }
 
   _interactWithDivorcePost() {
+    if (this.tutorialActive && this.tutorialStep === 'TALK_CRAB') {
+      emit('playSound', { sound: 'qte_fail' });
+      this.showLockedHint('🔒 <b>Notice Locked:</b> Speak with <b>Clawdius Pinch, Esq.</b> on the beach first!');
+      return;
+    }
     if (this.isLocked && document.exitPointerLock) {
       document.exitPointerLock();
     }
     emit('openDivorcePapers');
+  }
+
+  showLockedHint(html, ms = 3800) {
+    if (!this.lockedToast) return;
+    this.lockedToast.innerHTML = html;
+    this.lockedToast.style.display = 'flex';
+    if (this._lockedToastTimer) clearTimeout(this._lockedToastTimer);
+    this._lockedToastTimer = setTimeout(() => {
+      if (this.lockedToast) this.lockedToast.style.display = 'none';
+    }, ms);
+  }
+
+  showAreaPopup({ icon = '🧭', title, areaName, purposeText, actionText, buttonText = 'Got It — Continue [Space / Click]', onClose = null }) {
+    this.closeAreaPopup();
+
+    // Reset held movement keys and exit pointer lock so cursor can click button
+    this.keys.forward = false;
+    this.keys.backward = false;
+    this.keys.left = false;
+    this.keys.right = false;
+    this.keys.sprint = false;
+    this.keys.jump = false;
+    if (this.isLocked && document.exitPointerLock) {
+      document.exitPointerLock();
+    }
+
+    const popup = document.createElement('div');
+    popup.id = 'day0-tutorial-area-popup';
+    popup.style.cssText = `
+      position: fixed; inset: 0; z-index: 260;
+      background: rgba(6, 8, 12, 0.72); backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px; pointer-events: auto; user-select: none;
+    `;
+    popup.innerHTML = `
+      <div style="
+        max-width: 540px; width: 100%;
+        background: linear-gradient(180deg, #241911 0%, #160f0a 100%);
+        border: 2.5px solid #d4af37; border-radius: 10px;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.85), inset 0 0 24px rgba(212,175,55,0.12);
+        padding: 26px 30px; color: #f5ebd6;
+        font-family: Georgia, 'Times New Roman', serif;
+      ">
+        <div style="display:flex; align-items:center; gap:14px; margin-bottom:14px; border-bottom:1px solid rgba(212,175,55,0.35); padding-bottom:12px;">
+          <div style="
+            width: 48px; height: 48px; border-radius: 8px;
+            background: rgba(212, 175, 55, 0.16); border: 1.5px solid #d4af37;
+            display: flex; align-items: center; justify-content: center; font-size: 26px; flex-shrink: 0;
+          ">${icon}</div>
+          <div>
+            <div style="font-family: monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #d4af37; margin-bottom: 3px;">
+              ${areaName || 'Harbor Guide'}
+            </div>
+            <div style="font-size: 22px; font-weight: bold; color: #fff8e7; line-height: 1.2;">
+              ${title}
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 14px;">
+          <div style="font-family: monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; color: #eab308; margin-bottom: 5px;">
+            ⚓ Purpose of This Area
+          </div>
+          <div style="font-size: 15px; line-height: 1.55; color: #e8dcc4;">
+            ${purposeText}
+          </div>
+        </div>
+
+        <div style="
+          background: rgba(212, 175, 55, 0.10); border-left: 3px solid #ffd700;
+          padding: 11px 14px; border-radius: 0 6px 6px 0; margin-bottom: 20px;
+        ">
+          <div style="font-family: monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; color: #ffd700; margin-bottom: 4px;">
+            🧭 What To Do Next
+          </div>
+          <div style="font-size: 14.5px; line-height: 1.5; color: #fffdf7;">
+            ${actionText}
+          </div>
+        </div>
+
+        <button id="day0-area-popup-btn" style="
+          width: 100%; padding: 11px 18px; cursor: pointer;
+          background: linear-gradient(180deg, #d4af37 0%, #9a7418 100%);
+          color: #1a1108; font-family: Georgia, serif; font-size: 15px; font-weight: bold;
+          border: 1px solid #ffe57f; border-radius: 6px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.5); letter-spacing: 0.4px;
+        ">${buttonText}</button>
+      </div>
+    `;
+
+    const uiRoot = document.getElementById('ui-root') || document.body;
+    uiRoot.appendChild(popup);
+    this._tutorialPopupEl = popup;
+
+    const dismiss = (e) => {
+      if (e) {
+        if (e.type === 'keydown' && e.code !== 'Space' && e.code !== 'Enter') return;
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      emit('playSound', { sound: 'qte_success' });
+      this.closeAreaPopup();
+      if (onClose) onClose();
+    };
+
+    const btn = popup.querySelector('#day0-area-popup-btn');
+    if (btn) btn.addEventListener('click', dismiss);
+    popup.addEventListener('pointerdown', (e) => {
+      if (e.target === popup) dismiss(e);
+    });
+    window.addEventListener('keydown', dismiss);
+    this._cleanupTutorialPopupInput = () => {
+      window.removeEventListener('keydown', dismiss);
+    };
+  }
+
+  closeAreaPopup() {
+    if (this._cleanupTutorialPopupInput) {
+      this._cleanupTutorialPopupInput();
+      this._cleanupTutorialPopupInput = null;
+    }
+    if (this._tutorialPopupEl && this._tutorialPopupEl.parentNode) {
+      this._tutorialPopupEl.parentNode.removeChild(this._tutorialPopupEl);
+    }
+    this._tutorialPopupEl = null;
+  }
+
+  advanceTutorialStep(step) {
+    this.tutorialActive = true;
+    this.tutorialStep = step;
+
+    if (step === 'TALK_CRAB') {
+      if (this.dockStall) {
+        this.dockStall.setDivorcePostRingVisible(false);
+        this.dockStall.setShipyardTutorialCircleVisible(false);
+        this.dockStall.setShopDoorGlowVisible(false);
+      }
+      this.setObjective(
+        `🦀 <span style="color:#ffd700;">Step 1/4:</span> Approach and speak with <strong>Clawdius Pinch, Esq.</strong> on the beach <span style="color:#ffd700;">[E or Click]</span>`
+      );
+    } else if (step === 'READ_NOTICE') {
+      if (this.dockStall) {
+        this.dockStall.setDivorcePostRingVisible(true);
+        this.dockStall.setShipyardTutorialCircleVisible(false);
+        this.dockStall.setShopDoorGlowVisible(false);
+      }
+      this.setObjective(
+        `📜 <span style="color:#ffd700;">Step 2/4:</span> Walk up the beach trail to where the dock meets land and read the <strong>Divorce Notice</strong> on the post <span style="color:#ffd700;">[E or Click]</span>`
+      );
+    } else if (step === 'VISIT_SHIPYARD') {
+      if (this.dockStall) {
+        this.dockStall.setDivorcePostRingVisible(false);
+        this.dockStall.setShipyardTutorialCircleVisible(true);
+        this.dockStall.setShopDoorGlowVisible(false);
+      }
+      this.setObjective(
+        `⚓ <span style="color:#ffd700;">Step 3/4:</span> Follow the stone trail <strong>West</strong> across the island to the <strong>Shipyard</strong> and step into the glowing circle`
+      );
+      this.showAreaPopup({
+        icon: '📜',
+        areaName: 'Area 2 of 4 • Harbor Crossroads',
+        title: 'Notice Post & Island Trail',
+        purposeText: 'The Notice Post sits at the crossroads where the East Harbor Pier meets the island. From here, the stone lantern path winds West over the ridge directly to your Drydock Shipyard.',
+        actionText: 'Before you can open your shop for the week, follow the stone path <b>West</b> through the mountain pass to the <b>Shipyard</b> and step into the glowing <b>Location Circle</b>.'
+      });
+    } else if (step === 'ENTER_SHOP') {
+      if (this.dockStall) {
+        this.dockStall.setDivorcePostRingVisible(false);
+        this.dockStall.setShipyardTutorialCircleVisible(false);
+        this.dockStall.setShopDoorGlowVisible(true);
+      }
+      this.setObjective(
+        `🏠 <span style="color:#ffd700;">Step 4/4:</span> Head back <strong>East</strong> to the pier and enter your <strong>Shipwright Shop</strong> <span style="color:#ffd700;">[E or Click Door]</span>`
+      );
+      this.showAreaPopup({
+        icon: '⚓',
+        areaName: 'Area 3 of 4 • West Drydock',
+        title: 'The Drydock & Shipyard',
+        purposeText: 'Whenever you accept a repair contract, the customer\'s damaged vessel is towed to this berth. Here you inspect hull breaches, patch broken or flooded voxel timbers within budget, and launch the ship for its sea trial.',
+        actionText: 'Your drydock is ready for business! Follow the stone trail back <b>East</b> across the island onto the main pier and enter your glowing <b>Shipwright Shop Door</b>.'
+      });
+    } else if (step === 'OPEN_LOGBOOK') {
+      if (this.dockStall) {
+        this.dockStall.setDivorcePostRingVisible(false);
+        this.dockStall.setShipyardTutorialCircleVisible(false);
+        this.dockStall.setShopDoorGlowVisible(false);
+      }
+      this.setObjective(
+        `📖 <span style="color:#00ffaa;">Harbor Tour Complete!</span> Open the glowing <strong>Harbor Logbook</strong> on the counter to begin <strong>Day 1</strong> <span style="color:#ffd700;">[E or Click]</span>`
+      );
+      this.showAreaPopup({
+        icon: '🏠',
+        areaName: 'Area 4 of 4 • Shipwright Stall',
+        title: 'The Shipwright Shop & Counter',
+        purposeText: 'This is where captains arrive each morning to explain how they wrecked their vessel and haggle over the repair budget. Any repair budget you save — plus your sea-trial payout — goes toward paying off Marguerite\'s 7,000 doubloon divorce settlement.',
+        actionText: 'Click or press <b>[E]</b> on the glowing <b>Harbor Logbook</b> on the counter and select <b>Day 1</b> to welcome your first customer!'
+      });
+    }
+  }
+
+  _completeShipyardTutorialStep() {
+    if (!this.tutorialActive || this.tutorialStep !== 'VISIT_SHIPYARD') return;
+    emit('playSound', { sound: 'qte_success' });
+    this.advanceTutorialStep('ENTER_SHOP');
   }
 
   setObjective(html) {
@@ -741,7 +993,15 @@ _updateCutscene(delta) {
       this._cutsceneOverlay = null;
     }
 
-    this.setObjective(`🦀 Approach and speak with the <strong>Crab Clerk</strong> in the shallow water nearby <span style="color:#ffd700;">[E or Click]</span>`);
+    // Begin Step 1/4 of the Day 0 tutorial & show Area 1 popup for the Beach
+    this.advanceTutorialStep('TALK_CRAB');
+    this.showAreaPopup({
+      icon: '🏖️',
+      areaName: 'Area 1 of 4 • Northeast Beach',
+      title: 'Port Rotgut Island Beach',
+      purposeText: 'You washed up on the sandy north shore of Dock Island after Friday night\'s bender. This beach connects up the sandy slope to the Main Harbor Pier on the East and across the island trail to your Shipyard on the West.',
+      actionText: 'Use <b>WASD</b> to walk, <b>Shift</b> to sprint, and <b>Space</b> to jump. Approach <b>Clawdius Pinch, Esq.</b> (the crab lawyer in the suit ahead) and press <b>E</b> or <b>Click</b> to speak with him.'
+    });
 
     if (this._cutsceneOnComplete) {
       const cb = this._cutsceneOnComplete;
@@ -791,6 +1051,15 @@ _interactWithLedger() {
 }
 
 _interactWithShipyard() {
+  if (this.tutorialActive) {
+    if (this.tutorialStep === 'VISIT_SHIPYARD') {
+      this._completeShipyardTutorialStep();
+      return;
+    }
+    emit('playSound', { sound: 'qte_fail' });
+    this.showLockedHint('🔒 <b>No Vessel Berthed:</b> Head to your <b>Shipwright Shop</b> and open the <b>Logbook</b> to begin Day 1!');
+    return;
+  }
   emit('playSound', { sound: 'qte_success' });
   emit('gotoShipyard');
 }
@@ -829,6 +1098,10 @@ enterShop() {
   emit('playSound', { sound: 'qte_success' });
   emit('dockPlayerModeChanged', { mode: 'shop' });
   emit('dockPlayerEnteredShop');
+
+  if (this.tutorialActive && this.tutorialStep === 'ENTER_SHOP') {
+    this.advanceTutorialStep('OPEN_LOGBOOK');
+  }
 }
 
 exitShop() {
@@ -867,7 +1140,20 @@ update(delta) {
   }
 
   if (this.mode === 'player') {
-    this._updatePlayerMovement(delta);
+    if (!this._tutorialPopupEl) {
+      this._updatePlayerMovement(delta);
+    }
+
+    // Check if player stepped into the Day 0 Shipyard Location Circle
+    if (this.tutorialActive && this.tutorialStep === 'VISIT_SHIPYARD') {
+      const circleWorldX = (-22.0 - 31.0) * this.scale;
+      const circleWorldZ = 0.0;
+      const dx = this.yawObject.position.x - circleWorldX;
+      const dz = this.yawObject.position.z - circleWorldZ;
+      if (Math.hypot(dx, dz) <= 3.1 * this.scale) {
+        this._completeShipyardTutorialStep();
+      }
+    }
   }
 
   this._updateInteractionRaycast();
@@ -1186,9 +1472,17 @@ _setHoverState(obj, type = null) {
     if (type === 'crab') {
       this.prompt.innerHTML = `🦀 <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click Crab Clerk to Speak`;
     } else if (type === 'divorcePost') {
-      this.prompt.innerHTML = `<span class="pixel-icon icon-map-maker-scroll size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Read Divorce Papers`;
+      if (this.tutorialActive && this.tutorialStep === 'TALK_CRAB') {
+        this.prompt.innerHTML = `🔒 <span style="color:#ff9b94;">Speak with Crab Lawyer on Beach First</span>`;
+      } else {
+        this.prompt.innerHTML = `<span class="pixel-icon icon-map-maker-scroll size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Read Divorce Papers`;
+      }
     } else if (type === 'ghost') {
-      this.prompt.innerHTML = `<span class="pixel-icon icon-phantom-ghost size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click Ghost to Barter Wares`;
+      if (this.tutorialActive && this.tutorialStep !== 'OPEN_LOGBOOK') {
+        this.prompt.innerHTML = `🔒 <span style="color:#ff9b94;">Complete Harbor Tour First</span>`;
+      } else {
+        this.prompt.innerHTML = `<span class="pixel-icon icon-phantom-ghost size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click Ghost to Barter Wares`;
+      }
     } else if (type === 'bunny') {
       this.prompt.innerHTML = `<span class="pixel-icon icon-easter-bunny size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Pet Bunny`;
     } else if (type === 'ledger') {
@@ -1199,7 +1493,14 @@ _setHoverState(obj, type = null) {
     } else if (type === 'shipyard') {
       this.prompt.innerHTML = `<span class="pixel-icon icon-hammer size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shipyard`;
     } else if (this.mode === 'player') {
-      this.prompt.innerHTML = `<span class="pixel-icon icon-cabin-door-exit size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shop`;
+      if (this.tutorialActive && (this.tutorialStep === 'TALK_CRAB' || this.tutorialStep === 'READ_NOTICE' || this.tutorialStep === 'VISIT_SHIPYARD')) {
+        const reason = this.tutorialStep === 'TALK_CRAB'
+          ? 'Speak with Crab Lawyer First'
+          : (this.tutorialStep === 'READ_NOTICE' ? 'Read Notice Post First' : 'Visit Shipyard Circle First');
+        this.prompt.innerHTML = `🔒 <span style="color:#ff9b94;">Shop Locked — ${reason}</span>`;
+      } else {
+        this.prompt.innerHTML = `<span class="pixel-icon icon-cabin-door-exit size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shop`;
+      }
     } else {
       this.prompt.innerHTML = `<span class="pixel-icon icon-cabin-door-exit size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Exit Shop`;
     }
@@ -1213,6 +1514,11 @@ _setHoverState(obj, type = null) {
 }
 
 _interactWithGhost() {
+  if (this.tutorialActive && this.tutorialStep !== 'OPEN_LOGBOOK') {
+    emit('playSound', { sound: 'qte_fail' });
+    this.showLockedHint('🔒 <b>Ghost Merchant Locked:</b> Complete your harbor tour first! Check the instruction at the top.');
+    return;
+  }
   emit('playSound', { sound: 'qte_success' });
   if (this.isLocked && document.exitPointerLock) {
     document.exitPointerLock();
@@ -1226,6 +1532,16 @@ _interactWithGhost() {
 
 dispose() {
   this._clearCutsceneTimers();
+  this.closeAreaPopup();
+  if (this._lockedToastTimer) {
+    clearTimeout(this._lockedToastTimer);
+    this._lockedToastTimer = null;
+  }
+  if (this.dockStall) {
+    this.dockStall.setDivorcePostRingVisible(false);
+    this.dockStall.setShipyardTutorialCircleVisible(false);
+    this.dockStall.setShopDoorGlowVisible(false);
+  }
   if (this._cutsceneOverlay && this._cutsceneOverlay.parentNode) {
     this._cutsceneOverlay.parentNode.removeChild(this._cutsceneOverlay);
     this._cutsceneOverlay = null;

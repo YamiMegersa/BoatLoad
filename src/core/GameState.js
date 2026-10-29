@@ -1094,6 +1094,19 @@ export class GameState {
       emit('updateLoading', { progress: 1.0 });
       emit('hideLoading');
 
+      // Clear Day 0 tutorial state when a real voyage day is selected
+      if (this._dockPlayerController) {
+        this._dockPlayerController.tutorialActive = false;
+        this._dockPlayerController.tutorialStep = null;
+        this._dockPlayerController.closeAreaPopup();
+        this._dockPlayerController.hideObjective();
+      }
+      if (this._dockStall) {
+        this._dockStall.setDivorcePostRingVisible(false);
+        this._dockStall.setShipyardTutorialCircleVisible(false);
+        this._dockStall.setShopDoorGlowVisible(false);
+      }
+
       // 7. Start arrival cutscene
       this._startLevelCutscene();
     };
@@ -1119,9 +1132,7 @@ export class GameState {
             }
             emit('playSound', { sound: 'sinking_bell' });
             if (this._dockPlayerController) {
-              this._dockPlayerController.setObjective(
-                `📜 Inspect the <strong>Divorce Papers</strong> nailed to the post where the dock meets land <span style="color:#ffd700;">[E or Click]</span>`
-              );
+              this._dockPlayerController.advanceTutorialStep('READ_NOTICE');
             }
           }
         }
@@ -1131,9 +1142,9 @@ export class GameState {
 
     this._onDivorcePapersRead = () => {
       if (this.day === 0 && this._dockPlayerController) {
-        this._dockPlayerController.setObjective(
-          `🏠 Head into your <strong>Shipwright Shop</strong> on the dock and open the <strong>Logbook</strong> to begin repairs`
-        );
+        if (!this._dockPlayerController.tutorialActive || this._dockPlayerController.tutorialStep === 'READ_NOTICE') {
+          this._dockPlayerController.advanceTutorialStep('VISIT_SHIPYARD');
+        }
       }
     };
     on('divorcePapersRead', this._onDivorcePapersRead);
