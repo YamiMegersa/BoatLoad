@@ -2,7 +2,7 @@
   "day": 1,
   "ship": "sloop",
   "weather": "sunny",
-  "budget": 200,
+  "budget": 400,
   "qte": { "windowScale": 1 },
   "damage": [
     { "zone": "sail", "cells": [[9,6,2]],                  "state": "DAMAGED" },

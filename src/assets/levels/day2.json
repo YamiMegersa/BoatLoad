@@ -6,7 +6,7 @@
   ],
   "ship": "sloop",
   "weather": "overcast",
-  "budget": 250,
+  "budget": 600,
   "qte": { "windowScale": 0.95 },
   "damage": [
     { "zone": "sail", "cells": [[9,6,2]],                  "state": "DAMAGED" },

@@ -10,6 +10,7 @@ import { PauseMenu } from './ui/PauseMenu.js';
 import { DockUI } from './ui/DockUI.js';
 import { MainMenuUI } from './ui/MainMenuUI.js';
 import { LevelSelectorUI } from './ui/LevelSelectorUI.js';
+import { DivorcePapersUI } from './ui/DivorcePapersUI.js';
 import { LoadingScreenUI } from './ui/LoadingScreenUI.js';
 import { AnchorCountdownUI } from './ui/AnchorCountdownUI.js';
 import { ShopUI } from './ui/ShopUI.js';
@@ -207,20 +208,30 @@ window.addEventListener('keydown', (e) => {
 // reach hard-to-reach states quickly (sink, low water, day jumps).
 if (DEBUG) {
   window.__dev = {
-    sink:     () => emit('playerSunk'),
-    setWater: (n)  => { if (gameState._playerShip) gameState._playerShip.waterLevel = n; },
-    damage:   (n)  => gameState._playerShip?.takeDamage(n, 'dev'),
-    day:      (n)  => { gameState.day = n; },
+    sink: () => emit('playerSunk'),
+    setWater: (n) => { if (gameState._playerShip) gameState._playerShip.waterLevel = n; },
+    damage: (n) => gameState._playerShip?.takeDamage(n, 'dev'),
+    day: (n) => { gameState.day = n; },
   };
   console.info('[BoatLoad] Debug mode — window.__dev helpers: sink(), setWater(n), damage(n), day(n)');
 }
 
-// Audio: one global instance. Browsers suspend AudioContexts until the first
-// user gesture, so unlock on the first pointer/key input; M toggles mute.
+// Audio: one global instance. Browsers suspend AudioContexts until a valid
+// user activation gesture (click/pointerup/keydown), so keep trying until running; M toggles mute.
 const audio = new AudioManager();
-const unlockAudio = () => audio.unlock();
-window.addEventListener('pointerdown', unlockAudio, { once: true });
-window.addEventListener('keydown', unlockAudio, { once: true });
+const unlockAudio = () => {
+  audio.unlock();
+  if (audio.isUnlocked()) {
+    window.removeEventListener('click', unlockAudio);
+    window.removeEventListener('pointerdown', unlockAudio);
+    window.removeEventListener('pointerup', unlockAudio);
+    window.removeEventListener('keydown', unlockAudio);
+  }
+};
+window.addEventListener('click', unlockAudio);
+window.addEventListener('pointerdown', unlockAudio);
+window.addEventListener('pointerup', unlockAudio);
+window.addEventListener('keydown', unlockAudio);
 window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyM' && !e.ctrlKey && !e.metaKey && !e.shiftKey) audio.toggleMute();
 });
@@ -232,6 +243,7 @@ const hud = new HUD();
 const dialogue = new DialogueBox();
 const pauseMenu = new PauseMenu();
 const levelSelectorUI = new LevelSelectorUI();
+const divorcePapersUI = new DivorcePapersUI();
 const loadingScreenUI = new LoadingScreenUI();
 const anchorCountdownUI = new AnchorCountdownUI();
 const shopUI = new ShopUI(gameState);
@@ -506,10 +518,11 @@ const MAX_DAY = 7;
 
 async function boot() {
   try {
-    // Start day: ?debug&day=N jumps straight to a day (dev aid), else day 1.
-    const startDay = DEBUG
-      ? Math.max(1, Math.min(MAX_DAY, parseInt(new URLSearchParams(location.search).get('day')) || 1))
-      : 1;
+    // Start day: ?debug&day=N jumps straight to a day (dev aid), else day 0 (opening prologue).
+    const parsedQueryDay = parseInt(new URLSearchParams(location.search).get('day'), 10);
+    const startDay = DEBUG && !Number.isNaN(parsedQueryDay)
+      ? Math.max(0, Math.min(MAX_DAY, parsedQueryDay))
+      : 0;
 
     // The active day's content. Reloaded via syncLevel() whenever gameState.day changes.
     let level = await LevelConfig.load(startDay);
@@ -650,9 +663,9 @@ async function boot() {
         }
       }
     });
-    on('obstacleHit',        d => logEvent(`[Obstacle] hit by ${d.type} -${d.damage} HP`));
-    on('playerDamaged',      () => logEvent(`[Collision] Hull breached!`));
-    on('playerSunk',         () => logEvent('[SUNK] Game Over'));
+    on('obstacleHit', d => logEvent(`[Obstacle] hit by ${d.type} -${d.damage} HP`));
+    on('playerDamaged', () => logEvent(`[Collision] Hull breached!`));
+    on('playerSunk', () => logEvent('[SUNK] Game Over'));
     on('voyageLost', async () => {
       if (gameState._activeCommunityCourseCode || gameState._isCommunityCourse) {
         const course = gameState._activeCommunityCourse;
@@ -813,7 +826,7 @@ async function boot() {
     on('requestPhaseChange', async (opts) => {
       try {
         const phase = opts?.phase;
-        if (opts?.day) {
+        if (opts?.day !== undefined) {
           gameState.day = opts.day;
         }
         if (phase === GamePhase.MAIN_MENU) {
