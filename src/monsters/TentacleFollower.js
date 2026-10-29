@@ -335,6 +335,7 @@ export class TentacleFollower {
 
       // Audio & feedback
       emit('obstacleHit', { type: 'rock', damage: rockDamage });
+
     }
   }
 

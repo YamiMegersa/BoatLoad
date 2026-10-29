@@ -139,6 +139,11 @@ export class PlayerShip {
     this._isHalted = false;
     this.blockedNormal = null;
 
+    // Real-time telemetry for dynamic sailing audio
+    this.currentSpeed = 0;
+    this.speedRatio = 0;
+    this.maneuverIntensity = 0;
+
     this._onCinematicStart = () => this.halt();
     this._onCinematicEnd = () => this.resumeSpeed();
     on('krakenCinematicStart', this._onCinematicStart);
@@ -170,22 +175,8 @@ export class PlayerShip {
     } else {
       this.mesh.add(this._buildMesh());
     }
-    
-    // Internal water plane (rises as boat sinks)
-    // Scaled down to prevent poking out of the tapered bow/stern
-    const innerWaterGeo = new THREE.PlaneGeometry(1.4, 3.6);
-    innerWaterGeo.rotateX(-Math.PI / 2);
-    const innerWaterMat = new THREE.MeshPhongMaterial({
-      color: 0x1c343d, // Matches the deep sea color from Ocean.js
-      transparent: true,
-      opacity: 0.85,
-      depthWrite: false // don't occlude other transparent objects weirdly
-    });
-    this.innerWater = new THREE.Mesh(innerWaterGeo, innerWaterMat);
-    // Position it at the bottom of the boat internally
-    this.innerWater.position.set(0, 0.1, 0); 
-    this.innerWater.visible = false;
-    this.mesh.add(this.innerWater);
+
+    this.innerWater = null;
 
     scene.add(this.mesh);
 
@@ -779,20 +770,21 @@ const _defaultWind = new THREE.Vector3(1, 0, -1).normalize();
     this.mesh.rotation.x = this.pitch + targetPitch + this.trimPitch;
     this.mesh.rotation.z = this.roll + targetRoll + this.listRoll;
 
+    // Update dynamic sailing telemetry (speed & maneuver intensity for audio engine)
+    const effectiveSpeed = forwardSpeed * this.speedMultiplier + Math.hypot(this.knockbackVelocity.x, this.knockbackVelocity.z) * 0.35;
+    this.currentSpeed = effectiveSpeed;
+    this.speedRatio = THREE.MathUtils.clamp(effectiveSpeed / 15.0, 0, 1.5);
+
+    const steerMag = Math.abs(steeringInput || 0);
+    const yawRateMag = Math.min(1.5, Math.abs(this.yawVelocity || 0) / 1.15);
+    const rockMag = Math.min(1.0, (Math.abs(this.rollVelocity || 0) + Math.abs(this.pitchVelocity || 0)) * 0.45 + Math.abs(this.roll || 0) * 1.6);
+    const rawManeuver = this._isHalted ? 0 : Math.min(1.0, Math.max(steerMag * 0.85, yawRateMag * 0.95) + rockMag * 0.35);
+    const maneuverSmoothRate = rawManeuver > this.maneuverIntensity ? 8.0 : 3.5;
+    this.maneuverIntensity = THREE.MathUtils.damp(this.maneuverIntensity || 0, rawManeuver, maneuverSmoothRate, delta);
+
     // Set Y based on wave height so the boat rides the waves, minus the sinking amount.
     // +0.2 adds a slight buffer to ensure corners of the flat boat bottom don't clip the curved wave.
     this.mesh.position.y = waveHeight + 0.2 - (waterRatio * 1.6);
-
-    // Update internal water plane with dynamic sloshing tilt
-    if (waterRatio > 0) {
-      this.innerWater.visible = true;
-      // Fill the boat bathtub style as it sinks, tilted by sloshing water mass
-      this.innerWater.position.y = 0.1 + (waterRatio * 1.05);
-      this.innerWater.rotation.z = -this.listRoll * 0.7;
-      this.innerWater.rotation.x = -this.trimPitch * 0.7;
-    } else {
-      this.innerWater.visible = false;
-    }
 
     // Update OBB collision volume
     this.mesh.updateMatrixWorld(true);
@@ -917,28 +909,37 @@ const _defaultWind = new THREE.Vector3(1, 0, -1).normalize();
         const durability = mat?.durabilityHP || 100;
         const effectiveDamage = amount / (durability / 100);
 
+        const soundMeta = {
+          fromTakeDamage: true,
+          damage: amount,
+          source,
+          speedRatio: this.speedRatio || 0,
+          maneuver: this.maneuverIntensity || 0,
+        };
+
         if (mat.id === 'copper_plate' && effectiveDamage < 14) {
           // Reinforced copper plating deflects the blow!
           this.compartmentDamage[witcherSector] = Math.max(0, (this.compartmentDamage[witcherSector] || 1) - 1);
-          emit('playSound', { sound: 'metal_clank' });
+          emit('playSound', { sound: 'metal_clank', ...soundMeta });
           emit('showBanner', { label: `COPPER PLATING DEFLECTED ${source.toUpperCase()}!` });
         } else if (mat.id === 'dark_ironwood' && effectiveDamage < 18) {
           // Hardened ironwood holds, only sustains a hairline crack
           this.grid.setState(hitCell.x, hitCell.y, hitCell.z, CellState.DAMAGED);
-          emit('playSound', { sound: 'wood_thud' });
+          emit('playSound', { sound: 'wood_knock', voxelsLost: 0, ...soundMeta });
           breached = true;
         } else if (mat.id === 'tar_canvas') {
           // Tar canvas tears immediately
           this.grid.setState(hitCell.x, hitCell.y, hitCell.z, CellState.MISSING);
-          emit('playSound', { sound: 'wood_crack' });
+          emit('playSound', { sound: 'wood_knock', voxelsLost: 1, ...soundMeta });
           breached = true;
         } else {
           // Standard timber & heavy blows
           if (effectiveDamage < 15) {
             this.grid.setState(hitCell.x, hitCell.y, hitCell.z, CellState.DAMAGED);
-            emit('playSound', { sound: 'wood_crack' });
+            emit('playSound', { sound: 'wood_knock', voxelsLost: 0, ...soundMeta });
           } else {
             this.grid.setState(hitCell.x, hitCell.y, hitCell.z, CellState.MISSING);
+            let voxelsLost = 1;
             if (effectiveDamage >= 30 && candidates.length > 1) {
               const second = candidates.find(c => 
                 Math.abs(c.x - hitCell.x) <= 1 && Math.abs(c.y - hitCell.y) <= 1 && Math.abs(c.z - hitCell.z) <= 1 &&
@@ -946,9 +947,10 @@ const _defaultWind = new THREE.Vector3(1, 0, -1).normalize();
               );
               if (second) {
                 this.grid.setState(second.x, second.y, second.z, CellState.MISSING);
+                voxelsLost = 2;
               }
             }
-            emit('playSound', { sound: 'collision' });
+            emit('playSound', { sound: 'wood_knock', voxelsLost, ...soundMeta });
           }
           breached = true;
         }
@@ -958,9 +960,25 @@ const _defaultWind = new THREE.Vector3(1, 0, -1).normalize();
           this.chunkRenderer.sync(this.grid);
         }
       } else {
+        emit('playSound', {
+          sound: 'wood_knock',
+          fromTakeDamage: true,
+          damage: amount,
+          source,
+          speedRatio: this.speedRatio || 0,
+          maneuver: this.maneuverIntensity || 0,
+        });
         breached = true;
       }
     } else {
+      emit('playSound', {
+        sound: 'wood_knock',
+        fromTakeDamage: true,
+        damage: amount,
+        source,
+        speedRatio: this.speedRatio || 0,
+        maneuver: this.maneuverIntensity || 0,
+      });
       breached = true;
     }
 

@@ -272,7 +272,7 @@ export class PauseMenu {
             <div class="setting-item">
               <div class="setting-info">
                 <label for="set-vol-sfx" class="setting-label">Sound Effects (SFX)</label>
-                <span class="setting-desc">Cannons, harpoon, splashes, collisions, and bells.</span>
+                <span class="setting-desc">Wooden hull knocks &amp; breaking, Kraken roars, cannons, harpoons, and QTEs.</span>
               </div>
               <div class="setting-ctrl-row">
                 <input type="range" id="set-vol-sfx" class="setting-slider" min="0" max="100" step="1">
@@ -284,7 +284,7 @@ export class PauseMenu {
             <div class="setting-item">
               <div class="setting-info">
                 <label for="set-vol-amb" class="setting-label">Maritime Ambience &amp; Sirens</label>
-                <span class="setting-desc">Ocean waves, wind whistling, and siren songs.</span>
+                <span class="setting-desc">Calm sailing, rough ocean waves, howling storm wind, distant Kraken &amp; sirens.</span>
               </div>
               <div class="setting-ctrl-row">
                 <input type="range" id="set-vol-amb" class="setting-slider" min="0" max="100" step="1">
@@ -296,7 +296,7 @@ export class PauseMenu {
             <div class="setting-item">
               <div class="setting-info">
                 <label for="set-vol-music" class="setting-label">Music Volume</label>
-                <span class="setting-desc">Ambient harbor melodies and intense sailing tracks.</span>
+
               </div>
               <div class="setting-ctrl-row">
                 <input type="range" id="set-vol-music" class="setting-slider" min="0" max="100" step="1">

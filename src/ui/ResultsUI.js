@@ -212,6 +212,17 @@ export class ResultsUI {
 
       this.root.querySelector('#res-btn-dock').onclick = () => {
         this.unmount();
+        if (day >= 7 && isPassed) {
+          emit('requestPhaseChange', {
+            phase: GamePhase.CREDITS,
+            gameCompleted: true,
+            day,
+            baseReward: sailing.baseReward,
+            multiplier: sailing.multiplier,
+            bonusCoins: totalAwarded
+          });
+          return;
+        }
         const nextDay = isPassed ? Math.min(7, day + 1) : day;
         this.gameState.day = nextDay;
         emit('requestPhaseChange', { phase: GamePhase.DOCK, day: nextDay });

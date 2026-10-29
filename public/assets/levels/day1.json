@@ -1,39 +1,848 @@
 {
   "day": 1,
-  "ship": "sloop",
+  "ship": "Ship_Small_Voxelized",
   "weather": "sunny",
-  "budget": 400,
-  "qte": { "windowScale": 1 },
+  "budget": 150,
+  "qte": {
+    "windowScale": 1
+  },
   "damage": [
-    { "zone": "sail", "cells": [[9,6,2]],                  "state": "DAMAGED" },
-    { "zone": "mast", "cells": [[10,7,2]],                 "state": "DAMAGED" }
+    {
+      "zone": "hull",
+      "state": "MISSING",
+      "cells": [
+        [
+          5,
+          2,
+          7
+        ],
+        [
+          5,
+          2,
+          8
+        ],
+        [
+          8,
+          1,
+          12
+        ],
+        [
+          5,
+          1,
+          15
+        ],
+        [
+          4,
+          2,
+          17
+        ],
+        [
+          14,
+          3,
+          31
+        ],
+        [
+          13,
+          4,
+          32
+        ],
+        [
+          14,
+          4,
+          32
+        ],
+        [
+          19,
+          4,
+          32
+        ],
+        [
+          13,
+          5,
+          33
+        ],
+        [
+          10,
+          8,
+          38
+        ]
+      ]
+    }
   ],
   "docket": [
-    { "id": "sail_repair",  "zone": "sail",  "label": "Mend torn sail",               "tool": "needle", "mandatory": true  },
-    { "id": "mast_repair",  "zone": "mast",  "label": "Reinforce cracked mast",       "tool": "rope",   "mandatory": true  }
+    {
+      "id": "sail_repair",
+      "zone": "sail",
+      "label": "Mend torn sail",
+      "tool": "needle",
+      "mandatory": true
+    },
+    {
+      "id": "mast_repair",
+      "zone": "mast",
+      "label": "Reinforce cracked mast",
+      "tool": "rope",
+      "mandatory": true
+    }
   ],
   "obstacles": [
-    { "type": "rock",       "lanePattern": "alternating", "count": 6  },
-    { "type": "seaweed",    "lanePattern": "random",      "count": 4  },
-    { "type": "wave_small", "lanePattern": "random",      "count": 5  },
     {
-      "type": "island",
-      "assetUrl": "./islands/Low-poly landscape by sirkitree - bjsNFfddgOv.glb",
-      "scale": 5.599999999999997,
+      "type": "barrel",
+      "assetUrl": null,
+      "scale": 3.6,
+      "rotation": 0,
       "position": {
-        "x": -58.15,
-        "y": 17,
-        "z": -119.81
+        "x": -7.54,
+        "y": 0.5,
+        "z": -29.98
+      }
+    },
+    {
+      "type": "barrel",
+      "assetUrl": null,
+      "scale": 3.6,
+      "rotation": 0,
+      "position": {
+        "x": 41.48,
+        "y": 0.5,
+        "z": -70.73
+      }
+    },
+    {
+      "type": "barrel",
+      "assetUrl": null,
+      "scale": 3.6,
+      "rotation": 0,
+      "position": {
+        "x": -83.24,
+        "y": 0.5,
+        "z": -142.26
+      }
+    },
+    {
+      "type": "barrel",
+      "assetUrl": null,
+      "scale": 3.6,
+      "rotation": 0,
+      "position": {
+        "x": -92.77,
+        "y": 0.5,
+        "z": -3.37
+      }
+    },
+    {
+      "type": "barrel",
+      "assetUrl": null,
+      "scale": 3.6,
+      "rotation": 0,
+      "position": {
+        "x": -2.84,
+        "y": 0.5,
+        "z": -196.36
+      }
+    },
+    {
+      "type": "barrel",
+      "assetUrl": null,
+      "scale": 3.6,
+      "rotation": 0,
+      "position": {
+        "x": 25.14,
+        "y": 0.5,
+        "z": -46.79
+      }
+    },
+    {
+      "type": "barrel",
+      "assetUrl": null,
+      "scale": 3.6,
+      "rotation": 0,
+      "position": {
+        "x": -85.77,
+        "y": 0.5,
+        "z": -111.31
+      }
+    },
+    {
+      "type": "barrel",
+      "assetUrl": null,
+      "scale": 3.6,
+      "rotation": 0,
+      "position": {
+        "x": -21.78,
+        "y": 0.5,
+        "z": -29.79
+      }
+    },
+    {
+      "type": "barrel",
+      "assetUrl": null,
+      "scale": 3.6,
+      "rotation": 0,
+      "position": {
+        "x": 33.01,
+        "y": 0.5,
+        "z": -25.34
+      }
+    },
+    {
+      "type": "barrel",
+      "assetUrl": null,
+      "scale": 3.6,
+      "rotation": 0,
+      "position": {
+        "x": 56.56,
+        "y": 0.5,
+        "z": -40.1
+      }
+    },
+    {
+      "type": "barrel",
+      "assetUrl": null,
+      "scale": 3.6,
+      "rotation": 0,
+      "position": {
+        "x": -161.03,
+        "y": 0.5,
+        "z": -69.72
+      }
+    },
+    {
+      "type": "barrel",
+      "assetUrl": null,
+      "scale": 3.6,
+      "rotation": 0,
+      "position": {
+        "x": -9.83,
+        "y": 0.5,
+        "z": -115.01
+      }
+    },
+    {
+      "type": "barrel",
+      "assetUrl": null,
+      "scale": 3.6,
+      "rotation": 0,
+      "position": {
+        "x": 104.29,
+        "y": 0.5,
+        "z": -9.12
+      }
+    },
+    {
+      "type": "wind_zone",
+      "assetUrl": null,
+      "scale": 1,
+      "rotation": 0,
+      "position": {
+        "x": -116.93,
+        "y": 0.5,
+        "z": -111.93
+      }
+    },
+    {
+      "type": "rock",
+      "assetUrl": "/assets/obstacles/rocks/voxel_Cliff.glb",
+      "scale": 8.5,
+      "rotation": 0,
+      "position": {
+        "x": -55.21,
+        "y": 0.5,
+        "z": -107.88
+      }
+    },
+    {
+      "type": "rock",
+      "assetUrl": "/assets/obstacles/rocks/voxel_Cliff.glb",
+      "scale": 8.5,
+      "rotation": 0,
+      "position": {
+        "x": 30.5,
+        "y": 0.5,
+        "z": -145.18
+      }
+    },
+    {
+      "type": "rock",
+      "assetUrl": "/assets/obstacles/rocks/voxel_Cliff.glb",
+      "scale": 8.5,
+      "rotation": 0,
+      "position": {
+        "x": 46.19,
+        "y": 0.5,
+        "z": -148.81
+      }
+    },
+    {
+      "type": "rock",
+      "assetUrl": "/assets/obstacles/rocks/voxel_Cliff.glb",
+      "scale": 8.5,
+      "rotation": 0,
+      "position": {
+        "x": 43.44,
+        "y": -1.56,
+        "z": -143.55
       }
     },
     {
       "type": "island",
-      "assetUrl": "./islands/Mountain by Poly by Google - 7Jhw3p6TusU.glb",
-      "scale": 3.7000000000000024,
+      "assetUrl": "/islands/Mountain by Poly by Google - 7Jhw3p6TusU.glb",
+      "scale": 1.1,
+      "rotation": 0.7853981633974483,
       "position": {
-        "x": 27.19,
+        "x": 14.4,
+        "y": 6.5,
+        "z": -80.76
+      }
+    },
+    {
+      "type": "rock",
+      "assetUrl": "/assets/obstacles/rocks/voxel_basic stone 3.glb",
+      "scale": 2.5,
+      "rotation": 0,
+      "position": {
+        "x": -62.1,
         "y": 0.5,
-        "z": -207.37
+        "z": -56.37
+      }
+    },
+    {
+      "type": "rock",
+      "assetUrl": "/assets/obstacles/rocks/voxel_basic stone 3.glb",
+      "scale": 2.5,
+      "rotation": 0,
+      "position": {
+        "x": -32.64,
+        "y": 0.5,
+        "z": -30.25
+      }
+    },
+    {
+      "type": "rock",
+      "assetUrl": "/assets/obstacles/rocks/voxel_basic stone 3.glb",
+      "scale": 2.5,
+      "rotation": 0,
+      "position": {
+        "x": -14.01,
+        "y": 0.5,
+        "z": -60.86
+      }
+    },
+    {
+      "type": "rock",
+      "assetUrl": "/assets/obstacles/rocks/voxel_basic stone 3.glb",
+      "scale": 2.5,
+      "rotation": 0,
+      "position": {
+        "x": -97.86,
+        "y": 0.5,
+        "z": -93.25
+      }
+    },
+    {
+      "type": "seaweed",
+      "assetUrl": "/assets/obstacles/seaweed/Kelp by Christopher F - 3VhttTFyADO.glb",
+      "scale": 2,
+      "rotation": 0,
+      "position": {
+        "x": 5.97,
+        "y": 5.29,
+        "z": -69.75
+      }
+    },
+    {
+      "type": "seaweed",
+      "assetUrl": "/assets/obstacles/seaweed/Kelp by Christopher F - 3VhttTFyADO.glb",
+      "scale": 2,
+      "rotation": 0,
+      "position": {
+        "x": 1.14,
+        "y": 4.6,
+        "z": -79.93
+      }
+    },
+    {
+      "type": "seaweed",
+      "assetUrl": "/assets/obstacles/seaweed/Kelp by Christopher F - 3VhttTFyADO.glb",
+      "scale": 2,
+      "rotation": 0,
+      "position": {
+        "x": 3.94,
+        "y": 11.23,
+        "z": -84.07
+      }
+    },
+    {
+      "type": "seaweed",
+      "assetUrl": "/assets/obstacles/seaweed/Kelp by Christopher F - 3VhttTFyADO.glb",
+      "scale": 2,
+      "rotation": 0,
+      "position": {
+        "x": 13.6,
+        "y": 5.88,
+        "z": -66.55
+      }
+    },
+    {
+      "type": "seaweed",
+      "assetUrl": "/assets/obstacles/seaweed/Kelp by Christopher F - 3VhttTFyADO.glb",
+      "scale": 2,
+      "rotation": 0,
+      "position": {
+        "x": 11.84,
+        "y": 6.94,
+        "z": -64.39
+      }
+    },
+    {
+      "type": "seaweed",
+      "assetUrl": "/assets/obstacles/seaweed/Kelp by Christopher F - 3VhttTFyADO.glb",
+      "scale": 2,
+      "rotation": 0,
+      "position": {
+        "x": 8.51,
+        "y": 7.83,
+        "z": -68.91
+      }
+    },
+    {
+      "type": "seaweed",
+      "assetUrl": "/assets/obstacles/seaweed/Kelp by Christopher F - 3VhttTFyADO.glb",
+      "scale": 2,
+      "rotation": 0,
+      "position": {
+        "x": -93.76,
+        "y": 6.06,
+        "z": -33.5
+      }
+    },
+    {
+      "type": "seaweed",
+      "assetUrl": "/assets/obstacles/seaweed/Kelp by Christopher F - 3VhttTFyADO.glb",
+      "scale": 2,
+      "rotation": 0,
+      "position": {
+        "x": -90.5,
+        "y": 12.42,
+        "z": -39.6
+      }
+    },
+    {
+      "type": "seaweed",
+      "assetUrl": "/assets/obstacles/seaweed/Kelp by Christopher F - 3VhttTFyADO.glb",
+      "scale": 2,
+      "rotation": 0,
+      "position": {
+        "x": -97.88,
+        "y": 14,
+        "z": -38.6
+      }
+    },
+    {
+      "type": "seaweed",
+      "assetUrl": "/assets/obstacles/seaweed/Kelp by Christopher F - 3VhttTFyADO.glb",
+      "scale": 2,
+      "rotation": 0,
+      "position": {
+        "x": -96.99,
+        "y": 14.81,
+        "z": -37.22
+      }
+    },
+    {
+      "type": "seaweed",
+      "assetUrl": "/assets/obstacles/seaweed/Kelp by Christopher F - 3VhttTFyADO.glb",
+      "scale": 2,
+      "rotation": 0,
+      "position": {
+        "x": -102.17,
+        "y": 16,
+        "z": -41.62
+      }
+    },
+    {
+      "type": "seaweed",
+      "assetUrl": "/assets/obstacles/seaweed/Kelp by Christopher F - 3VhttTFyADO.glb",
+      "scale": 2,
+      "rotation": 0,
+      "position": {
+        "x": -103.5,
+        "y": 15.56,
+        "z": -33.94
+      }
+    },
+    {
+      "type": "seaweed",
+      "assetUrl": "/assets/obstacles/seaweed/Kelp by Christopher F - 3VhttTFyADO.glb",
+      "scale": 2,
+      "rotation": 0,
+      "position": {
+        "x": -114.22,
+        "y": 16,
+        "z": -49.29
+      }
+    },
+    {
+      "type": "seaweed",
+      "assetUrl": "/assets/obstacles/seaweed/Kelp by Christopher F - 3VhttTFyADO.glb",
+      "scale": 2,
+      "rotation": 0,
+      "position": {
+        "x": -114.22,
+        "y": 16,
+        "z": -49.29
+      }
+    },
+    {
+      "type": "seaweed",
+      "assetUrl": "/assets/obstacles/seaweed/Kelp by Christopher F - 3VhttTFyADO.glb",
+      "scale": 2,
+      "rotation": 0,
+      "position": {
+        "x": -122.27,
+        "y": 16,
+        "z": -67.03
+      }
+    },
+    {
+      "type": "seaweed",
+      "assetUrl": "/assets/obstacles/seaweed/Kelp by Christopher F - 3VhttTFyADO.glb",
+      "scale": 2,
+      "rotation": 0,
+      "position": {
+        "x": -107.53,
+        "y": 16,
+        "z": -55.58
+      }
+    },
+    {
+      "type": "seaweed",
+      "assetUrl": "/assets/obstacles/seaweed/Kelp by Christopher F - 3VhttTFyADO.glb",
+      "scale": 2,
+      "rotation": 0,
+      "position": {
+        "x": -98.35,
+        "y": 16,
+        "z": -50.98
+      }
+    },
+    {
+      "type": "seaweed",
+      "assetUrl": "/assets/obstacles/seaweed/Kelp by Christopher F - 3VhttTFyADO.glb",
+      "scale": 2,
+      "rotation": 0,
+      "position": {
+        "x": -91.13,
+        "y": 10,
+        "z": -58.13
+      }
+    },
+    {
+      "type": "seaweed",
+      "assetUrl": "/assets/obstacles/seaweed/Kelp by Christopher F - 3VhttTFyADO.glb",
+      "scale": 2,
+      "rotation": 0,
+      "position": {
+        "x": -82.79,
+        "y": 7.68,
+        "z": -55.5
+      }
+    },
+    {
+      "type": "island",
+      "assetUrl": "/islands/Low-poly landscape by sirkitree - bjsNFfddgOv.glb",
+      "scale": 2,
+      "rotation": 0,
+      "position": {
+        "x": 73.1,
+        "y": 0.5,
+        "z": -74.49
+      }
+    },
+    {
+      "type": "island",
+      "assetUrl": "/islands/Low-poly landscape by sirkitree - bjsNFfddgOv.glb",
+      "scale": 2,
+      "rotation": 0,
+      "position": {
+        "x": -78.72,
+        "y": 0.5,
+        "z": -151.92
+      }
+    },
+    {
+      "type": "island",
+      "assetUrl": "/islands/Low-poly landscape by sirkitree - bjsNFfddgOv.glb",
+      "scale": 1.5,
+      "rotation": 0,
+      "position": {
+        "x": -38.56,
+        "y": 0.5,
+        "z": -72.71
+      }
+    },
+    {
+      "type": "seaweed",
+      "assetUrl": "/assets/obstacles/seaweed/Kelp by Christopher F - 3VhttTFyADO.glb",
+      "scale": 4,
+      "rotation": 0,
+      "position": {
+        "x": 12.93,
+        "y": 0.5,
+        "z": -121.88
+      }
+    },
+    {
+      "type": "seaweed",
+      "assetUrl": "/assets/obstacles/seaweed/Kelp by Christopher F - 3VhttTFyADO.glb",
+      "scale": 4,
+      "rotation": 0,
+      "position": {
+        "x": 13.22,
+        "y": 0.5,
+        "z": -116.74
+      }
+    },
+    {
+      "type": "seaweed",
+      "assetUrl": "/assets/obstacles/seaweed/Kelp by Christopher F - 3VhttTFyADO.glb",
+      "scale": 4,
+      "rotation": 0,
+      "position": {
+        "x": 28.22,
+        "y": 1.51,
+        "z": -144.38
+      }
+    },
+    {
+      "type": "seaweed",
+      "assetUrl": "/assets/obstacles/seaweed/Kelp by Christopher F - 3VhttTFyADO.glb",
+      "scale": 4,
+      "rotation": 0,
+      "position": {
+        "x": 48.51,
+        "y": 0.5,
+        "z": -161.22
+      }
+    },
+    {
+      "type": "seaweed",
+      "assetUrl": "/assets/obstacles/seaweed/Kelp by Christopher F - 3VhttTFyADO.glb",
+      "scale": 4,
+      "rotation": 0,
+      "position": {
+        "x": 42.77,
+        "y": 4.63,
+        "z": -142.52
+      }
+    },
+    {
+      "type": "seaweed",
+      "assetUrl": "/assets/obstacles/seaweed/Kelp by Christopher F - 3VhttTFyADO.glb",
+      "scale": 4,
+      "rotation": 0,
+      "position": {
+        "x": 33.05,
+        "y": 2.66,
+        "z": -142.81
+      }
+    },
+    {
+      "type": "seaweed",
+      "assetUrl": "/assets/obstacles/seaweed/Kelp by Christopher F - 3VhttTFyADO.glb",
+      "scale": 4,
+      "rotation": 0,
+      "position": {
+        "x": 29.16,
+        "y": 5.97,
+        "z": -144.23
+      }
+    },
+    {
+      "type": "pickup",
+      "assetUrl": "/assets/pickups/Wood Planks by Quaternius - hwQ1Fx5P8U.glb",
+      "scale": 2.6,
+      "rotation": 0,
+      "position": {
+        "x": -5.23,
+        "y": 0.5,
+        "z": -121.92
+      }
+    },
+    {
+      "type": "pickup",
+      "assetUrl": "/assets/pickups/Wood Planks by Quaternius - hwQ1Fx5P8U.glb",
+      "scale": 2.6,
+      "rotation": 0,
+      "position": {
+        "x": 2.56,
+        "y": 0.5,
+        "z": -116.43
+      }
+    },
+    {
+      "type": "pickup",
+      "assetUrl": "/assets/pickups/Wood Planks by Quaternius - hwQ1Fx5P8U.glb",
+      "scale": 2.6,
+      "rotation": 0,
+      "position": {
+        "x": -19.34,
+        "y": 0.5,
+        "z": -124.4
+      }
+    },
+    {
+      "type": "pickup",
+      "assetUrl": "/assets/pickups/Wood Planks by Quaternius - hwQ1Fx5P8U.glb",
+      "scale": 2.6,
+      "rotation": 0,
+      "position": {
+        "x": -10.81,
+        "y": 0.5,
+        "z": -158.87
+      }
+    },
+    {
+      "type": "pickup",
+      "assetUrl": "/assets/pickups/Wood Planks by Quaternius - hwQ1Fx5P8U.glb",
+      "scale": 2.6,
+      "rotation": 0,
+      "position": {
+        "x": 28.09,
+        "y": 0.5,
+        "z": -115.43
+      }
+    },
+    {
+      "type": "pickup",
+      "assetUrl": "/assets/pickups/Wood Planks by Quaternius - hwQ1Fx5P8U.glb",
+      "scale": 2.6,
+      "rotation": 0,
+      "position": {
+        "x": 40.69,
+        "y": 0.5,
+        "z": -124.83
+      }
+    },
+    {
+      "type": "pickup",
+      "assetUrl": "/assets/pickups/Wood Planks by Quaternius - hwQ1Fx5P8U.glb",
+      "scale": 2.6,
+      "rotation": 0,
+      "position": {
+        "x": -26,
+        "y": 0.5,
+        "z": -170.26
+      }
+    },
+    {
+      "type": "pickup",
+      "assetUrl": "/assets/pickups/Wood Planks by Quaternius - hwQ1Fx5P8U.glb",
+      "scale": 2.6,
+      "rotation": 0,
+      "position": {
+        "x": -27.17,
+        "y": 0.5,
+        "z": -141.53
+      }
+    },
+    {
+      "type": "pickup",
+      "assetUrl": "/assets/pickups/Wood Planks by Quaternius - hwQ1Fx5P8U.glb",
+      "scale": 3.5,
+      "rotation": 0,
+      "position": {
+        "x": -7.48,
+        "y": 0.5,
+        "z": -57.33
+      }
+    },
+    {
+      "type": "pickup",
+      "assetUrl": "/assets/pickups/Wood Planks by Quaternius - hwQ1Fx5P8U.glb",
+      "scale": 3.5,
+      "rotation": 0,
+      "position": {
+        "x": -2.44,
+        "y": 0.5,
+        "z": -57
+      }
+    },
+    {
+      "type": "pickup",
+      "assetUrl": "/assets/pickups/Wood Planks by Quaternius - hwQ1Fx5P8U.glb",
+      "scale": 3.5,
+      "rotation": 0,
+      "position": {
+        "x": -0.9,
+        "y": 0.5,
+        "z": -46.61
+      }
+    },
+    {
+      "type": "pickup",
+      "assetUrl": "/assets/pickups/Wood Planks by Quaternius - hwQ1Fx5P8U.glb",
+      "scale": 3.5,
+      "rotation": 0,
+      "position": {
+        "x": -62.58,
+        "y": 0.5,
+        "z": -28.06
+      }
+    },
+    {
+      "type": "pickup",
+      "assetUrl": "/assets/pickups/Wood Planks by Quaternius - hwQ1Fx5P8U.glb",
+      "scale": 3.5,
+      "rotation": 0,
+      "position": {
+        "x": -80.55,
+        "y": 0.5,
+        "z": -3.29
+      }
+    },
+    {
+      "type": "rock",
+      "assetUrl": "/assets/obstacles/rocks/voxel_basic stone 3.glb",
+      "scale": 3.5,
+      "rotation": 0,
+      "position": {
+        "x": -83.08,
+        "y": 0.5,
+        "z": -9.28
+      }
+    },
+    {
+      "type": "rock",
+      "assetUrl": "/assets/obstacles/rocks/voxel_basic stone 3.glb",
+      "scale": 3.5,
+      "rotation": 0,
+      "position": {
+        "x": -82.86,
+        "y": 0.5,
+        "z": -15.13
+      }
+    },
+    {
+      "type": "rock",
+      "assetUrl": "/assets/obstacles/rocks/voxel_basic stone 3.glb",
+      "scale": 8.5,
+      "rotation": 0,
+      "position": {
+        "x": -75.54,
+        "y": 0.5,
+        "z": 5.66
+      }
+    },
+    {
+      "type": "rock",
+      "assetUrl": "/assets/obstacles/rocks/voxel_basic stone 3.glb",
+      "scale": 8.5,
+      "rotation": 0,
+      "position": {
+        "x": -71.26,
+        "y": 0.5,
+        "z": -26.14
       }
     }
   ],
@@ -49,108 +858,13 @@
       "attractRadius": 40
     }
   ],
-  "kraken": {
-    "krakenPosition": {
-      "x": 0,
-      "y": -5,
-      "z": -180
-    },
-    "raceStartPosition": {
+  "kraken": null,
+  "endLocation": {
+    "position": {
       "x": 0,
       "y": 0,
-      "z": -35
+      "z": -240
     },
-    "raceStartRadius": 18,
-    "totalHP": 100,
-    "tentacles": [
-      {
-        "spawnOffset": {
-          "x": -25,
-          "y": 0,
-          "z": -20
-        },
-        "speed": 11,
-        "raceDuration": 30,
-        "damagePerTentacle": 34,
-        "waypoints": [
-          {
-            "position": { "x": -25, "y": 0, "z": -60 },
-            "radius": 10
-          },
-          {
-            "position": { "x": -55, "y": 0, "z": -95 },
-            "radius": 10
-          },
-          {
-            "position": { "x": -45, "y": 0, "z": -135 },
-            "radius": 10
-          },
-          {
-            "position": { "x": -15, "y": 0, "z": -115 },
-            "radius": 10
-          }
-        ]
-      },
-      {
-        "spawnOffset": {
-          "x": 25,
-          "y": 0,
-          "z": -20
-        },
-        "speed": 13,
-        "raceDuration": 25,
-        "damagePerTentacle": 33,
-        "waypoints": [
-          {
-            "position": { "x": 20, "y": 0, "z": -75 },
-            "radius": 10
-          },
-          {
-            "position": { "x": 40, "y": 0, "z": -115 },
-            "radius": 10
-          },
-          {
-            "position": { "x": 20, "y": 0, "z": -155 },
-            "radius": 10
-          },
-          {
-            "position": { "x": -10, "y": 0, "z": -135 },
-            "radius": 10
-          }
-        ]
-      },
-      {
-        "spawnOffset": {
-          "x": 0,
-          "y": 0,
-          "z": -30
-        },
-        "speed": 15,
-        "raceDuration": 22,
-        "damagePerTentacle": 33,
-        "waypoints": [
-          {
-            "position": { "x": 0, "y": 0, "z": -55 },
-            "radius": 10
-          },
-          {
-            "position": { "x": -25, "y": 0, "z": -90 },
-            "radius": 10
-          },
-          {
-            "position": { "x": 25, "y": 0, "z": -125 },
-            "radius": 10
-          },
-          {
-            "position": { "x": 0, "y": 0, "z": -155 },
-            "radius": 10
-          }
-        ]
-      }
-    ]
-  },
-  "endLocation": {
-    "position": { "x": 0, "y": 0, "z": -240 },
     "radius": 16
   },
   "rewardAbilities": [
@@ -158,5 +872,29 @@
     "seasoned_hull",
     "sharp_eye"
   ],
-  "tutorialPrompts": true
+  "tutorialPrompts": true,
+  "globalWindDir": 0,
+  "isStormy": false,
+  "timeOfDay": 12,
+  "worldSize": 220,
+  "fogDensity": 0.001,
+  "godRays": true,
+  "voxels": {
+    "biome": "tropical",
+    "chunks": {
+      "-5,-2": "17x0,2x9,2x5,11x9,17x0,8x5,6x9,1x5,17x0,15x1,17x0,15x1,17x0,15x1,17x0,10x2,5x1,24x0,3x9,3x4,2x9,24x0,8x4,24x0,8x4,24x0,3x2,3x7,2x2,28x0,2x5,1x4,1x8,28x0,4x8,28x0,4x8,28x0,4x4,28x0,4x4,28x0,2x7,2x2,1553x0,5x5,10x9,17x0,9x5,6x9,17x0,15x1,17x0,15x1,17x0,15x1,17x0,9x2,6x1,25x0,2x9,4x4,1x9,25x0,7x4,25x0,7x4,25x0,4x7,3x2,28x0,2x5,2x4,28x0,4x8,28x0,4x8,28x0,4x4,28x0,4x4,28x0,1x7,3x2,1552x0,7x5,9x9,16x0,11x5,5x9,16x0,16x1,16x0,16x1,16x0,16x1,16x0,9x2,7x1,24x0,1x9,1x0,2x9,3x4,1x9,24x0,1x4,1x0,6x4,24x0,1x4,1x0,6x4,24x0,1x7,1x0,3x7,3x2,28x0,3x5,1x4,28x0,4x8,28x0,4x8,28x0,4x4,28x0,4x4,28x0,1x7,3x2,1551x0,9x5,6x9,2x1,15x0,12x5,3x9,2x1,15x0,15x1,2x6,15x0,17x1,15x0,17x1,15x0,1x1,8x2,8x1,24x0,4x9,4x4,24x0,8x4,24x0,6x4,1x2,1x4,24x0,3x7,5x2,27x0,2x4,2x5,1x4,27x0,5x8,27x0,5x8,27x0,5x4,27x0,5x4,27x0,5x2,1549x0,12x5,3x9,3x6,1x1,13x0,15x5,3x6,1x1,13x0,15x1,4x6,13x0,19x1,13x0,19x1,13x0,18x1,1x2,21x0,7x9,4x4,21x0,11x4,21x0,7x4,3x2,1x4,21x0,1x2,4x7,6x2,26x0,2x8,1x4,3x5,26x0,6x8,26x0,6x8,26x0,6x4,26x0,6x4,26x0,5x2,1x7,1549x0,13x5,6x9,13x0,15x5,4x9,13x0,19x1,13x0,19x1,13x0,19x1,13x0,16x1,3x2,19x0,9x9,3x4,1x9,19x0,13x4,19x0,9x4,2x2,2x4,19x0,3x2,3x7,7x2,25x0,3x8,2x4,1x5,1x4,25x0,7x8,25x0,1x4,6x8,25x0,7x4,25x0,7x4,25x0,4x2,3x7,1549x0,14x5,2x9,2x6,1x9,13x0,16x5,2x6,1x9,13x0,16x1,2x6,1x1,13x0,19x1,13x0,19x1,13x0,15x1,4x2,19x0,9x9,3x4,1x9,19x0,13x4,19x0,9x4,3x2,1x4,19x0,2x2,3x7,8x2,20x0,3x8,1x0,5x8,3x4,20x0,1x4,2x5,1x0,8x8,20x0,3x9,1x0,1x4,1x5,1x4,5x8,20x0,3x4,1x0,8x4,20x0,3x4,1x0,8x4,20x0,1x2,2x7,1x0,4x2,1x5,3x7,1549x0,14x5,2x9,3x6,13x0,16x5,3x6,13x0,16x1,3x6,13x0,19x1,13x0,19x1,13x0,15x1,4x2,18x0,3x4,7x9,4x4,18x0,14x4,18x0,10x4,4x2,18x0,3x2,3x7,8x2,20x0,1x4,9x8,2x4,20x0,2x4,2x5,1x4,7x8,20x0,5x9,2x4,5x8,20x0,12x4,20x0,12x4,20x0,1x2,3x7,4x2,4x7,1549x0,14x5,1x9,4x6,13x0,15x5,4x6,13x0,15x1,4x6,13x0,19x1,13x0,19x1,13x0,15x1,4x2,19x0,2x4,6x9,5x4,19x0,13x4,19x0,8x4,5x2,19x0,1x2,3x7,9x2,20x0,1x4,3x8,1x0,7x8,20x0,1x9,1x4,2x5,1x0,7x8,20x0,4x9,1x0,2x4,5x8,20x0,4x4,1x0,7x4,20x0,4x4,1x0,7x4,20x0,3x7,1x2,1x0,3x2,4x7,1549x0,14x5,5x6,13x0,14x5,5x6,13x0,15x1,4x6,13x0,19x1,13x0,19x1,13x0,15x1,2x2,2x1,13x0,1x9,2x4,2x0,1x5,2x4,5x9,6x4,13x0,3x4,2x0,12x4,1x2,1x4,13x0,3x4,2x0,8x4,6x2,13x0,3x7,2x0,5x7,9x2,22x0,10x8,22x0,1x5,2x4,7x8,22x0,2x9,1x4,1x5,1x4,5x8,22x0,10x4,22x0,10x4,22x0,1x7,5x2,2x7,2x2,1548x0,14x5,6x6,12x0,14x5,6x6,12x0,1x5,14x1,5x6,12x0,1x9,19x1,12x0,1x9,19x1,12x0,15x1,2x2,3x1,12x0,4x4,2x5,2x4,6x9,6x4,12x0,3x2,12x4,4x2,1x4,12x0,14x4,6x2,12x0,10x7,10x2,24x0,8x8,24x0,8x8,24x0,1x4,1x5,1x4,5x8,24x0,8x4,24x0,8x4,24x0,3x2,2x7,3x2,1549x0,13x5,6x6,13x0,13x5,6x6,13x0,2x5,12x1,5x6,13x0,2x9,17x1,13x0,2x9,17x1,13x0,2x9,10x1,4x2,3x1,13x0,2x9,4x4,5x9,8x4,13x0,13x4,4x2,2x4,13x0,11x4,8x2,13x0,1x2,5x7,13x2,22x0,10x8,22x0,1x4,9x8,22x0,2x4,1x5,1x4,6x8,22x0,10x4,22x0,10x4,22x0,3x2,1x5,3x7,3x2,1551x0,9x5,8x6,15x0,9x5,8x6,15x0,2x5,9x1,6x6,15x0,2x9,15x1,15x0,2x9,15x1,15x0,2x9,6x1,6x2,3x1,15x0,1x9,2x4,4x9,10x4,15x0,7x4,8x2,2x4,15x0,7x4,10x2,15x0,1x2,1x7,15x2,21x0,8x8,1x4,2x8,21x0,11x8,21x0,2x4,1x5,1x4,7x8,21x0,11x4,21x0,11x4,21x0,2x2,4x5,2x7,3x2,1545x0,4x5,1x0,10x5,8x6,9x0,4x5,1x0,10x5,8x6,9x0,4x5,1x0,2x5,10x1,2x6,1x1,3x6,9x0,4x5,1x0,2x9,16x1,9x0,1x5,3x9,1x0,2x9,16x1,9x0,4x1,1x0,1x9,5x1,10x2,2x1,9x0,4x4,1x0,1x9,3x4,2x9,4x4,3x2,5x4,9x0,4x2,1x0,1x4,3x2,2x4,10x2,2x4,14x0,6x4,12x2,14x0,18x2,20x0,7x8,4x4,1x8,20x0,1x4,11x8,20x0,2x4,1x5,1x4,8x8,20x0,12x4,20x0,12x4,20x0,8x5,1x7,1x5,2x2,1542x0,2x9,1x0,2x9,4x5,1x1,7x5,1x9,8x6,6x0,2x5,1x0,6x5,1x1,8x5,8x6,6x0,2x5,1x0,6x5,1x6,1x5,12x1,3x6,6x0,2x5,1x0,6x5,1x1,1x9,15x1,6x0,2x5,1x0,2x5,6x9,15x1,6x0,2x1,1x0,12x1,9x2,2x1,6x0,2x4,1x0,15x4,3x2,5x4,6x0,2x2,1x0,23x2,11x0,6x4,15x2,11x0,21x2,18x0,8x8,2x4,3x5,1x4,18x0,2x4,12x8,18x0,1x9,2x4,1x5,1x4,9x8,18x0,14x4,18x0,14x4,18x0,3x2,9x5,2x2,1540x0,8x9,5x1,5x5,2x9,8x6,4x0,8x5,5x1,7x5,8x6,4x0,8x5,5x6,12x1,3x6,4x0,8x5,20x1,4x0,8x5,5x9,15x1,4x0,18x1,9x2,1x1,4x0,16x4,1x2,2x4,3x2,4x4,2x2,4x0,28x2,11x0,1x4,1x2,2x4,17x2,11x0,21x2,17x0,9x8,1x4,1x5,2x4,2x5,17x0,2x4,13x8,17x0,1x9,2x4,1x5,1x4,10x8,17x0,15x4,17x0,15x4,17x0,5x2,3x5,1x10,5x5,1x2,1538x0,2x5,7x9,6x1,4x5,3x9,8x6,2x0,9x5,6x1,7x5,8x6,2x0,9x5,6x6,12x1,3x6,2x0,9x5,21x1,2x0,2x9,9x5,4x9,15x1,2x0,20x1,10x2,2x0,15x4,9x2,3x4,3x2,2x0,30x2,11x0,1x4,20x2,11x0,21x2,16x0,9x8,1x4,1x5,4x4,1x5,16x0,16x8,16x0,3x4,1x5,1x4,11x8,16x0,16x4,16x0,16x4,16x0,6x2,2x5,4x10,4x5,1536x0,5x5,6x9,5x1,3x5,5x9,8x6,7x5,3x9,1x5,5x1,8x5,8x6,11x5,5x6,13x1,3x6,1x9,10x5,21x1,4x9,11x5,39x1,10x2,15x4,13x2,1x4,28x2,3x7,4x2,10x0,1x4,14x2,3x7,4x2,10x0,15x2,3x7,4x2,15x0,9x8,1x4,1x5,6x4,15x0,13x8,2x4,2x8,15x0,1x4,2x5,2x4,12x8,15x0,17x4,15x0,17x4,15x0,7x2,2x5,6x10,2x5,1536x0,5x5,6x9,5x1,1x9,2x1,6x9,7x6,7x5,4x9,5x1,1x5,2x1,3x5,3x9,7x6,11x5,5x6,1x1,2x6,10x1,3x6,2x9,9x5,21x1,4x9,8x5,32x1,2x2,8x1,10x2,12x4,44x2,6x7,2x2,10x0,1x4,13x2,6x7,2x2,10x0,14x2,6x7,2x2,13x0,9x8,2x4,2x5,6x4,13x0,15x8,3x4,1x8,13x0,19x8,13x0,19x4,13x0,19x4,13x0,1x7,8x2,1x5,8x10,1x5,1536x0,5x5,5x9,10x1,1x6,1x9,2x6,1x9,7x6,7x5,3x9,10x1,1x6,1x9,2x6,1x9,7x6,10x5,11x6,1x1,2x6,5x1,3x6,3x9,7x5,22x1,5x9,7x5,32x1,3x2,7x1,10x2,12x4,46x2,5x7,1x2,10x0,1x4,15x2,5x7,1x2,10x0,16x2,5x7,1x2,13x0,1x4,5x8,4x4,3x5,6x4,13x0,19x8,13x0,19x8,13x0,19x4,13x0,19x4,13x0,1x5,1x7,7x2,1x5,9x10,1536x0,5x5,4x9,9x1,14x6,7x5,2x9,9x1,14x6,9x5,15x6,6x1,2x6,3x9,6x5,23x1,5x9,6x5,32x1,4x2,7x1,10x2,11x4,49x2,4x7,9x0,2x4,17x2,4x7,9x0,19x2,4x7,16x0,16x5,16x0,16x8,16x0,16x8,16x0,16x4,16x0,16x4,16x0,6x2,1x10,3x5,6x10,1536x0,6x5,3x9,9x1,14x6,8x5,1x9,9x1,14x6,9x5,15x6,4x1,4x6,4x9,5x5,23x1,6x9,5x5,32x1,4x2,6x1,11x2,11x4,50x2,3x7,9x0,1x4,19x2,3x7,9x0,20x2,3x7,13x0,1x5,2x0,3x4,6x5,7x4,13x0,1x8,2x0,16x8,13x0,1x8,2x0,16x8,13x0,1x4,2x0,16x4,13x0,1x4,2x0,16x4,13x0,1x7,2x0,5x2,1x10,6x5,4x10,1536x0,6x5,2x9,5x1,2x6,2x1,15x6,8x5,5x1,2x6,2x1,15x6,8x5,17x6,1x1,6x6,4x9,4x5,24x1,6x9,4x5,32x1,5x2,6x1,11x2,10x4,52x2,2x7,8x0,1x4,21x2,2x7,8x0,22x2,2x7,13x0,7x4,2x5,3x4,7x8,13x0,3x8,2x4,14x8,13x0,19x8,13x0,19x4,13x0,19x4,13x0,2x7,6x2,8x5,3x10,1536x0,7x5,8x1,17x6,7x5,8x1,17x6,7x5,25x6,5x9,2x5,25x1,7x9,3x5,32x1,4x2,7x1,10x2,1x1,10x4,52x2,1x7,1x2,7x0,1x4,22x2,2x7,7x0,23x2,2x7,15x0,1x4,1x9,3x4,1x5,2x4,9x8,15x0,3x4,14x8,15x0,13x8,3x4,1x8,15x0,17x4,15x0,17x4,15x0,6x2,8x5,2x10,1x7,1536x0,6x5,8x1,18x6,6x5,8x1,18x6,6x5,26x6,5x9,1x5,26x1,8x9,4x5,41x1,9x2,2x1,12x4,52x2,6x0,1x4,24x2,1x7,6x0,25x2,1x7,14x0,5x4,1x5,2x4,10x8,14x0,2x8,1x4,15x8,14x0,12x8,1x4,5x5,14x0,18x4,14x0,18x4,14x0,7x2,2x5,4x7,3x5,1x2,1x7,1536x0,5x5,9x1,18x6,5x5,9x1,18x6,5x5,27x6,1x5,4x9,27x1,8x9,4x5,40x1,10x2,2x1,12x4,21x2,1x7,30x2,5x0,3x4,24x2,5x0,27x2,14x0,1x5,3x4,2x5,1x4,11x8,14x0,14x8,3x4,1x8,14x0,10x8,2x4,1x5,2x4,1x9,2x4,14x0,18x4,14x0,18x4,14x0,6x2,9x7,1x5,2x2,1536x0,5x5,9x1,18x6,5x5,9x1,18x6,5x5,27x6,2x5,3x9,27x1,9x9,3x5,40x1,9x2,3x1,12x4,21x2,2x7,29x2,4x0,3x4,1x2,1x4,23x2,4x0,28x2,14x0,1x4,4x5,1x4,12x8,14x0,13x8,1x4,2x5,2x4,14x0,9x8,2x4,1x5,1x4,4x9,1x4,14x0,18x4,14x0,18x4,14x0,6x2,9x7,3x2,1536x0,5x5,9x1,18x6,5x5,9x1,18x6,5x5,27x6,2x5,3x9,27x1,10x9,3x5,39x1,8x2,4x1,13x4,20x2,2x7,29x2,4x0,2x4,1x2,5x4,20x2,4x0,28x2,15x0,1x4,1x5,2x4,13x8,15x0,11x8,1x4,4x5,1x4,15x0,7x8,2x4,1x5,1x4,6x9,15x0,17x4,15x0,17x4,15x0,5x2,8x7,4x2,1536x0,5x5,9x1,18x6,5x5,9x1,18x6,5x5,27x6,3x5,2x9,27x1,11x9,2x5,40x1,6x2,5x1,13x4,19x2,2x7,30x2,4x0,2x4,3x2,3x4,20x2,4x0,28x2,15x0,1x4,1x0,1x4,14x8,15x0,1x8,1x0,8x8,1x4,1x5,4x4,1x5,15x0,1x8,1x0,4x8,2x4,1x5,1x4,7x9,15x0,1x4,1x0,15x4,15x0,1x4,1x0,15x4,15x0,1x2,1x0,4x2,6x7,5x2,1536x0,1x9,4x5,9x1,18x6,5x5,9x1,18x6,5x5,27x6,4x5,1x9,27x1,1x5,11x9,41x1,5x2,6x1,12x4,20x2,1x7,31x2,4x0,1x4,8x2,2x7,17x2,4x0,9x2,2x7,17x2,16x0,12x8,2x4,2x8,16x0,8x8,1x4,2x5,4x4,1x5,16x0,4x8,1x4,2x5,1x4,8x9,16x0,16x4,16x0,16x4,16x0,5x2,2x7,3x5,6x2,1536x0,2x9,3x5,9x1,18x6,5x5,9x1,18x6,5x5,27x6,5x5,27x1,2x5,10x9,42x1,4x2,6x1,12x4,52x2,5x0,1x4,7x2,3x7,16x2,5x0,8x2,3x7,16x2,16x0,12x8,2x4,2x8,16x0,7x8,1x4,2x5,5x4,1x5,16x0,3x8,1x4,1x5,2x4,9x9,16x0,16x4,16x0,16x4,16x0,6x2,4x5,6x2,1536x0,3x9,3x5,9x1,17x6,6x5,9x1,17x6,6x5,26x6,6x5,26x1,4x5,5x9,55x1,9x4,5x2,2x1,48x2,5x0,1x4,7x2,1x7,18x2,5x0,8x2,3x7,16x2,17x0,11x8,1x4,3x8,17x0,4x8,2x4,2x5,6x4,1x5,17x0,1x4,1x5,2x4,11x9,17x0,15x4,17x0,15x4,17x0,15x2,1536x0",
+      "-4,-2": "1x9,15x1,9x9,1x5,6x9,1x5,15x1,15x5,1x9,1x1,15x6,16x5,16x1,16x5,11x1,3x9,18x5,11x1,5x9,2x4,2x5,2x4,6x9,2x4,1x5,1x4,32x9,64x4,32x2,19x8,1x0,11x8,1x0,6x8,1x4,4x5,3x4,1x8,1x4,2x8,1x4,1x0,11x4,1x0,2x8,1x4,1x5,2x4,6x9,4x4,2x8,1x4,1x0,11x4,1x0,12x4,2x2,1x4,1x2,2x4,1x2,1x0,11x2,1x0,12x4,2x2,1x4,1x2,2x4,1x2,1x0,11x2,1x0,19x2,4x0,2x2,1x0,1x2,1541x0,1x9,15x1,7x9,5x5,4x9,1x5,15x1,16x5,1x1,15x6,16x5,16x1,16x5,9x1,6x9,9x5,3x9,5x5,9x1,8x9,4x4,8x9,2x4,1x5,32x9,64x4,32x2,31x8,1x0,6x8,2x4,3x5,20x4,1x0,3x8,1x4,1x5,2x4,5x9,19x4,1x0,12x4,19x2,1x0,12x4,19x2,1x0,28x2,1540x0,1x1,1x9,19x1,1x9,7x5,3x9,1x1,1x5,19x1,11x5,1x6,1x1,19x6,11x5,21x1,11x5,11x1,5x9,7x5,5x9,4x5,11x1,19x9,2x4,32x9,64x4,32x2,31x8,1x0,7x8,1x4,4x5,19x4,1x0,4x8,1x4,1x5,1x4,5x9,19x4,1x0,12x4,19x2,1x0,12x4,19x2,1x0,26x2,2x0,1x2,1539x0,5x1,2x6,16x1,7x5,2x9,5x1,2x6,16x1,9x5,23x6,9x5,23x1,9x5,13x1,4x9,4x5,8x9,3x5,10x1,3x2,18x9,1x4,32x9,64x4,16x2,2x7,14x2,1x4,38x8,1x4,3x5,21x4,5x8,1x4,1x5,1x4,2x9,33x4,5x2,2x7,14x2,10x4,6x2,2x7,24x2,3x7,1x5,2x2,2x7,4x2,4x5,1542x0,2x1,8x6,2x1,1x6,11x1,7x5,1x9,2x1,8x6,2x1,1x6,11x1,8x5,24x6,8x5,24x1,8x5,13x1,18x9,1x5,9x1,4x2,21x9,6x4,24x9,34x4,6x2,24x4,16x2,2x7,14x2,1x4,37x8,2x4,1x5,23x4,5x8,3x4,1x9,29x4,1x2,2x4,7x2,2x7,14x2,5x4,3x2,1x4,7x2,2x7,23x2,3x7,3x5,2x10,1x7,1x2,7x5,1542x0,2x1,7x6,7x1,2x6,6x1,8x5,2x1,7x6,7x1,2x6,6x1,8x5,24x6,8x5,24x1,3x9,5x5,10x1,22x9,2x2,5x1,3x2,24x9,6x4,2x9,2x4,20x9,34x4,6x2,24x4,15x2,3x7,14x2,1x4,10x8,1x4,4x8,2x7,2x2,17x8,3x4,1x5,23x4,4x8,33x4,3x2,2x4,5x2,3x7,14x2,4x4,11x2,3x7,14x2,2x7,5x2,7x5,5x10,8x5,1541x0,1x9,1x1,14x6,8x1,8x5,1x9,1x1,14x6,8x1,8x5,1x1,23x6,8x5,24x1,5x9,3x5,10x1,1x9,1x1,20x9,4x2,2x1,4x2,1x9,1x2,22x9,12x4,18x9,34x4,7x2,23x4,14x2,3x7,15x2,1x4,9x8,3x4,5x8,1x2,4x8,1x2,13x8,27x4,4x8,33x4,4x2,1x4,4x2,3x7,15x2,4x4,10x2,3x7,15x2,2x7,2x5,2x2,7x5,5x10,9x5,1541x0,1x6,1x1,15x6,9x1,6x5,1x6,1x1,15x6,9x1,6x5,26x6,6x5,26x1,5x9,1x5,9x1,1x9,2x1,20x9,9x2,1x9,2x2,20x9,15x4,17x9,32x4,9x2,2x4,3x2,1x7,17x4,14x2,3x7,15x2,9x8,2x4,1x5,2x4,3x7,1x8,3x2,1x8,4x2,11x8,4x4,1x9,9x4,1x2,2x4,3x2,7x4,4x8,33x4,4x2,1x4,4x2,3x7,15x2,4x4,6x2,2x5,2x10,3x7,15x2,1x7,3x5,3x10,5x5,6x10,9x5,1x2,2x0,1x2,1537x0,17x6,1x1,2x6,6x1,6x5,17x6,1x1,2x6,6x1,6x5,26x6,6x5,26x1,5x9,1x5,13x1,19x9,13x2,19x9,17x4,15x9,32x4,4x2,3x7,6x2,3x7,1x2,15x4,4x2,3x7,6x2,3x7,16x2,9x8,1x4,2x5,1x2,3x7,11x2,11x8,9x4,1x7,1x2,1x4,3x2,1x4,5x2,5x4,3x8,15x4,2x2,3x4,3x2,12x4,1x7,6x2,3x7,16x2,4x4,3x7,2x2,2x5,5x10,3x2,3x5,10x2,3x5,6x10,2x5,6x10,14x5,1x7,1536x0,20x6,6x1,6x5,20x6,6x1,6x5,26x6,6x5,26x1,1x5,5x9,13x1,19x9,4x1,9x2,19x9,20x4,12x9,32x4,3x2,13x7,4x2,12x4,3x2,13x7,16x2,8x8,2x4,1x5,5x7,16x2,6x8,6x4,1x7,1x4,2x7,11x2,1x4,4x2,2x8,12x4,2x7,10x2,2x4,2x2,8x4,10x7,16x2,3x4,6x7,8x10,6x5,12x2,1x7,13x10,14x5,1x7,1536x0,21x6,6x1,5x5,21x6,6x1,5x5,27x6,5x5,27x1,2x5,3x9,14x1,6x9,4x5,8x9,5x1,9x2,18x9,20x4,12x9,32x4,2x2,12x7,6x2,12x4,2x2,12x7,18x2,8x8,2x4,1x5,3x7,18x2,5x8,1x4,1x5,4x4,3x7,18x2,2x8,1x4,1x5,8x4,2x7,18x2,8x4,6x7,18x2,4x4,5x7,7x10,8x5,10x2,3x7,11x10,15x5,1x7,1536x0,21x6,7x1,1x5,1x1,2x5,21x6,7x1,1x5,1x1,2x5,28x6,1x5,1x6,2x5,28x1,1x5,1x1,2x5,9x1,2x9,3x1,4x9,8x5,6x9,6x1,3x2,2x9,3x2,6x9,4x4,8x9,21x4,11x9,32x4,2x2,2x7,3x2,5x7,9x2,11x4,2x2,2x7,3x2,5x7,20x2,8x8,3x4,1x7,20x2,5x8,1x4,1x5,4x4,1x7,20x2,2x8,1x4,1x5,8x4,20x2,8x4,4x7,20x2,4x4,3x2,3x7,4x10,1x5,3x2,6x5,10x2,2x7,2x2,8x10,18x5,1536x0,21x6,8x1,3x5,21x6,8x1,3x5,29x6,3x5,29x1,3x5,9x1,8x9,10x5,5x9,7x1,2x2,10x9,2x4,3x5,1x4,7x9,20x4,12x9,32x4,9x2,1x7,10x2,12x4,9x2,1x7,22x2,9x8,1x4,21x2,6x8,6x4,20x2,1x4,2x8,1x4,1x5,8x4,19x2,6x4,4x2,1x7,22x2,4x4,5x2,1x7,9x2,7x5,13x2,5x10,19x5,1537x0,21x6,7x1,4x5,21x6,7x1,4x5,28x6,4x5,28x1,4x5,9x1,7x9,12x5,4x9,8x1,1x2,9x9,1x4,2x5,3x4,1x5,1x4,6x9,20x4,12x9,32x4,20x2,12x4,32x2,7x8,23x2,7x8,5x4,20x2,2x4,2x8,9x4,19x2,7x4,27x2,4x4,16x2,10x5,10x2,1x5,2x10,3x5,4x7,13x5,1537x0,22x6,6x1,1x9,3x5,22x6,6x1,4x5,28x6,4x5,28x1,4x5,9x1,6x9,14x5,3x9,9x1,8x9,2x4,1x5,1x4,2x8,2x4,1x5,1x4,5x9,24x4,8x9,2x2,30x4,22x2,10x4,32x2,6x8,25x2,5x8,6x4,21x2,1x4,3x8,7x4,21x2,5x4,28x2,3x4,18x2,11x5,9x2,5x5,4x7,13x5,1537x0,22x6,5x1,3x9,2x5,22x6,5x1,5x5,27x6,5x5,27x1,5x5,9x1,5x9,17x5,1x9,9x1,7x9,2x4,1x5,1x4,4x8,2x4,1x5,1x4,4x9,25x4,7x9,5x2,27x4,22x2,10x4,32x2,1x4,3x8,28x2,4x8,3x4,25x2,1x8,6x4,25x2,4x4,28x2,1x4,21x2,8x5,1x10,1x5,10x2,3x5,6x7,11x5,1x10,1537x0,23x6,4x1,5x9,23x6,4x1,5x5,27x6,5x5,27x1,5x5,11x1,2x9,19x5,11x1,4x9,2x4,1x5,1x4,6x8,1x4,2x5,1x4,3x9,2x2,21x4,1x5,2x4,6x9,7x2,25x4,23x2,9x4,30x2,1x7,1x2,1x5,1x4,2x8,26x2,1x4,1x2,3x8,2x4,25x2,1x4,1x2,1x8,4x4,25x2,1x7,1x2,3x4,27x2,1x7,1x2,1x4,22x2,5x5,4x10,17x2,2x7,9x5,2x10,1538x0,24x6,2x1,6x9,24x6,2x1,2x9,4x5,26x6,6x5,26x1,6x5,11x1,1x9,20x5,11x1,3x9,2x4,1x5,1x4,8x8,1x4,2x5,3x4,3x2,21x4,1x5,1x4,6x9,7x2,1x4,1x2,1x4,1x2,21x4,24x2,8x4,28x2,4x7,1x5,2x4,1x8,24x2,4x7,2x8,1x4,1x8,1x4,23x2,4x7,5x4,23x2,4x7,2x4,1x2,1x4,24x2,4x7,24x2,3x5,4x10,1x7,19x2,8x5,3x10,1x0,1x10,1536x0,23x6,3x1,6x9,23x6,3x1,4x9,2x5,26x6,6x5,26x1,6x5,7x1,1x5,3x1,21x5,7x1,1x9,3x1,2x9,1x4,2x5,1x4,10x8,2x4,3x5,4x2,20x4,2x5,1x4,5x9,7x2,1x4,3x2,21x4,23x2,9x4,28x2,4x7,1x4,1x5,2x4,24x2,4x7,2x8,1x4,1x8,2x4,22x2,4x7,6x4,22x2,4x7,2x4,1x2,1x4,24x2,4x7,28x2,4x7,20x2,7x5,3x10,1538x0,23x6,1x1,1x9,1x1,6x9,23x6,1x1,1x9,1x1,6x9,24x6,1x9,1x6,6x5,24x1,1x5,1x1,6x5,3x1,3x5,1x1,25x5,10x1,3x4,2x5,1x4,12x8,3x4,1x5,3x2,21x4,2x5,3x4,3x9,10x2,22x4,23x2,9x4,28x2,4x7,1x4,3x5,1x4,23x2,4x7,5x8,1x4,22x2,4x7,2x8,1x4,1x8,2x4,22x2,4x7,5x4,23x2,4x7,2x4,1x2,1x4,24x2,4x7,21x2,6x5,3x10,1538x0,22x6,2x1,8x9,22x6,2x1,8x9,24x6,8x5,24x1,8x5,3x1,29x5,4x1,1x8,6x1,1x4,2x5,2x4,14x8,2x4,3x2,21x4,2x5,5x4,1x9,4x2,1x4,6x2,21x4,23x2,9x4,29x2,2x7,1x2,6x5,23x2,2x7,1x2,6x8,23x2,2x7,1x2,5x8,1x4,23x2,2x7,1x2,6x4,23x2,2x7,1x2,5x4,24x2,2x7,22x2,7x5,3x10,1537x0,23x6,1x1,8x9,23x6,1x1,8x9,24x6,8x5,24x1,8x5,2x1,30x5,11x1,3x5,2x4,11x8,1x4,4x8,2x2,30x4,11x2,21x4,24x2,8x4,32x2,2x4,4x5,26x2,6x8,26x2,6x8,26x2,6x4,26x2,6x4,47x2,2x5,3x7,3x5,2x10,1537x0,21x6,3x1,8x9,21x6,3x1,8x9,24x6,8x5,24x1,8x5,4x1,28x5,12x1,1x4,2x5,1x1,1x4,7x8,6x4,1x8,1x4,4x2,20x4,5x9,3x4,12x2,3x4,1x2,16x4,1x7,23x2,8x4,1x7,31x2,1x8,3x4,2x5,26x2,7x8,1x4,24x2,6x8,2x4,24x2,7x4,25x2,6x4,25x2,1x0,1x7,20x2,1x5,4x7,4x5,1538x0,20x6,1x1,1x9,2x1,8x9,20x6,1x1,1x9,2x1,4x5,4x9,21x6,1x5,2x6,8x5,21x1,1x5,2x1,8x5,5x1,27x5,16x1,2x4,3x8,2x4,6x5,3x4,5x2,19x4,8x9,16x2,16x4,1x7,23x2,8x4,1x7,31x2,3x8,3x4,26x2,6x8,1x4,25x2,6x8,1x4,25x2,6x4,26x2,6x4,24x2,2x0,1x7,19x2,1x5,6x7,2x5,1539x0,21x6,11x9,21x6,9x5,2x9,21x6,11x5,21x1,11x5,6x1,26x5,16x1,2x5,3x4,1x5,7x4,3x5,6x2,17x4,1x9,2x4,6x9,16x2,16x4,2x7,21x2,1x4,2x2,6x4,2x7,30x2,5x8,27x2,6x8,26x2,1x4,5x8,26x2,6x4,26x2,7x4,22x2,3x0,2x7,17x2,2x5,7x7,1540x0,19x6,6x9,1x5,6x9,19x6,13x5,19x6,13x5,19x1,13x5,9x1,23x5,5x1,4x2,8x1,1x4,2x5,3x4,5x9,2x4,2x5,9x2,15x4,8x9,17x2,15x4,3x7,21x2,8x4,3x7,29x2,5x8,27x2,6x8,26x2,1x5,1x4,4x8,26x2,6x4,26x2,7x4,22x2,3x0,3x7,2x2,5x10,3x5,2x2,6x5,8x7,1539x0,19x6,4x9,5x5,4x9,19x6,13x5,4x6,1x1,5x6,1x5,7x6,14x5,10x1,1x5,7x1,14x5,8x1,3x5,4x9,9x5,3x9,5x5,4x1,4x2,9x1,4x4,8x9,3x4,8x2,15x4,2x9,2x4,5x9,4x2,2x7,11x2,15x4,1x2,5x7,17x2,2x4,2x2,5x4,1x2,5x7,26x2,5x8,1x7,26x2,5x8,1x7,26x2,1x4,1x5,1x4,2x8,1x7,26x2,5x4,1x7,26x2,6x4,3x2,2x4,18x2,3x0,1x2,3x7,4x10,14x5,7x7,1539x0,19x6,3x9,7x5,3x9,19x6,13x5,9x6,4x5,5x6,14x5,9x1,4x5,5x1,14x5,8x1,2x5,6x9,7x5,5x9,4x5,4x1,4x2,10x1,14x9,8x2,14x4,10x9,4x2,2x7,12x2,14x4,2x2,4x7,16x2,10x4,2x2,4x7,26x2,5x8,1x7,26x2,1x4,4x8,1x7,26x2,2x4,1x5,1x4,1x8,1x7,26x2,6x4,26x2,12x4,18x2,2x0,2x2,2x7,3x10,8x5,3x10,4x5,8x7,1538x0,19x6,1x9,11x5,1x9,19x6,13x5,8x6,1x1,4x5,1x6,18x5,9x1,4x5,1x1,18x5,9x1,8x9,4x5,8x9,3x5,4x1,5x2,10x1,13x9,9x2,13x4,10x9,4x2,2x7,10x2,2x7,1x2,13x4,4x2,2x7,10x2,2x7,4x2,10x4,4x2,2x7,10x2,2x7,14x2,4x8,2x7,10x2,2x7,14x2,1x4,4x8,1x7,10x2,2x7,14x2,1x9,1x4,2x5,1x4,1x7,10x2,2x7,14x2,5x4,1x7,10x2,2x7,14x2,6x4,1x2,5x4,4x2,2x7,5x2,2x4,5x2,2x0,4x2,3x10,8x5,4x10,3x5,2x7,5x2,1x7,1538x0,15x6,2x5,1x6,14x5,15x6,2x5,1x6,14x5,6x6,3x1,23x5,9x1,23x5,9x1,8x9,4x5,11x9,5x1,4x2,11x1,12x9,9x2,13x4,10x9,15x2,3x7,2x2,12x4,15x2,3x7,4x2,10x4,15x2,3x7,14x2,3x8,12x2,3x7,14x2,2x4,2x8,11x2,3x7,14x2,1x9,2x4,1x5,11x2,3x7,14x2,4x4,3x2,1x4,7x2,3x7,14x2,12x4,2x5,3x4,1x7,4x2,3x4,3x0,1x4,1x2,2x0,5x2,1x10,8x5,5x10,2x5,4x2,3x0,2x2,1538x0,15x6,17x5,15x6,17x5,5x6,3x1,24x5,8x1,16x5,4x9,4x5,8x1,1x5,8x9,3x5,12x9,5x1,3x2,13x1,11x9,8x2,15x4,9x9,15x2,3x7,3x2,11x4,15x2,3x7,5x2,9x4,15x2,3x7,14x2,3x8,2x2,1x8,9x2,3x7,14x2,2x4,2x8,1x2,2x8,8x2,3x7,14x2,1x9,2x4,1x5,1x2,2x4,8x2,3x7,14x2,9x4,6x2,3x7,14x2,19x4,3x2,3x4,7x0,5x2,9x5,5x10,1x5,5x2,1543x0,15x6,3x5,1x9,13x5,15x6,17x5,5x6,2x1,25x5,7x1,16x5,6x9,3x5,7x1,2x5,8x9,3x5,12x9,6x1,1x2,14x1,11x9,7x2,17x4,8x9,14x2,3x7,4x2,10x4,1x9,14x2,3x7,7x2,8x4,6x2,2x4,1x8,1x4,4x2,3x7,14x2,1x4,9x8,5x2,3x7,15x2,1x4,9x8,4x2,3x7,15x2,1x9,1x4,2x5,1x4,3x8,2x4,4x2,3x7,15x2,10x4,4x2,3x7,15x2,12x4,1x5,1x10,4x4,3x2,4x4,7x0,6x2,7x5,5x10,2x5,5x2,1543x0",
+      "-4,-1": "8x6,1x9,7x6,1x5,1x6,2x9,12x5,8x6,1x5,7x6,1x5,1x6,14x5,4x6,4x1,24x5,8x1,15x5,7x9,2x5,8x1,2x5,6x9,5x5,11x9,7x1,1x2,14x1,10x9,8x2,16x4,8x9,14x2,3x7,5x2,6x4,1x5,2x4,1x9,14x2,3x7,7x2,8x4,5x2,5x4,4x2,3x7,10x2,4x4,10x8,5x2,3x7,14x2,2x4,9x8,4x2,3x7,14x2,3x4,1x5,1x4,5x8,1x4,4x2,3x7,15x2,10x4,4x2,3x7,15x2,13x4,1x10,1x4,1x10,1x4,3x2,5x4,7x0,7x2,5x5,6x10,1x5,6x2,1543x0,16x6,2x9,1x6,1x9,11x5,1x0,16x6,2x5,1x6,12x5,1x0,4x6,3x1,24x5,1x0,7x1,16x5,7x9,1x5,1x0,7x1,4x5,4x9,6x5,10x9,1x0,23x1,8x9,1x0,7x2,17x4,7x9,1x0,12x2,4x7,7x2,5x4,1x5,2x4,1x0,12x2,4x7,8x2,7x4,1x0,4x2,1x4,3x5,2x4,2x2,4x7,11x2,4x4,1x0,9x8,3x2,4x7,13x2,2x7,1x0,10x8,2x2,4x7,13x2,2x7,1x0,1x4,1x5,2x4,6x8,2x2,4x7,13x2,2x7,1x0,10x4,2x2,4x7,13x2,2x7,1x0,18x4,1x2,6x4,7x0,8x2,3x5,6x10,2x5,6x2,1543x0,12x6,3x5,6x9,11x5,12x6,20x5,4x6,2x1,26x5,6x1,18x5,5x9,3x5,6x1,15x5,11x9,24x1,8x9,6x2,18x4,8x9,11x2,5x7,8x2,3x4,2x5,2x4,1x9,11x2,5x7,8x2,3x4,3x8,2x4,4x2,5x5,1x4,1x2,5x7,11x2,15x8,1x2,5x7,11x2,5x4,10x8,1x2,5x7,11x2,5x4,1x5,2x4,7x8,1x2,5x7,11x2,4x7,1x2,10x4,1x2,5x7,11x2,4x7,1x2,25x4,7x0,9x2,1x5,6x10,2x5,7x2,1543x0,12x6,2x5,7x9,8x5,1x0,2x5,12x6,17x5,1x0,2x5,2x6,1x1,1x6,3x1,22x5,1x0,2x5,7x1,17x5,4x9,1x5,1x0,2x5,7x1,15x5,7x9,1x0,2x9,24x1,5x9,1x0,2x9,7x2,17x4,5x9,1x0,2x9,11x2,4x7,9x2,3x4,1x5,1x4,1x0,2x9,11x2,4x7,5x2,3x4,1x2,4x4,1x8,1x0,2x4,5x2,3x4,2x5,1x4,1x7,1x4,2x7,11x2,1x7,1x4,1x8,1x0,1x8,1x4,10x8,1x2,4x7,11x2,2x7,1x4,1x0,1x4,1x2,11x8,4x7,11x2,2x7,1x4,1x0,1x4,1x2,2x4,9x8,4x7,11x2,3x7,1x0,2x2,11x4,4x7,11x2,3x7,1x0,2x2,25x4,7x0,9x2,1x5,6x10,2x5,7x2,1543x0,10x6,12x9,7x5,3x0,10x6,19x5,3x0,4x6,4x1,21x5,3x0,8x1,18x5,1x9,2x5,3x0,8x1,14x5,7x9,3x0,20x1,1x4,8x9,3x0,8x2,12x4,9x9,3x0,12x2,3x7,5x2,3x9,5x4,1x9,3x0,12x2,3x7,3x2,11x4,3x0,5x2,3x4,2x5,5x4,3x2,5x4,2x2,1x7,2x4,1x8,3x0,11x8,1x2,3x7,10x2,3x7,1x4,3x0,12x8,3x7,10x2,3x7,1x4,3x0,2x4,10x8,3x7,10x2,4x7,3x0,14x4,1x7,10x2,4x7,3x0,19x4,13x0,10x2,1x5,5x10,1x5,1x7,1x2,1549x0,10x6,2x9,2x5,6x9,1x0,1x9,7x5,3x0,10x6,10x5,1x0,8x5,3x0,4x6,4x1,12x5,1x0,8x5,3x0,8x1,12x5,1x0,8x5,3x0,8x1,12x5,1x0,2x5,6x9,3x0,20x1,1x0,8x9,3x0,8x2,12x4,1x0,8x9,3x0,13x2,1x7,6x2,1x0,8x9,3x0,13x2,1x7,4x2,3x0,7x4,1x5,3x0,5x2,3x4,2x5,2x4,2x8,4x4,3x0,7x4,1x8,3x0,15x8,3x2,3x0,3x2,3x7,1x2,1x4,3x0,15x8,3x2,3x0,3x2,3x7,1x2,1x4,3x0,2x4,10x8,2x4,1x8,3x2,3x0,3x2,3x7,2x2,3x0,15x4,2x2,1x4,3x0,3x2,3x7,2x2,3x0,18x4,14x0,11x2,1x5,3x10,2x5,1x7,1550x0,10x6,1x9,4x5,4x9,6x0,3x5,4x0,10x6,9x5,6x0,3x5,4x0,5x6,2x1,12x5,6x0,3x5,4x0,7x1,12x5,6x0,3x5,4x0,7x1,5x5,2x9,5x5,6x0,3x9,4x0,19x1,6x0,3x9,4x0,7x2,12x4,6x0,3x9,4x0,19x2,6x0,3x9,4x0,18x2,7x0,3x4,4x0,6x2,3x5,2x4,4x0,2x4,8x0,3x4,4x0,11x8,4x0,2x8,8x0,1x7,2x2,4x0,11x8,4x0,2x8,8x0,1x7,2x2,4x0,3x4,8x8,4x0,2x8,8x0,1x7,2x2,4x0,11x4,4x0,2x4,8x0,1x7,2x2,4x0,11x4,4x0,2x4,15x0,11x2,4x0,2x5,1551x0,9x6,1x9,6x5,6x9,4x0,1x5,5x0,9x6,13x5,4x0,1x5,5x0,2x6,1x1,2x6,2x1,15x5,4x0,1x5,5x0,7x1,15x5,4x0,1x5,5x0,7x1,4x5,4x9,7x5,4x0,1x9,5x0,22x1,4x0,1x9,5x0,7x2,15x4,4x0,1x9,5x0,22x2,4x0,1x9,5x0,19x2,7x0,1x5,5x0,6x2,2x5,2x4,16x0,1x8,5x0,10x8,16x0,1x4,5x0,10x8,16x0,1x4,5x0,2x5,2x4,5x8,1x4,16x0,1x2,5x0,10x4,16x0,1x2,5x0,10x4,22x0,10x2,1558x0,8x6,9x5,5x9,10x0,8x6,14x5,10x0,1x6,6x1,15x5,10x0,7x1,15x5,10x0,7x1,2x5,7x9,6x5,10x0,22x1,10x0,7x2,15x4,10x0,22x2,10x0,21x2,11x0,6x2,2x4,1x8,9x0,3x4,11x0,9x8,9x0,3x2,11x0,9x8,9x0,3x2,11x0,1x4,2x5,2x4,3x8,1x4,9x0,3x2,11x0,9x4,9x0,3x2,11x0,9x4,9x0,2x4,12x0,9x2,9x0,2x5,1548x0,8x6,11x5,3x9,10x0,8x6,14x5,10x0,1x6,1x1,1x5,3x1,16x5,10x0,2x1,1x5,3x1,16x5,10x0,2x1,1x9,3x1,2x5,10x9,4x5,10x0,22x1,10x0,2x2,1x4,3x2,16x4,10x0,21x2,1x7,10x0,21x2,11x0,6x2,1x0,1x8,11x0,2x4,11x0,2x8,1x0,3x8,1x0,1x8,11x0,2x2,11x0,2x8,1x0,3x8,1x0,1x8,11x0,2x2,11x0,2x4,1x0,2x5,1x4,1x0,1x4,11x0,2x2,11x0,2x4,1x0,3x4,1x0,1x4,11x0,2x2,11x0,2x4,1x0,3x4,1x0,1x4,24x0,2x2,1x0,3x2,1x0,1x2,1560x0,6x6,15x5,1x9,10x0,6x6,16x5,10x0,1x1,3x5,1x1,17x5,10x0,1x1,1x9,2x5,1x1,6x5,3x9,8x5,10x0,1x1,3x9,1x1,14x9,3x5,10x0,22x1,10x0,1x2,3x4,1x2,17x4,10x0,20x2,2x7,10x0,20x2,12x0,2x2,1x0,3x2,30x0,2x8,30x0,2x8,30x0,1x4,1x5,30x0,2x4,30x0,2x4,30x0,2x2,1562x0,6x6,15x5,11x0,6x6,15x5,11x0,21x5,11x0,3x9,7x5,6x9,5x5,11x0,20x9,1x5,11x0,21x1,11x0,21x4,11x0,19x2,2x7,11x0,18x2,14x0,1x2,2x0,2x2,1755x0,1x6,1x5,4x6,12x5,14x0,1x6,1x5,4x6,12x5,14x0,18x5,14x0,4x9,5x5,8x9,1x5,14x0,18x9,14x0,18x1,14x0,18x4,14x0,18x2,14x0,16x2,16x0,1x2,1759x0,1x6,2x5,2x6,13x5,14x0,1x6,2x5,2x6,13x5,14x0,18x5,14x0,5x9,3x5,9x9,1x5,14x0,18x9,14x0,18x1,14x0,18x4,14x0,18x2,14x0,16x2,16x0,1x2,1759x0,3x5,1x6,14x5,14x0,3x5,1x6,14x5,14x0,18x5,14x0,5x9,3x5,9x9,1x5,14x0,18x9,14x0,18x1,14x0,18x4,14x0,18x2,14x0,13x2,2x0,1x2,19x0,1x2,1756x0,3x5,1x6,14x5,14x0,3x5,1x6,14x5,14x0,18x5,14x0,4x9,5x5,7x9,2x5,14x0,18x9,14x0,18x1,14x0,18x4,14x0,18x2,14x0,17x2,15x0,1x2,2x0,1x2,1756x0,18x5,14x0,18x5,14x0,18x5,14x0,3x9,8x5,4x9,3x5,14x0,18x9,14x0,18x1,14x0,18x4,14x0,18x2,14x0,17x2,15x0,1x2,1759x0,18x5,14x0,18x5,14x0,18x5,14x0,18x5,14x0,18x9,14x0,18x1,14x0,18x4,14x0,18x2,14x0,13x2,1x0,2x2,16x0,2x2,1758x0,6x5,1x9,10x5,15x0,17x5,15x0,17x5,15x0,17x5,15x0,4x9,5x5,8x9,15x0,17x1,15x0,17x4,15x0,12x2,2x7,3x2,15x0,4x2,3x7,5x2,1x7,19x0,1x2,1759x0,4x5,5x9,7x5,16x0,16x5,16x0,16x5,16x0,16x5,16x0,3x9,7x5,6x9,16x0,16x1,16x0,16x4,16x0,10x2,4x7,2x2,16x0,2x2,10x7,1780x0,3x5,7x9,5x5,1x9,16x0,16x5,16x0,16x5,16x0,16x5,16x0,2x9,9x5,4x9,1x5,16x0,16x1,16x0,16x4,16x0,9x2,4x7,3x2,16x0,1x2,7x7,1x0,3x7,1780x0,2x5,10x9,1x5,19x0,13x5,19x0,13x5,19x0,13x5,19x0,13x5,19x0,13x1,19x0,13x4,19x0,9x2,3x7,1x2,19x0,1x2,2x7,4x2,3x0,1x7,1781x0,1x5,11x9,20x0,12x5,20x0,12x5,20x0,12x5,20x0,12x5,20x0,12x1,20x0,12x4,20x0,12x2,20x0,6x2,1786x0,1x5,10x9,3x0,2x9,16x0,11x5,3x0,2x5,16x0,11x5,3x0,2x5,16x0,11x5,3x0,2x5,16x0,11x5,3x0,2x5,16x0,11x1,3x0,2x1,16x0,11x4,3x0,2x4,16x0,11x2,3x0,2x2,16x0,3x2,1789x0,1x5,5x9,3x0,3x9,20x0,6x5,3x0,3x5,20x0,6x5,3x0,3x5,20x0,6x5,3x0,3x5,20x0,6x5,3x0,3x5,20x0,6x1,3x0,3x1,20x0,6x4,3x0,3x4,20x0,6x2,3x0,3x2,1812x0,1x5,2x9,3x0,1x9,25x0,3x5,3x0,1x5,25x0,3x5,3x0,1x5,25x0,3x5,3x0,1x5,25x0,3x5,3x0,1x5,25x0,3x1,3x0,1x1,25x0,3x4,3x0,1x4,25x0,3x2,3x0,1x2,1817x0,2x5,4x0,2x5,24x0,2x5,4x0,2x5,24x0,2x5,4x0,2x5,24x0,2x5,4x0,2x5,24x0,2x5,4x0,1x5,1x9,24x0,2x1,4x0,2x1,24x0,2x4,4x0,2x4,24x0,2x2,4x0,2x2,1816x0,2x5,5x0,1x5,24x0,2x5,5x0,1x5,24x0,2x5,5x0,1x5,24x0,2x5,5x0,1x5,24x0,1x9,1x5,5x0,1x9,24x0,2x1,5x0,1x1,24x0,2x4,5x0,1x4,24x0,2x2,5x0,1x2,10008x0",
+      "-4,-3": "43012x0,1x5,31x0,1x5,31x0,1x1,31x0,1x1,31x0,1x1,31x0,1x1,1886x0,3x5,29x0,3x5,29x0,3x1,29x0,3x1,29x0,3x1,29x0,3x1,1884x0,3x5,29x0,3x5,29x0,3x1,29x0,3x1,29x0,3x1,29x0,3x1,1883x0,1x9,4x5,27x0,5x5,27x0,5x1,27x0,5x1,27x0,5x1,27x0,5x1,1883x0,5x5,5x0,2x5,15x0,1x9,4x0,5x5,5x0,2x5,15x0,1x9,4x0,5x1,5x0,2x5,15x0,1x5,4x0,5x1,5x0,2x9,15x0,1x5,4x0,5x1,5x0,2x9,15x0,1x5,4x0,5x1,5x0,2x9,15x0,1x4,14x0,1x4,1x9,15x0,1x9,14x0,2x4,15x0,1x4,14x0,2x4,15x0,1x4,14x0,2x2,15x0,1x7,1732x0,5x5,5x0,7x5,2x9,5x0,4x9,4x0,5x5,5x0,9x5,5x0,4x9,4x0,5x1,5x0,1x1,8x5,5x0,4x5,4x0,5x1,5x0,1x1,2x9,6x5,5x0,4x5,4x0,5x1,5x0,1x1,5x9,3x5,5x0,4x5,4x0,5x1,5x0,1x1,7x9,1x4,5x0,4x8,14x0,1x4,8x9,5x0,1x5,3x4,14x0,9x4,5x0,4x4,14x0,9x4,5x0,4x4,14x0,4x2,5x7,5x0,4x7,14x0,1x4,1x8,3x0,1x8,26x0,1x9,1x4,3x0,1x8,26x0,2x9,3x0,1x5,26x0,2x4,3x0,1x4,26x0,2x4,3x0,1x4,26x0,2x2,3x0,1x7,1552x0,6x5,3x0,1x5,1x1,2x5,1x0,2x5,3x9,5x0,4x9,3x0,1x9,6x5,3x0,1x5,1x1,2x5,1x0,5x5,5x0,4x9,3x0,1x9,6x1,3x0,1x1,1x6,2x5,1x0,5x5,5x0,4x5,3x0,1x5,6x1,3x0,2x1,2x9,1x0,5x5,5x0,4x5,3x0,1x5,6x1,3x0,2x1,2x9,1x0,1x9,4x5,5x0,4x5,3x0,1x5,6x1,3x0,2x1,2x9,1x0,4x9,1x4,5x0,4x8,3x0,1x8,3x0,1x9,5x0,1x5,1x4,2x9,1x0,5x9,5x0,4x4,3x0,1x4,3x0,1x4,5x0,4x4,1x0,5x4,5x0,4x4,3x0,1x4,3x0,1x4,5x0,4x4,1x0,5x4,5x0,4x4,3x0,1x4,3x0,1x2,5x0,4x2,1x0,5x7,5x0,1x2,3x7,3x0,1x2,9x0,1x5,1x4,1x8,3x0,1x8,25x0,2x9,1x4,3x0,1x8,25x0,3x9,3x0,1x4,25x0,3x4,3x0,1x4,25x0,3x4,3x0,1x4,25x0,3x2,3x0,1x7,1552x0,10x5,2x1,3x5,5x9,3x0,6x9,2x0,1x9,10x5,2x1,8x5,3x0,6x9,2x0,1x9,10x1,2x6,8x5,3x0,6x5,2x0,1x5,12x1,8x5,3x0,6x5,2x0,1x5,11x1,4x9,5x5,3x0,6x5,2x0,1x5,11x1,6x9,1x4,2x5,3x0,1x8,4x4,1x8,2x0,1x8,1x0,4x9,1x4,1x0,2x5,2x4,9x9,3x0,6x4,2x0,1x5,1x0,5x4,1x0,13x4,3x0,6x4,2x0,1x4,1x0,5x4,1x0,13x4,3x0,6x4,2x0,1x4,1x0,5x2,1x0,7x2,5x7,1x2,3x0,6x2,2x0,1x2,2x0,3x8,3x0,1x5,1x4,2x8,22x0,1x4,1x5,1x4,3x0,2x9,1x4,1x5,22x0,3x9,3x0,4x9,22x0,3x4,3x0,4x4,22x0,3x4,3x0,4x4,22x0,3x2,3x0,4x2,1556x0,10x5,1x1,4x5,17x9,10x5,1x1,8x5,13x9,10x1,1x6,21x5,11x1,1x9,20x5,11x1,3x9,18x5,11x1,5x9,2x4,2x5,10x4,2x8,6x9,4x4,19x9,2x4,1x5,64x4,14x2,4x7,14x2,1x0,5x8,4x4,2x8,2x0,1x8,9x0,3x4,6x0,1x8,2x4,1x5,2x4,2x9,2x4,1x5,2x0,1x8,9x0,3x4,6x0,2x4,9x9,2x0,1x4,9x0,3x4,6x0,11x4,2x0,1x4,9x0,3x2,6x0,11x4,2x0,1x4,9x0,3x2,6x0,11x2,2x0,1x7,1553x0,1x9,1x5,3x1,2x5,1x1,6x5,18x9,2x5,3x1,2x5,1x1,11x5,2x9,7x5,4x9,2x1,3x6,2x1,1x6,2x1,22x5,10x1,2x9,20x5,10x1,4x9,18x5,10x1,6x9,1x4,7x5,2x4,3x5,1x4,2x8,7x9,2x4,21x9,66x4,15x2,2x7,15x2,8x8,1x4,9x8,4x0,6x8,4x0,3x8,2x4,1x5,4x4,1x5,1x4,6x8,4x0,6x4,4x0,1x4,1x5,2x4,8x9,1x4,1x5,1x4,3x8,4x0,6x4,4x0,18x4,4x0,6x2,4x0,18x4,4x0,6x2,4x0,15x2,2x7,1x2,1550x0,1x9,12x1,1x5,2x1,16x9,1x5,12x1,1x5,2x1,14x5,2x9,1x1,12x6,1x5,2x6,16x5,13x1,1x5,2x1,16x5,11x1,3x9,18x5,11x1,5x9,1x4,5x5,3x4,1x9,3x4,1x5,1x4,1x8,31x9,65x4,32x2,18x8,2x0,8x8,4x0,4x8,2x4,1x5,3x4,1x5,1x4,5x8,1x4,2x0,8x4,4x0,1x8,1x4,1x5,2x4,7x9,1x4,1x5,1x4,2x8,1x4,2x0,8x4,4x0,17x4,1x2,2x0,8x2,4x0,17x4,1x2,2x0,8x2,4x0,18x2,6x0,3x2,1541x0",
+      "-5,-3": "43035x0,1x9,31x0,1x9,31x0,1x1,31x0,1x1,31x0,1x1,31x0,1x1,1885x0,3x9,29x0,1x5,2x9,29x0,3x1,29x0,3x1,29x0,3x1,29x0,3x1,1880x0,1x9,3x0,4x9,24x0,1x5,3x0,1x5,3x9,24x0,1x1,3x0,4x1,24x0,1x1,3x0,4x1,24x0,1x1,3x0,4x1,24x0,1x1,3x0,4x1,1885x0,3x9,2x0,2x9,25x0,3x9,2x0,1x9,1x5,25x0,3x1,2x0,2x1,25x0,3x1,2x0,2x1,25x0,3x1,2x0,2x1,25x0,3x1,2x0,2x1,1876x0,2x9,2x0,3x9,3x0,2x9,20x0,2x5,2x0,3x9,3x0,2x5,20x0,2x1,2x0,3x1,3x0,2x1,20x0,2x1,2x0,3x1,3x0,2x1,20x0,2x1,2x0,3x1,3x0,2x1,20x0,2x1,2x0,2x2,1x1,3x0,2x1,1870x0,1x9,9x0,4x9,2x0,2x9,14x0,1x9,9x0,4x9,2x0,2x5,14x0,1x1,9x0,4x1,2x0,2x1,14x0,1x1,9x0,4x1,2x0,2x1,14x0,1x1,9x0,4x1,2x0,2x1,14x0,1x2,9x0,3x2,1x1,2x0,2x1,1872x0,1x9,1x0,1x9,1x0,1x9,2x0,6x9,1x0,2x9,16x0,1x9,1x0,1x9,1x0,1x9,2x0,6x9,1x0,2x5,16x0,1x1,1x0,1x1,1x0,1x1,2x0,6x1,1x0,2x1,16x0,1x1,1x0,1x1,1x0,1x1,2x0,6x1,1x0,2x1,16x0,1x1,1x0,1x1,1x0,1x1,2x0,6x1,1x0,2x1,16x0,1x2,1x0,1x2,1x0,1x2,2x0,4x2,2x1,1x0,2x1,1874x0,2x9,1x0,11x9,18x0,2x9,1x0,9x9,2x5,18x0,2x1,1x0,11x1,18x0,2x1,1x0,11x1,18x0,2x1,1x0,11x1,18x0,2x2,1x0,6x2,5x1,1873x0,15x9,17x0,1x9,4x5,8x9,2x5,17x0,15x1,17x0,15x1,17x0,15x1,17x0,10x2,5x1,24x0,1x4,31x0,1x4,31x0,1x4,31x0,1x2,1752x0,15x9,17x0,6x5,8x9,1x5,17x0,15x1,17x0,15x1,17x0,15x1,17x0,10x2,5x1,24x0,2x4,2x5,2x4,2x9,24x0,8x4,24x0,8x4,24x0,8x2,1745x0,15x9,17x0,7x5,7x9,1x5,17x0,15x1,17x0,15x1,17x0,15x1,17x0,10x2,5x1,23x0,3x9,4x4,2x9,23x0,9x4,23x0,9x4,23x0,9x2,28x0,2x5,1x4,1x8,28x0,4x8,28x0,4x8,28x0,4x4,28x0,4x4,28x0,4x2,1536x0",
+      "-5,-1": "6x9,8x1,18x6,2x9,4x5,8x1,18x6,6x5,26x6,6x5,26x1,7x5,1x9,32x1,2x2,22x1,8x4,6x2,3x1,47x2,5x0,1x4,26x2,5x0,9x2,3x7,15x2,17x0,15x8,17x0,2x8,2x4,4x5,5x4,1x5,1x4,17x0,1x5,1x4,13x9,17x0,15x4,17x0,15x4,17x0,15x2,1536x0,7x9,6x1,19x6,4x9,3x5,6x1,19x6,7x5,25x6,7x5,25x1,9x5,3x1,1x5,28x1,1x2,22x1,9x4,3x2,1x4,1x2,4x1,46x2,5x0,2x4,25x2,5x0,9x2,3x7,15x2,18x0,14x8,18x0,1x4,11x5,2x4,18x0,13x9,1x4,18x0,14x4,18x0,14x4,18x0,14x2,1536x0,9x9,4x1,19x6,6x9,3x5,4x1,19x6,9x5,23x6,9x5,23x1,11x5,53x1,11x4,4x2,4x1,45x2,7x0,1x4,24x2,7x0,25x2,21x0,11x8,21x0,3x5,6x4,2x8,21x0,8x9,3x4,21x0,11x4,21x0,11x4,21x0,11x2,1536x0,10x9,2x1,20x6,7x9,3x5,2x1,20x6,10x5,22x6,10x5,22x1,11x5,53x1,11x4,4x2,4x1,45x2,4x0,2x4,2x0,24x2,4x0,2x2,2x0,24x2,19x0,1x8,3x0,9x8,19x0,1x5,3x0,2x4,7x8,19x0,1x9,3x0,1x9,6x4,2x5,19x0,1x4,3x0,9x4,19x0,1x4,3x0,9x4,19x0,1x2,3x0,9x2,1537x0,9x9,2x1,20x6,1x0,7x9,2x5,2x1,20x6,1x0,9x5,22x6,1x0,9x5,22x1,1x0,10x5,21x1,1x0,31x1,1x0,10x4,5x2,4x1,12x2,1x0,31x2,5x0,3x4,24x2,5x0,27x2,20x0,1x8,4x0,7x8,20x0,1x5,4x0,7x8,20x0,1x9,4x0,6x5,1x4,20x0,1x4,4x0,7x4,20x0,1x4,4x0,7x4,20x0,1x2,4x0,7x2,1537x0,9x9,2x1,20x6,1x0,7x9,2x5,2x1,20x6,1x0,9x5,22x6,1x0,9x5,22x1,1x0,10x5,21x1,1x0,10x1,1x2,20x1,1x0,10x4,7x2,3x1,11x2,1x0,3x2,4x7,24x2,4x0,2x4,2x7,24x2,4x0,4x7,24x2,20x0,2x8,3x0,7x8,20x0,1x4,1x8,3x0,7x8,20x0,1x9,1x4,3x0,7x4,20x0,2x4,3x0,7x4,20x0,2x4,3x0,7x4,20x0,2x2,3x0,7x2,1537x0,10x9,1x1,20x6,1x0,7x9,3x5,1x1,20x6,1x0,10x5,21x6,1x0,10x5,21x1,1x0,11x5,20x1,1x0,11x1,1x2,19x1,1x0,11x4,9x2,1x1,10x2,1x0,3x2,4x7,24x2,3x0,1x4,4x7,24x2,3x0,1x2,4x7,24x2,27x0,5x8,27x0,5x8,27x0,2x8,3x4,27x0,5x4,27x0,5x4,27x0,5x2,1537x0,10x9,1x1,20x6,1x0,6x9,4x5,1x1,20x6,1x0,10x5,21x6,1x0,10x5,21x1,1x0,10x5,1x9,20x1,1x0,11x1,1x2,19x1,1x0,11x4,10x2,2x1,8x2,1x0,4x2,3x7,24x2,4x0,1x2,3x7,24x2,4x0,1x2,3x7,24x2,28x0,4x8,28x0,4x8,28x0,1x8,2x4,1x5,28x0,4x4,28x0,4x4,28x0,4x2,1539x0,6x9,3x5,1x1,19x6,3x0,3x9,6x5,1x1,19x6,3x0,9x5,14x6,2x1,4x6,3x0,9x5,20x1,3x0,7x5,3x9,19x1,3x0,10x1,1x2,18x1,3x0,10x4,10x2,2x1,7x2,3x0,29x2,5x0,27x2,5x0,27x2,29x0,3x8,29x0,3x8,29x0,1x4,2x5,29x0,3x4,29x0,3x4,29x0,3x2,1539x0,5x9,4x5,1x1,1x6,1x1,17x6,3x0,9x5,1x1,1x6,1x1,17x6,3x0,9x5,6x6,2x1,7x6,2x1,3x6,3x0,9x5,20x1,3x0,6x5,4x9,19x1,3x0,10x1,2x2,17x1,3x0,10x4,11x2,3x1,5x2,3x0,29x2,6x0,11x2,1x7,14x2,6x0,11x2,1x7,6x2,2x7,6x2,29x0,3x8,29x0,3x8,29x0,1x4,1x5,1x4,29x0,3x4,29x0,3x4,29x0,3x2,1540x0,3x9,5x5,2x1,2x6,2x5,1x6,1x5,12x6,4x0,8x5,2x1,2x6,2x5,1x6,1x5,12x6,4x0,8x5,4x6,4x5,1x1,6x6,5x1,4x0,8x5,4x1,1x9,3x5,12x1,4x0,4x5,6x9,2x1,4x9,12x1,4x0,10x1,2x2,16x1,4x0,10x4,2x2,4x4,5x2,3x1,4x2,4x0,12x2,1x7,15x2,6x0,10x2,3x7,4x2,2x7,7x2,6x0,10x2,3x7,4x2,4x7,5x2,25x0,1x4,31x0,1x8,31x0,1x8,31x0,1x4,31x0,1x4,31x0,1x7,1546x0,1x9,7x5,1x6,1x1,1x5,1x1,3x5,13x6,4x0,8x5,1x6,1x1,1x5,1x1,3x5,13x6,4x0,8x5,2x6,1x5,1x6,4x5,1x1,6x6,5x1,4x0,7x5,1x9,2x1,1x9,1x1,1x9,3x5,12x1,4x0,2x5,6x9,1x1,6x9,1x5,12x1,4x0,8x1,1x2,19x1,4x0,8x4,1x2,7x4,6x2,2x1,4x2,4x0,11x2,4x7,13x2,6x0,9x2,5x7,2x2,4x7,6x2,6x0,9x2,5x7,2x2,6x7,4x2,1734x0,13x5,13x6,6x0,13x5,13x6,6x0,13x5,1x1,7x6,3x1,2x5,6x0,3x5,7x9,3x5,11x1,1x5,1x9,6x0,13x9,11x1,2x9,6x0,13x1,1x2,12x1,6x0,13x4,8x2,1x1,2x2,2x4,6x0,9x2,4x7,13x2,7x0,8x2,4x7,3x2,5x7,5x2,7x0,8x2,4x7,3x2,6x7,4x2,1734x0,13x5,13x6,6x0,13x5,13x6,6x0,14x5,1x1,1x6,1x1,1x6,5x1,3x5,6x0,1x5,8x9,5x5,9x1,2x5,1x9,6x0,12x9,2x5,9x1,1x5,2x9,6x0,14x1,1x2,11x1,6x0,14x4,9x2,3x4,6x0,10x2,2x7,14x2,7x0,9x2,2x7,6x2,3x7,5x2,7x0,9x2,2x7,6x2,3x7,5x2,1734x0,12x5,1x9,11x6,2x5,6x0,13x5,11x6,2x5,6x0,13x5,3x1,4x5,3x1,3x5,6x0,8x9,5x5,3x1,4x5,3x1,2x5,1x9,6x0,12x9,1x5,3x1,4x5,3x1,1x5,2x9,6x0,13x1,3x2,10x1,6x0,13x4,3x2,4x4,3x2,3x4,6x0,26x2,6x0,26x2,6x0,26x2,1734x0,12x5,1x9,1x6,6x9,4x6,2x5,6x0,13x5,1x6,2x5,4x9,4x6,2x5,6x0,26x5,6x0,5x9,21x5,6x0,12x9,12x5,2x9,6x0,26x1,6x0,26x4,6x0,26x2,6x0,26x2,6x0,26x2,1735x0,11x5,11x9,3x5,7x0,16x5,4x9,5x5,7x0,25x5,7x0,2x9,23x5,7x0,10x9,13x5,2x9,7x0,6x1,1x9,18x1,7x0,25x4,7x0,6x2,1x4,18x2,7x0,25x2,7x0,23x2,1x0,1x2,1734x0,2x5,5x0,6x5,10x9,3x5,6x0,2x5,5x0,11x5,2x9,6x5,6x0,2x5,5x0,19x5,6x0,2x5,5x0,19x5,6x0,2x9,5x0,1x9,16x5,2x9,6x0,2x1,5x0,19x1,6x0,2x4,5x0,19x4,6x0,2x2,5x0,19x2,13x0,19x2,13x0,17x2,1x0,1x2,1741x0,4x9,4x5,8x9,3x5,13x0,19x5,13x0,19x5,13x0,19x5,13x0,17x5,2x9,13x0,1x9,18x1,13x0,19x4,13x0,1x4,18x2,13x0,19x2,13x0,12x2,1x0,1x2,4x0,1x2,1742x0,3x9,5x5,7x9,3x5,14x0,18x5,14x0,18x5,14x0,18x5,14x0,4x5,4x9,8x5,2x9,14x0,18x1,14x0,18x4,14x0,18x2,14x0,18x2,14x0,12x2,1749x0,2x9,7x5,5x9,3x5,15x0,17x5,15x0,17x5,15x0,17x5,15x0,3x5,5x9,7x5,2x9,15x0,17x1,15x0,17x4,15x0,17x2,15x0,17x2,15x0,7x2,1x0,4x2,1749x0,1x9,8x5,4x9,3x5,16x0,16x5,16x0,16x5,16x0,16x5,16x0,1x5,7x9,7x5,1x9,16x0,16x1,16x0,16x4,16x0,16x2,16x0,16x2,16x0,6x2,2x0,2x2,1750x0,16x5,16x0,16x5,16x0,16x5,16x0,16x5,16x0,1x5,9x9,6x5,16x0,16x1,16x0,16x4,16x0,16x2,17x0,15x2,19x0,2x2,4x0,1x2,1751x0,15x5,17x0,15x5,17x0,15x5,17x0,3x5,2x9,10x5,17x0,14x9,1x5,17x0,15x1,17x0,15x4,17x0,15x2,18x0,2x2,2x0,10x2,25x0,1x2,1752x0,14x5,18x0,14x5,18x0,14x5,18x0,1x5,5x9,8x5,18x0,13x9,1x5,18x0,14x1,18x0,14x4,18x0,14x2,22x0,9x2,1781x0,12x5,20x0,12x5,20x0,12x5,20x0,6x9,6x5,20x0,12x9,20x0,12x1,20x0,12x4,20x0,12x2,23x0,4x2,1785x0,8x5,1x0,3x5,20x0,8x5,1x0,3x5,20x0,8x5,1x0,3x5,20x0,7x9,1x5,1x0,3x5,20x0,8x9,1x0,3x9,20x0,8x1,1x0,3x1,20x0,8x4,1x0,3x4,20x0,8x2,1x0,3x2,24x0,2x2,1790x0,3x5,4x0,1x5,24x0,3x5,4x0,1x5,24x0,3x5,4x0,1x5,24x0,3x9,4x0,1x5,24x0,3x9,4x0,1x9,24x0,3x1,4x0,1x1,24x0,3x4,4x0,1x4,24x0,3x2,4x0,1x2,9984x0",
+      "-6,-1": "30x0,2x9,30x0,2x9,30x0,2x5,30x0,2x5,30x0,2x5,30x0,2x1,30x0,2x4,30x0,1x7,1x2,1823x0,1x9,31x0,1x9,31x0,1x5,31x0,1x5,31x0,1x5,31x0,1x1,31x0,1x4,31x0,1x2,1823x0,1x9,31x0,1x9,31x0,1x5,31x0,1x5,31x0,1x5,31x0,1x1,31x0,1x4,31x0,1x2,1820x0,4x9,28x0,1x5,3x9,28x0,4x5,28x0,4x5,28x0,4x5,28x0,4x1,28x0,4x4,28x0,4x2,1821x0,2x9,30x0,2x5,30x0,2x5,30x0,2x5,30x0,2x5,30x0,2x1,30x0,2x4,30x0,2x2,57089x0",
+      "-6,-2": "34847x0,1x5,31x0,1x5,31x0,1x5,31x0,1x5,31x0,1x9,31x0,1x1,31x0,1x4,31x0,1x2,1823x0,1x5,31x0,1x5,31x0,1x5,31x0,1x9,31x0,1x9,31x0,1x1,31x0,1x4,31x0,1x2,1823x0,1x5,31x0,1x5,31x0,1x5,31x0,1x9,31x0,1x9,31x0,1x1,31x0,1x4,31x0,1x2,3871x0,1x5,31x0,1x5,31x0,1x5,31x0,1x9,31x0,1x9,31x0,1x1,31x0,1x4,31x0,1x2,1823x0,1x5,31x0,1x5,31x0,1x5,31x0,1x9,31x0,1x9,31x0,1x1,31x0,1x4,31x0,1x2,1823x0,1x5,31x0,1x5,31x0,1x5,31x0,1x9,31x0,1x9,31x0,1x1,31x0,1x4,31x0,1x2,1822x0,2x5,30x0,2x5,30x0,2x5,30x0,2x5,30x0,2x9,30x0,2x1,30x0,2x4,30x0,2x2,1822x0,2x5,30x0,2x5,30x0,2x5,30x0,2x5,30x0,2x9,30x0,2x1,30x0,2x4,30x0,2x2,1822x0,2x5,30x0,2x5,30x0,2x5,30x0,2x5,30x0,2x9,30x0,2x1,30x0,2x4,30x0,2x2,1823x0,1x5,31x0,1x5,31x0,1x5,31x0,1x5,31x0,1x9,31x0,1x1,31x0,1x4,31x0,1x2,1823x0,1x9,31x0,1x5,31x0,1x5,31x0,1x5,31x0,1x5,31x0,1x1,31x0,1x4,31x0,1x2,1822x0,2x9,30x0,2x5,30x0,2x5,30x0,2x5,30x0,2x5,30x0,2x1,30x0,2x4,30x0,2x2,1822x0,2x9,30x0,2x5,30x0,2x5,30x0,2x5,30x0,2x5,30x0,2x1,30x0,2x4,30x0,1x2,1x7,1822x0,2x9,30x0,2x9,30x0,2x5,30x0,2x5,30x0,2x5,30x0,2x1,30x0,2x4,30x0,1x7,1x2,1792x0",
+      "-3,-2": "8x9,24x0,7x9,1x5,24x0,8x5,24x0,8x5,24x0,8x5,24x0,5x8,2x4,1x5,24x0,1x4,3x5,2x4,2x9,24x0,8x4,24x0,8x4,24x0,3x2,2x7,3x2,1752x0,9x9,23x0,6x9,3x5,23x0,9x5,23x0,9x5,23x0,9x5,23x0,1x4,3x8,2x4,1x5,1x4,1x9,23x0,1x9,4x4,4x9,23x0,9x4,23x0,9x4,23x0,3x2,3x7,3x2,1751x0,9x9,23x0,5x9,4x5,23x0,9x5,23x0,9x5,23x0,9x5,23x0,1x5,4x4,1x5,1x4,2x9,23x0,2x9,2x4,5x9,23x0,9x4,23x0,9x4,23x0,4x2,3x7,2x2,1751x0,8x9,1x5,23x0,2x5,2x9,5x5,23x0,9x5,23x0,9x5,23x0,8x5,1x9,23x0,2x5,2x4,1x5,2x4,2x9,23x0,9x9,23x0,9x4,23x0,9x4,23x0,5x2,3x7,1x2,26x0,1x4,31x0,1x4,31x0,1x4,31x0,1x2,31x0,1x2,1596x0,7x9,3x5,22x0,10x5,22x0,10x5,22x0,10x5,22x0,8x5,2x9,22x0,2x4,2x5,2x4,4x9,22x0,10x9,22x0,10x4,22x0,10x4,22x0,6x2,3x7,1x2,25x0,1x8,31x0,1x4,31x0,1x4,31x0,1x2,31x0,1x2,1596x0,7x9,4x5,21x0,11x5,21x0,11x5,21x0,11x5,21x0,8x5,3x9,21x0,2x9,4x4,5x9,21x0,11x9,21x0,11x4,21x0,11x4,21x0,7x2,3x7,1x2,1749x0,2x5,6x9,3x5,1x0,1x5,19x0,11x5,1x0,1x5,19x0,11x5,1x0,1x5,19x0,11x5,1x0,1x9,19x0,1x9,7x5,3x9,1x0,1x9,19x0,3x9,3x4,5x9,1x0,1x9,19x0,11x9,1x0,1x9,19x0,11x4,1x0,1x4,19x0,11x4,1x0,1x4,19x0,8x2,3x7,1x0,1x2,1747x0,2x5,6x9,7x5,17x0,15x5,17x0,15x5,17x0,13x5,2x9,17x0,2x9,7x5,6x9,17x0,4x9,3x4,8x9,17x0,15x9,17x0,15x4,17x0,15x4,17x0,8x2,3x7,4x2,17x0,2x8,30x0,2x4,30x0,2x4,30x0,2x2,30x0,2x2,1598x0,3x5,6x9,5x5,18x0,14x5,18x0,14x5,18x0,13x5,1x9,18x0,2x9,8x5,4x9,18x0,4x9,4x4,6x9,18x0,14x9,18x0,14x4,18x0,14x4,18x0,9x2,2x7,3x2,18x0,3x8,29x0,3x4,29x0,3x4,29x0,3x2,29x0,3x2,1597x0,3x5,7x9,3x5,19x0,13x5,19x0,13x5,19x0,13x5,19x0,3x9,8x5,2x9,19x0,4x9,5x4,4x9,19x0,13x9,19x0,13x4,19x0,13x4,19x0,13x2,19x0,4x8,28x0,4x4,28x0,4x4,28x0,4x2,28x0,3x2,1x7,28x0,1x7,1567x0,3x5,7x9,2x5,20x0,12x5,20x0,12x5,20x0,12x5,20x0,3x9,8x5,1x9,20x0,4x9,2x4,1x5,2x4,3x9,20x0,12x9,20x0,12x4,20x0,12x4,20x0,12x2,20x0,4x8,28x0,4x4,28x0,4x4,28x0,4x2,28x0,3x2,1x7,28x0,2x7,1566x0,3x5,8x9,21x0,11x5,21x0,11x5,21x0,11x5,21x0,2x9,9x5,21x0,4x9,2x4,2x5,1x4,2x9,21x0,11x9,21x0,11x4,21x0,11x4,21x0,11x2,21x0,4x8,28x0,4x4,28x0,4x4,28x0,4x2,28x0,2x2,2x7,1596x0,3x5,7x9,1x5,21x0,11x5,21x0,11x5,21x0,11x5,21x0,2x9,9x5,21x0,4x9,2x4,1x5,2x4,2x9,21x0,11x9,21x0,11x4,21x0,11x4,21x0,11x2,21x0,5x8,27x0,5x4,27x0,5x4,27x0,5x2,27x0,1x2,4x7,1595x0,3x5,7x9,1x5,21x0,11x5,21x0,11x5,21x0,11x5,21x0,2x9,9x5,21x0,4x9,5x4,2x9,21x0,11x9,21x0,11x4,21x0,11x4,21x0,11x2,21x0,5x8,27x0,5x4,27x0,5x4,27x0,5x2,27x0,2x5,2x7,1x5,1595x0,3x5,6x9,2x5,1x0,3x5,17x0,11x5,1x0,3x5,17x0,11x5,1x0,3x5,17x0,11x5,1x0,1x5,2x9,17x0,2x9,8x5,1x9,1x0,3x9,17x0,5x9,2x4,4x9,1x0,3x9,17x0,11x9,1x0,3x9,17x0,11x4,1x0,3x4,17x0,11x4,1x0,3x4,17x0,8x2,2x7,1x2,1x0,3x2,17x0,4x8,1x4,1x8,26x0,6x4,26x0,4x4,1x2,1x4,26x0,6x2,26x0,6x5,1594x0,3x5,5x9,3x5,1x0,3x5,17x0,11x5,1x0,3x5,17x0,11x5,1x0,3x5,17x0,11x5,1x0,3x9,17x0,1x9,8x5,2x9,1x0,3x9,17x0,11x9,1x0,3x9,17x0,11x9,1x0,3x9,17x0,11x4,1x0,3x4,17x0,11x4,1x0,3x4,17x0,7x2,4x7,1x0,3x2,17x0,1x2,1x8,1x4,2x2,1x8,26x0,1x2,2x4,2x2,1x4,26x0,1x2,1x4,3x2,1x4,26x0,6x2,26x0,6x5,30x0,1x5,1563x0,7x9,4x5,2x0,2x5,17x0,11x5,2x0,2x5,17x0,11x5,2x0,2x5,17x0,11x5,2x0,2x9,17x0,8x5,3x9,2x0,2x9,17x0,11x9,2x0,2x9,17x0,11x9,2x0,2x9,17x0,11x4,2x0,2x4,17x0,11x4,2x0,2x4,17x0,7x2,4x7,2x0,2x2,17x0,6x2,1x8,25x0,6x2,1x4,25x0,6x2,1x4,25x0,7x2,25x0,4x2,2x5,1x10,25x0,2x5,1x0,2x5,1563x0,6x9,5x5,2x0,1x5,18x0,11x5,2x0,1x5,18x0,11x5,2x0,1x5,18x0,11x5,2x0,1x9,18x0,8x5,3x9,2x0,1x9,18x0,11x9,2x0,1x9,18x0,11x9,2x0,1x9,18x0,11x4,2x0,1x4,18x0,11x4,2x0,1x4,18x0,7x2,3x7,1x2,2x0,1x2,18x0,6x2,1x8,25x0,6x2,1x4,25x0,6x2,1x4,25x0,7x2,25x0,7x2,25x0,1x10,1x5,1x0,1x5,1564x0,6x9,5x5,21x0,11x5,21x0,11x5,21x0,11x5,21x0,8x5,3x9,21x0,3x4,8x9,21x0,11x9,21x0,11x4,21x0,11x4,21x0,11x2,21x0,5x2,1x4,26x0,5x2,1x4,26x0,6x2,26x0,6x2,26x0,6x2,26x0,1x10,2x5,1565x0,7x9,4x5,21x0,11x5,21x0,11x5,21x0,11x5,21x0,8x5,3x9,21x0,2x5,2x4,7x9,21x0,11x9,21x0,11x4,21x0,11x4,21x0,11x2,21x0,5x2,1x4,26x0,5x2,1x4,26x0,6x2,26x0,6x2,26x0,5x2,1595x0,7x9,2x5,23x0,1x9,8x5,23x0,9x5,23x0,9x5,23x0,9x5,23x0,1x4,2x5,2x4,4x9,23x0,9x9,23x0,9x4,23x0,9x4,23x0,9x2,23x0,5x2,1x4,26x0,5x2,1x4,26x0,6x2,26x0,6x2,29x0,2x2,1595x0,9x9,4x0,1x5,18x0,2x9,7x5,4x0,1x5,18x0,9x5,4x0,1x5,18x0,9x5,4x0,1x5,18x0,9x5,4x0,1x9,18x0,2x4,1x5,2x4,4x9,4x0,1x9,18x0,9x9,4x0,1x9,18x0,9x4,4x0,1x4,18x0,9x4,4x0,1x4,18x0,9x2,4x0,1x2,18x0,1x2,2x4,2x2,1x4,26x0,1x2,2x4,2x2,1x4,26x0,6x2,26x0,6x2,30x0,1x2,1595x0,9x9,23x0,2x9,7x5,23x0,9x5,23x0,9x5,23x0,9x5,23x0,2x4,1x5,2x4,4x9,23x0,9x9,23x0,9x4,23x0,9x4,23x0,9x2,23x0,5x4,1x2,26x0,5x4,1x2,26x0,6x2,26x0,6x2,1626x0,8x9,2x0,2x9,20x0,2x9,6x5,2x0,2x5,20x0,8x5,2x0,2x5,20x0,8x5,2x0,2x5,20x0,8x5,2x0,2x5,20x0,1x4,2x5,2x4,3x9,2x0,2x4,20x0,8x9,2x0,2x9,20x0,8x4,2x0,2x4,20x0,8x4,2x0,2x4,20x0,8x2,2x0,2x2,20x0,2x4,2x2,1x0,1x4,26x0,2x4,2x2,1x0,1x4,26x0,4x2,1x0,1x2,26x0,4x2,1x0,1x2,1626x0,10x9,22x0,10x5,22x0,10x5,22x0,10x5,22x0,10x5,22x0,2x5,2x4,5x9,1x4,22x0,10x9,22x0,10x4,22x0,10x4,22x0,10x2,22x0,3x2,3x4,26x0,3x2,3x4,26x0,6x2,26x0,6x2,1626x0,5x9,2x5,25x0,7x5,25x0,7x5,25x0,7x5,25x0,7x5,25x0,1x5,2x4,4x9,25x0,7x9,25x0,7x4,25x0,7x4,25x0,7x2,25x0,6x2,26x0,6x2,26x0,6x2,26x0,6x2,1626x0,3x9,3x5,26x0,6x5,26x0,6x5,26x0,6x5,26x0,4x5,2x9,26x0,2x4,4x9,26x0,6x9,26x0,6x4,26x0,6x4,26x0,6x2,26x0,6x2,26x0,6x2,26x0,6x2,26x0,6x2,1626x0,2x9,4x5,26x0,6x5,26x0,6x5,26x0,6x5,26x0,3x5,3x9,26x0,6x9,26x0,6x9,26x0,6x4,26x0,6x4,26x0,6x2,26x0,5x2,1x4,26x0,5x2,1x4,26x0,6x2,26x0,6x2,1626x0,1x9,4x5,27x0,5x5,27x0,5x5,27x0,5x5,27x0,2x5,3x9,27x0,5x9,27x0,5x9,27x0,5x4,27x0,5x4,27x0,5x2,27x0,5x2,27x0,5x2,27x0,5x2,27x0,5x2,1627x0,4x5,28x0,4x5,28x0,4x5,28x0,4x5,28x0,4x9,28x0,4x9,28x0,4x9,28x0,3x4,1x9,28x0,4x4,28x0,3x2,1x4,28x0,4x2,28x0,4x2,28x0,4x2,28x0,4x2,1628x0,4x5,28x0,4x5,28x0,4x5,28x0,4x5,28x0,4x9,28x0,4x9,28x0,4x9,28x0,1x4,3x9,28x0,4x4,28x0,1x2,2x4,1x8,28x0,3x2,1x4,28x0,3x2,1x4,28x0,4x2,28x0,4x2,1628x0,2x5,30x0,2x5,30x0,2x5,30x0,2x5,30x0,2x9,30x0,2x9,30x0,2x9,30x0,2x9,30x0,2x4,30x0,1x4,1x8,30x0,1x2,1x4,30x0,1x2,1x4,30x0,2x2,30x0,2x2,1630x0",
+      "-3,-3": "55296x0,3x9,29x0,3x9,29x0,1x5,2x9,29x0,3x5,29x0,3x5,29x0,3x8,29x0,2x5,1x4,29x0,3x4,29x0,3x4,29x0,3x2,1757x0,3x9,29x0,3x9,29x0,3x9,29x0,3x5,29x0,3x5,29x0,3x8,29x0,1x5,2x4,29x0,3x4,29x0,3x4,29x0,3x2,1757x0,4x9,28x0,4x9,28x0,4x9,28x0,4x5,28x0,4x5,28x0,4x8,28x0,1x5,3x4,28x0,4x4,28x0,4x4,28x0,4x2,1756x0,3x9,29x0,3x9,29x0,1x5,2x9,29x0,3x5,29x0,3x5,29x0,3x8,29x0,1x5,2x4,29x0,3x4,29x0,3x4,29x0,3x2,1757x0,3x9,29x0,3x9,29x0,2x5,1x9,29x0,3x5,29x0,3x5,29x0,3x8,29x0,2x5,1x4,29x0,3x4,29x0,3x4,29x0,3x2,1757x0",
+      "-3,-1": "1x5,31x0,1x5,31x0,1x5,31x0,1x5,31x0,1x9,31x0,1x9,31x0,1x9,31x0,1x9,31x0,1x4,31x0,1x8,31x0,1x4,31x0,1x4,31x0,1x2,31x0,1x2,3679x0,2x5,30x0,2x5,30x0,2x5,30x0,2x5,30x0,2x9,30x0,2x9,30x0,2x9,30x0,2x9,30x0,1x4,1x5,30x0,2x8,30x0,2x4,30x0,2x4,30x0,2x2,30x0,2x2,1630x0,1x5,31x0,1x5,31x0,1x5,31x0,1x5,31x0,1x9,31x0,1x9,31x0,1x9,31x0,1x9,31x0,1x4,31x0,1x4,31x0,1x2,31x0,1x2,31x0,1x2,31x0,1x2,58975x0"
+    }
+  },
+  "shipSpawn": null,
+  "hasDock": true
 }

@@ -204,6 +204,7 @@ export class SirenManager {
             playerShip.bounceBack(pushDx, pushDz, 'rock');
           }
           emit('obstacleHit', { type: 'rock', damage: rockDamage });
+
         }
 
         // Static push away from rock center to avoid sticking

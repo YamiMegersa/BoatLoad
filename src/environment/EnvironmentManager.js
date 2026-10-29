@@ -382,7 +382,13 @@ export class EnvironmentManager {
                 playerShip.takeDamage(15, 'shark');
               }
               emit('spawnParticles', { type: 'massiveSplash', position: shark.mesh.position.clone() });
-              emit('playSound', { sound: 'collision' });
+              emit('playSound', {
+                sound: 'collision',
+                type: 'shark',
+                damage: 15,
+                speedRatio: playerShip.speedRatio || 0,
+                maneuver: playerShip.maneuverIntensity || 0,
+              });
             }
           });
 

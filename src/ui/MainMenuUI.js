@@ -285,6 +285,9 @@ export class MainMenuUI {
           <button class="menu-util-btn" id="btn-menu-settings">
             <span class="pixel-icon icon-settings-cog size-16"></span> Settings
           </button>
+          <button class="menu-util-btn" id="btn-menu-credits" title="View Game Credits &amp; Honours">
+            <span class="pixel-icon icon-quill-author size-16"></span> Credits
+          </button>
           <span class="menu-version">v1.0 • ${GameEnv.isDev() ? 'DEV SUITE' : 'DEMO EDITION'}</span>
           <button class="menu-util-btn" id="btn-menu-fullscreen">
             <span class="pixel-icon icon-fullscreen-expand size-16"></span> Fullscreen
@@ -500,6 +503,10 @@ export class MainMenuUI {
 
     bindBtn('#btn-menu-editor', () => {
       emit('requestPhaseChange', { phase: 'EDITOR' });
+    });
+
+    bindBtn('#btn-menu-credits', () => {
+      emit('requestPhaseChange', { phase: 'CREDITS' });
     });
 
     bindBtn('#btn-menu-community', () => {
