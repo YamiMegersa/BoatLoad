@@ -1423,6 +1423,39 @@ export class GameState {
     if (opts?.shipDef) this._shipDef = opts.shipDef;
     if (opts?.levelCfg) this._levelCfg = opts.levelCfg;
 
+    // Clean up any lingering editor system, editor environment group, workshop or voxel terrain
+    if (this._editorSystem) {
+      this._editorSystem.dispose();
+      this._editorSystem = null;
+    }
+    const lingeringEditorGroup = this._scene.getObjectByName('EditorEnvironmentGroup');
+    if (lingeringEditorGroup) {
+      this._scene.remove(lingeringEditorGroup);
+    }
+    for (let i = this._scene.children.length - 1; i >= 0; i--) {
+      const c = this._scene.children[i];
+      if (
+        c.name === 'EditorEnvironmentGroup' ||
+        c.name === 'BoatDestructionWorkshopGroup' ||
+        c.name === 'editorShipGhost' ||
+        c.userData?.isShipSpawn ||
+        c.name === 'dockMooredGroup'
+      ) {
+        this._scene.remove(c);
+        c.traverse(child => {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) {
+            if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+            else child.material.dispose();
+          }
+        });
+      }
+    }
+    if (this._voxelTerrain) {
+      this._voxelTerrain.dispose();
+      this._voxelTerrain = null;
+    }
+
     // Ensure any loaded boat/vessel meshes are hidden and positioned well out of the camera's sightline
     if (this._chunkRenderer && this._chunkRenderer.container) {
       this._chunkRenderer.container.visible = false;
@@ -1577,11 +1610,12 @@ export class GameState {
     this._raycaster.build(this._grid, this._scene, this._chunkRenderer.container);
 
     // Budget manager for level repairs
-    if (!this.currentContract || this.currentContract.day !== this.day) {
-      const defaultBudget = this._levelCfg?.budget !== undefined ? this._levelCfg.budget : getCustomerForDay(this.day).basePay;
+    const configuredBudget = levelCfg?.budget !== undefined ? levelCfg.budget : (this._levelCfg?.budget !== undefined ? this._levelCfg.budget : undefined);
+    if (!this.currentContract || this.currentContract.day !== this.day || isEditorPlay || isClearCheck || configuredBudget !== undefined) {
+      const defaultBudget = configuredBudget !== undefined ? configuredBudget : getCustomerForDay(this.day).basePay;
       this.initContract(this.day, defaultBudget);
     }
-    const levelBudget = this.currentContract?.agreedBudget ?? (this._levelCfg?.budget !== undefined ? this._levelCfg.budget : getCustomerForDay(this.day).basePay);
+    const levelBudget = configuredBudget !== undefined ? configuredBudget : (this.currentContract?.agreedBudget ?? getCustomerForDay(this.day).basePay);
     if (!this._budgetManager) {
       this._budgetManager = new BudgetManager(levelBudget);
     } else {
@@ -1784,11 +1818,11 @@ export class GameState {
 
     const group = new THREE.Group();
     group.name = 'damageDocketDebugOverlay';
-    const geometry = new THREE.BoxGeometry(1.04, 1.04, 1.04);
+    const geometry = new THREE.BoxGeometry(1.0, 1.0, 1.0);
     const materials = {
-      [CellState.MISSING]: new THREE.MeshBasicMaterial({ color: 0xff3939, wireframe: true, depthTest: false }),
-      [CellState.DAMAGED]: new THREE.MeshBasicMaterial({ color: 0xffc247, wireframe: true, depthTest: false }),
-      [CellState.FLOODED]: new THREE.MeshBasicMaterial({ color: 0x39d8ff, wireframe: true, depthTest: false }),
+      [CellState.MISSING]: new THREE.MeshBasicMaterial({ color: 0xff3939, wireframe: true, depthTest: true, depthWrite: false }),
+      [CellState.DAMAGED]: new THREE.MeshBasicMaterial({ color: 0xffc247, wireframe: true, depthTest: true, depthWrite: false }),
+      [CellState.FLOODED]: new THREE.MeshBasicMaterial({ color: 0x39d8ff, wireframe: true, depthTest: true, depthWrite: false }),
     };
     for (const task of this._docket) {
       for (const cell of task.targetCells) {
@@ -1894,6 +1928,27 @@ export class GameState {
       }
       this._scene.remove(this._dockMooredGroup);
       this._dockMooredGroup = null;
+    }
+
+    // Safety sweep: purge any lingering editor groups, workshop groups, ghost ships, or moored groups
+    for (let i = this._scene.children.length - 1; i >= 0; i--) {
+      const c = this._scene.children[i];
+      if (
+        c.name === 'EditorEnvironmentGroup' ||
+        c.name === 'BoatDestructionWorkshopGroup' ||
+        c.name === 'editorShipGhost' ||
+        c.userData?.isShipSpawn ||
+        c.name === 'dockMooredGroup'
+      ) {
+        this._scene.remove(c);
+        c.traverse(child => {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) {
+            if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+            else child.material.dispose();
+          }
+        });
+      }
     }
 
     if (this._weather?.rainMesh) {
@@ -2954,6 +3009,30 @@ export class GameState {
 
     this._editorSystem?.dispose();
     this._editorSystem = null;
+
+    // Safety sweep: Remove any lingering editor scene groups, workshop groups, ghost ships, or preview meshes
+    for (let i = this._scene.children.length - 1; i >= 0; i--) {
+      const c = this._scene.children[i];
+      if (
+        c.name === 'EditorEnvironmentGroup' ||
+        c.name === 'BoatDestructionWorkshopGroup' ||
+        c.name === 'editorShipGhost' ||
+        c.userData?.isShipSpawn
+      ) {
+        this._scene.remove(c);
+        c.traverse(child => {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) {
+            if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+            else child.material.dispose();
+          }
+        });
+      }
+    }
+    if (this._voxelTerrain) {
+      this._voxelTerrain.dispose();
+      this._voxelTerrain = null;
+    }
 
     this._orbitControls?.dispose();
     this._orbitControls = null;

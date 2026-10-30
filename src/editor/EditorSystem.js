@@ -41,6 +41,7 @@ export class EditorSystem {
     this._customShipDamage = null;
     this._destructionWorkshop = new BoatDestructionWorkshop();
     this._damageUI = new EditorDamageUI();
+    this._isDisposed = false;
     this._savedEditorCameraPos = new THREE.Vector3();
     
     // Track explicit placed instances
@@ -80,8 +81,13 @@ export class EditorSystem {
     // Ship Spawn State
     this._shipSpawn = null;
     this._hasDock = true;
+    this._eventCleanups = [];
+    const listen = (evt, fn) => {
+      on(evt, fn);
+      this._eventCleanups.push(() => off(evt, fn));
+    };
     
-    on('editorSelectType', d => {
+    listen('editorSelectType', d => {
       this._activeType = d.type;
       this._activeUrl = d.url;
       this._activeTool = 'place';
@@ -92,7 +98,7 @@ export class EditorSystem {
       this._emitState();
     });
     
-    on('editorSelectTool', d => {
+    listen('editorSelectTool', d => {
       this._activeType = null;
       this._activeUrl = null;
       this._activeTool = d.tool;
@@ -100,7 +106,7 @@ export class EditorSystem {
       this._emitState();
     });
 
-    on('editorSetBrushShape', d => {
+    listen('editorSetBrushShape', d => {
       if (d && d.shape) {
         this._brushShape = d.shape;
         const isTerrainTool = this._activeTool === 'terrain_raise' || this._activeTool === 'terrain_lower';
@@ -115,21 +121,21 @@ export class EditorSystem {
       }
     });
 
-    on('editorSetBudget', d => {
+    listen('editorSetBudget', d => {
       if (d && d.budget !== undefined) {
         this._budget = Math.max(0, parseInt(d.budget, 10));
         this._emitState();
       }
     });
 
-    on('editorSetBiome', d => {
+    listen('editorSetBiome', d => {
       if (d && d.biome && this._voxelTerrain) {
         this._voxelTerrain.setBiome(d.biome);
         this._emitState();
       }
     });
 
-    on('editorSetTransform', d => {
+    listen('editorSetTransform', d => {
       if (d.scale !== undefined) this._currentScale = Math.max(0.1, Math.min(20.0, d.scale));
       if (d.y !== undefined) this._currentY = d.y;
       if (d.rotation !== undefined) this._currentRotation = d.rotation;
@@ -140,7 +146,7 @@ export class EditorSystem {
       this._emitState();
     });
 
-    on('editorClearAll', () => {
+    listen('editorClearAll', () => {
       for (const obs of this._placedObstacles) {
         if (obs.mesh?.parent) obs.mesh.parent.remove(obs.mesh);
         else if (this._editorGroup) this._editorGroup.remove(obs.mesh);
@@ -175,7 +181,7 @@ export class EditorSystem {
       this._emitState();
     });
 
-    on('editorImportLevel', d => {
+    listen('editorImportLevel', d => {
       if (!d || !d.config) return;
       const cfg = d.config;
       this._levelCfg = cfg;
@@ -297,7 +303,7 @@ export class EditorSystem {
       this._emitState();
     });
     
-    on('editorSetWorldSize', d => {
+    listen('editorSetWorldSize', d => {
       if (this._levelCfg) {
         this._levelCfg.worldSize = d.size;
         this._updateBoundaryVisual();
@@ -305,7 +311,7 @@ export class EditorSystem {
       emit('oceanSetWorldSize', d);
     });
 
-    on('editorSetWindDir', d => {
+    listen('editorSetWindDir', d => {
       if (this._levelCfg) {
         this._levelCfg.globalWindDir = d.dir;
       }
@@ -315,7 +321,7 @@ export class EditorSystem {
       }
     });
 
-    on('editorSetFogDensity', d => {
+    listen('editorSetFogDensity', d => {
       if (this._levelCfg) {
         this._levelCfg.fogDensity = d.density;
       }
@@ -331,7 +337,7 @@ export class EditorSystem {
       }
     });
 
-    on('editorSetTimeOfDay', d => {
+    listen('editorSetTimeOfDay', d => {
       if (this._levelCfg) this._levelCfg.timeOfDay = d.time;
       if (this._envManager) {
         this._envManager._timeOfDay = d.time;
@@ -339,7 +345,7 @@ export class EditorSystem {
       }
     });
 
-    on('editorSetStormy', d => {
+    listen('editorSetStormy', d => {
       if (this._levelCfg) this._levelCfg.isStormy = d.isStormy;
       if (this._envManager) {
         this._envManager.toggleStorm(d.isStormy);
@@ -347,30 +353,30 @@ export class EditorSystem {
       }
     });
 
-    on('editorToggleGodRays', d => {
+    listen('editorToggleGodRays', d => {
       if (this._levelCfg) this._levelCfg.godRays = d.enabled;
       if (this._envManager) {
         this._envManager._godRaysEnabled = d.enabled;
       }
     });
 
-    on('editorToggleDock', d => {
+    listen('editorToggleDock', d => {
       this._hasDock = Boolean(d.hasDock);
       if (this._levelCfg) this._levelCfg.hasDock = this._hasDock;
       this._updateShipGhost();
       emit('editorHasDockChanged', { hasDock: this._hasDock });
     });
 
-    on('editorExport', () => this.exportLevel());
+    listen('editorExport', () => this.exportLevel());
 
     // Boss Encounter Events
-    on('editorSelectTentacle', d => {
+    listen('editorSelectTentacle', d => {
       this._activeTentacleIdx = Math.max(0, d.index || 0);
       this._updateBossVisuals();
       this._emitBossConfig();
     });
 
-    on('editorAddTentacle', () => {
+    listen('editorAddTentacle', () => {
       if (!this._krakenConfig) {
         this._krakenConfig = {
           krakenPosition: { x: 0, y: -5, z: -150 },
@@ -394,7 +400,7 @@ export class EditorSystem {
       this._emitBossConfig();
     });
 
-    on('editorRemoveTentacle', () => {
+    listen('editorRemoveTentacle', () => {
       if (this._krakenConfig && this._krakenConfig.tentacles && this._krakenConfig.tentacles.length > 1) {
         this._krakenConfig.tentacles.splice(this._activeTentacleIdx, 1);
         this._activeTentacleIdx = Math.max(0, this._activeTentacleIdx - 1);
@@ -403,19 +409,19 @@ export class EditorSystem {
       }
     });
 
-    on('editorSetTentacleSpeed', d => {
+    listen('editorSetTentacleSpeed', d => {
       if (this._krakenConfig?.tentacles?.[this._activeTentacleIdx]) {
         this._krakenConfig.tentacles[this._activeTentacleIdx].speed = d.speed;
       }
     });
 
-    on('editorSetTentacleDuration', d => {
+    listen('editorSetTentacleDuration', d => {
       if (this._krakenConfig?.tentacles?.[this._activeTentacleIdx]) {
         this._krakenConfig.tentacles[this._activeTentacleIdx].raceDuration = d.duration;
       }
     });
 
-    on('editorClearWaypoints', () => {
+    listen('editorClearWaypoints', () => {
       if (this._krakenConfig?.tentacles?.[this._activeTentacleIdx]) {
         this._krakenConfig.tentacles[this._activeTentacleIdx].waypoints = [];
         this._updateBossVisuals();
@@ -423,14 +429,14 @@ export class EditorSystem {
       }
     });
 
-    on('editorRemoveBoss', () => {
+    listen('editorRemoveBoss', () => {
       this._krakenConfig = null;
       this._activeTentacleIdx = 0;
       this._updateBossVisuals();
       this._emitBossConfig();
     });
 
-    on('editorSelectShip', d => {
+    listen('editorSelectShip', d => {
       if (!d || !d.shipId) return;
       this._selectedShipId = d.shipId;
       if (this._levelCfg) this._levelCfg.ship = d.shipId;
@@ -438,7 +444,7 @@ export class EditorSystem {
       this._emitState();
     });
 
-    on('editorToggleShipGhost', d => {
+    listen('editorToggleShipGhost', d => {
       this._shipGhostVisible = !!d.enabled;
       if (this._shipGhostGroup) {
         this._shipGhostGroup.visible = this._shipGhostVisible;
@@ -446,7 +452,7 @@ export class EditorSystem {
     });
 
     // Boat Destruction Workshop Events
-    on('editorOpenDamageWorkshop', async () => {
+    listen('editorOpenDamageWorkshop', async () => {
       if (this._destructionWorkshop.isOpen) return;
 
       const profile = getShipProfile(this._selectedShipId) || { name: 'Vessel' };
@@ -483,7 +489,7 @@ export class EditorSystem {
       }, 350);
     });
 
-    on('editorCloseDamageWorkshop', () => {
+    listen('editorCloseDamageWorkshop', () => {
       if (!this._destructionWorkshop.isOpen) return;
 
       emit('showLoading', {
@@ -515,16 +521,16 @@ export class EditorSystem {
       }, 350);
     });
 
-    on('workshopSelectBrush', ({ brush }) => this._destructionWorkshop?.setBrush(brush));
-    on('workshopSelectSize', ({ size }) => this._destructionWorkshop?.setBrushSize(size));
-    on('workshopRotateBrush', () => this._destructionWorkshop?.rotate());
-    on('workshopTogglePitch', () => this._destructionWorkshop?.togglePitch());
-    on('workshopToggleMirror', () => this._destructionWorkshop?.toggleMirror());
-    on('workshopToggleOutlines', () => this._destructionWorkshop?.toggleOutlines());
-    on('workshopUndo', () => this._destructionWorkshop?.undo());
-    on('workshopRedo', () => this._destructionWorkshop?.redo());
-    on('workshopResetPristine', () => this._destructionWorkshop?.resetPristine());
-    on('workshopImportBoat', async ({ levelJson }) => {
+    listen('workshopSelectBrush', ({ brush }) => this._destructionWorkshop?.setBrush(brush));
+    listen('workshopSelectSize', ({ size }) => this._destructionWorkshop?.setBrushSize(size));
+    listen('workshopRotateBrush', () => this._destructionWorkshop?.rotate());
+    listen('workshopTogglePitch', () => this._destructionWorkshop?.togglePitch());
+    listen('workshopToggleMirror', () => this._destructionWorkshop?.toggleMirror());
+    listen('workshopToggleOutlines', () => this._destructionWorkshop?.toggleOutlines());
+    listen('workshopUndo', () => this._destructionWorkshop?.undo());
+    listen('workshopRedo', () => this._destructionWorkshop?.redo());
+    listen('workshopResetPristine', () => this._destructionWorkshop?.resetPristine());
+    listen('workshopImportBoat', async ({ levelJson }) => {
       if (!levelJson) return;
       const res = await this._destructionWorkshop.importBoatFromLevel(levelJson);
       if (res && res.success) {
@@ -537,7 +543,7 @@ export class EditorSystem {
       }
     });
 
-    on('editorImportBoatFromLevel', async ({ levelJson }) => {
+    listen('editorImportBoatFromLevel', async ({ levelJson }) => {
       if (!levelJson) return;
       const targetShipId = levelJson.ship || this._selectedShipId || DEFAULT_SHIP_ID;
       this._selectedShipId = targetShipId;
@@ -722,12 +728,16 @@ export class EditorSystem {
   }
 
   dispose() {
-    this._renderer.domElement.removeEventListener('pointerdown', this._boundPointerDown);
-    this._renderer.domElement.removeEventListener('pointermove', this._boundPointerMove);
+    this._isDisposed = true;
+
+    if (this._renderer?.domElement) {
+      this._renderer.domElement.removeEventListener('pointerdown', this._boundPointerDown);
+      this._renderer.domElement.removeEventListener('pointermove', this._boundPointerMove);
+      this._renderer.domElement.removeEventListener('wheel', this._boundWheel);
+    }
     window.removeEventListener('pointerup', this._boundPointerUp);
-    this._renderer.domElement.removeEventListener('wheel', this._boundWheel);
     window.removeEventListener('keydown', this._boundKeyDown);
-    
+
     if (this._previewMesh) {
       if (this._previewMesh.mesh?.parent) this._previewMesh.mesh.parent.remove(this._previewMesh.mesh);
       else if (this._editorGroup) this._editorGroup.remove(this._previewMesh.mesh);
@@ -739,14 +749,21 @@ export class EditorSystem {
       this._voxelTerrain.dispose();
       this._voxelTerrain = null;
     }
-    
+
     for (const obs of this._placedObstacles) {
       if (obs.mesh?.parent) obs.mesh.parent.remove(obs.mesh);
       else if (this._editorGroup) this._editorGroup.remove(obs.mesh);
       else if (this._scene) this._scene.remove(obs.mesh);
+      obs.mesh?.traverse?.(child => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) {
+          if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+          else child.material.dispose();
+        }
+      });
     }
     this._placedObstacles = [];
-    
+
     if (this._boundaryVisual) {
       if (this._boundaryVisual.parent) this._boundaryVisual.parent.remove(this._boundaryVisual);
       else if (this._editorGroup) this._editorGroup.remove(this._boundaryVisual);
@@ -755,7 +772,7 @@ export class EditorSystem {
       this._boundaryVisual.material?.dispose();
       this._boundaryVisual = null;
     }
-    
+
     if (this._windArrowHelper) {
       if (this._windArrowHelper.parent) this._windArrowHelper.parent.remove(this._windArrowHelper);
       else if (this._editorGroup) this._editorGroup.remove(this._windArrowHelper);
@@ -783,12 +800,84 @@ export class EditorSystem {
       this._krakenVisualGroup = null;
     }
 
+    if (this._endLocationVisualGroup) {
+      if (this._endLocationVisualGroup.parent) {
+        this._endLocationVisualGroup.parent.remove(this._endLocationVisualGroup);
+      }
+      this._scene?.remove(this._endLocationVisualGroup);
+      this._editorGroup?.remove(this._endLocationVisualGroup);
+      this._endLocationVisualGroup.traverse(child => {
+        if (child.isMesh || child.isLine || child.isSprite) {
+          child.geometry?.dispose();
+          if (child.material) {
+            if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+            else child.material.dispose();
+          }
+        }
+      });
+      this._endLocationVisualGroup = null;
+    }
+
+    if (this._shipGhostGroup) {
+      if (this._shipGhostGroup.parent) this._shipGhostGroup.parent.remove(this._shipGhostGroup);
+      this._editorGroup?.remove(this._shipGhostGroup);
+      this._scene?.remove(this._shipGhostGroup);
+      this._shipGhostGroup.traverse(child => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) {
+          if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+          else child.material.dispose();
+        }
+      });
+      this._shipGhostGroup = null;
+    }
+
+    if (this._destructionWorkshop) {
+      this._destructionWorkshop.close();
+      this._destructionWorkshop = null;
+    }
+
+    if (this._damageUI) {
+      this._damageUI.dispose();
+      this._damageUI = null;
+    }
+
+    if (window.gameState?._orbitControls) {
+      window.gameState._orbitControls.enabled = true;
+    }
+
     if (this._editorGroup) {
+      if (this._editorGroup.parent) this._editorGroup.parent.remove(this._editorGroup);
       if (this._scene) this._scene.remove(this._editorGroup);
       while (this._editorGroup.children.length > 0) {
-        this._editorGroup.remove(this._editorGroup.children[0]);
+        const c = this._editorGroup.children[0];
+        this._editorGroup.remove(c);
+        c.traverse?.(ch => {
+          if (ch.geometry) ch.geometry.dispose();
+          if (ch.material) {
+            if (Array.isArray(ch.material)) ch.material.forEach(m => m.dispose());
+            else ch.material.dispose();
+          }
+        });
       }
       this._editorGroup = null;
+    }
+
+    // Safety sweep in scene
+    if (this._scene) {
+      for (let i = this._scene.children.length - 1; i >= 0; i--) {
+        const c = this._scene.children[i];
+        if (c.name === 'editorShipGhost' || c.userData?.isShipSpawn || c.name === 'EditorEnvironmentGroup' || c.name === 'BoatDestructionWorkshopGroup') {
+          this._scene.remove(c);
+          c.traverse(child => {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) {
+              if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+              else child.material.dispose();
+            }
+          });
+        }
+      }
     }
 
     off('editorSelectType');
@@ -811,12 +900,24 @@ export class EditorSystem {
     off('editorSetTentacleDuration');
     off('editorClearWaypoints');
     off('editorRemoveBoss');
-    
+    off('editorOpenDamageWorkshop');
+    off('editorCloseDamageWorkshop');
+    off('workshopSelectBrush');
+    off('workshopSelectSize');
+    off('workshopRotateBrush');
+    off('workshopTogglePitch');
+    off('workshopToggleMirror');
+    off('workshopToggleOutlines');
+    off('workshopUndo');
+    off('workshopRedo');
+    off('workshopResetPristine');
+    off('workshopImportBoat');
+
     if (this._envManager) {
       this._envManager.dispose();
       this._envManager = null;
     }
-    
+
     if (this._scene) {
       this._scene.fog = null;
       this._scene.background = new THREE.Color(0x222233);
@@ -1629,7 +1730,11 @@ export class EditorSystem {
 
   _updateEndLocationVisual() {
     if (this._endLocationVisualGroup) {
+      if (this._endLocationVisualGroup.parent) {
+        this._endLocationVisualGroup.parent.remove(this._endLocationVisualGroup);
+      }
       this._scene?.remove(this._endLocationVisualGroup);
+      this._editorGroup?.remove(this._endLocationVisualGroup);
       this._endLocationVisualGroup.traverse(child => {
         if (child.isMesh || child.isLine || child.isSprite) {
           child.geometry?.dispose();
@@ -1707,7 +1812,8 @@ export class EditorSystem {
       c.userData.isRaceMarker = true;
     });
 
-    this._scene?.add(this._endLocationVisualGroup);
+    if (this._editorGroup) this._editorGroup.add(this._endLocationVisualGroup);
+    else if (this._scene) this._scene.add(this._endLocationVisualGroup);
   }
 
   exportLevel() {
@@ -1822,7 +1928,7 @@ export class EditorSystem {
     const targetGroup = this._shipGhostGroup;
     loader.load(modelUrl, (gltf) => {
       // If a new spawn or ship was chosen before load completed, discard stale model
-      if (!this._shipGhostGroup || this._shipGhostGroup !== targetGroup) {
+      if (this._isDisposed || !this._shipGhostGroup || this._shipGhostGroup !== targetGroup) {
         gltf.scene.traverse(c => {
           if (c.geometry) c.geometry.dispose();
           if (c.material) {
@@ -1906,7 +2012,20 @@ export class EditorSystem {
     }
 
     if (this._endLocationVisualGroup) {
+      if (this._endLocationVisualGroup.parent) {
+        this._endLocationVisualGroup.parent.remove(this._endLocationVisualGroup);
+      }
       this._scene?.remove(this._endLocationVisualGroup);
+      this._editorGroup?.remove(this._endLocationVisualGroup);
+      this._endLocationVisualGroup.traverse(child => {
+        if (child.isMesh || child.isLine || child.isSprite) {
+          child.geometry?.dispose();
+          if (child.material) {
+            if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+            else child.material.dispose();
+          }
+        }
+      });
       this._endLocationVisualGroup = null;
     }
 
