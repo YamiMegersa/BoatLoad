@@ -12,6 +12,7 @@ export class EmoteWheelUI {
     this.onSelect = onSelect;
     this.onClose = onClose;
     this.isOpen = false;
+    this.hoveredIndex = -1;
 
     this.emotes = [
       {
@@ -19,27 +20,72 @@ export class EmoteWheelUI {
         key: '1',
         title: 'Smoke',
         fullTitle: 'Light & Smoke',
-        desc: 'A sailor’s tobacco break',
-        icon: '<span class="pixel-icon icon-smoke-pipe size-28"></span>',
-        angle: 270 // Top
+        desc: 'A sailor’s quiet tobacco break',
+        icon: '<span class="pixel-icon icon-smoke-pipe size-24"></span>',
+        angle: 270 // 12 o'clock (Top)
+      },
+      {
+        id: 'fist_bump',
+        key: '2',
+        title: 'Fist Bump',
+        fullTitle: 'Self Fist Bump',
+        desc: 'Knuckle bump yourself & boom!',
+        icon: '<span style="font-size: 22px; line-height: 1;">👊</span>',
+        angle: 315 // 1:30 (Top-Right)
       },
       {
         id: 'middle_finger',
-        key: '2',
+        key: '3',
         title: 'Gesture',
         fullTitle: 'Middle Finger',
-        desc: 'Defiant salute to the sea',
-        icon: '<span class="pixel-icon icon-defiant-finger size-28"></span>',
-        angle: 30 // Bottom-Right
+        desc: 'Defiant salute to the high seas',
+        icon: '<span class="pixel-icon icon-defiant-finger size-24"></span>',
+        angle: 0 // 3 o'clock (Right)
+      },
+      {
+        id: 'hook_hand',
+        key: '4',
+        title: 'Hook Hand',
+        fullTitle: 'Pirate Hook Hand',
+        desc: 'Buff the steel hook until it shines',
+        icon: '<span style="font-size: 22px; line-height: 1;">🪝</span>',
+        angle: 45 // 4:30 (Bottom-Right)
       },
       {
         id: 'clap',
-        key: '3',
-        title: 'Clap',
-        fullTitle: 'Applause',
-        desc: 'Cheer for the crew & voyage',
-        icon: '<span class="pixel-icon icon-clap-hands size-28"></span>',
-        angle: 150 // Bottom-Left
+        key: '5',
+        title: 'Applause',
+        fullTitle: 'Cheer & Clap',
+        desc: 'Hearty applause for the crew',
+        icon: '<span class="pixel-icon icon-clap-hands size-24"></span>',
+        angle: 90 // 6 o'clock (Bottom)
+      },
+      {
+        id: 'card_trick',
+        key: '6',
+        title: 'Card Trick',
+        fullTitle: 'Disappearing Card',
+        desc: 'Sleight of hand card magic',
+        icon: '<span style="font-size: 22px; line-height: 1;">🃏</span>',
+        angle: 135 // 7:30 (Bottom-Left)
+      },
+      {
+        id: 'jazz_hands',
+        key: '7',
+        title: 'Jazz Hands',
+        fullTitle: 'Sparkle Jazz Hands',
+        desc: 'Showtime shimmy with both palms',
+        icon: '<span style="font-size: 22px; line-height: 1;">👐</span>',
+        angle: 180 // 9 o'clock (Left)
+      },
+      {
+        id: 'needle',
+        key: '8',
+        title: 'Syringe',
+        fullTitle: 'Arm Injection',
+        desc: 'Quick vitamin dose straight to vein',
+        icon: '<span class="pixel-icon icon-sail-needle size-24"></span>',
+        angle: 225 // 10:30 (Top-Left)
       }
     ];
 
@@ -74,11 +120,12 @@ export class EmoteWheelUI {
         }
         .emote-wheel-container {
           position: relative;
-          width: 340px;
-          height: 340px;
+          width: 380px;
+          height: 380px;
           border-radius: 50%;
-          transform: scale(0.88);
+          transform: scale(0.9);
           transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          cursor: pointer;
         }
         .emote-wheel-overlay.open .emote-wheel-container {
           transform: scale(1.0);
@@ -90,6 +137,7 @@ export class EmoteWheelUI {
           background: radial-gradient(circle, rgba(16, 24, 38, 0.94) 0%, rgba(8, 13, 22, 0.96) 100%);
           border: 2px solid rgba(212, 175, 55, 0.65);
           box-shadow: 0 0 30px rgba(0, 0, 0, 0.85), 0 0 20px rgba(212, 175, 55, 0.25), inset 0 0 15px rgba(0, 0, 0, 0.6);
+          pointer-events: none;
         }
         .emote-wheel-hub {
           position: absolute;
@@ -139,53 +187,57 @@ export class EmoteWheelUI {
           position: absolute;
           top: 50%;
           left: 50%;
-          width: 88px;
-          height: 88px;
+          width: 72px;
+          height: 72px;
           border-radius: 50%;
-          background: rgba(22, 33, 49, 0.88);
-          border: 1.5px solid rgba(255, 255, 255, 0.2);
+          background: rgba(22, 33, 49, 0.90);
+          border: 1.5px solid rgba(255, 255, 255, 0.22);
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
           cursor: pointer;
-          transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
-          box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+          transform: translate(calc(-50% + var(--btn-x, 0px)), calc(-50% + var(--btn-y, 0px)));
+          transition: transform 0.15s ease-out, background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+          box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
           color: #fff;
           z-index: 4;
           outline: none;
+          box-sizing: border-box;
         }
         .emote-slice-btn:hover, .emote-slice-btn.active {
-          background: rgba(45, 62, 88, 0.95);
+          background: rgba(45, 65, 95, 0.98);
           border-color: #f5d77f;
-          box-shadow: 0 0 18px rgba(245, 215, 127, 0.5), 0 4px 15px rgba(0, 0, 0, 0.7);
-          transform: translate(-50%, -50%) scale(1.12) !important;
+          box-shadow: 0 0 16px rgba(245, 215, 127, 0.6), 0 4px 15px rgba(0, 0, 0, 0.7);
+          transform: translate(calc(-50% + var(--btn-x, 0px)), calc(-50% + var(--btn-y, 0px))) scale(1.12);
+          z-index: 6;
         }
         .emote-slice-icon {
-          font-size: 26px;
+          font-size: 24px;
           line-height: 1;
           filter: drop-shadow(0 2px 4px rgba(0,0,0,0.6));
         }
         .emote-slice-label {
           font-family: system-ui, -apple-system, sans-serif;
-          font-size: 11px;
+          font-size: 10px;
           font-weight: 600;
           color: #e2e8f0;
-          margin-top: 3px;
-          letter-spacing: 0.3px;
+          margin-top: 2px;
+          letter-spacing: 0.2px;
+          white-space: nowrap;
         }
         .emote-slice-key {
           position: absolute;
-          top: -4px;
-          right: -4px;
+          top: -3px;
+          right: -3px;
           background: #4a3821;
           border: 1px solid #d4af37;
           border-radius: 4px;
           font-family: monospace;
-          font-size: 10px;
+          font-size: 9px;
           font-weight: bold;
           color: #fef3c7;
-          padding: 1px 5px;
+          padding: 1px 4px;
           box-shadow: 0 2px 5px rgba(0,0,0,0.5);
         }
       `;
@@ -221,10 +273,10 @@ export class EmoteWheelUI {
     this.hubDesc = this.hub.querySelector('#emote-hub-desc');
 
     // Slices
-    const radius = 108; // Distance from center
+    const radius = 126; // Distance from center
     this.sliceButtons = [];
 
-    this.emotes.forEach(emote => {
+    this.emotes.forEach((emote, idx) => {
       const btn = document.createElement('button');
       btn.className = 'emote-slice-btn';
       btn.type = 'button';
@@ -233,7 +285,8 @@ export class EmoteWheelUI {
       const x = Math.cos(rad) * radius;
       const y = Math.sin(rad) * radius;
 
-      btn.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
+      btn.style.setProperty('--btn-x', `${x.toFixed(1)}px`);
+      btn.style.setProperty('--btn-y', `${y.toFixed(1)}px`);
 
       btn.innerHTML = `
         <span class="emote-slice-key">${emote.key}</span>
@@ -242,15 +295,7 @@ export class EmoteWheelUI {
       `;
 
       btn.addEventListener('mouseenter', () => {
-        this.hubTitle.textContent = emote.fullTitle;
-        this.hubDesc.textContent = emote.desc;
-        btn.classList.add('active');
-      });
-
-      btn.addEventListener('mouseleave', () => {
-        this.hubTitle.textContent = 'EMOTES';
-        this.hubDesc.textContent = 'Press [Q] or [Esc] to exit';
-        btn.classList.remove('active');
+        this._highlightSlice(idx);
       });
 
       btn.addEventListener('click', (e) => {
@@ -260,6 +305,49 @@ export class EmoteWheelUI {
 
       this.container.appendChild(btn);
       this.sliceButtons.push({ element: btn, emote });
+    });
+
+    // Mouse movement inside container to smoothly track angular direction
+    this.container.addEventListener('mousemove', (e) => {
+      const rect = this.container.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const dx = e.clientX - centerX;
+      const dy = e.clientY - centerY;
+      const dist = Math.hypot(dx, dy);
+
+      if (dist >= 45 && dist <= 200) {
+        let deg = (Math.atan2(dy, dx) * 180) / Math.PI;
+        if (deg < 0) deg += 360;
+
+        let closestIdx = 0;
+        let minDiff = 360;
+
+        this.emotes.forEach((emote, i) => {
+          let diff = Math.abs(deg - emote.angle);
+          if (diff > 180) diff = 360 - diff;
+          if (diff < minDiff) {
+            minDiff = diff;
+            closestIdx = i;
+          }
+        });
+
+        this._highlightSlice(closestIdx);
+      } else if (dist < 45) {
+        this._clearHighlight();
+      }
+    });
+
+    this.container.addEventListener('mouseleave', () => {
+      this._clearHighlight();
+    });
+
+    // Clicking anywhere in container selects the highlighted emote
+    this.container.addEventListener('click', (e) => {
+      if (this.hoveredIndex >= 0 && this.hoveredIndex < this.emotes.length) {
+        e.stopPropagation();
+        this._selectEmote(this.emotes[this.hoveredIndex].id);
+      }
     });
 
     // Close on overlay backdrop click
@@ -273,6 +361,30 @@ export class EmoteWheelUI {
     uiRoot.appendChild(this.overlay);
   }
 
+  _highlightSlice(index) {
+    if (this.hoveredIndex === index) return;
+    this.hoveredIndex = index;
+
+    this.sliceButtons.forEach((item, i) => {
+      if (i === index) {
+        item.element.classList.add('active');
+        this.hubTitle.textContent = item.emote.fullTitle;
+        this.hubDesc.textContent = item.emote.desc;
+      } else {
+        item.element.classList.remove('active');
+      }
+    });
+  }
+
+  _clearHighlight() {
+    this.hoveredIndex = -1;
+    this.sliceButtons.forEach(item => {
+      item.element.classList.remove('active');
+    });
+    this.hubTitle.textContent = 'EMOTES';
+    this.hubDesc.textContent = 'Press [Q] or [Esc] to exit';
+  }
+
   _bindEvents() {
     this._onKeyDown = (e) => {
       if (!this.isOpen) return;
@@ -284,13 +396,25 @@ export class EmoteWheelUI {
         return;
       }
 
-      // Quick numbers 1, 2, 3
-      if (e.code === 'Digit1' || e.code === 'Numpad1') {
-        this._selectEmote('smoke');
-      } else if (e.code === 'Digit2' || e.code === 'Numpad2') {
-        this._selectEmote('middle_finger');
-      } else if (e.code === 'Digit3' || e.code === 'Numpad3') {
-        this._selectEmote('clap');
+      // Quick numbers 1 through 8
+      const digitMap = {
+        Digit1: 0, Numpad1: 0,
+        Digit2: 1, Numpad2: 1,
+        Digit3: 2, Numpad3: 2,
+        Digit4: 3, Numpad4: 3,
+        Digit5: 4, Numpad5: 4,
+        Digit6: 5, Numpad6: 5,
+        Digit7: 6, Numpad7: 6,
+        Digit8: 7, Numpad8: 7
+      };
+
+      if (e.code in digitMap) {
+        const idx = digitMap[e.code];
+        if (this.emotes[idx]) {
+          e.preventDefault();
+          e.stopPropagation();
+          this._selectEmote(this.emotes[idx].id);
+        }
       }
     };
 
@@ -311,9 +435,8 @@ export class EmoteWheelUI {
     this.overlay.offsetHeight; // force reflow for opacity transition
     this.overlay.classList.add('open');
 
-    // Reset hub text
-    this.hubTitle.textContent = 'EMOTES';
-    this.hubDesc.textContent = 'Press [Q] or [Esc] to exit';
+    // Reset hub text and highlights
+    this._clearHighlight();
   }
 
   close() {
@@ -321,6 +444,7 @@ export class EmoteWheelUI {
     this.isOpen = false;
     this.overlay.classList.remove('open');
     this.overlay.style.display = 'none';
+    this._clearHighlight();
     if (this.onClose) {
       this.onClose();
     }
