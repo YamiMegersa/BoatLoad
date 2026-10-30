@@ -1165,7 +1165,6 @@ export class GameState {
             this._dockPlayerController.startDay0OpeningCutscene(() => {
               this._hasCompletedDay0Cutscene = true;
             });
-            this._hasCompletedDay0Cutscene = true;
           }
         } else if (this._dockPlayerController) {
           this._dockPlayerController.resumeDay0AtDock();
@@ -1405,7 +1404,7 @@ export class GameState {
 
     emit('uiMount', { screen: 'dock', dockStall: this._dockStall, gameState: this, dockPlayerController: this._dockPlayerController });
 
-    if (opts?.day !== undefined) {
+    if (opts?.day !== undefined && opts.day !== 0) {
       setTimeout(() => {
         if (this._startLevelCutscene) this._startLevelCutscene();
       }, 400);
@@ -1423,7 +1422,6 @@ export class GameState {
         this._dockPlayerController.startDay0OpeningCutscene(() => {
           this._hasCompletedDay0Cutscene = true;
         });
-        this._hasCompletedDay0Cutscene = true;
       } else {
         this._dockPlayerController.resumeDay0AtDock();
       }

@@ -956,7 +956,7 @@ async function boot() {
           const activeShipId = opts?.shipDef?.id || gameState._levelCfg?.ship || level.levelCfg?.ship || DEFAULT_SHIP_ID;
           const activeShipDef = opts?.shipDef || LevelConfig.getShipDef(activeShipId);
           const activeLevelCfg = opts?.levelCfg || gameState._levelCfg || level.levelCfg;
-          await gameState.transition(GamePhase.DOCK, { shipDef: activeShipDef, levelCfg: activeLevelCfg, fishModels: level.fishModels, openShop: opts?.openShop, day: opts?.day }, true);
+          await gameState.transition(GamePhase.DOCK, { shipDef: activeShipDef, levelCfg: activeLevelCfg, fishModels: level.fishModels, openShop: opts?.openShop, day: opts?.day });
         } else if (phase === GamePhase.SHIPYARD) {
           logEvent('Entering Shipyard...');
           emit('showLoading', { title: 'Entering Shipyard', message: 'Entering outfitting berth & inspecting hull...', progress: 0.1 });

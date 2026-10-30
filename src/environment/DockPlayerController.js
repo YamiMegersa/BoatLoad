@@ -1045,6 +1045,10 @@ export class DockPlayerController {
       this._cutsceneOverlay = null;
     }
     this._cutsceneActive = false;
+    if (this._cleanupWakeupInput) {
+      this._cleanupWakeupInput();
+      this._cleanupWakeupInput = null;
+    }
     this.mode = 'player';
     if (this.crosshair) this.crosshair.style.display = 'block';
     if (this.instructions) this.instructions.style.display = 'flex';
@@ -1079,6 +1083,10 @@ export class DockPlayerController {
       this._cutsceneOverlay = null;
     }
     this._cutsceneActive = false;
+    if (this._cleanupWakeupInput) {
+      this._cleanupWakeupInput();
+      this._cleanupWakeupInput = null;
+    }
     this.mode = 'player';
     this.tutorialActive = false;
     this.tutorialStep = null;
@@ -1159,7 +1167,7 @@ export class DockPlayerController {
     const overlay = document.createElement('div');
     overlay.id = 'day0-cutscene-overlay';
     overlay.style.cssText = `
-      position: fixed; inset: 0; z-index: 250;
+      position: fixed; inset: 0; z-index: 500;
       pointer-events: auto; user-select: none; overflow: hidden;
       display: flex; align-items: center; justify-content: center;
     `;
@@ -1368,6 +1376,20 @@ const beginWakeupBlink = () => {
   }, 5400);
 
   this._cutsceneTimeouts.push(t1, t2, t3, t4);
+
+  const onSkipWakeup = (e) => {
+    if (e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape') {
+      if (this._cleanupWakeupInput) {
+        this._cleanupWakeupInput();
+        this._cleanupWakeupInput = null;
+      }
+      this._cutsceneTimer = this._cutsceneKeyframes[this._cutsceneKeyframes.length - 1].t;
+    }
+  };
+  window.addEventListener('keydown', onSkipWakeup);
+  this._cleanupWakeupInput = () => {
+    window.removeEventListener('keydown', onSkipWakeup);
+  };
 };
 
 showCurrentCard(300);
@@ -1381,6 +1403,10 @@ _clearCutsceneTimers() {
   if (this._cleanupPremiseInput) {
     this._cleanupPremiseInput();
     this._cleanupPremiseInput = null;
+  }
+  if (this._cleanupWakeupInput) {
+    this._cleanupWakeupInput();
+    this._cleanupWakeupInput = null;
   }
 }
 
@@ -1399,6 +1425,10 @@ _updateCutscene(delta) {
     this.camera.rotation.z = 0;
 
     this._cutsceneActive = false;
+    if (this._cleanupWakeupInput) {
+      this._cleanupWakeupInput();
+      this._cleanupWakeupInput = null;
+    }
     this.mode = 'player';
     if (this.crosshair) this.crosshair.style.display = 'block';
     if (this.instructions) this.instructions.style.display = 'flex';
