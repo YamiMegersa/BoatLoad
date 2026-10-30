@@ -182,7 +182,7 @@ export const CUSTOMER_SCRIPTS = {
     shipName: 'The Black Widow',
     spritePath: 'assets/npc/custom_npc.png',
     complaintShort: `"She needs sorting before Thursday."`,
-    basePay: 900,
+    basePay: 500,
     bio: 'Charming, flirty, and widowed seven times. Every death was an accident.',
     voice: {
       pitch: 1.24,
