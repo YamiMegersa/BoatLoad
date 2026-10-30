@@ -72,6 +72,8 @@ export class EditorSystem {
     // Boss Encounter State
     this._krakenConfig = null;
     this._activeTentacleIdx = 0;
+    this._defaultTentacleSpeed = 12;
+    this._defaultTentacleDuration = 25;
     this._krakenVisualGroup = null;
 
     // End Location (Harbor Goal) State
@@ -183,15 +185,18 @@ export class EditorSystem {
 
     listen('editorImportLevel', d => {
       if (!d || !d.config) return;
-      const cfg = d.config;
+      const rawCfg = d.config;
+      const cfg = (rawCfg.levelData && typeof rawCfg.levelData === 'object')
+        ? { ...rawCfg.levelData, metadata: rawCfg.metadata || rawCfg.levelData.metadata, ...rawCfg, ...rawCfg.levelData }
+        : rawCfg;
       this._levelCfg = cfg;
       this._budget = cfg.budget !== undefined ? cfg.budget : 300;
       this._customShipDamage = cfg.damage ? JSON.parse(JSON.stringify(cfg.damage)) : null;
-      if (cfg.title || cfg.metadata?.title) {
+      if (cfg.title || cfg.metadata?.title || rawCfg.metadata?.title) {
         this._publishMetadata = {
-          title: cfg.metadata?.title || cfg.title || 'Custom Sea Passage',
-          description: cfg.metadata?.description || cfg.description || '',
-          tags: cfg.metadata?.tags || cfg.tags || ['adventure'],
+          title: rawCfg.metadata?.title || cfg.metadata?.title || cfg.title || 'Custom Sea Passage',
+          description: rawCfg.metadata?.description || cfg.metadata?.description || cfg.description || '',
+          tags: rawCfg.metadata?.tags || cfg.metadata?.tags || cfg.tags || ['adventure'],
           budget: cfg.budget !== undefined ? cfg.budget : 300
         };
       }
@@ -220,6 +225,26 @@ export class EditorSystem {
           }
         }
       }
+
+      // Respawn sirens from config
+      if (cfg.sirens) {
+        for (const s of cfg.sirens) {
+          if (s.position) {
+            const scale = (s.attractRadius || 40) / 20;
+            this._spawnObstacle('siren', null, s.position.x, s.position.y !== undefined ? s.position.y : 0.5, s.position.z, scale, 0);
+          }
+        }
+      }
+
+      // Restore Kraken boss configuration
+      if (cfg.kraken) {
+        this._krakenConfig = JSON.parse(JSON.stringify(cfg.kraken));
+      } else {
+        this._krakenConfig = null;
+      }
+      this._activeTentacleIdx = 0;
+      this._updateBossVisuals();
+      this._emitBossConfig();
 
       // Re-create & deserialize voxels cleanly
       if (this._voxelTerrain) {
@@ -372,6 +397,11 @@ export class EditorSystem {
     // Boss Encounter Events
     listen('editorSelectTentacle', d => {
       this._activeTentacleIdx = Math.max(0, d.index || 0);
+      const currentTent = this._krakenConfig?.tentacles?.[this._activeTentacleIdx];
+      if (currentTent) {
+        if (currentTent.speed !== undefined) this._defaultTentacleSpeed = currentTent.speed;
+        if (currentTent.raceDuration !== undefined) this._defaultTentacleDuration = currentTent.raceDuration;
+      }
       this._updateBossVisuals();
       this._emitBossConfig();
     });
@@ -390,8 +420,8 @@ export class EditorSystem {
       const newIdx = this._krakenConfig.tentacles.length;
       this._krakenConfig.tentacles.push({
         spawnOffset: { x: (newIdx % 2 === 0 ? -20 : 20), y: 0, z: 0 },
-        speed: 12 + newIdx * 2,
-        raceDuration: Math.max(15, 25 - newIdx * 3),
+        speed: this._defaultTentacleSpeed ?? 12,
+        raceDuration: this._defaultTentacleDuration ?? 25,
         damagePerTentacle: 34,
         waypoints: []
       });
@@ -410,14 +440,20 @@ export class EditorSystem {
     });
 
     listen('editorSetTentacleSpeed', d => {
+      const speed = Math.max(1, Number(d?.speed) || 12);
+      this._defaultTentacleSpeed = speed;
       if (this._krakenConfig?.tentacles?.[this._activeTentacleIdx]) {
-        this._krakenConfig.tentacles[this._activeTentacleIdx].speed = d.speed;
+        this._krakenConfig.tentacles[this._activeTentacleIdx].speed = speed;
+        this._emitBossConfig();
       }
     });
 
     listen('editorSetTentacleDuration', d => {
+      const duration = Math.max(1, Number(d?.duration) || 25);
+      this._defaultTentacleDuration = duration;
       if (this._krakenConfig?.tentacles?.[this._activeTentacleIdx]) {
-        this._krakenConfig.tentacles[this._activeTentacleIdx].raceDuration = d.duration;
+        this._krakenConfig.tentacles[this._activeTentacleIdx].raceDuration = duration;
+        this._emitBossConfig();
       }
     });
 
@@ -1239,7 +1275,7 @@ export class EditorSystem {
           raceStartPosition: { x: Math.round(this._intersection.x * 10) / 10, y: 0, z: Math.round((this._intersection.z + 80) * 10) / 10 },
           raceStartRadius: 15,
           totalHP: 100,
-          tentacles: [{ spawnOffset: { x: -20, y: 0, z: 0 }, speed: 12, raceDuration: 25, damagePerTentacle: 34, waypoints: [] }]
+          tentacles: [{ spawnOffset: { x: -20, y: 0, z: 0 }, speed: this._defaultTentacleSpeed ?? 12, raceDuration: this._defaultTentacleDuration ?? 25, damagePerTentacle: 34, waypoints: [] }]
         };
       } else {
         this._krakenConfig.krakenPosition = {
@@ -1257,7 +1293,7 @@ export class EditorSystem {
           raceStartPosition: { x: Math.round(this._intersection.x * 10) / 10, y: 0, z: Math.round(this._intersection.z * 10) / 10 },
           raceStartRadius: 15,
           totalHP: 100,
-          tentacles: [{ spawnOffset: { x: -20, y: 0, z: 0 }, speed: 12, raceDuration: 25, damagePerTentacle: 34, waypoints: [] }]
+          tentacles: [{ spawnOffset: { x: -20, y: 0, z: 0 }, speed: this._defaultTentacleSpeed ?? 12, raceDuration: this._defaultTentacleDuration ?? 25, damagePerTentacle: 34, waypoints: [] }]
         };
       } else {
         this._krakenConfig.raceStartPosition = {
@@ -1275,11 +1311,11 @@ export class EditorSystem {
           raceStartPosition: { x: 0, y: 0, z: -40 },
           raceStartRadius: 15,
           totalHP: 100,
-          tentacles: [{ spawnOffset: { x: -20, y: 0, z: 0 }, speed: 12, raceDuration: 25, damagePerTentacle: 34, waypoints: [] }]
+          tentacles: [{ spawnOffset: { x: -20, y: 0, z: 0 }, speed: this._defaultTentacleSpeed ?? 12, raceDuration: this._defaultTentacleDuration ?? 25, damagePerTentacle: 34, waypoints: [] }]
         };
       }
       if (!this._krakenConfig.tentacles || this._krakenConfig.tentacles.length === 0) {
-        this._krakenConfig.tentacles = [{ spawnOffset: { x: -20, y: 0, z: 0 }, speed: 12, raceDuration: 25, damagePerTentacle: 34, waypoints: [] }];
+        this._krakenConfig.tentacles = [{ spawnOffset: { x: -20, y: 0, z: 0 }, speed: this._defaultTentacleSpeed ?? 12, raceDuration: this._defaultTentacleDuration ?? 25, damagePerTentacle: 34, waypoints: [] }];
         this._activeTentacleIdx = 0;
       }
       const tent = this._krakenConfig.tentacles[this._activeTentacleIdx];
@@ -1424,7 +1460,7 @@ export class EditorSystem {
           }
         })),
       sirens: sirens,
-      kraken: this._krakenConfig ? this._krakenConfig : null,
+      kraken: this._krakenConfig ? JSON.parse(JSON.stringify(this._krakenConfig)) : null,
       endLocation: this._endLocation || this._levelCfg?.endLocation || { position: { x: 0, y: 0, z: -220 }, radius: 16 },
       shipSpawn: this._shipSpawn || (this._hasDock ? null : (this._levelCfg?.shipSpawn || { position: { x: 0, y: 0, z: 0 }, rotation: 0 })),
       hasDock: this._hasDock !== undefined ? this._hasDock : (this._levelCfg?.hasDock !== false),
@@ -1691,6 +1727,9 @@ export class EditorSystem {
   }
 
   _emitBossConfig() {
+    if (this._levelCfg) {
+      this._levelCfg.kraken = this._krakenConfig ? JSON.parse(JSON.stringify(this._krakenConfig)) : null;
+    }
     if (!this._krakenConfig) {
       emit('editorBossConfigUpdated', { tentacles: [], activeIdx: 0, currentTentacle: null });
       return;

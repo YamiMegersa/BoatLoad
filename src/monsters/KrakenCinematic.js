@@ -41,6 +41,8 @@ export class KrakenCinematic {
     // Flinch animation state
     this._flinchTime = 0;
     this._originalKrakenPos = new THREE.Vector3();
+    this._isFinalHit = false;
+    this._sinkSplashTriggered = false;
   }
 
   /** @returns {boolean} Is a cinematic currently playing? */
@@ -56,8 +58,9 @@ export class KrakenCinematic {
    * @param {import('./TentacleFollower.js').TentacleFollower|Function} [tentacle]  Defeated tentacle to frame sinking
    * @param {import('../obstacle/PlayerShip.js').PlayerShip|Function} [playerShip] Player ship reference
    * @param {Function} [onComplete]          Called when the cinematic finishes
+   * @param {boolean} [isFinalHit=false]     True if this hit defeats the Kraken (sinks during hold)
    */
-  play(camera, fromPos, krakenPos, krakenMesh, tentacle, playerShip, onComplete) {
+  play(camera, fromPos, krakenPos, krakenMesh, tentacle, playerShip, onComplete, isFinalHit = false) {
     // Backwards-compatibility argument handling
     if (typeof tentacle === 'function') {
       onComplete = tentacle;
@@ -74,12 +77,14 @@ export class KrakenCinematic {
     this._tentacle = tentacle;
     this._playerShip = playerShip;
     this._onComplete = onComplete;
+    this._isFinalHit = Boolean(isFinalHit);
+    this._sinkSplashTriggered = false;
     this._elapsed = 0;
     this._active = true;
     this._phase = 'fly_to';
 
     this._duration = 2.8;     // 2.8s clean forward sweep
-    this._holdDuration = 1.2; // 1.2s hold at kraken to see damage
+    this._holdDuration = this._isFinalHit ? 2.4 : 1.2; // longer hold on final blow to watch the Kraken sink
     this._returnDuration = 1.6; // 1.6s smooth return back to ship
 
     // Save initial camera state
@@ -201,16 +206,26 @@ export class KrakenCinematic {
   }
 
   _updateHold(delta) {
-    // Camera stays put, looking at the Kraken
-    const krakenLookTarget = this._krakenPos.clone().add(new THREE.Vector3(0, 3.5, 0));
+    // Camera stays put, looking at the Kraken (follows it slightly down if sinking)
+    const sinkProgress = this._isFinalHit ? Math.min(1.0, this._flinchTime / this._holdDuration) : 0;
+    const sinkEase = sinkProgress * sinkProgress;
+    const lookYOffset = 3.5 - sinkEase * 5.0;
+    const krakenLookTarget = this._krakenPos.clone().add(new THREE.Vector3(0, lookYOffset, 0));
     this._camera.lookAt(krakenLookTarget);
 
-    // Kraken flinch — violent shake
+    // Kraken flinch — violent shake (and sink on final blow)
     this._flinchTime += delta;
     if (this._krakenMesh) {
       const shake = Math.sin(this._flinchTime * 40) * Math.max(0, 1 - this._flinchTime / this._holdDuration);
       this._krakenMesh.position.x = this._originalKrakenPos.x + shake * 1.5;
       this._krakenMesh.position.z = this._originalKrakenPos.z + shake * 0.8;
+
+      if (this._isFinalHit) {
+        // Tilt backward and sink into the abyssal depths
+        this._krakenMesh.position.y = this._originalKrakenPos.y - sinkEase * 22.0;
+        this._krakenMesh.rotation.x = -sinkEase * 0.45 + Math.sin(this._flinchTime * 18) * 0.08 * (1 - sinkProgress);
+        this._krakenMesh.rotation.z = Math.cos(this._flinchTime * 14) * 0.12 * (1 - sinkProgress);
+      }
 
       // Flash the material red briefly
       this._krakenMesh.traverse(child => {
@@ -218,7 +233,7 @@ export class KrakenCinematic {
           const mats = Array.isArray(child.material) ? child.material : [child.material];
           for (const mat of mats) {
             if (mat.emissive) {
-              const flash = Math.max(0, 1 - this._flinchTime / 0.3);
+              const flash = Math.max(0, 1 - this._flinchTime / (this._isFinalHit ? 0.6 : 0.3));
               mat.emissive.setRGB(flash * 0.8, 0, 0);
             }
           }
@@ -227,9 +242,14 @@ export class KrakenCinematic {
     }
 
     if (this._elapsed >= this._holdDuration) {
-      // Reset kraken position
+      // Reset kraken position (unless it sank on the final blow)
       if (this._krakenMesh) {
-        this._krakenMesh.position.copy(this._originalKrakenPos);
+        if (!this._isFinalHit) {
+          this._krakenMesh.position.copy(this._originalKrakenPos);
+        } else {
+          this._krakenMesh.position.x = this._originalKrakenPos.x;
+          this._krakenMesh.position.z = this._originalKrakenPos.z;
+        }
         // Reset emissive
         this._krakenMesh.traverse(child => {
           if (child.isMesh && child.material) {

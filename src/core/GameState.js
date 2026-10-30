@@ -2699,14 +2699,32 @@ export class GameState {
       const shipPos = this._playerShip.mesh.position;
       const dx = shipPos.x - this._endLocation.position.x;
       const dz = shipPos.z - this._endLocation.position.z;
-      const dist = Math.hypot(dx, dz);
+      let dist = Math.hypot(dx, dz);
+
+      if (this._playerShip.obb && typeof this._playerShip.obb.clampPoint === 'function') {
+        if (!this._endClampTarget) this._endClampTarget = new THREE.Vector3();
+        if (!this._endClampResult) this._endClampResult = new THREE.Vector3();
+        this._endClampTarget.set(this._endLocation.position.x, this._playerShip.obb.center.y, this._endLocation.position.z);
+        this._playerShip.obb.clampPoint(this._endClampTarget, this._endClampResult);
+        const obbDist = Math.hypot(this._endClampResult.x - this._endLocation.position.x, this._endClampResult.z - this._endLocation.position.z);
+        dist = Math.min(dist, obbDist);
+      }
 
       emit('goalDistanceUpdate', {
         distance: Math.round(dist),
         targetRadius: this._endLocation.radius || 16
       });
 
-      if (dist <= (this._endLocation.radius || 16)) {
+      if (dist <= (this._endLocation.radius || 16) + 2.0) {
+        const krakenUndefeated = this._krakenBoss && (typeof this._krakenBoss.isDefeated === 'function' ? !this._krakenBoss.isDefeated() : true);
+        if (krakenUndefeated) {
+          if (!this._krakenBlockNoticeTime || this._time - this._krakenBlockNoticeTime > 3.5) {
+            this._krakenBlockNoticeTime = this._time;
+            emit('showBanner', { label: 'DEFEAT THE KRAKEN BEFORE ENTERING SAFE HARBOR!' });
+            emit('playSound', { sound: 'qte_fail' });
+          }
+          return;
+        }
         emit('playSound', { sound: 'qte_success' });
         if (this._isEditorPlay || this._obstacleOpts?.isEditorPlay) {
           ClearCheckManager.completeActiveCheck(true);

@@ -89,6 +89,47 @@ export class LevelSerializer {
       radius: Math.max(8, Math.min(40, Number(cfg.endLocation?.radius) || 16))
     };
 
+    let sanitizedKraken = null;
+    if (cfg.kraken && typeof cfg.kraken === 'object') {
+      const kPos = cfg.kraken.krakenPosition || { x: 0, y: -5, z: -150 };
+      const rPos = cfg.kraken.raceStartPosition || { x: 0, y: 0, z: -40 };
+      const rawTentacles = Array.isArray(cfg.kraken.tentacles) ? cfg.kraken.tentacles : [];
+      sanitizedKraken = {
+        krakenPosition: {
+          x: Math.round((Number(kPos.x) || 0) * 10) / 10,
+          y: Math.round((Number(kPos.y) ?? -5) * 10) / 10,
+          z: Math.round((Number(kPos.z) || -150) * 10) / 10,
+        },
+        raceStartPosition: {
+          x: Math.round((Number(rPos.x) || 0) * 10) / 10,
+          y: Math.round((Number(rPos.y) || 0) * 10) / 10,
+          z: Math.round((Number(rPos.z) || -40) * 10) / 10,
+        },
+        raceStartRadius: Number(cfg.kraken.raceStartRadius) || 15,
+        totalHP: Number(cfg.kraken.totalHP) || 100,
+        tentacles: rawTentacles.map((t, idx) => ({
+          spawnOffset: {
+            x: Number(t.spawnOffset?.x) ?? (idx % 2 === 0 ? -20 : 20),
+            y: Number(t.spawnOffset?.y) || 0,
+            z: Number(t.spawnOffset?.z) || 0,
+          },
+          speed: Number(t.speed) || 12,
+          raceDuration: Number(t.raceDuration) || 25,
+          damagePerTentacle: Number(t.damagePerTentacle) || 34,
+          waypoints: Array.isArray(t.waypoints)
+            ? t.waypoints.map(wp => ({
+                position: {
+                  x: Math.round((Number(wp.position?.x) || 0) * 10) / 10,
+                  y: Math.round((Number(wp.position?.y) || 0) * 10) / 10,
+                  z: Math.round((Number(wp.position?.z) || 0) * 10) / 10,
+                },
+                radius: Number(wp.radius) || 8,
+              }))
+            : [],
+        })),
+      };
+    }
+
     return {
       ship: cfg.ship || 'sloop',
       budget: Math.max(0, Number(cfg.budget) || 300),
@@ -103,7 +144,7 @@ export class LevelSerializer {
       endLocation,
       obstacles: sanitizedObstacles,
       sirens: Array.isArray(cfg.sirens) ? cfg.sirens : [],
-      kraken: cfg.kraken || null,
+      kraken: sanitizedKraken,
       voxels: cfg.voxels || null,
       damage: Array.isArray(cfg.damage) ? cfg.damage : []
     };
