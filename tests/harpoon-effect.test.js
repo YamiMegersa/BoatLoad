@@ -9,15 +9,15 @@ import {
 import { EnvironmentManager } from '../src/environment/EnvironmentManager.js';
 
 test('harpoon flight duration remains readable at close range', () => {
-  assert.equal(harpoonFlightDuration(2), 0.10);
+  assert.equal(harpoonFlightDuration(2), 0.18);
 });
 
 test('harpoon flight duration scales with ordinary target distance', () => {
-  assert.equal(harpoonFlightDuration(18), 18 / 120);
+  assert.equal(harpoonFlightDuration(20), 20 / 80);
 });
 
 test('harpoon flight duration is capped for distant targets', () => {
-  assert.equal(harpoonFlightDuration(100), 0.20);
+  assert.equal(harpoonFlightDuration(100), 0.30);
 });
 
 test('interpolateHarpoonFlight follows a parabolic ballistic arc and hits exact endpoints', () => {

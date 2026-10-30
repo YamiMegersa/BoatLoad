@@ -47,6 +47,9 @@ export class EnvironmentManager {
     this._fogVolume = null;
     this._stormClouds = null;
     this._isDenseFog = false;
+    this._levelCfg = null;
+    this._sharkAggroRadius = 45;
+    this._sharkTriggerRadius = 30;
 
     this._timeOfDay = 8.0; // Default
     this._timeSpeed = 0.0; // Static time
@@ -171,6 +174,32 @@ export class EnvironmentManager {
     };
     on('qteStrikeWindow', this._onStrikeWindow);
 
+    this._onShipSunk = () => {
+      for (const s of this._sharks) s.qteActive = false;
+    };
+    on('playerSinkingStart', this._onShipSunk);
+    on('playerSunk', this._onShipSunk);
+
+    this._onQTEStart = ({ source, metadata }) => {
+      if (source === 'shark' && metadata?.instanceId) {
+        const s = this._sharks.find(shark => shark.id === metadata.instanceId);
+        if (s) {
+          s.qteActive = true;
+          if (this._playerShip) this._ensureSharkInView(s, this._playerShip, this._camera);
+        }
+      }
+    };
+    on('qteStart', this._onQTEStart);
+
+    this._onQTEPreempted = ({ preemptedSource, metadata }) => {
+      if (preemptedSource === 'shark') {
+        const s = metadata?.instanceId ? this._sharks.find(shark => shark.id === metadata.instanceId) : null;
+        if (s) s.qteActive = false;
+        else for (const shark of this._sharks) shark.qteActive = false;
+      }
+    };
+    on('qtePreempted', this._onQTEPreempted);
+
     // Sculpted shark dorsal fin geometry (raked leading edge, curved tip)
     const finShape = new THREE.Shape();
     finShape.moveTo(0, 0);
@@ -219,7 +248,16 @@ export class EnvironmentManager {
       this._isDenseFog = true;
     } else {
       this._isDenseFog = false;
+    this._levelCfg = null;
+    this._sharkAggroRadius = 45;
+    this._sharkTriggerRadius = 30;
     }
+
+    this._levelCfg = levelCfg || null;
+    this._sharkAggroRadius = (levelCfg?.sharks && typeof levelCfg.sharks === 'object' && levelCfg.sharks.aggroRadius !== undefined)
+      ? levelCfg.sharks.aggroRadius : 45;
+    this._sharkTriggerRadius = (levelCfg?.sharks && typeof levelCfg.sharks === 'object' && levelCfg.sharks.triggerRadius !== undefined)
+      ? levelCfg.sharks.triggerRadius : 30;
 
     this._timeOfDay = levelCfg && levelCfg.timeOfDay !== undefined ? levelCfg.timeOfDay : 8.0;
     const isStormWeather = Boolean(levelCfg?.weather === 'stormy' || levelCfg?.weather === 'gale');
@@ -246,11 +284,25 @@ export class EnvironmentManager {
     this.toggleStorm(this._isStormy);
 
     if (this._fishModels && this._fishModels.length > 0) {
-      // Find shark model if available and guarantee at least 4 sharks spawn
+      // Find shark model if available and spawn configured or default sharks
       const sharkModel = this._fishModels.find(m => m.url && m.url.toLowerCase().includes('shark'));
       if (sharkModel) {
-        for (let s = 0; s < 4; s++) {
-          this._spawnShark(sharkModel);
+        const sharkCfg = this._levelCfg?.sharks;
+        if (Array.isArray(sharkCfg)) {
+          for (const s of sharkCfg) {
+            const pos = s.position || s;
+            const px = pos.x !== undefined ? pos.x : (Math.random() - 0.5) * 400;
+            const py = pos.y !== undefined ? pos.y : -3.0;
+            const pz = pos.z !== undefined ? pos.z : (Math.random() - 0.5) * 400;
+            this._spawnShark(sharkModel, px, py, pz, s.yaw !== undefined ? s.yaw : null);
+          }
+        } else {
+          const count = (sharkCfg && typeof sharkCfg === 'object' && sharkCfg.count !== undefined)
+            ? sharkCfg.count
+            : (typeof sharkCfg === 'number' ? sharkCfg : 4);
+          for (let s = 0; s < count; s++) {
+            this._spawnShark(sharkModel);
+          }
         }
       }
 
@@ -376,14 +428,11 @@ export class EnvironmentManager {
     let closestAimDist = 38;
 
     for (const shark of this._sharks) {
+      const dist2D = shipPos ? Math.hypot(shark.mesh.position.x - shipPos.x, shark.mesh.position.z - shipPos.z) : Infinity;
       // Distance culling: fish beyond 75m are completely hidden beneath water fog
-      if (shipPos) {
-        const dx = shark.mesh.position.x - shipPos.x;
-        const dz = shark.mesh.position.z - shipPos.z;
-        if (dx * dx + dz * dz > 75 * 75) {
-          if (shark.telegraph) shark.telegraph.visible = false;
-          continue;
-        }
+      if (shipPos && dist2D > 75) {
+        if (shark.telegraph) shark.telegraph.visible = false;
+        continue;
       }
 
       shark.animator.update(delta);
@@ -392,7 +441,7 @@ export class EnvironmentManager {
       // surfacing the shark out of the waves to meet the incoming spear.
       if (shark.hitPending) {
         shark.flightElapsed = (shark.flightElapsed || 0) + delta;
-        const riseT = THREE.MathUtils.clamp(shark.flightElapsed / Math.max(0.12, shark.flightDuration || 0.35), 0, 1);
+        const riseT = THREE.MathUtils.clamp(shark.flightElapsed / Math.max(0.12, shark.flightDuration || 0.25), 0, 1);
         const smoothRise = 1 - Math.pow(1 - riseT, 2.2);
         const targetBreachY = this._surfaceY(shark.mesh.position) + SHARK_BREACH_LIFT;
         const startY = shark.startSurfacingY ?? (targetBreachY - 1.8);
@@ -480,24 +529,26 @@ export class EnvironmentManager {
           }
         }
 
-        if (shark.qteActive || (dist2D < closestAimDist && !shark.hitResolved)) {
+        // Only track with deck swivel harpoon if actively in combat or within immediate strike range (<= 32 units)
+        if (shark.qteActive || (dist2D <= 32 && dist2D < closestAimDist && !shark.hitResolved)) {
           closestAimDist = shark.qteActive ? 0 : dist2D;
           closestAimShark = shark;
         }
 
-        // Turn towards ship if within 50 units
-        if (dist2D < 50 && dist2D > 5) {
+        // Turn towards ship and charge purposefully when within aggro range
+        if (dist2D < this._sharkAggroRadius && dist2D > 4) {
           const targetYaw = Math.atan2(-dx, -dz);
           let diff = targetYaw - shark.baseYaw;
           while (diff > Math.PI) diff -= Math.PI * 2;
           while (diff < -Math.PI) diff += Math.PI * 2;
-          shark.baseYaw += diff * Math.min(1.0, 1.2 * delta);
+          shark.baseYaw += diff * Math.min(1.0, 2.4 * delta);
         }
 
-        // Trigger HARPOON QTE if within 22 units
-        if (dist2D < 22 && !shark.qteTriggered && this.qteSystem) {
+        // Trigger HARPOON QTE immediately when within trigger range (urgent combat encounter: no forward hazard check delay)
+        if (dist2D <= this._sharkTriggerRadius && !shark.qteTriggered && this.qteSystem && !playerShip?.sunk && !playerShip?.isSinkingDeath) {
           const success = this.qteSystem.trigger({
             source: 'shark',
+            urgent: true,
             metadata: { instanceId: shark.id },
             onSuccess: (timing = {}) => {
               shark.qteActive = false;
@@ -523,7 +574,7 @@ export class EnvironmentManager {
               const flightDur = harpoonFlightDuration(launch.origin.distanceTo(impactPoint));
               shark.flightElapsed = 0;
               shark.flightDuration = flightDur;
-              shark.impactTimeout = Math.max(0.35, flightDur + 0.1);
+              shark.impactTimeout = Math.max(0.40, flightDur + 0.12);
 
               emit('spawnParticles', {
                 type: 'harpoon',
@@ -564,9 +615,13 @@ export class EnvironmentManager {
 
           if (success) {
             shark.qteTriggered = true;
-            shark.qteActive = true;
-            this._ensureSharkInView(shark, playerShip, this._camera);
-            this._updateSharkTelegraph(shark, 15.0);
+            // Only flag active breach if this shark's QTE actually became active (and wasn't queued behind siren/bail)
+            const isCurrentlyActive = this.qteSystem._active?.dedupeKey === shark.id;
+            shark.qteActive = isCurrentlyActive;
+            if (isCurrentlyActive) {
+              this._ensureSharkInView(shark, playerShip, this._camera);
+              this._updateSharkTelegraph(shark, 15.0);
+            }
           }
         }
       }
@@ -575,9 +630,10 @@ export class EnvironmentManager {
       shark.mesh.position.y = shark.baseY + shark.animator.bobOffset;
       shark.mesh.rotation.y = shark.baseYaw + shark.animator.yawOffset;
 
-      // Swim forward (hold position while being harpooned so it stays where the spear lands)
+      // Swim forward (accelerates into attack run when charging the ship within 45 units)
       if (!shark.hitPending && !shark.flashing) {
-        shark.mesh.translateZ(shark.speed * delta);
+        const swimSpeed = (dist2D < 45 && !shark.sinking) ? Math.max(shark.speed, 6.2) : shark.speed;
+        shark.mesh.translateZ(swimSpeed * delta);
       }
 
       // Wrap around the play area (200 radius = -200 to 200)
@@ -917,6 +973,16 @@ export class EnvironmentManager {
     if (this._onStrikeWindow) {
       off('qteStrikeWindow', this._onStrikeWindow);
       this._onStrikeWindow = null;
+    }
+    off('playerSinkingStart', this._onShipSunk);
+    off('playerSunk', this._onShipSunk);
+    if (this._onQTEStart) {
+      off('qteStart', this._onQTEStart);
+      this._onQTEStart = null;
+    }
+    if (this._onQTEPreempted) {
+      off('qtePreempted', this._onQTEPreempted);
+      this._onQTEPreempted = null;
     }
     this._strikeOpen = false;
     for (const shark of this._sharks) {
