@@ -3,15 +3,9 @@ import { GameEnv } from '../core/GameEnv.js';
 import { DEBUG } from '../utils/debug.js';
 import { getAssetUrl } from '../utils/paths.js';
 import { ShopRegistry } from '../config/ShopRegistry.js';
-import {
-  QTEStationController,
-  describeSweetSpotArcs,
-  ratioToDialAngle,
-} from './QTEStations.js';
+import { HelmConsole } from './HelmConsole.js';
 
 const wheelImage = getAssetUrl('assets/wheels/wheel_threshold.png');
-
-const DEFAULT_TIMING_ICON = '<span class="pixel-icon icon-harpoon size-16"></span>';
 
 /**
  * HUD — obstacle phase HUD overlay.
@@ -19,11 +13,9 @@ const DEFAULT_TIMING_ICON = '<span class="pixel-icon icon-harpoon size-16"></spa
  * Displays:
  *  - Hull HP & Water Ingress widget (top-left)
  *  - Day & Doubloon counter pill (top-left)
- *  - Three permanent, screen-anchored Nautical QTE Instrument Stations:
- *      1. Starboard Chronometer (#qte-station-timing) — HARPOON
- *      2. Port Bilge Pump Well (#qte-station-bail)    — BAIL
- *      3. Gunwale Siren Ward Rail (#qte-station-siren) — SIREN
- *  - Mobile Harpoon Quick Action Button (bottom-left on coarse pointers)
+ *  - Unified Helm Console (#helm-console), docked beside the wheel: one screen,
+ *    TAP/HOLD lamps and one ACT button (or SPACE) answer every QTE
+ *    (harpoon = tap in the arc, siren = hold to brace, bail = hold to pump)
  *  - On-screen Steering wheel (bottom-right)
  */
 export class HUD {
@@ -31,20 +23,10 @@ export class HUD {
     this._el = null;
     this._hpBar = null;
     this._waterBar = null;
-    this._stations = null;
-    this._stationController = new QTEStationController();
-    this._pendingQTEUpdate = null;
-    this._qteFrame = null;
-    this._bailCanvas = null;
-    this._activeQTEInput = null;
-    this._bailDrawing = false;
-    this._bailPointerId = null;
-    this._lastBailPoint = null;
-    this._mobileBtnEl = null;
+    this._helm = new HelmConsole();
     this._scoreEl = null;
     this._bonusBoxEl = null;
     this._score = 0;
-    this._qteResolveTimers = new Map();
     this._bannerTimer = null;
 
     // Kraken boss HUD state
@@ -54,7 +36,13 @@ export class HUD {
     this._bossBannerEl = null;
     this._bossBannerTimeout = null;
     this._onScore = d => this._onScoreAdded(d);
-    this._onPause = ({ paused }) => { if (paused) this._cancelBailDrawing(true); };
+    this._onPause = ({ paused }) => { if (paused) this._helm?.releaseHolds(); };
+    this._onShipSunk = () => {
+      this._helm?.disable();
+      this._handleStrikeWindow({ open: false });
+    };
+    on('playerSinkingStart', this._onShipSunk);
+    on('playerSunk', this._onShipSunk);
 
     on('uiMount', d => { if (d.screen === 'obstacle') this.mount(d); });
     on('uiUnmount', d => { if (d.screen === 'obstacle') this.unmount(); });
@@ -87,16 +75,27 @@ export class HUD {
       if (d?.intensity > 0.01) {
         this.setSirenStationVisible(true);
       }
-      this._stationController.noteSirenPull(d);
       this._updateSirenPull(d);
     };
     on('sirenPulling', this._onSirenPull);
-    on('waterBailed', d => this._showBanner({ label: `BAILED ${d.removed}% WATER — CIRCLE ${d.accuracy}%` }));
-    on('waterBailFailed', () => this._showBanner({ label: 'INCOMPLETE LOOP — TRY AGAIN' }));
+    on('waterBailed', d => this._showBanner({ label: `BAILED ${d.removed}% WATER · BILGE SECURED` }));
+    on('waterBailFailed', () => this._showBanner({ label: 'BAILING INTERRUPTED · TRY AGAIN' }));
     on('qteDebugResult', d => this._showDebugQTEResult(d));
     this._onSirenEffect = ({ state }) => {
-      if (state === 'resistant') this._showBanner({ label: 'SONG RESISTED — ESCAPE NOW' });
-      else if (state === 'disoriented') this._showBanner({ label: 'DISORIENTED — STEERING REVERSED' });
+      const container = this._el?.querySelector('#hud-wheel-container');
+      const badge = this._el?.querySelector('#hud-disoriented-badge');
+      if (container) {
+        container.classList.toggle('is-disoriented', state === 'disoriented');
+        container.classList.toggle('is-resistant', state === 'resistant');
+      }
+      if (badge) {
+        badge.style.display = state === 'disoriented' ? 'block' : 'none';
+      }
+      if (state === 'resistant') {
+        this._showBanner({ label: 'SONG RESISTED — ESCAPE NOW' });
+      } else if (state === 'disoriented') {
+        this._showBanner({ label: 'DISORIENTED — STEERING REVERSED' });
+      }
     };
     on('sirenEffect', this._onSirenEffect);
     on('gamePaused', this._onPause);
@@ -127,25 +126,6 @@ export class HUD {
     }
   }
 
-  _cancelBailDrawing(notifyInput = false) {
-    const wasDrawing = this._bailDrawing;
-    const pointerId = this._bailPointerId;
-    this._bailDrawing = false;
-    this._bailPointerId = null;
-    this._lastBailPoint = null;
-    if (pointerId !== null && this._bailCanvas?.hasPointerCapture?.(pointerId)) {
-      try {
-        this._bailCanvas.releasePointerCapture(pointerId);
-      } catch (_) {
-        // Ignore if pointer capture was already released by browser
-      }
-    }
-    if (wasDrawing && notifyInput) {
-      emit('qteInput', { kind: 'drawCancel' });
-    }
-    this._clearBailCanvas();
-  }
-
   mount({ day, hasSirens = false, levelCfg = null } = {}) {
     const isCommunity = Boolean(window.gameState?._isCommunityCourse || window.gameState?._activeCommunityCourseCode);
     const dayLabel = isCommunity ? 'Voyage' : `Day ${day ?? (window.gameState?.day ?? 1)}`;
@@ -156,7 +136,6 @@ export class HUD {
       (levelCfg?.sirens && levelCfg.sirens.length > 0)
     );
     this._score = 0;
-    const defaultArcs = describeSweetSpotArcs([0.4, 0.6]);
 
 
     this._el = document.createElement('div');
@@ -257,78 +236,6 @@ export class HUD {
         </div>
       </div>
 
-      <!-- Permanent Static QTE Nautical HUD Instruments -->
-      <!-- 1. Starboard Chronometer Gauge (HARPOON) -->
-      <section id="qte-station-timing" class="qte-station qte-timing-station is-idle" aria-hidden="false">
-        <div class="qte-station-header">
-          <span class="qte-icon">${DEFAULT_TIMING_ICON}</span>
-          <span class="qte-label">DECK ORDNANCE</span>
-          <span class="qte-state-pill">READY</span>
-        </div>
-        <div class="qte-dial" aria-label="Timing chronometer gauge">
-          <svg class="qte-dial-svg" viewBox="0 0 120 68" aria-hidden="true">
-            <path class="qte-dial-track-bg" d="M 14 60 A 46 46 0 0 1 106 60" />
-            <line class="qte-dial-tick" x1="60" y1="9" x2="60" y2="16" />
-            <line class="qte-dial-tick" x1="26" y1="26" x2="31" y2="31" />
-            <line class="qte-dial-tick" x1="94" y1="26" x2="89" y2="31" />
-            <line class="qte-dial-tick" x1="15" y1="45" x2="21" y2="47" />
-            <line class="qte-dial-tick" x1="105" y1="45" x2="99" y2="47" />
-            <path class="qte-sweet-arc" d="${defaultArcs.sweetPath}" />
-            <path class="qte-perfect-arc" d="${defaultArcs.perfectPath}" />
-            <circle class="qte-dial-hub" cx="60" cy="60" r="5.5" />
-          </svg>
-          <span class="qte-needle"></span>
-        </div>
-        <div class="qte-timer-track"><div class="qte-timer-fill"></div></div>
-        <div class="qte-station-footer">
-          <span class="qte-station-hint">STANDBY · [SPACE]</span>
-          <span class="qte-result" aria-live="polite"></span>
-        </div>
-      </section>
-
-      <!-- 2. Port Bilge Pump Well (BAIL) -->
-      <section id="qte-station-bail" class="qte-station qte-bail-station is-idle" aria-hidden="false">
-        <div class="qte-station-header">
-          <span class="qte-icon"><span class="pixel-icon icon-bailer-bucket size-16"></span></span>
-          <span class="qte-label">BILGE PUMP</span>
-          <span class="qte-progress">DRY</span>
-        </div>
-        <div class="qte-bail-well">
-          <canvas id="hud-qte-draw" width="220" height="220" aria-label="Draw a circle to bail water"></canvas>
-          <div class="qte-bail-center-icon" aria-hidden="true">
-            <span class="pixel-icon icon-bailer-bucket size-18"></span>
-          </div>
-        </div>
-        <div class="qte-timer-track"><div class="qte-timer-fill"></div></div>
-        <div class="qte-station-footer">
-          <span class="qte-station-hint">STANDBY · [SPACE] 50%</span>
-          <span class="qte-result" aria-live="polite"></span>
-        </div>
-      </section>
-
-      <!-- 3. Gunwale Siren Ward Rail (SIREN) -->
-      <section id="qte-station-siren" class="qte-station qte-siren-station is-idle side-right" aria-hidden="${this._hasSirens ? 'false' : 'true'}" style="${this._hasSirens ? '' : 'display: none;'}">
-        <div class="qte-siren-header">
-          <span class="qte-siren-icon"><span class="pixel-icon icon-siren-note size-16"></span></span>
-          <span class="qte-siren-title">WARD</span>
-        </div>
-        <div class="qte-pips" aria-label="Siren resistance progress">${'<i class="qte-pip"></i>'.repeat(8)}</div>
-        <div class="qte-timer-track"><div class="qte-timer-fill"></div></div>
-        <div class="qte-siren-footer">
-          <span class="qte-siren-hint">CALM</span>
-          <span class="qte-result" aria-live="polite"></span>
-        </div>
-      </section>
-      <div id="qte-station-live" class="sr-only" aria-live="polite"></div>
-
-      <!-- Dedicated Mobile Harpoon Button for left thumb -->
-      <div id="hud-mobile-harpoon" style="display: none;">
-        <button id="btn-mobile-harpoon" type="button" aria-label="Harpoon Action">
-          <span class="harpoon-icon"><span class="pixel-icon icon-harpoon size-20"></span></span>
-          <span class="harpoon-text">HARPOON</span>
-        </button>
-      </div>
-
       <!-- Non-blocking warning banner (e.g. first siren encounter) -->
       <div id="hud-banner"></div>
 
@@ -362,6 +269,7 @@ export class HUD {
       <div id="hud-wheel-container">
         <img id="hud-pedestal" src="" style="display:none;" />
         <img id="hud-wheel" src="${wheelImage}">
+        <div id="hud-disoriented-badge" class="hud-disoriented-badge" style="display:none;">⚠ REVERSED ⚠</div>
       </div>
     `;
 
@@ -387,24 +295,13 @@ export class HUD {
     this._hpVal = this._el.querySelector('#hud-hp-val');
     this._waterVal = this._el.querySelector('#hud-water-val');
 
-    this._stations = {
-      timing: this._el.querySelector('#qte-station-timing'),
-      bail: this._el.querySelector('#qte-station-bail'),
-      siren: this._el.querySelector('#qte-station-siren'),
-      live: this._el.querySelector('#qte-station-live'),
-    };
-    this.setSirenStationVisible(this._hasSirens);
-    this._bailCanvas = this._el.querySelector('#hud-qte-draw');
     this._wheel = this._el.querySelector('#hud-wheel');
     this._pedestal = this._el.querySelector('#hud-pedestal');
-    this._mobileBtnEl = this._el.querySelector('#hud-mobile-harpoon');
     this._scoreEl = this._el.querySelector('#hud-score-val');
     this._bonusBoxEl = this._el.querySelector('#hud-bonus-container');
 
-    this._clearBailCanvas();
-    this._syncStationDOM('timing');
-    this._syncStationDOM('bail');
-    this._syncStationDOM('siren');
+    // Unified Helm Console: docked to the wheel so steering and every QTE share one spot.
+    this._helm.mount(this._el.querySelector('#hud-wheel-container'));
 
     this._updateEquippedAssets = () => {
       if (!window.gameState) return;
@@ -426,116 +323,13 @@ export class HUD {
     on('economyUpdated', this._onEconomyUpdated);
     on('itemsEquipped', this._onEconomyUpdated);
 
-    // Direct station taps are a touch fallback; keyboard remains with QTEInputRouter.
-    this._stations.timing.addEventListener('pointerdown', (e) => {
+    // Pause / Settings trigger button
+    this._el.querySelector('#hud-btn-pause')?.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      if (this._activeQTEInput === 'timing') emit('qteInput', { kind: 'tap' });
-    });
-    this._stations.siren.addEventListener('pointerdown', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (this._activeQTEInput === 'mash') emit('qteInput', { kind: 'tap' });
-    });
-    // Allow tapping the Bilge station header/footer on mobile/touch as the 50% bail assist equivalent of [SPACE]
-    this._stations.bail.addEventListener('pointerdown', (e) => {
-      if (this._activeQTEInput !== 'draw') return;
-      if (e.target === this._bailCanvas) return;
-      e.preventDefault();
-      e.stopPropagation();
-      emit('qteInput', { kind: 'bailAssist' });
+      emit('requestPause');
     });
 
-    this._bailCanvas?.addEventListener('pointerdown', event => {
-      if (this._activeQTEInput !== 'draw') return;
-      event.preventDefault();
-      event.stopPropagation();
-      const point = this._bailPoint(event);
-      if (!point) return;
-      this._bailDrawing = true;
-      this._bailCanvas.setPointerCapture?.(event.pointerId);
-      this._bailPointerId = event.pointerId;
-      this._clearBailCanvas();
-      this._lastBailPoint = point;
-      this._drawBailTrace(point, point);
-      emit('qteInput', { kind: 'drawStart', point });
-    });
-    this._bailCanvas?.addEventListener('pointermove', event => {
-      if (!this._bailDrawing) return;
-      event.preventDefault();
-      const point = this._bailPoint(event);
-      if (!point) return;
-      const previous = this._lastBailPoint ?? point;
-      this._drawBailTrace(previous, point);
-      this._lastBailPoint = point;
-      emit('qteInput', { kind: 'drawMove', point });
-    });
-    const finishBailDraw = event => {
-      if (!this._bailDrawing) return;
-      this._bailDrawing = false;
-      this._lastBailPoint = null;
-      if (this._bailCanvas.hasPointerCapture?.(event.pointerId)) {
-        try {
-          this._bailCanvas.releasePointerCapture(event.pointerId);
-        } catch (_) {
-          // Ignore if already released
-        }
-      }
-      this._bailPointerId = null;
-      if (event.type === 'pointerup') emit('qteInput', { kind: 'drawEnd' });
-      else emit('qteInput', { kind: 'drawCancel' });
-    };
-    this._bailCanvas?.addEventListener('pointerup', finishBailDraw);
-    this._bailCanvas?.addEventListener('pointercancel', finishBailDraw);
-
-    // Dedicated mobile Harpoon / Action button (Left-Thumb Zone)
-    const mobileBtn = this._el.querySelector('#btn-mobile-harpoon');
-    if (mobileBtn) {
-      mobileBtn.addEventListener('pointerdown', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (this._activeQTEInput === 'hold') {
-          emit('qteInput', { kind: 'holdStart' });
-        } else {
-          emit('qteInput', { kind: 'tap' });
-        }
-      });
-      const endMobileHold = (e) => {
-        if (this._activeQTEInput === 'hold') {
-          e.preventDefault();
-          e.stopPropagation();
-          emit('qteInput', { kind: 'holdEnd' });
-        }
-      };
-      mobileBtn.addEventListener('pointerup', endMobileHold);
-      mobileBtn.addEventListener('pointercancel', endMobileHold);
-    }
-
-    // Direct touch / click interaction on Siren station (Hold to Brace or Tap)
-    const sirenStation = this._stations?.siren;
-    if (sirenStation) {
-      sirenStation.addEventListener('pointerdown', (e) => {
-        if (this._stationController?.stations?.siren?.state !== 'active') return;
-        e.preventDefault();
-        e.stopPropagation();
-        if (this._activeQTEInput === 'hold') {
-          emit('qteInput', { kind: 'holdStart' });
-        } else {
-          emit('qteInput', { kind: 'tap' });
-        }
-      });
-      const endSirenHold = (e) => {
-        if (this._activeQTEInput === 'hold') {
-          e.preventDefault();
-          e.stopPropagation();
-          emit('qteInput', { kind: 'holdEnd' });
-        }
-      };
-      sirenStation.addEventListener('pointerup', endSirenHold);
-      sirenStation.addEventListener('pointercancel', endSirenHold);
-    }
-
-    
 
     // Steering Wheel Interaction
     this._wheelAngle = 0;
@@ -704,12 +498,7 @@ export class HUD {
     }
     this._pedestal = null;
     clearInterval(this._qteTimer);
-    if (this._qteFrame) cancelAnimationFrame(this._qteFrame);
-    this._qteFrame = null;
-    this._pendingQTEUpdate = null;
-    for (const timer of this._qteResolveTimers.values()) clearTimeout(timer);
-    this._qteResolveTimers.clear();
-    this._stationController = new QTEStationController();
+    this._helm.dispose();
     clearTimeout(this._bannerTimer);
     this._el?.remove();
     this._el = null;
@@ -722,23 +511,13 @@ export class HUD {
     this._waterBoat = null;
     this._waterVal = null;
     this._waterGauge = null;
-    this._stations = null;
-    this._bailCanvas = null;
-    this._activeQTEInput = null;
-    this._bailDrawing = false;
-    this._bailPointerId = null;
-    this._lastBailPoint = null;
-    this._mobileBtnEl = null;
     this._scoreEl = null;
     this._bonusBoxEl = null;
   }
 
+  /** Sirens no longer have their own station (they use the Helm Console); kept as level bookkeeping. */
   setSirenStationVisible(visible) {
     this._hasSirens = Boolean(visible);
-    if (this._stations?.siren) {
-      this._stations.siren.style.display = this._hasSirens ? '' : 'none';
-      this._stations.siren.setAttribute('aria-hidden', this._hasSirens ? 'false' : 'true');
-    }
   }
 
   _onScoreAdded({ points = 0, isPerfect = false }) {
@@ -898,352 +677,36 @@ export class HUD {
   }
 
   // -----------------------------------------------------------------------
-  // Static QTE Nautical Instrument Stations
+  // Unified Helm Console (every QTE shares one unit beside the wheel)
   // -----------------------------------------------------------------------
 
-  _syncStationDOM(station, theme = null) {
-    const el = this._stations?.[station];
-    const entry = this._stationController.stations[station];
-    if (!el || !entry) return;
-
-    const classes = ['qte-station', `qte-${station}-station`, `is-${entry.state}`];
-    if (station === 'siren') {
-      classes.push(`side-${entry.side || 'right'}`);
-    }
-    if (entry.state === 'resolving' && entry.result) {
-      classes.push(`result-${entry.result.toLowerCase()}`);
-    }
-    if (entry.queuedType && entry.state === 'active') {
-      classes.push('has-queued');
-    }
-    el.className = classes.join(' ');
-    el.setAttribute('aria-hidden', 'false');
-
-    const resultEl = el.querySelector('.qte-result');
-    const timerFill = el.querySelector('.qte-timer-fill');
-
-    if (station === 'timing') {
-      const iconEl = el.querySelector('.qte-icon');
-      const labelEl = el.querySelector('.qte-label');
-      const pillEl = el.querySelector('.qte-state-pill');
-      const hintEl = el.querySelector('.qte-station-hint');
-      const sweetArcEl = el.querySelector('.qte-sweet-arc');
-      const perfectArcEl = el.querySelector('.qte-perfect-arc');
-
-      const arcs = describeSweetSpotArcs(entry.sweetSpot ?? [0.4, 0.6]);
-      if (sweetArcEl) sweetArcEl.setAttribute('d', arcs.sweetPath);
-      if (perfectArcEl) perfectArcEl.setAttribute('d', arcs.perfectPath);
-
-      if (entry.state === 'active') {
-        el.style.setProperty('--qte-theme', theme?.color ?? '#00bcd4');
-        if (iconEl) iconEl.innerHTML = theme?.icon ?? DEFAULT_TIMING_ICON;
-        if (labelEl) labelEl.textContent = entry.label || 'HARPOON';
-        if (pillEl) pillEl.textContent = entry.queuedType ? 'LOCK+1' : 'LOCKED';
-        if (hintEl) hintEl.textContent = 'TAP / [SPACE] IN ZONE';
-        if (resultEl) resultEl.textContent = '';
-
-        if (!this._hasShownHarpoonTutorial) {
-          this._hasShownHarpoonTutorial = true;
-          this._showTutorialBanner({
-            icon: '🦈',
-            title: 'SHARK ATTACK! — HARPOON TUTORIAL',
-            text: 'Press [SPACE] or Click when the sweeping needle enters the GOLD arc to strike the shark!',
-            theme: 'harpoon',
-            durationMs: 4500
-          });
-        }
-      } else if (entry.state === 'queued') {
-        if (iconEl) iconEl.innerHTML = theme?.icon ?? DEFAULT_TIMING_ICON;
-        if (labelEl) labelEl.textContent = entry.label || 'INCOMING';
-        if (pillEl) pillEl.textContent = 'QUEUED';
-        if (hintEl) hintEl.textContent = 'LOCKING TARGET...';
-        if (resultEl) resultEl.textContent = '';
-        el.style.setProperty('--qte-needle', '-90deg');
-      } else if (entry.state === 'resolving') {
-        if (pillEl) pillEl.textContent = entry.result || '';
-        if (resultEl) {
-          resultEl.textContent = entry.points > 0
-            ? `+${entry.points}`
-            : (entry.result ? `${entry.result}!` : '');
-        }
-      } else {
-        el.style.setProperty('--qte-theme', '#d7b35a');
-        el.style.setProperty('--qte-needle', '-90deg');
-        if (iconEl) iconEl.innerHTML = DEFAULT_TIMING_ICON;
-        if (labelEl) labelEl.textContent = 'ORDNANCE';
-        if (pillEl) pillEl.textContent = 'READY';
-        if (hintEl) hintEl.textContent = 'STANDBY · TAP / [SPACE]';
-        if (resultEl) resultEl.textContent = '';
-        if (timerFill) timerFill.style.width = '100%';
-      }
-    } else if (station === 'bail') {
-      const labelEl = el.querySelector('.qte-label');
-      const progressEl = el.querySelector('.qte-progress');
-      const hintEl = el.querySelector('.qte-station-hint');
-
-      if (entry.state === 'active') {
-        if (labelEl) labelEl.textContent = entry.label || 'BAIL!';
-        if (progressEl) progressEl.textContent = '0%';
-        if (hintEl) hintEl.textContent = 'TRACE RING · TAP BAR 50%';
-        if (resultEl) resultEl.textContent = '';
-
-        if (!this._hasShownBailTutorial) {
-          this._hasShownBailTutorial = true;
-          this._showTutorialBanner({
-            icon: '🪣',
-            title: 'WATER IN HOLD! — BILGE BAILING TUTORIAL',
-            text: 'Draw a circle inside the pump well with your mouse, or tap [SPACE] repeatedly to bail water!',
-            theme: 'bail',
-            durationMs: 4500
-          });
-        }
-      } else if (entry.state === 'queued') {
-        if (labelEl) labelEl.textContent = 'BILGE PUMP';
-        if (progressEl) progressEl.textContent = 'QUEUED';
-        if (hintEl) hintEl.textContent = 'PUMP PRIMING...';
-        if (resultEl) resultEl.textContent = '';
-      } else if (entry.state === 'resolving') {
-        if (progressEl) progressEl.textContent = entry.result || '';
-        if (resultEl) resultEl.textContent = entry.result ? `${entry.result}!` : '';
-      } else {
-        if (labelEl) labelEl.textContent = 'BILGE PUMP';
-        if (progressEl) progressEl.textContent = 'DRY';
-        if (hintEl) hintEl.textContent = 'STANDBY · TRACE / [SPACE]';
-        if (resultEl) resultEl.textContent = '';
-        if (timerFill) timerFill.style.width = '100%';
-      }
-    } else if (station === 'siren') {
-      const titleEl = el.querySelector('.qte-siren-title');
-      const hintEl = el.querySelector('.qte-siren-hint');
-
-      if (entry.state === 'active') {
-        const isHold = entry.input === 'hold';
-        if (titleEl) titleEl.textContent = isHold ? 'BRACE!' : 'RESIST!';
-        if (hintEl) hintEl.textContent = isHold ? 'HOLD [SPACE]' : 'TAP / [SPACE]';
-        if (resultEl) resultEl.textContent = '';
-      } else if (entry.state === 'queued') {
-        if (titleEl) titleEl.textContent = 'SIREN';
-        if (hintEl) hintEl.textContent = 'QUEUED';
-        if (resultEl) resultEl.textContent = '';
-      } else if (entry.state === 'resolving') {
-        if (hintEl) hintEl.textContent = entry.result || '';
-        if (resultEl) resultEl.textContent = entry.result ? `${entry.result}!` : '';
-      } else {
-        if (titleEl) titleEl.textContent = 'WARD';
-        if (hintEl) hintEl.textContent = 'CALM';
-        if (resultEl) resultEl.textContent = '';
-        if (timerFill) timerFill.style.width = '100%';
-        el.querySelectorAll('.qte-pips i').forEach(pip => pip.classList.remove('filled'));
-      }
-    }
-  }
 
   _showQTE(event) {
-    if (!this._stations) return;
-    const prevActive = this._stationController._active;
-    const station = this._stationController.start(event);
-    if (!station) return;
-
-    if (prevActive && prevActive !== station) {
-      clearTimeout(this._qteResolveTimers.get(prevActive));
-      this._syncStationDOM(prevActive);
-    }
-
-    clearTimeout(this._qteResolveTimers.get(station));
-    this._activeQTEInput = event.input;
-    this._syncStationDOM(station, event.theme);
-
-    if (station === 'bail') {
-      this._clearBailCanvas();
-    }
-    if (station === 'siren') {
-      this.setSirenStationVisible(true);
-      this._stations.siren.querySelectorAll('.qte-pips i').forEach(pip => pip.classList.remove('filled'));
-    }
-    if (this._stations.live) {
-      this._stations.live.textContent = event.prompt ?? event.label ?? '';
-    }
-
-    const mobileIcon = this._el?.querySelector('#btn-mobile-harpoon .harpoon-icon');
-    const mobileLabel = this._el?.querySelector('#btn-mobile-harpoon .harpoon-text');
-    const mobileBtn = this._el?.querySelector('#btn-mobile-harpoon');
-
-    if (event.input === 'hold') {
-      if (mobileLabel) mobileLabel.textContent = 'BRACE';
-      if (mobileIcon) mobileIcon.innerHTML = '<span class="pixel-icon icon-siren-note size-20"></span>';
-      if (mobileBtn) mobileBtn.setAttribute('aria-label', 'Brace against siren');
-    } else if (event.input === 'mash') {
-      if (mobileLabel) mobileLabel.textContent = 'TAP!';
-      if (mobileIcon) mobileIcon.innerHTML = '<span class="pixel-icon icon-siren-note size-20"></span>';
-      if (mobileBtn) mobileBtn.setAttribute('aria-label', 'Resist siren');
-    } else {
-      if (mobileLabel) mobileLabel.textContent = 'STRIKE';
-      if (mobileIcon) mobileIcon.innerHTML = '<span class="pixel-icon icon-harpoon size-20"></span>';
-      if (mobileBtn) mobileBtn.setAttribute('aria-label', 'Strike harpoon');
-    }
-
-    const isCoarsePointer = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
-    const showMobileBtn = event.input !== 'draw' && isCoarsePointer;
-    if (this._mobileBtnEl) {
-      this._mobileBtnEl.style.display = showMobileBtn ? 'block' : 'none';
-    }
-    if (this._stations.bail) {
-      this._stations.bail.classList.toggle('touch-subdued', showMobileBtn);
-    }
+    if (!this._el) return;
+    this._helm.start(event);
   }
 
   _queueQTE(event) {
-    if (!this._stations) return;
-    const station = this._stationController.queue(event);
-    const targetStation = station ?? (event?.type === 'SHOOT' || event?.type === 'HARPOON' ? 'timing' : null);
-    if (station === 'siren' || targetStation === 'siren') {
-      this.setSirenStationVisible(true);
-    }
-    if (targetStation) {
-      this._syncStationDOM(targetStation, event?.theme);
-    }
+    if (!this._el) return;
+    this._helm.queue(event);
   }
 
   _updateQTE(event) {
-    this._pendingQTEUpdate = event;
-    if (this._qteFrame) return;
-    this._qteFrame = requestAnimationFrame(() => {
-      this._qteFrame = null;
-      if (this._pendingQTEUpdate) {
-        this._renderQTEUpdate(this._pendingQTEUpdate);
-      }
-    });
-  }
-
-  _renderQTEUpdate({ input, windowMs, remainingMs, progress, drawProgress }) {
-    const station = input === 'draw' ? 'bail' : (input === 'mash' || input === 'hold') ? 'siren' : 'timing';
-    const el = this._stations?.[station];
-    const entry = this._stationController.stations[station];
-    if (!el || entry?.state !== 'active') return;
-
-    const safeWindow = Math.max(1, windowMs || 1);
-    const remRatio = Math.max(0, Math.min(1, (remainingMs ?? 0) / safeWindow));
-    const elapsedRatio = 1 - remRatio;
-
-    const timerFill = el.querySelector('.qte-timer-fill');
-    if (timerFill) {
-      timerFill.style.width = `${(remRatio * 100).toFixed(1)}%`;
-    }
-
-    if (input === 'timing') {
-      const angle = ratioToDialAngle(elapsedRatio);
-      el.style.setProperty('--qte-needle', `${angle.toFixed(2)}deg`);
-      const [start, end] = entry.sweetSpot ?? [0.4, 0.6];
-      const inSweetSpot = elapsedRatio >= start && elapsedRatio <= end;
-      el.classList.toggle('in-sweet-spot', inSweetSpot);
-    } else if (input === 'mash' || input === 'hold') {
-      const fillThreshold = Math.round(progress ?? 0);
-      el.querySelectorAll('.qte-pips i').forEach((pip, index) => {
-        pip.classList.toggle('filled', index < fillThreshold);
-      });
-    } else if (input === 'draw') {
-      const pct = Math.round((drawProgress ?? 0) * 100);
-      const progressEl = el.querySelector('.qte-progress');
-      if (progressEl) progressEl.textContent = `${pct}%`;
-    }
+    if (!this._el) return;
+    this._helm.update(event);
   }
 
   _resolveQTE(event, result) {
-    if (!this._stations) return;
-    this._handleStrikeWindow({ open: false });
-    const station = this._stationController.resolve(event, result);
-    if (!station) return;
-
-    if (event?.queued) {
-      this._syncStationDOM(station);
-      return;
-    }
-
-    if (station === 'bail') {
-      this._cancelBailDrawing(false);
-    }
-
-    if (!this._stationController._active) {
-      if (this._qteFrame) {
-        cancelAnimationFrame(this._qteFrame);
-        this._qteFrame = null;
-      }
-      this._pendingQTEUpdate = null;
-      this._activeQTEInput = null;
-      if (this._mobileBtnEl) this._mobileBtnEl.style.display = 'none';
-      if (this._stations.bail) this._stations.bail.classList.remove('touch-subdued');
-    }
-
-    this._syncStationDOM(station);
-    const resolveSeq = this._stationController.stations[station].seq;
-    clearTimeout(this._qteResolveTimers.get(station));
-    this._qteResolveTimers.set(station, setTimeout(() => {
-      if (this._stationController.finishResolve(station, resolveSeq)) {
-        this._syncStationDOM(station);
-      }
-    }, 520));
+    if (!this._el) return;
+    if (!event?.queued) this._handleStrikeWindow({ open: false });
+    this._helm.resolve(event, result);
   }
 
   _handleStrikeWindow({ open = false } = {}) {
     if (!this._el) return;
     const isOpen = Boolean(open);
     this._el.classList.toggle('hud-strike-open', isOpen);
-    const timingStation = this._stations?.timing;
-    if (timingStation) {
-      timingStation.classList.toggle('strike-cue-active', isOpen);
-    }
-    const mobileBtn = this._el.querySelector('#btn-mobile-harpoon');
-    if (mobileBtn) {
-      mobileBtn.classList.toggle('strike-pulse', isOpen);
-    }
-  }
-
-  _bailPoint(event) {
-    const rect = this._bailCanvas.getBoundingClientRect();
-    const x = (event.clientX - rect.left) / rect.width;
-    const y = (event.clientY - rect.top) / rect.height;
-    return x < 0 || x > 1 || y < 0 || y > 1 ? null : { x, y };
-  }
-
-  _clearBailCanvas() {
-    if (!this._bailCanvas) return;
-    const context = this._bailCanvas.getContext('2d');
-    if (!context) return;
-    const { width, height } = this._bailCanvas;
-    const cx = width / 2;
-    const cy = height / 2;
-    const r = width * 0.38;
-
-    context.clearRect(0, 0, width, height);
-
-    // Subtle dark-water well ring
-    context.beginPath();
-    context.arc(cx, cy, r, 0, Math.PI * 2);
-    context.strokeStyle = 'rgba(0, 188, 212, 0.22)';
-    context.lineWidth = 14;
-    context.stroke();
-
-    // Dashed brass guide circle
-    context.beginPath();
-    context.arc(cx, cy, r, 0, Math.PI * 2);
-    context.strokeStyle = 'rgba(212, 175, 55, 0.85)';
-    context.lineWidth = 3;
-    context.setLineDash([6, 6]);
-    context.stroke();
-    context.setLineDash([]);
-  }
-
-  _drawBailTrace(from, to) {
-    if (!this._bailCanvas) return;
-    const context = this._bailCanvas.getContext('2d');
-    if (!context) return;
-    context.beginPath();
-    context.moveTo(from.x * this._bailCanvas.width, from.y * this._bailCanvas.height);
-    context.lineTo(to.x * this._bailCanvas.width, to.y * this._bailCanvas.height);
-    context.strokeStyle = '#38bdf8';
-    context.lineWidth = 6;
-    context.lineCap = 'square';
-    context.stroke();
+    this._helm.setStrikeOpen(isOpen);
   }
 
   /** No duplicate text banner needed since _onScoreAdded already shows "+[Number]". */
@@ -1395,6 +858,8 @@ export class HUD {
     off('krakenRaceStarted'); off('krakenTentacleCaught');
     off('krakenDefeated');
     off('krakenCinematicStart'); off('krakenCinematicEnd');
+    off('playerSinkingStart', this._onShipSunk);
+    off('playerSunk', this._onShipSunk);
     clearTimeout(this._bossBannerTimeout);
   }
 }

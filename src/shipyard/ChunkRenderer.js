@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { applyCausticsToMaterial, applyCausticsToObject } from '../environment/CausticsShader.js';
 import { CellState, CELL_SIZE } from './VoxelGrid.js';
 
 // ---------------------------------------------------------------------------
@@ -8,6 +9,8 @@ import { CellState, CELL_SIZE } from './VoxelGrid.js';
 /** Voxel material — white base so instance colors show through */
 const intactMaterial = new THREE.MeshLambertMaterial({ color: 0xffffff });
 const damagedMaterial = new THREE.MeshLambertMaterial({ color: 0x5c3317 });
+applyCausticsToMaterial(intactMaterial, { multiplier: 0.9 });
+applyCausticsToMaterial(damagedMaterial, { multiplier: 0.9 });
 
 /** Missing/Broken/Damaged cell — prominent red outline with standard scene depth testing */
 const missingMaterial = new THREE.LineBasicMaterial({
@@ -53,7 +56,7 @@ export class ChunkRenderer {
     // Tag so GameState can locate and purge any orphaned ship renderers left in the scene
     this.container.userData.isShipChunkContainer = true;
     this.container.userData.chunkRenderer = this;
-    
+
     this._gltfScene = null;
     this._instancedMesh = null;
     this._instanceIdxMap = new Map(); // grid flatIdx -> instance ID
@@ -97,13 +100,13 @@ export class ChunkRenderer {
       const maxIntact = grid.width * grid.height * grid.depth;
       this._instancedMesh = new THREE.InstancedMesh(BOX_GEO, intactMaterial, maxIntact);
       this._instancedMesh.count = 0;
-      
+
       // We must manually inform Three.js that we intend to update colors dynamically
       this._instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       if (this._instancedMesh.instanceColor) {
         this._instancedMesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
       }
-      
+
       this.container.add(this._instancedMesh);
     }
 
@@ -211,7 +214,7 @@ export class ChunkRenderer {
         this._gltfScene = null;
       }
     }
-    
+
     if (this._voxel3DTexture) {
       this._voxel3DTexture.dispose();
       this._voxel3DTexture = null;
@@ -341,7 +344,7 @@ export class ChunkRenderer {
     }
     this._individualMeshes.clear();
     this._individualQueue.length = 0;
-    
+
     if (this._instancedMesh) {
       this._instancedMesh.count = 0;
     }
@@ -368,13 +371,13 @@ export class ChunkRenderer {
     if (this._instancedMesh) {
       if (state === CellState.INTACT || state === CellState.REPAIRED) {
         const color = new THREE.Color(grid.getColor(x, y, z));
-        
+
         if (!this._instanceIdxMap.has(flatIdx)) {
           // Allocate new instance ID
           const iid = this._nextInstanceId++;
           this._instanceIdxMap.set(flatIdx, iid);
           this._instancedMesh.count = this._nextInstanceId;
-          
+
           const matrix = new THREE.Matrix4().setPosition(grid.toWorldPos(x, y, z));
           this._instancedMesh.setMatrixAt(iid, matrix);
           this._instancedMesh.setColorAt(iid, color);

@@ -53,6 +53,9 @@ export class PlayerShip {
     this.qteSystem = qteSystem;
     this._bailingWater = false;
     this._bailCooldown = 0;
+    this._bailGraceTimer = 0;
+    this._bailRampTimer = 0;
+    this._bailRampDuration = 4.0;
     this._sirenDisorientationSources = new Set();
 
     this.endLocation = stats.endLocation || null;
@@ -354,6 +357,14 @@ export class PlayerShip {
   update(delta, ocean, windManager) {
     if (this.sunk) return;
     this._bailCooldown = Math.max(0, this._bailCooldown - delta);
+    if (this._bailGraceTimer > 0) {
+      this._bailGraceTimer = Math.max(0, this._bailGraceTimer - delta);
+      if (this._bailGraceTimer === 0) {
+        this._bailRampTimer = this._bailRampDuration;
+      }
+    } else if (this._bailRampTimer > 0) {
+      this._bailRampTimer = Math.max(0, this._bailRampTimer - delta);
+    }
 
     // --- TERMINAL SINKING PLUNGE ANIMATION (3.8s Sea of Thieves death sequence) ---
     if (this.isSinkingDeath) {
@@ -524,10 +535,23 @@ export class PlayerShip {
       this.submergedLeaksCount = submergedLeaks;
       this.breachSectors = sectors;
       this.compartmentFlooding = floodingCompartments;
-      this.currentFlowRate = totalFlowRate;
 
-      if (totalFlowRate > 0 && !this.godMode) {
-        this.waterLevel = Math.min(this.maxWaterLevel, this.waterLevel + totalFlowRate * delta);
+      // Inflow multiplier:
+      // 1. While actively holding and bailing: 0 intake
+      // 2. Post-bail grace period (5-7 seconds): 0 intake (temporarily stopped)
+      // 3. Post-grace ramp period: slowly ramp back from 0% to 100% over _bailRampDuration
+      let inflowMultiplier = 1.0;
+      if (this._bailingWater || this._bailGraceTimer > 0) {
+        inflowMultiplier = 0.0;
+      } else if (this._bailRampTimer > 0) {
+        inflowMultiplier = Math.max(0.0, Math.min(1.0, 1.0 - (this._bailRampTimer / this._bailRampDuration)));
+      }
+
+      const effectiveFlowRate = totalFlowRate * inflowMultiplier;
+      this.currentFlowRate = effectiveFlowRate;
+
+      if (effectiveFlowRate > 0 && !this.godMode) {
+        this.waterLevel = Math.min(this.maxWaterLevel, this.waterLevel + effectiveFlowRate * delta);
 
         // Procedural creak when water exceeds 60%
         if (this.waterLevel > this.maxWaterLevel * 0.6 && Math.random() < 0.02) {
@@ -572,22 +596,28 @@ export class PlayerShip {
       }
     }
 
-    // Trigger bailing QTE from 50% water level so player can bail proactively
-    if (this.waterLevel > this.maxWaterLevel * 0.50 && !this._bailingWater && this._bailCooldown <= 0 && this.qteSystem) {
+    // Trigger bailing QTE from 15% water level so player can bail proactively before water accumulates
+    if (this.waterLevel > this.maxWaterLevel * 0.15 && !this._bailingWater && this._bailCooldown <= 0 && this.qteSystem) {
       const accepted = this.qteSystem.trigger({
         source: 'bail',
-        metadata: { source: 'bail', urgent: this.waterLevel >= this.maxWaterLevel * 0.88 },
+        metadata: { source: 'bail', urgent: this.waterLevel >= this.maxWaterLevel * 0.60 },
         onSuccess: ({ accuracy = 0, metadata }) => {
           this._bailingWater = false;
-          this._bailCooldown = 1.25;
+          // Grace period: boat stops intaking water temporarily for 6 seconds (5-7s range)
+          this._bailGraceTimer = 6.0;
+          this._bailRampTimer = 0;
+          this._bailCooldown = 6.0; // Keep QTE cooldown aligned with grace period so player can steer
           if (metadata.debug) return;
           const waterAtStart = this.waterLevel;
-          const removed = waterAtStart * 0.5 * Math.max(0, Math.min(1, accuracy));
+          // Substantial water removal: clears 85% of current water (or at least 45% of total boat capacity), scaled by pump accuracy
+          const accuracyScale = Math.max(0.5, Math.min(1, accuracy));
+          const baseDrain = Math.max(waterAtStart * 0.85, this.maxWaterLevel * 0.45);
+          const removed = Math.min(waterAtStart, baseDrain * accuracyScale);
           this.waterLevel = Math.max(0, this.waterLevel - removed);
           emit('playerWaterLevel', {
             level: this.waterLevel,
             max: this.maxWaterLevel,
-            flowRate: totalFlowRate,
+            flowRate: 0,
             sectors: this.breachSectors,
             submergedCount: this.submergedLeaksCount
           });
@@ -596,8 +626,8 @@ export class PlayerShip {
         },
         onFail: ({ metadata, queued = false }) => {
           this._bailingWater = false;
-          this._bailCooldown = queued ? 0.5 : 4.0;
-          if (!metadata.debug && !queued) emit('waterBailFailed', { cooldown: 4 });
+          this._bailCooldown = queued ? 0.4 : 2.0;
+          if (!metadata.debug && !queued) emit('waterBailFailed', { cooldown: 2.0 });
         }
       });
       this._bailingWater = accepted;
@@ -1471,6 +1501,10 @@ export class PlayerShip {
   setSirenDisorientation(sourceId, active) {
     if (active) this._sirenDisorientationSources.add(sourceId);
     else this._sirenDisorientationSources.delete(sourceId);
+  }
+
+  get isDisoriented() {
+    return this._sirenDisorientationSources.size > 0;
   }
 
   // -------------------------------------------------------------------------

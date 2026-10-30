@@ -7,9 +7,9 @@ export const QTEType = Object.freeze({
 });
 
 export const QTE_SOURCES = Object.freeze({
-  // Shark harpoon hits grant extra doubloons (up to 25);
-  // every other source resolves gameplay but awards no points.
-  shark: { type: QTEType.HARPOON, reward: 15, perfectReward: 25, streakBonus: false },
+  // Every successful shark harpoon hit awards an extra 25 doubloons upon voyage completion.
+  // Other sources resolve environmental gameplay but award no points.
+  shark: { type: QTEType.HARPOON, reward: 25, perfectReward: 25, streakBonus: false },
   siren: { type: QTEType.SIREN, reward: 0, perfectReward: 0, streakBonus: false },
   bail: { type: QTEType.BAIL, reward: 0, perfectReward: 0, streakBonus: false },
 });
@@ -22,17 +22,18 @@ export function computePoints(source, isPerfect, streak) {
 
 export const QTE_DEFINITIONS = Object.freeze({
   [QTEType.HARPOON]: {
-    input: 'timing', keys: { tap: 'Space' }, windowMs: 2000, priority: 30,
-    label: 'HARPOON!', prompt: 'Strike when the fin breaches', sweetSpot: [0.55, 0.80],
+    input: 'timing', keys: { tap: 'Space' }, windowMs: 1600, priority: 30,
+    label: 'HARPOON!', prompt: 'Strike when the fin breaches', sweetSpot: [0.24, 0.58],
     theme: { color: '#4fc3f7', icon: '<span class="pixel-icon icon-harpoon size-18"></span>', sound: 'harpoon' },
   },
   [QTEType.BAIL]: {
-    input: 'draw', keys: { assist: 'Space' }, windowMs: 8000, priority: 100,
-    label: 'BAIL WATER!', prompt: 'Draw one complete circle',
+    input: 'hold', keys: { holdStart: 'Space', tap: 'Space' }, windowMs: 8000, priority: 100, // hold button / SPACE to bail
+    label: 'HOLD TO BAIL!', prompt: 'Hold SPACE or button to bail water', accuracyFromSpeed: true,
+    mashTarget: 8, holdDurationSec: 2.4, decayRatePerSec: 0.1,
     theme: { color: '#2196f3', icon: '<span class="pixel-icon icon-bailer-bucket size-18"></span>', sound: 'bail' },
   },
   [QTEType.SIREN]: {
-    input: 'hold', keys: { holdStart: 'Space', tap: 'Space' }, windowMs: 5000, priority: 70,
+    input: 'hold', keys: { holdStart: 'Space', tap: 'Space' }, windowMs: 3400, priority: 70,
     label: 'BRACE THE HELM!', prompt: 'Hold SPACE to brace against the song',
     mashTarget: 8, holdDurationSec: 1.8, decayRatePerSec: 0.15,
     theme: { color: '#ff66cc', icon: '<span class="pixel-icon icon-siren-note size-18"></span>', sound: 'siren_resist' },
@@ -82,7 +83,7 @@ const INPUT_HANDLERS = {
         return;
       }
       if (input.kind === 'holdEnd') {
-        if (!system._tapToLatch) {
+        if (!system._tapToLatch || input.force) { // `force`: latched mouse click on ACT releases the hold
           qte.isHolding = false;
           system._emitUpdate();
         }
@@ -117,6 +118,7 @@ const INPUT_HANDLERS = {
       }
     },
   },
+  /** @deprecated Circle-trace bail input; no QTE uses it any more. Kept for easy revert. */
   draw: {
     onInput(system, qte, input) {
       if (input.kind === 'drawCancel') {
@@ -155,6 +157,13 @@ const INPUT_HANDLERS = {
   },
 };
 
+/** Hold-to-pump accuracy: a fast finish earns 1.0, a finish at the very end of the window 0.6. */
+export function holdAccuracyFromElapsed(elapsedRatio) {
+  const ratio = Math.max(0, Math.min(1, Number.isFinite(elapsedRatio) ? elapsedRatio : 1));
+  return Math.max(0.6, Math.min(1, 1 - 0.4 * ratio));
+}
+
+/** @deprecated The bail QTE now uses hold-to-pump; kept (unused) for easy revert. */
 const CIRCLE_SECTORS = 24;
 const CIRCLE_TARGET_RADIUS = 0.4;
 
@@ -218,10 +227,14 @@ export class QTESystem {
     this._onSettingChanged = ({ key, value }) => {
       if (key === 'qteTapToLatch') this._tapToLatch = Boolean(value);
     };
+    this._sunk = false;
+    this._onShipSunk = () => this._handleShipSunk();
     on('qteInput', this._onInput);
     on('gamePaused', this._onPaused);
     on('obstacleHit', this._onObstacleHit);
     on('settingChanged', this._onSettingChanged);
+    on('playerSinkingStart', this._onShipSunk);
+    on('playerSunk', this._onShipSunk);
   }
 
   setHazardCheck(fn) {
@@ -238,6 +251,7 @@ export class QTESystem {
   }
 
   trigger(options) {
+    if (this._sunk || this._paused) return false;
     const sourceName = options.source ?? options.metadata?.source;
     const source = QTE_SOURCES[sourceName];
     const type = options.type ?? source?.type;
@@ -263,8 +277,25 @@ export class QTESystem {
       onSuccess: options.onSuccess ?? (() => {}), onFail: options.onFail ?? (() => {}),
       metadata: { ...options.metadata, source: sourceName },
     };
-    if (!this._active) this._start(qte);
-    else {
+    if (!this._active) {
+      this._start(qte);
+    } else if (qte.definition.priority > this._active.definition.priority) {
+      // PREEMPT: Higher priority QTE overtakes active lower priority QTE immediately
+      // Precedence order: 1. Bail (100) > 2. Siren (70) > 3. Harpoon (30)
+      const preempted = this._active;
+      this._closeStrikeWindow(preempted);
+      if (preempted.definition.input === 'hold') {
+        preempted.isHolding = false;
+      }
+      this._active = null;
+      // Preserve a healthy window so the preempted QTE can be completed when resumed
+      preempted.remainingMs = Math.max(preempted.remainingMs, Math.round(preempted.windowMs * 0.75));
+      this._queue.push(preempted);
+      this._queue.sort((left, right) => right.definition.priority - left.definition.priority);
+      emit('qteQueued', { type: preempted.type, source: preempted.sourceName, priority: preempted.definition.priority, preempted: true });
+      emit('qtePreempted', { preemptedType: preempted.type, preemptedSource: preempted.sourceName, metadata: preempted.metadata, newType: type, newSource: sourceName });
+      this._start(qte);
+    } else {
       this._queue.push(qte);
       this._queue.sort((left, right) => right.definition.priority - left.definition.priority);
       emit('qteQueued', { type, source: sourceName, priority: qte.definition.priority });
@@ -273,7 +304,7 @@ export class QTESystem {
   }
 
   update(delta) {
-    if (this._paused) return;
+    if (this._sunk || this._paused) return;
     this._updateQueue(delta);
     if (!this._active) return this._startNext();
     this._active.remainingMs -= delta * 1000;
@@ -325,10 +356,28 @@ export class QTESystem {
     off('gamePaused', this._onPaused);
     off('obstacleHit', this._onObstacleHit);
     off('settingChanged', this._onSettingChanged);
+    off('playerSinkingStart', this._onShipSunk);
+    off('playerSunk', this._onShipSunk);
+  }
+
+  _handleShipSunk() {
+    this._sunk = true;
+    if (this._active) {
+      const qte = this._active;
+      this._active = null;
+      this._closeStrikeWindow(qte);
+      qte.onFail?.({ reason: 'ship-sunk', queued: false, metadata: qte.metadata });
+      emit('qteFail', { type: qte.type, source: qte.sourceName, dedupeKey: qte.dedupeKey, reason: 'ship-sunk', metadata: qte.metadata });
+    }
+    for (const qte of this._queue) {
+      qte.onFail?.({ reason: 'ship-sunk', queued: true, metadata: qte.metadata });
+      emit('qteFail', { type: qte.type, source: qte.sourceName, reason: 'ship-sunk', queued: true, metadata: qte.metadata });
+    }
+    this._queue.length = 0;
   }
 
   _handleInput(input) {
-    if (this._paused || !this._active) return;
+    if (this._sunk || this._paused || !this._active) return;
     INPUT_HANDLERS[this._active.definition.input]?.onInput(this, this._active, input);
   }
 
@@ -369,6 +418,7 @@ export class QTESystem {
     const qte = this._active;
     if (!qte) return;
     const ratio = this._elapsedRatio(qte);
+    if (qte.definition.accuracyFromSpeed) qte.accuracy = holdAccuracyFromElapsed(ratio);
     const isPerfect = qte.definition.input === 'timing'
       ? this._isTimingPerfect(qte, ratio)
       : qte.definition.input === 'draw'
