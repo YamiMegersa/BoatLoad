@@ -48,6 +48,14 @@ export class QTEInputRouter {
     this._target?.addEventListener('blur', this._onBlur);
     this._document?.addEventListener('visibilitychange', this._onVisibilityChange);
     on('gamePaused', this._onPaused);
+
+    this._sunk = false;
+    this._onShipSunk = () => {
+      this._sunk = true;
+      this._clearHeldState();
+    };
+    on('playerSinkingStart', this._onShipSunk);
+    on('playerSunk', this._onShipSunk);
   }
 
   _handleKeyDown(event) {
@@ -60,7 +68,7 @@ export class QTEInputRouter {
     }
 
     this._down = true;
-    if (this._paused || this._isDirectorActive()) return;
+    if (this._sunk || this._paused || this._isDirectorActive()) return;
 
     if (this._qteSystem?.hasActive()) {
       const kind = this._qteSystem.getInputKindForKey('Space');
@@ -114,6 +122,8 @@ export class QTEInputRouter {
     this._target?.removeEventListener('blur', this._onBlur);
     this._document?.removeEventListener('visibilitychange', this._onVisibilityChange);
     off('gamePaused', this._onPaused);
+    off('playerSinkingStart', this._onShipSunk);
+    off('playerSunk', this._onShipSunk);
     this._clearHeldState();
   }
 }

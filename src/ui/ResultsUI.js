@@ -60,12 +60,14 @@ export class ResultsUI {
     const multiplier = this.gameState.getPedestalMultiplier();
     const pedestalTotal = Math.round(baseReward * multiplier);
     const pedestalBonus = Math.max(0, pedestalTotal - baseReward);
-    const sharkBonus = data.sharkBonus ?? (data.sailing?.sharkBonus || Math.max(0, Math.round(this.gameState.score || 0)));
+    const sharksHit = data.sharksHit ?? data.sailing?.sharksHit ?? this.gameState?.sharksHitCount ?? Math.round((data.sharkBonus || this.gameState?.score || 0) / 25);
+    const sharkBonus = data.sharkBonus ?? (data.sailing?.sharkBonus || (isPassed ? Math.max(0, Math.round(this.gameState?.score || 0)) : 0));
     const sailing = data.sailing || {
       baseReward,
       multiplier,
       pedestalBonus,
       sharkBonus,
+      sharksHit,
       sailingBonus: isPassed ? (pedestalTotal + sharkBonus) : 0
     };
 
@@ -187,13 +189,13 @@ export class ResultsUI {
             </div>
             ` : ''}
 
-            ${sailing.sharkBonus > 0 ? `
+            ${sailing.sharksHit > 0 ? `
             <div class="ledger-row highlight">
               <div class="ledger-mult-desc">
-                <span class="ledger-label">Shark Harpoon Bounty</span>
-                <span class="ledger-subtext">Successful Shark Attacks</span>
+                <span class="ledger-label">Shark Harpoon Bounty (${sailing.sharksHit} × 25 <span class="pixel-icon icon-doubloon size-16"></span>)</span>
+                <span class="ledger-subtext">${isPassed ? 'Successful Shark Strikes' : 'Voyage Failed · Bounty Forfeited'}</span>
               </div>
-              <span class="ledger-val highlight-gold">+${sailing.sharkBonus} <span class="pixel-icon icon-doubloon size-16"></span></span>
+              <span class="ledger-val ${isPassed ? 'highlight-gold' : 'text-penalty'}">${isPassed ? `+${sailing.sharkBonus} <span class="pixel-icon icon-doubloon size-16"></span>` : '0 (Lost at Sea)'}</span>
             </div>
             ` : ''}
 

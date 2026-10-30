@@ -1,8 +1,17 @@
-/** Pure routing, state machine, and SVG dial math for the static QTE HUD instruments. */
+/**
+ * Pure routing, state machine, and SVG dial math for the unified Helm Console.
+ *
+ * Every QTE appears on ONE console docked beside the steering wheel and is answered
+ * with ONE action (the ACT button or SPACE), either as a TAP or a HOLD.
+ */
 
-export const stationFor = type => (
-  { HARPOON: 'timing', BAIL: 'bail', SIREN: 'siren' }[type] ?? null
+/** Console screen mode for each QTE type. */
+export const modeFor = type => (
+  { HARPOON: 'tap', SIREN: 'brace', BAIL: 'pump' }[type] ?? null
 );
+
+/** Which ACT gesture a mode needs: a single timed tap, or a sustained hold. */
+export const gestureFor = mode => (mode === 'tap' ? 'tap' : mode ? 'hold' : null);
 
 const clamp01 = value => Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
 
@@ -58,172 +67,116 @@ export function describeSweetSpotArcs(sweetSpot = [0.4, 0.6], cx = 60, cy = 60, 
   };
 }
 
-export class QTEStationController {
-  constructor(now = () => Date.now()) {
-    this._now = now;
-    this._lastSirenPull = null;
-    this._active = null;
-    this.stations = {
-      timing: {
-        state: 'idle',
-        type: null,
-        input: null,
-        source: null,
-        label: null,
-        sweetSpot: [0.4, 0.6],
-        result: null,
-        points: 0,
-        queuedType: null,
-        queuedLabel: null,
-        seq: 0,
-      },
-      bail: {
-        state: 'idle',
-        type: null,
-        input: null,
-        source: null,
-        label: null,
-        result: null,
-        queuedType: null,
-        queuedLabel: null,
-        seq: 0,
-      },
-      siren: {
-        state: 'idle',
-        type: null,
-        input: null,
-        source: null,
-        label: null,
-        side: 'right',
-        result: null,
-        queuedType: null,
-        queuedLabel: null,
-        seq: 0,
-      },
-    };
+/**
+ * Single-console state machine.
+ *
+ * States: 'idle' | 'queued' (nothing active, something waiting) | 'active' | 'resolving'.
+ * Only one QTE is ever active (QTESystem guarantees this), so one screen is enough.
+ */
+export class HelmConsoleController {
+  constructor() {
+    this.state = 'idle';
+    this.mode = null;
+    this.type = null;
+    this.input = null;
+    this.source = null;
+    this.label = null;
+    this.prompt = null;
+    this.sweetSpot = [0.4, 0.6];
+    this.result = null;
+    this.points = 0;
+    this.queued = [];
+    this.seq = 0;
   }
 
-  noteSirenPull({ steerPull = 0 } = {}) {
-    if (steerPull) {
-      this._lastSirenPull = {
-        side: steerPull < 0 ? 'left' : 'right',
-        at: this._now(),
-      };
-    }
+  get gesture() {
+    return gestureFor(this.mode);
   }
 
-  _resolveSirenSide(event) {
-    const metaSide = event?.metadata?.side;
-    if (metaSide === 'left' || metaSide === 'right') return metaSide;
-    if (this._lastSirenPull && this._now() - this._lastSirenPull.at <= 600) {
-      return this._lastSirenPull.side;
-    }
-    return 'right';
+  get isActive() {
+    return this.state === 'active';
   }
 
   start(event) {
-    const station = stationFor(event?.type);
-    if (!station) return null;
-    if (this._active && this._active !== station) {
-      this.clear(this._active);
-    }
-    const entry = this.stations[station];
-    entry.seq += 1;
-    entry.state = 'active';
-    entry.type = event.type;
-    entry.input = event.input ?? null;
-    entry.source = event.source ?? event?.metadata?.source ?? null;
-    entry.label = event.label ?? event.type;
-    entry.result = null;
-    entry.points = 0;
-    if (entry.queuedType === event.type) {
-      entry.queuedType = null;
-      entry.queuedLabel = null;
-    }
-    if (station === 'timing' && Array.isArray(event.sweetSpot)) {
-      entry.sweetSpot = [...event.sweetSpot];
-    }
-    if (station === 'siren') {
-      entry.side = this._resolveSirenSide(event);
-    }
-    this._active = station;
-    return station;
+    const mode = modeFor(event?.type);
+    if (!mode) return null;
+    this.seq += 1;
+    this.state = 'active';
+    this.mode = mode;
+    this.type = event.type;
+    this.input = event.input ?? null;
+    this.source = event.source ?? event?.metadata?.source ?? null;
+    this.label = event.label ?? event.type;
+    this.prompt = event.prompt ?? null;
+    this.result = null;
+    this.points = 0;
+    if (mode === 'tap' && Array.isArray(event.sweetSpot)) this.sweetSpot = [...event.sweetSpot];
+    this._removeQueued(event.type);
+    return mode;
   }
 
   queue(event) {
-    const station = stationFor(event?.type);
-    if (!station) return null;
-    const entry = this.stations[station];
-    entry.queuedType = event.type;
-    entry.queuedLabel = event.label ?? event.type;
-    entry.queuedInput = event.input ?? null;
-    if (station === 'timing' && Array.isArray(event.sweetSpot) && entry.state !== 'active') {
-      entry.sweetSpot = [...event.sweetSpot];
+    const mode = modeFor(event?.type);
+    if (!mode) return null;
+    this.queued.push({ type: event.type, label: event.label ?? event.type, mode });
+    if (this.state === 'idle') {
+      this.seq += 1;
+      this.state = 'queued';
     }
-    if (station === 'siren' && entry.state !== 'active') {
-      entry.side = this._resolveSirenSide(event);
-    }
-    if (station === this._active || entry.state === 'active') {
-      return null;
-    }
-    entry.seq += 1;
-    entry.state = 'queued';
-    entry.type = event.type;
-    entry.source = event.source ?? event?.metadata?.source ?? null;
-    entry.label = event.label ?? event.type;
-    entry.result = null;
-    entry.points = 0;
-    return station;
+    return mode;
   }
 
+  /**
+   * Resolve the active QTE (or drop a queued one when `event.queued` is set).
+   * Returns the affected mode, or null if the event does not apply.
+   */
   resolve(event, result) {
-    const station = stationFor(event?.type);
-    if (!station) return null;
-    const entry = this.stations[station];
+    const mode = modeFor(event?.type);
+    if (!mode) return null;
     if (event?.queued) {
-      entry.queuedType = null;
-      entry.queuedLabel = null;
-      if (entry.state !== 'queued') return null;
-      this.clear(station);
-      return station;
+      // A queued expiry only clears the waiting badge; it never touches the active task.
+      if (!this._removeQueued(event.type)) return null;
+      if (this.state === 'queued' && this.queued.length === 0) this._toIdle();
+      return mode;
     }
-    if (entry.state !== 'active') return null;
-    entry.seq += 1;
-    entry.state = 'resolving';
-    entry.result = result;
-    entry.points = Number.isFinite(event?.points) ? event.points : 0;
-    this._active = null;
-    return station;
+    if (this.state !== 'active' || this.type !== event.type) return null;
+    this.seq += 1;
+    this.state = 'resolving';
+    this.result = result;
+    this.points = Number.isFinite(event?.points) ? event.points : 0;
+    return mode;
   }
 
-  finishResolve(station, expectedSeq) {
-    const entry = this.stations[station];
-    if (!entry) return false;
-    if (entry.state !== 'resolving') return false;
-    if (expectedSeq !== undefined && entry.seq !== expectedSeq) return false;
-    this.clear(station);
+  /** Ends the result flash. A stale token (a newer QTE already started) is ignored. */
+  finishResolve(expectedSeq) {
+    if (this.state !== 'resolving') return false;
+    if (expectedSeq !== undefined && this.seq !== expectedSeq) return false;
+    this._toIdle();
     return true;
   }
 
-  clear(station) {
-    const entry = this.stations[station];
-    if (!entry) return;
-    entry.seq += 1;
-    if (entry.queuedType && this._active !== station) {
-      entry.state = 'queued';
-      entry.type = entry.queuedType;
-      entry.label = entry.queuedLabel;
-      entry.result = null;
-    } else {
-      entry.state = 'idle';
-      entry.type = null;
-      entry.source = null;
-      entry.label = null;
-      entry.result = null;
-      entry.points = 0;
-      entry.queuedType = null;
-      entry.queuedLabel = null;
-    }
-    if (this._active === station) this._active = null;
+  clear() {
+    this.queued.length = 0;
+    this._toIdle();
+  }
+
+  _toIdle() {
+    this.seq += 1;
+    this.state = this.queued.length ? 'queued' : 'idle';
+    this.mode = null;
+    this.type = null;
+    this.input = null;
+    this.source = null;
+    this.label = null;
+    this.prompt = null;
+    this.result = null;
+    this.points = 0;
+  }
+
+  _removeQueued(type) {
+    const index = this.queued.findIndex(item => item.type === type);
+    if (index < 0) return false;
+    this.queued.splice(index, 1);
+    return true;
   }
 }

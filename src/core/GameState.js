@@ -137,7 +137,13 @@ export class GameState {
     this._onPlayerSunk = null;
     this._minimap = new Minimap();
     this.score = 0;
-    this._onScoreAdded = (d) => { this.score += (d.points || 0); };
+    this.sharksHitCount = 0;
+    this._onScoreAdded = (d) => {
+      this.score += (d.points || 0);
+      if (d.source === 'shark') {
+        this.sharksHitCount = (this.sharksHitCount || 0) + 1;
+      }
+    };
     on('scoreAdded', this._onScoreAdded);
     this._editorUI = new EditorUI();
     this._editorSystem = null;
@@ -384,6 +390,7 @@ export class GameState {
     const multiplier = isPassed && !isCommunity ? this.getPedestalMultiplier() : 1.0;
     const pedestalTotal = Math.round(baseReward * multiplier);
     const pedestalBonus = Math.max(0, pedestalTotal - baseReward);
+    const sharksHit = this.sharksHitCount || Math.round((this.score || 0) / 25);
     const sharkBonus = isPassed && !isCommunity ? Math.max(0, Math.round(this.score || 0)) : 0;
     const sailingBonus = isCommunity ? 0 : (pedestalTotal + sharkBonus);
 
@@ -430,8 +437,10 @@ export class GameState {
           multiplier,
           pedestalBonus,
           sharkBonus,
+          sharksHit,
           sailingBonus
         },
+        sharksHit,
         damage: {
           damagedVoxels: damageDiff,
           voxelDamageCost,
@@ -2073,6 +2082,7 @@ export class GameState {
 
     this._wasCinematicActive = false;
     this.score = 0;
+    this.sharksHitCount = 0;
     const hasSirens = Boolean(
       (levelCfg?.sirens && levelCfg.sirens.length > 0) ||
       (this._sirenManager?.hasSirens?.())
