@@ -113,3 +113,90 @@ test('Shipyard repair: only unpatched level json damage cells render red outline
   renderer.dispose(scene);
 });
 
+test('Shipyard repair: multi-layer damage outlines turn off when clicking through repaired outer hull', async () => {
+  const W = 10, H = 10, D = 10;
+  const grid = new VoxelGrid(W, H, D);
+
+  // Fill ship hull with intact voxels from x=2..7
+  for (let z = 2; z <= 7; z++) {
+    for (let y = 1; y <= 4; y++) {
+      for (let x = 2; x <= 7; x++) {
+        grid.setState(x, y, z, CellState.INTACT);
+      }
+    }
+  }
+
+  // Two-layer deep breach: outer cell (2,2,3) and inner cell (3,2,3)
+  const levelCfg = {
+    damage: [
+      {
+        zone: 'hull',
+        state: 'MISSING',
+        cells: [
+          [2, 2, 3],
+          [3, 2, 3]
+        ]
+      }
+    ]
+  };
+
+  ShipBuilder._applyDamage(grid, levelCfg);
+  grid.captureInitialState();
+
+  const scene = new THREE.Scene();
+  const renderer = new ChunkRenderer();
+  renderer.init(grid, scene, null, { showMissingOutlines: true, filterMissingByLevelDamage: true });
+
+  const countOutlines = () => {
+    let count = 0;
+    for (const mesh of renderer._individualMeshes.values()) {
+      if (mesh.type === 'LineSegments' || mesh.isLineSegments) count++;
+    }
+    return count;
+  };
+
+  assert.equal(countOutlines(), 2, 'Both outer and inner breach cells should show damage outlines');
+
+  const budget = new BudgetManager(500);
+  const buildSystem = new BuildSystem();
+  buildSystem.init(grid, scene, renderer.container, budget);
+
+  // 1. Repair outer cell (2, 2, 3) with outward normal (-1, 0, 0)
+  const normal = new THREE.Vector3(-1, 0, 0);
+  buildSystem.placeObject(2, 2, 3, normal);
+  renderer.sync(grid);
+
+  assert.equal(grid.getState(2, 2, 3), CellState.REPAIRED, 'Outer cell (2,2,3) should be REPAIRED');
+  assert.equal(countOutlines(), 1, 'Outer outline removed; 1 inner outline remaining');
+
+  // 2. Click on the newly repaired outer cell (2, 2, 3) with outward normal (-1, 0, 0)
+  // Because (1, 2, 3) is EMPTY air and (3, 2, 3) inward along -normal is MISSING,
+  // BuildSystem should automatically target and repair the inner damaged cell (3, 2, 3)!
+  buildSystem.placeObject(2, 2, 3, normal);
+  renderer.sync(grid);
+
+  assert.equal(grid.getState(3, 2, 3), CellState.REPAIRED, 'Inner cell (3,2,3) should now be REPAIRED');
+  assert.equal(countOutlines(), 0, 'All damage outlines should be turned off once both layers are filled');
+
+  buildSystem.reset();
+  renderer.dispose(scene);
+});
+
+test('ClearCheckManager.startClearCheck with emitEvent: false does not double-emit editorRequestPlay', async () => {
+  const { ClearCheckManager } = await import('../src/community/ClearCheckManager.js');
+  const { on, off } = await import('../src/core/EventBus.js');
+
+  let playEvents = 0;
+  const handler = () => { playEvents++; };
+  on('editorRequestPlay', handler);
+
+  try {
+    await ClearCheckManager.startClearCheck({ name: 'Test Course', ship: 'sloop', budget: 400 }, { emitEvent: false });
+    assert.equal(playEvents, 0, 'startClearCheck with { emitEvent: false } must not emit a duplicate editorRequestPlay event');
+  } finally {
+    off('editorRequestPlay', handler);
+    ClearCheckManager._activeCheck = null;
+  }
+});
+
+

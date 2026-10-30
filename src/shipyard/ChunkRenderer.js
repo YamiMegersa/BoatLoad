@@ -52,6 +52,10 @@ const EDGES_GEO = new THREE.EdgesGeometry(OUTLINE_BOX_GEO);
 export class ChunkRenderer {
   constructor() {
     this.container = new THREE.Group();
+    this.container.name = 'ShipChunkContainer';
+    // Tag so GameState can locate and purge any orphaned ship renderers left in the scene
+    this.container.userData.isShipChunkContainer = true;
+    this.container.userData.chunkRenderer = this;
 
     this._gltfScene = null;
     this._instancedMesh = null;
@@ -274,6 +278,12 @@ export class ChunkRenderer {
 
     this._gltfScene.traverse((child) => {
       if (child.isMesh && child.material) {
+        const origBeforeRender = typeof child.onBeforeRender === 'function' ? child.onBeforeRender : null;
+        child.onBeforeRender = (renderer, scene, camera, geometry, material, group) => {
+          if (origBeforeRender) origBeforeRender.call(child, renderer, scene, camera, geometry, material, group);
+          this.updateTransform();
+        };
+
         const materials = Array.isArray(child.material) ? child.material : [child.material];
         for (const mat of materials) {
           mat.side = THREE.DoubleSide;

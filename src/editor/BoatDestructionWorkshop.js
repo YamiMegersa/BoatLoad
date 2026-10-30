@@ -247,6 +247,25 @@ export class BoatDestructionWorkshop {
     // 2. Build working ship with damage applied if available
     const effectiveDamage = damageEntries || this._levelCfg?.damage || null;
     const { grid, zones, gltfScene } = await ShipBuilder.build(this._shipDef, { damage: effectiveDamage });
+    // Workshop may have been closed (e.g. editor Play pressed) while the ship was loading;
+    // keep the damage grid data but never attach a renderer, otherwise a stray outlined
+    // boat can linger in the scene into later phases.
+    if (!this._isOpen) {
+      this._grid = grid;
+      this._zones = zones;
+      gltfScene?.traverse(child => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) {
+          if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+          else child.material.dispose();
+        }
+      });
+      return;
+    }
+    if (this._chunkRenderer) {
+      this._chunkRenderer.dispose(this._workshopGroup);
+      this._chunkRenderer = null;
+    }
     this._grid = grid;
     this._zones = zones;
 
