@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { updateCaustics } from './CausticsShader.js';
 
 const _tangentX = new THREE.Vector3();
 const _tangentZ = new THREE.Vector3();
@@ -179,6 +180,7 @@ export class Ocean {
 
   update(delta) {
     this._time += delta;
+    updateCaustics(delta);
     if (this.mesh) {
       this.mesh.material.uniforms.uTime.value = this._time;
     }
