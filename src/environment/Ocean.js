@@ -26,6 +26,7 @@ export class Ocean {
 
     const oceanMat = new THREE.ShaderMaterial({
       transparent: true,
+      side: THREE.DoubleSide,
       fog: true,
       uniforms: THREE.UniformsUtils.merge([
         THREE.UniformsLib['fog'],
@@ -125,6 +126,7 @@ export class Ocean {
           // High-frequency surface bump texture
           float bump = noise(vWorldPos.xz * 6.0 + uTime * 0.5) * 0.15;
           vec3 n = normalize(vNormalW + vec3(bump, 0.0, bump));
+          if (!gl_FrontFacing) n = -n;
 
           // Base color mixing based on normalized height
           float normH = vHeight / max(uWaveScale, 0.001);
@@ -132,7 +134,7 @@ export class Ocean {
           vec3 base = mix(uDeep, uShallow, t);
 
           // Specular highlight
-          float spec = pow(max(dot(n, normalize(uSunDir)), 0.0), 60.0);
+          float spec = gl_FrontFacing ? pow(max(dot(n, normalize(uSunDir)), 0.0), 60.0) : 0.0;
           vec3 col = base + vec3(1.0, 0.95, 0.8) * spec * 0.8;
 
           // Froth / Foam at wave peaks

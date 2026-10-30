@@ -85,12 +85,14 @@ export class GameState {
 
     this.currentPhase = null;
 
-    // Day / session data
-    this.day = 1;
+    // Day / session data (Default starting day is Day 0 opening & tutorial)
+    this.day = 0;
+    this.unlockedDay = 0;
     this.shipId = 'sloop';
     this.abilityInventory = [];
 
-    // Economy and Shop System (Unified Doubloons)
+    // Progression & Economy System (Unified Doubloons)
+    this._loadProgression();
     this.coins = 350;
     this.inventory = ['wheel_default', 'pedestal_lvl0', 'lantern_lvl1'];
     this.equippedItems = ShopRegistry.getDefaultEquipped();
@@ -98,10 +100,10 @@ export class GameState {
 
     // Active customer contract & sailing damage baseline
     this.currentContract = {
-      day: 1,
-      baseBudget: 400,
+      day: 0,
+      baseBudget: 0,
       bargainBonus: 0,
-      agreedBudget: 400,
+      agreedBudget: 0,
       spentOnRepairs: 0
     };
     this._sailInitialIntactCount = null;
@@ -232,6 +234,50 @@ export class GameState {
         this._ocean.setWorldSize(d.size);
       }
     });
+  }
+
+  // -------------------------------------------------------------------------
+  // Campaign Progression System
+  // -------------------------------------------------------------------------
+
+  _loadProgression() {
+    try {
+      const data = localStorage.getItem('boatload_progression');
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (typeof parsed.unlockedDay === 'number' && !isNaN(parsed.unlockedDay)) {
+          this.unlockedDay = Math.max(0, Math.min(7, Math.floor(parsed.unlockedDay)));
+        }
+      }
+    } catch (e) {
+      console.warn('[GameState] Could not load progression from localStorage:', e);
+    }
+  }
+
+  _saveProgression() {
+    try {
+      const payload = {
+        unlockedDay: this.unlockedDay
+      };
+      localStorage.setItem('boatload_progression', JSON.stringify(payload));
+    } catch (e) {
+      console.warn('[GameState] Could not save progression to localStorage:', e);
+    }
+  }
+
+  unlockDay(day) {
+    if (typeof day !== 'number' || isNaN(day)) return;
+    const clamped = Math.max(0, Math.min(7, Math.floor(day)));
+    if (clamped > this.unlockedDay) {
+      this.unlockedDay = clamped;
+      this._saveProgression();
+      emit('progressionUpdated', { unlockedDay: this.unlockedDay });
+    }
+  }
+
+  isDayUnlocked(day) {
+    if (day === 0) return true;
+    return day <= this.unlockedDay;
   }
 
   // -------------------------------------------------------------------------
@@ -373,7 +419,7 @@ export class GameState {
 
   async _enterResults(opts = {}) {
     const isCommunity = Boolean(opts?.isCommunity || this._isCommunityCourse || this._activeCommunityCourseCode);
-    const day = this.day || 1;
+    const day = this.day !== undefined && this.day !== null ? this.day : 1;
     const isPassed = opts.passed !== false && !opts.failed && !opts.isSunk;
     const isSunk = Boolean(opts.failed || opts.isSunk);
 
@@ -412,6 +458,9 @@ export class GameState {
     if (!isCommunity) {
       netPayout = leftoverProfit + sailingBonus - totalDamageIncurred;
       this.applyPayout(netPayout);
+      if (isPassed) {
+        this.unlockDay(day + 1);
+      }
     }
 
     emit('uiMount', {
@@ -569,17 +618,40 @@ export class GameState {
       const loadingMessage = opts.loadingMessage || messages[newPhase] || 'Plotting course...';
 
       emit('showLoading', { title: loadingTitle, message: loadingMessage, progress: 0.15 });
+
+      // Yield execution so the browser layout engine can paint the loading overlay to screen
+      await new Promise(resolve => {
+        requestAnimationFrame(() => {
+          setTimeout(resolve, 40);
+        });
+      });
     }
 
     this.nextPhase = newPhase;
     await this._onExit(this.currentPhase);
-    if (!skipLoading) emit('updateLoading', { progress: 0.45 });
+    if (!skipLoading) {
+      emit('updateLoading', { progress: 0.40, message: 'Clearing outfitting berth...' });
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
 
     this.currentPhase = newPhase;
     this.nextPhase = null;
     this._keys = {};
     await this._onEnter(newPhase, opts);
-    if (!skipLoading) emit('updateLoading', { progress: 0.88 });
+    if (!skipLoading) {
+      emit('updateLoading', { progress: 0.92, message: 'Vessel in position...' });
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+
+    // Pre-render and prepare the top-down sea chart and anchor countdown
+    // while the loading screen persists so the sailing phase never freezes on reveal
+    if (newPhase === GamePhase.OBSTACLE) {
+      if (!skipLoading) {
+        emit('updateLoading', { progress: 0.96, message: 'Charting navigational sea chart...' });
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+      this._startAnchorCountdownSequence();
+    }
 
     // Ensure the 3D scene renders cleanly with character and camera in place before revealing
     await new Promise(resolve => {
@@ -589,7 +661,7 @@ export class GameState {
     });
 
     if (!skipLoading) {
-      emit('updateLoading', { progress: 1.0 });
+      emit('updateLoading', { progress: 1.0, message: 'Ready to cast off!' });
     }
 
     emit('phaseChanged', { phase: newPhase });
@@ -598,20 +670,6 @@ export class GameState {
       await new Promise(resolve => {
         emit('hideLoading', { onDismissed: resolve });
       });
-    }
-
-    // Now the loading screen is fully dismissed and the player is stably loaded and visible
-    if (newPhase === GamePhase.OBSTACLE) {
-      // Allow a brief pause (2 animation frames + 100ms) for the player to see their
-      // ship stably resting at the berth before the anchor countdown begins.
-      await new Promise(resolve => {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            setTimeout(resolve, 100);
-          });
-        });
-      });
-      this._startAnchorCountdownSequence();
     }
   }
 
@@ -904,13 +962,16 @@ export class GameState {
     this._mooredShipProfile = shipProfile;
 
     // Re-trigger ship arrival if level or day changed
+    // On Day 0, an old customer's abandoned scrap ship is already moored at the West Shipyard
     if (this._lastDockLevel !== activeShipId || this._lastDockDay !== this.day) {
-      this._dockShipArrived = false;
+      this._dockShipArrived = (this.day === 0);
       this._lastDockLevel = activeShipId;
       this._lastDockDay = this.day;
       if (this._dockStall && this._dockStall.dockNPC) {
         this._dockStall.dockNPC.reset();
       }
+    } else if (this.day === 0) {
+      this._dockShipArrived = true;
     }
 
     // Build or update ship model if needed so it displays moored in the dock
@@ -924,7 +985,9 @@ export class GameState {
         this._chunkRenderer = null;
       }
       this._chunkRenderer = new ChunkRenderer();
-      this._chunkRenderer.init(grid, this._scene, gltfScene);
+      this._chunkRenderer.init(grid, this._scene, gltfScene, { showMissingOutlines: false });
+    } else if (this._chunkRenderer) {
+      this._chunkRenderer.setShowMissingOutlines(false);
     }
 
     if (!this._dockMooredGroup) {
@@ -1128,8 +1191,9 @@ export class GameState {
       this._lastDockDay = this.day;
 
       // 3. Reset ship and NPC arrival state so cutscene replays for the selected day
-      this._dockShipArrived = false;
-      this._shipDocked = false;
+      // (On Day 0, the abandoned scrap ship is already moored at the West Shipyard)
+      this._dockShipArrived = (this.day === 0);
+      this._shipDocked = (this.day === 0);
       this._shipArriving = false;
       if (this._dockStall && this._dockStall.dockNPC) {
         this._dockStall.dockNPC.setSprite(customer.spritePath);
@@ -1146,7 +1210,7 @@ export class GameState {
         this._chunkRenderer = null;
       }
       this._chunkRenderer = new ChunkRenderer();
-      this._chunkRenderer.init(grid, this._scene, gltfScene);
+      this._chunkRenderer.init(grid, this._scene, gltfScene, { showMissingOutlines: false });
 
       if (!this._dockMooredGroup) {
         this._dockMooredGroup = new THREE.Group();
@@ -1186,16 +1250,22 @@ export class GameState {
         c.userData.isMooredShip = true;
       });
 
-      this._dockMooredGroup.position.copy(this._dockMooredP0);
-      this._dockMooredGroup.rotation.set(0, Math.atan2(this._dockMooredP1.x - this._dockMooredP0.x, this._dockMooredP1.z - this._dockMooredP0.z), 0);
-      this._dockMooredGroup.visible = false;
+      if (this._dockShipArrived) {
+        this._dockMooredGroup.position.copy(this._dockMooredTargetPos);
+        this._dockMooredGroup.rotation.set(0, 0, 0);
+        this._dockMooredGroup.visible = true;
+      } else {
+        this._dockMooredGroup.position.copy(this._dockMooredP0);
+        this._dockMooredGroup.rotation.set(0, Math.atan2(this._dockMooredP1.x - this._dockMooredP0.x, this._dockMooredP1.z - this._dockMooredP0.z), 0);
+        this._dockMooredGroup.visible = false;
+      }
 
       // 5. Update stall interactables & repair state
       const integrity = this._grid ? DamageSystem.getSummary(this._grid).integrityPct : 100;
       if (this._dockStall) {
         this._dockStall.shipNeedsRepair = integrity < 100;
         this._dockStall.activeShipProfile = { ...shipProfile, name: customer?.shipName || shipProfile?.name };
-        this._dockStall.shipInteractables = [];
+        this._dockStall.shipInteractables = this._dockShipArrived ? [this._dockMooredGroup] : [];
       }
 
       emit('updateLoading', { progress: 0.75 });
@@ -1220,6 +1290,19 @@ export class GameState {
       }
       emit('updateLoading', { progress: 1.0 });
       emit('hideLoading');
+
+      // Clear Day 0 tutorial state when a real voyage day is selected
+      if (this._dockPlayerController) {
+        this._dockPlayerController.tutorialActive = false;
+        this._dockPlayerController.tutorialStep = null;
+        this._dockPlayerController.closeAreaPopup();
+        this._dockPlayerController.hideObjective();
+      }
+      if (this._dockStall) {
+        this._dockStall.setDivorcePostRingVisible(false);
+        this._dockStall.setShipyardTutorialCircleVisible(false);
+        this._dockStall.setShopDoorGlowVisible(false);
+      }
 
       // 7. Start arrival cutscene
       this._startLevelCutscene();
@@ -1246,9 +1329,7 @@ export class GameState {
             }
             emit('playSound', { sound: 'sinking_bell' });
             if (this._dockPlayerController) {
-              this._dockPlayerController.setObjective(
-                `📜 Inspect the <strong>Divorce Papers</strong> nailed to the post where the dock meets land <span style="color:#ffd700;">[E or Click]</span>`
-              );
+              this._dockPlayerController.advanceTutorialStep('READ_NOTICE');
             }
           }
         }
@@ -1258,9 +1339,9 @@ export class GameState {
 
     this._onDivorcePapersRead = () => {
       if (this.day === 0 && this._dockPlayerController) {
-        this._dockPlayerController.setObjective(
-          `🏠 Head into your <strong>Shipwright Shop</strong> on the dock and open the <strong>Logbook</strong> to begin repairs`
-        );
+        if (!this._dockPlayerController.tutorialActive || this._dockPlayerController.tutorialStep === 'READ_NOTICE') {
+          this._dockPlayerController.advanceTutorialStep('ENTER_SHOP');
+        }
       }
     };
     on('divorcePapersRead', this._onDivorcePapersRead);
@@ -1478,6 +1559,7 @@ export class GameState {
           this._scene.add(this._chunkRenderer.container);
         }
       }
+      this._chunkRenderer.setShowMissingOutlines(true, true);
       this._chunkRenderer.sync(this._grid);
     } else {
       // Cleanly dispose any existing chunk renderer first so no duplicate/ghost boat remains
@@ -1491,9 +1573,9 @@ export class GameState {
       this._zones = zones;
       def = builtDef;
 
-      // Chunk renderer
+      // Chunk renderer - show missing outlines for shipyard repair
       this._chunkRenderer = new ChunkRenderer();
-      this._chunkRenderer.init(grid, this._scene, gltfScene);
+      this._chunkRenderer.init(grid, this._scene, gltfScene, { showMissingOutlines: true, filterMissingByLevelDamage: true });
       this._chunkRenderer.container.position.copy(containerPos);
       this._chunkRenderer.container.rotation.copy(SHIP_MOORED_ROT);
       this._chunkRenderer.container.scale.set(s, s, s);
@@ -1607,7 +1689,7 @@ export class GameState {
     };
     on('gridDirty', this._onShipyardGridDirty);
 
-    emit('uiMount', { screen: 'shipyard', isClearCheck: this._isClearCheckRepair, isEditorPlay: this._isEditorPlay });
+    emit('uiMount', { screen: 'shipyard', day: this.day, isClearCheck: this._isClearCheckRepair, isEditorPlay: this._isEditorPlay });
     this._emitShipyardSummary();
   }
 
@@ -1647,6 +1729,7 @@ export class GameState {
     this._buildSystem?.reset();
     this._shipyardFlyControls?.dispose();
     this._shipyardFlyControls = null;
+    this._chunkRenderer?.setShowMissingOutlines(false);
 
     if (this._chunkRenderer && this._chunkRenderer.container) {
       this._chunkRenderer.container.scale.set(1, 1, 1);
@@ -1841,11 +1924,12 @@ export class GameState {
       this._grid = grid;
       this._zones = zones;
       this._chunkRenderer = new ChunkRenderer();
-      this._chunkRenderer.init(grid, this._scene, gltfScene);
+      this._chunkRenderer.init(grid, this._scene, gltfScene, { showMissingOutlines: false });
     }
 
     // Reset container transform before handing off to PlayerShip wrapper
     if (this._chunkRenderer && this._chunkRenderer.container) {
+      this._chunkRenderer.setShowMissingOutlines(false);
       if (this._chunkRenderer.container.parent !== this._scene) {
         this._scene.add(this._chunkRenderer.container);
       }
@@ -1923,8 +2007,19 @@ export class GameState {
     }
 
     if (levelCfg && levelCfg.voxels) {
+      emit('updateLoading', { progress: 0.50, message: 'Constructing terrain & archipelagos...' });
       this._voxelTerrain = new VoxelTerrain(this._scene);
-      this._voxelTerrain.deserialize(levelCfg.voxels);
+      if (typeof this._voxelTerrain.deserializeAsync === 'function') {
+        await this._voxelTerrain.deserializeAsync(levelCfg.voxels, (pct) => {
+          emit('updateLoading', {
+            progress: 0.50 + pct * 0.20,
+            message: `Constructing terrain & archipelagos (${Math.round(pct * 100)}%)...`
+          });
+        });
+      } else {
+        this._voxelTerrain.deserialize(levelCfg.voxels);
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
     }
 
     // Ship state. On a fresh Set Sail the shipyard grid/renderer are still live,
@@ -2002,6 +2097,8 @@ export class GameState {
     if (this._playerShip.baseOBB && this._playerShip.obb) {
       this._playerShip.obb.copy(this._playerShip.baseOBB).applyMatrix4(this._playerShip.mesh.matrixWorld);
     }
+    emit('updateLoading', { progress: 0.72, message: 'Charting navigational hazards & reefs...' });
+    await new Promise(resolve => setTimeout(resolve, 0));
     this._obstacleManager = new ObstacleManager();
     this._obstacleManager.init(levelCfg, this._scene, rockModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, this._qteSystem);
 
@@ -2014,6 +2111,8 @@ export class GameState {
       const distance = sourceName === 'bail' ? 20 : 25;
       return this._obstacleManager.isForwardHazardClear(ship, distance, 35);
     });
+    emit('updateLoading', { progress: 0.85, message: 'Calibrating winds & rigging canvas...' });
+    await new Promise(resolve => setTimeout(resolve, 0));
     this._environmentManager = new EnvironmentManager();
     this._environmentManager.init(this._scene, fishModels, levelCfg, this._qteSystem, this._ocean, this._clouds, this.activeCamera || this._camera);
     this._sirenManager = new SirenManager();
@@ -2030,7 +2129,7 @@ export class GameState {
       baseCam.y = p.y + camHeight;
       if (this._ocean) {
         const waveH = this._ocean.getWaveInfo(baseCam.x, baseCam.z).height;
-        baseCam.y = Math.max(baseCam.y, waveH + 0.85);
+        baseCam.y = Math.max(baseCam.y, waveH - 2.0);
       }
       this._camera.position.copy(baseCam);
       this._camLookTarget = p.clone();
@@ -2415,10 +2514,11 @@ export class GameState {
         targetCamPos.z += oz;
       }
 
-      // 5. Anti-Submersion Water Surface Clamp: never allow camera lens below ocean waves
+      // 5. Water Surface Limit: prevent camera from dropping into the infinite abyss
+      // while allowing natural wave immersion and underwater clipping
       if (this._ocean) {
         const waveH = this._ocean.getWaveInfo(targetCamPos.x, targetCamPos.z).height;
-        const minCamY = waveH + 0.85;
+        const minCamY = waveH - 3.5;
         if (targetCamPos.y < minCamY) {
           targetCamPos.y = minCamY;
         }

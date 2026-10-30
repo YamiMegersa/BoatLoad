@@ -117,7 +117,28 @@ export class LevelConfig {
   static async load(day) {
     const levelKey = `day${day}`;
     if (!LevelConfig._cache.has(levelKey)) {
-      const levelCfg = await LevelConfig._fetchJson(getAssetUrl(`assets/levels/day${day}.json`));
+      let levelCfg = await LevelConfig._fetchJson(getAssetUrl(`assets/levels/day${day}.json`));
+      if (levelCfg && levelCfg.levelData && (!levelCfg.ship || !levelCfg.obstacles || !levelCfg.voxels)) {
+        levelCfg = {
+          ...levelCfg.levelData,
+          metadata: levelCfg.metadata,
+          formatVersion: levelCfg.formatVersion,
+          createdAt: levelCfg.createdAt,
+          ...levelCfg,
+          ship: levelCfg.ship || levelCfg.levelData.ship,
+          worldSize: levelCfg.worldSize || levelCfg.levelData.worldSize,
+          obstacles: levelCfg.obstacles || levelCfg.levelData.obstacles,
+          voxels: levelCfg.voxels || levelCfg.levelData.voxels,
+          endLocation: levelCfg.endLocation || levelCfg.levelData.endLocation,
+          weather: levelCfg.weather || levelCfg.levelData.weather || (levelCfg.levelData.timeOfDay >= 17 ? 'sunset' : 'sunny'),
+          godRays: levelCfg.godRays !== undefined ? levelCfg.godRays : levelCfg.levelData.godRays,
+          timeOfDay: levelCfg.timeOfDay !== undefined ? levelCfg.timeOfDay : levelCfg.levelData.timeOfDay,
+          isStormy: levelCfg.isStormy !== undefined ? levelCfg.isStormy : levelCfg.levelData.isStormy,
+          budget: levelCfg.budget !== undefined ? levelCfg.budget : levelCfg.levelData.budget,
+          damage: (levelCfg.damage && levelCfg.damage.length > 0) ? levelCfg.damage : (levelCfg.levelData?.damage || []),
+          docket: (levelCfg.docket && levelCfg.docket.length > 0) ? levelCfg.docket : (levelCfg.levelData?.docket || []),
+        };
+      }
       LevelConfig._cache.set(levelKey, levelCfg);
     }
     const levelCfg = LevelConfig._cache.get(levelKey);

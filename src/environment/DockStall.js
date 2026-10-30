@@ -516,8 +516,8 @@ export class DockStall {
     this.bunny = new VoxelLopBunny(islandGroup, new THREE.Vector3(0, 2.0, 2.5), this.group);
     this.bunnyInteractables = this.bunny.interactables;
 
-    // Day 0 Opening Cutscene: Clerk Crab in the shallow surf near the northeast beach
-    this.crab = new VoxelCrab(islandGroup, new THREE.Vector3(8.5, 0.42, -18.8));
+    // Day 0 Opening Cutscene: Clerk Crab on the shoreline edge of the northeast beach (y = 1.15)
+    this.crab = new VoxelCrab(islandGroup, new THREE.Vector3(8.5, 1.15, -19.6));
     this.crabInteractables = this.crab.interactables;
 
     // =========================================================================
@@ -811,8 +811,52 @@ export class DockStall {
     intHandle.position.set(-0.13, handleY, handleZ);
     doorGroup.add(intHandle);
 
+    // Day 0 Tutorial: Glowing Outline around the Shop Door (visible when task is ENTER_SHOP)
+    const doorGlowGroup = new THREE.Group();
+    doorGlowGroup.visible = false;
+    this.shopDoorGlowOutline = doorGlowGroup;
+
+    const doorGlowMat = createVoxelMat(0xffd700, {
+      emissive: 0xffb300,
+      emissiveIntensity: 1.8,
+      transparent: true,
+      opacity: 0.92
+    });
+    this.shopDoorGlowMat = doorGlowMat;
+
+    const borderThick = 0.11;
+    const borderDepthX = 0.28; // Wraps slightly outside the door slab & jambs so it's unmistakable
+    const glowLeft = createVoxelBox(borderDepthX, doorLeafH + borderThick * 2, borderThick, doorGlowMat, false, false);
+    glowLeft.position.set(0.04, doorLeafH / 2, -doorLeafW / 2 - borderThick * 0.5);
+    doorGlowGroup.add(glowLeft);
+
+    const glowRight = createVoxelBox(borderDepthX, doorLeafH + borderThick * 2, borderThick, doorGlowMat, false, false);
+    glowRight.position.set(0.04, doorLeafH / 2, doorLeafW / 2 + borderThick * 0.5);
+    doorGlowGroup.add(glowRight);
+
+    const glowTop = createVoxelBox(borderDepthX, borderThick, doorLeafW + borderThick * 2, doorGlowMat, false, false);
+    glowTop.position.set(0.04, doorLeafH + borderThick * 0.5, 0);
+    doorGlowGroup.add(glowTop);
+
+    const glowBottom = createVoxelBox(borderDepthX, borderThick, doorLeafW + borderThick * 2, doorGlowMat, false, false);
+    glowBottom.position.set(0.04, borderThick * 0.5, 0);
+    doorGlowGroup.add(glowBottom);
+
+    const doorGlowLight = new THREE.PointLight(0xffd700, 1.35, 7.5, 2);
+    doorGlowLight.position.set(0.45, doorLeafH * 0.55, 0);
+    this.shopDoorGlowLight = doorGlowLight;
+    doorGlowGroup.add(doorGlowLight);
+
+    doorGlowGroup.traverse(child => {
+      if (child.isMesh) {
+        child.userData.isShopDoor = true;
+        child.userData.noWalk = true;
+      }
+    });
+    doorGroup.add(doorGlowGroup);
+
     this.shopDoor = doorLeaf;
-    this.doorInteractables = [doorLeaf];
+    this.doorInteractables = [doorLeaf, glowLeft, glowRight, glowTop, glowBottom];
 
     // Carved Chandlery Sign Plaque above door
     const doorSignBack = createVoxelBox(0.06, 0.32, 1.15, mats.woodTrim);
@@ -1373,8 +1417,10 @@ export class DockStall {
       buckets: [this.shopGroup],
       excludeSubtrees: [
         ...keep,
-        this.signPivot, this.ghostSignPivot, this.shopDoor, this.bookAura,
+        this.signPivot, this.ghostSignPivot, this.shopDoor, this.shopDoorGlowOutline,
+        this.bookAura, this.shipyardBenchAura,
         this.divorcePostAura, this.divorceScrollGroup,
+        this.shipyardTutorialCircle,
         this.bunny?.group, this.crab?.group, this.dockNPC?.group, this.dockNPC?.mesh,
         this.ghostMerchant?.group, ...this.gulls.map(g => g.mesh)
       ]
@@ -2212,6 +2258,7 @@ export class DockStall {
     this.divorcePostAura = createVoxelOctagonRing(0.58, 0.06, 0.06, auraMat);
     this.divorcePostAura.rotation.x = Math.PI / 2;
     this.divorcePostAura.position.set(0, 0.35, 0.12);
+    this.divorcePostAura.visible = false;
     postGroup.add(this.divorcePostAura);
 
     // Generous raycast hitbox for interacting with the Divorce Papers Post
@@ -2353,6 +2400,60 @@ export class DockStall {
     archGroup.add(dirWest);
 
     shipyardGroup.add(archGroup);
+
+    // 1B. Day 0 Tutorial Location Circle in Shipyard Courtyard (At local X = -31.0, Y = 1.78, Z = 0)
+    const tutorialCircleGroup = new THREE.Group();
+    tutorialCircleGroup.position.set(-31.0, 1.78, 0.0);
+    tutorialCircleGroup.visible = false;
+    this.shipyardTutorialCircle = tutorialCircleGroup;
+
+    const circleOuterMat = createVoxelMat(0xffd700, {
+      emissive: 0xffaa00,
+      emissiveIntensity: 1.5,
+      transparent: true,
+      opacity: 0.9
+    });
+    const circleInnerMat = createVoxelMat(0x00ffaa, {
+      emissive: 0x00cc88,
+      emissiveIntensity: 1.4,
+      transparent: true,
+      opacity: 0.85
+    });
+
+    this.shipyardCircleOuter = createVoxelOctagonRing(2.35, 0.14, 0.14, circleOuterMat);
+    this.shipyardCircleOuter.rotation.x = Math.PI / 2;
+    this.shipyardCircleOuter.position.y = 0.08;
+    tutorialCircleGroup.add(this.shipyardCircleOuter);
+
+    this.shipyardCircleInner = createVoxelOctagonRing(1.45, 0.10, 0.10, circleInnerMat);
+    this.shipyardCircleInner.rotation.x = Math.PI / 2;
+    this.shipyardCircleInner.position.y = 0.10;
+    tutorialCircleGroup.add(this.shipyardCircleInner);
+
+    // Soft glowing beacon cylinder so the location ring is clearly visible from the trail
+    const beaconGeo = new THREE.CylinderGeometry(2.25, 2.25, 4.2, 24, 1, true);
+    const beaconMat = new THREE.MeshBasicMaterial({
+      color: 0xffd700,
+      transparent: true,
+      opacity: 0.16,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    });
+    const beaconMesh = new THREE.Mesh(beaconGeo, beaconMat);
+    beaconMesh.position.y = 2.1;
+    this.shipyardCircleBeacon = beaconMesh;
+    tutorialCircleGroup.add(beaconMesh);
+
+    const circleLight = new THREE.PointLight(0xffd700, 1.4, 9.0, 2);
+    circleLight.position.set(0, 1.2, 0);
+    tutorialCircleGroup.add(circleLight);
+
+    tutorialCircleGroup.traverse(child => {
+      if (child.isMesh) {
+        child.userData.noWalk = true;
+      }
+    });
+    shipyardGroup.add(tutorialCircleGroup);
 
     // 2. Slipway Launching Ways (Marine Railway sloping into the sea)
     // Runs from X = -36 down to X = -58, Z = 0
@@ -2842,8 +2943,12 @@ export class DockStall {
     });
 
     benchGroup.traverse(child => {
-      if (child.isMesh) child.userData.noWalk = true;
+      if (child.isMesh) {
+        child.userData.noWalk = true;
+        child.userData.isShipyardBench = true;
+      }
     });
+    this.shipyardInteractables.push(workTableTop);
 
     shedGroup.add(benchGroup);
 
@@ -2851,14 +2956,45 @@ export class DockStall {
     const draftGroup = new THREE.Group();
     draftGroup.position.set(1.8, 0, -1.5);
 
-    const draftTableTop = createVoxelBox(1.9, 0.14, 1.3, mats.woodHi);
+    // Warm emissive wood material for the interactable workbench top so it has a subtle glowing hue
+    const benchTopGlowMat = createVoxelMat(Palette.woodHi, {
+      emissive: 0xffaa33,
+      emissiveIntensity: 0.28,
+      roughness: 0.55
+    });
+    this.shipyardBenchTopMat = benchTopGlowMat;
+
+    const draftTableTop = createVoxelBox(1.9, 0.14, 1.3, benchTopGlowMat);
     draftTableTop.position.set(0, 0.95, 0);
     draftTableTop.rotation.x = -0.14; // Slanted drafting board
     draftGroup.add(draftTableTop);
 
-    // Tag the drafting table mesh as the interactable shipyard bench!
-    draftTableTop.userData.isShipyardBench = true;
-    this.shipyardInteractables.push(draftTableTop);
+    // Subtle glowing golden rim around the workbench top
+    const benchRimGlowMat = createVoxelMat(0xffd700, {
+      emissive: 0xffb300,
+      emissiveIntensity: 1.15,
+      transparent: true,
+      opacity: 0.78
+    });
+    this.shipyardBenchRimMat = benchRimGlowMat;
+
+    const rimFrame = new THREE.Group();
+    rimFrame.position.set(0, 0.95, 0);
+    rimFrame.rotation.x = -0.14;
+    const rimT = 0.05;
+    const rimFront = createVoxelBox(1.98, 0.16, rimT, benchRimGlowMat, false, false);
+    rimFront.position.set(0, 0.01, 0.67);
+    rimFrame.add(rimFront);
+    const rimBack = createVoxelBox(1.98, 0.16, rimT, benchRimGlowMat, false, false);
+    rimBack.position.set(0, 0.01, -0.67);
+    rimFrame.add(rimBack);
+    const rimLeft = createVoxelBox(rimT, 0.16, 1.38, benchRimGlowMat, false, false);
+    rimLeft.position.set(-0.97, 0.01, 0);
+    rimFrame.add(rimLeft);
+    const rimRight = createVoxelBox(rimT, 0.16, 1.38, benchRimGlowMat, false, false);
+    rimRight.position.set(0.97, 0.01, 0);
+    rimFrame.add(rimRight);
+    draftGroup.add(rimFrame);
 
     [-0.8, 0.8].forEach(dx => {
       [-0.45, 0.45].forEach(dz => {
@@ -2868,8 +3004,12 @@ export class DockStall {
       });
     });
 
-    // Nautical Blueprint Scroll on table
-    const blueprint = createVoxelBox(1.4, 0.02, 0.95, mats.blueprint);
+    // Nautical Blueprint Scroll on table with a soft cyan emissive glow
+    const blueprintGlowMat = createVoxelMat(Palette.blueprint, {
+      emissive: 0x2288cc,
+      emissiveIntensity: 0.35
+    });
+    const blueprint = createVoxelBox(1.4, 0.02, 0.95, blueprintGlowMat);
     blueprint.position.set(0, 1.04, 0);
     blueprint.rotation.x = -0.14;
     draftGroup.add(blueprint);
@@ -2897,9 +3037,25 @@ export class DockStall {
     compassLeg2.rotation.z = -0.3;
     draftGroup.add(compassLeg2);
 
+    // Subtle floating golden aura ring & warm point light above the workbench (matching the shop logbook)
+    const benchAura = createVoxelOctagonRing(0.36, 0.045, 0.045, benchRimGlowMat);
+    benchAura.rotation.x = Math.PI / 2;
+    benchAura.position.set(0, 1.32, 0);
+    draftGroup.add(benchAura);
+    this.shipyardBenchAura = benchAura;
+
+    const benchLight = new THREE.PointLight(0xffcc55, 1.25, 4.8, 2);
+    benchLight.position.set(0, 1.55, 0);
+    draftGroup.add(benchLight);
+    this.shipyardBenchLight = benchLight;
+
     draftGroup.traverse(child => {
-      if (child.isMesh) child.userData.noWalk = true;
+      if (child.isMesh) {
+        child.userData.noWalk = true;
+        child.userData.isShipyardBench = true;
+      }
     });
+    this.shipyardInteractables.push(draftGroup, draftTableTop, blueprint, rimFrame, benchAura);
 
     shedGroup.add(draftGroup);
 
@@ -3498,6 +3654,24 @@ export class DockStall {
     this.ghostMerchantInteractables.push(counterTop, counterDesk);
   }
 
+  setDivorcePostRingVisible(visible) {
+    if (this.divorcePostAura) {
+      this.divorcePostAura.visible = Boolean(visible);
+    }
+  }
+
+  setShipyardTutorialCircleVisible(visible) {
+    if (this.shipyardTutorialCircle) {
+      this.shipyardTutorialCircle.visible = Boolean(visible);
+    }
+  }
+
+  setShopDoorGlowVisible(visible) {
+    if (this.shopDoorGlowOutline) {
+      this.shopDoorGlowOutline.visible = Boolean(visible);
+    }
+  }
+
   update(delta, time, playerCamera = null) {
     if (this.group && this.group.visible === false) return;
 
@@ -3520,9 +3694,28 @@ export class DockStall {
     if (this.crab) {
       this.crab.update(delta, time);
     }
-    if (this.divorcePostAura) {
+    if (this.divorcePostAura && this.divorcePostAura.visible) {
       this.divorcePostAura.rotation.z = time * 1.4;
       this.divorcePostAura.position.y = 0.35 + Math.sin(time * 2.8) * 0.08;
+    }
+    if (this.shipyardTutorialCircle && this.shipyardTutorialCircle.visible) {
+      if (this.shipyardCircleOuter) {
+        this.shipyardCircleOuter.rotation.z = time * 1.1;
+      }
+      if (this.shipyardCircleInner) {
+        this.shipyardCircleInner.rotation.z = -time * 1.6;
+      }
+      if (this.shipyardCircleBeacon && this.shipyardCircleBeacon.material) {
+        this.shipyardCircleBeacon.material.opacity = 0.14 + Math.sin(time * 3.0) * 0.05;
+      }
+    }
+    if (this.shopDoorGlowOutline && this.shopDoorGlowOutline.visible) {
+      if (this.shopDoorGlowMat) {
+        this.shopDoorGlowMat.emissiveIntensity = 1.4 + Math.sin(time * 3.8) * 0.55;
+      }
+      if (this.shopDoorGlowLight) {
+        this.shopDoorGlowLight.intensity = 1.1 + Math.sin(time * 3.8) * 0.45;
+      }
     }
     if (this.bookLight) {
       this.bookLight.intensity = 1.1 + Math.sin(time * 3.5) * 0.45;
@@ -3530,6 +3723,19 @@ export class DockStall {
     if (this.bookAura) {
       this.bookAura.rotation.y = time * 1.5;
       this.bookAura.position.y = 0.22 + Math.sin(time * 2.5) * 0.04;
+    }
+    if (this.shipyardBenchAura) {
+      this.shipyardBenchAura.rotation.z = time * 1.4;
+      this.shipyardBenchAura.position.y = 1.32 + Math.sin(time * 2.6) * 0.05;
+    }
+    if (this.shipyardBenchLight) {
+      this.shipyardBenchLight.intensity = 1.15 + Math.sin(time * 3.0) * 0.35;
+    }
+    if (this.shipyardBenchRimMat) {
+      this.shipyardBenchRimMat.emissiveIntensity = 1.0 + Math.sin(time * 3.0) * 0.35;
+    }
+    if (this.shipyardBenchTopMat) {
+      this.shipyardBenchTopMat.emissiveIntensity = 0.24 + Math.sin(time * 3.0) * 0.08;
     }
     if (this.dockNPC) {
       this.dockNPC.update(delta, time, this.shopCam);

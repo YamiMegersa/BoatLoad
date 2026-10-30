@@ -126,6 +126,8 @@ export class HUD {
   }
 
   mount({ day, hasSirens = false, levelCfg = null } = {}) {
+    const isCommunity = Boolean(window.gameState?._isCommunityCourse || window.gameState?._activeCommunityCourseCode);
+    const dayLabel = isCommunity ? 'Voyage' : `Day ${day ?? (window.gameState?.day ?? 1)}`;
     if (this._el) this.unmount();
 
     this._hasSirens = Boolean(
@@ -133,6 +135,7 @@ export class HUD {
       (levelCfg?.sirens && levelCfg.sirens.length > 0)
     );
     this._score = 0;
+
 
     this._el = document.createElement('div');
     this._el.id = 'hud';
@@ -202,19 +205,11 @@ export class HUD {
           <div id="witcher-boat-status" class="witcher-boat-status"></div>
         </div>
 
-        <!-- Clean floating info pill: Score & Day -->
+        <!-- Clean floating info pill: Day -->
         <div class="hud-info-pill">
-          <span class="hud-pill-day">Day ${day ?? 1}</span>
-          <span class="hud-pill-dot"><span class="pixel-icon hud-day-pill-dot size-14"></span></span>
-          <span class="hud-score-coin"><span class="pixel-icon icon-doubloon size-16"></span></span>
-          <span id="hud-score-val">0</span>
+          <span class="hud-pill-day">${dayLabel}</span>
         </div>
       </div>
-
-      <!-- Dedicated Settings & Pause Trigger Button -->
-      <button id="hud-btn-pause" class="hud-pause-btn" style="position: fixed; top: 14px; left: 180px; z-index: 130;" title="Game Settings & Pause (Esc)" aria-label="Game Settings and Pause">
-        <span class="pixel-icon icon-settings-cog size-18"></span>
-      </button>
 
       <!-- Safe Harbor Goal Distance -->
       <div id="hud-goal-distance" style="position:fixed; top:20px; left:50%; transform:translateX(-50%); color:#ffd700; font-family:'Trebuchet MS',sans-serif; font-weight:bold; font-size:15px; text-shadow:0 0 8px rgba(0,0,0,0.8); background:rgba(20,15,10,0.7); padding:6px 16px; border-radius:20px; border:1px solid rgba(255,215,0,0.5); display:none; pointer-events:none; z-index:90;">
@@ -333,6 +328,7 @@ export class HUD {
       e.stopPropagation();
       emit('requestPause');
     });
+
 
     // Steering Wheel Interaction
     this._wheelAngle = 0;

@@ -8,7 +8,7 @@ export class EditorUI {
   constructor() {
     this._el = null;
     this._publishModal = new CoursePublishModal();
-    this._activeTab = 'assets'; // 'assets', 'terrain', 'boss', 'ship', 'world', 'paper'
+    this._activeTab = 'assets'; // 'assets', 'terrain', 'boss', 'ship', 'world'
     this._activeCategory = 'rocks'; // 'rocks', 'islands', 'seaweed', 'waves', 'pickups', 'hazards'
     this._activeTool = 'select'; // 'select', 'delete', 'place', 'terrain_raise', 'terrain_lower'
     this._activeType = null;
@@ -308,9 +308,7 @@ export class EditorUI {
           <button class="ribbon-tab-btn" data-tab="world">
             <span class="tab-icon"><span class="pixel-icon icon-compass size-16"></span></span> Environment &amp; World
           </button>
-          <button class="ribbon-tab-btn" data-tab="paper">
-            <span class="tab-icon"><span class="pixel-icon icon-artist-palette size-16"></span></span> Paper &amp; Shaders
-          </button>
+
         </div>
 
         <!-- Top Right Actions -->
@@ -770,66 +768,7 @@ export class EditorUI {
           </div>
         </div>
 
-        <!-- ==================== TAB 4: PAPER SHADER & POST-FX ==================== -->
-        <div class="ribbon-pane" id="pane-paper">
-          <div class="ribbon-group">
-            <span class="ribbon-group-label">Paper Effect</span>
-            <label class="editor-toggle-switch">
-              <input type="checkbox" id="paper-shader-check">
-              <span class="toggle-slider"></span>
-              <span class="toggle-label">Enable Paper FX</span>
-            </label>
-            <div style="margin-top: 6px;">
-              <select id="paper-style-select" class="editor-select">
-                <option value="0">Hatching Style</option>
-                <option value="1">Kuwahara (Painterly)</option>
-              </select>
-            </div>
-          </div>
 
-          <div class="ribbon-divider"></div>
-
-          <div class="ribbon-group">
-            <span class="ribbon-group-label">Atmosphere</span>
-            <label class="editor-toggle-switch">
-              <input type="checkbox" id="godrays-check-paper" ${this._godRaysEnabled !== false ? 'checked' : ''}>
-              <span class="toggle-slider"></span>
-              <span class="toggle-label"><span class="pixel-icon icon-god-rays size-14"></span> God Rays</span>
-            </label>
-          </div>
-
-          <div class="ribbon-divider"></div>
-
-          <div class="ribbon-group" style="min-width: 180px;">
-            <span class="ribbon-group-label">Hatch Scale: <strong id="paper-hatch-val">10.0</strong></span>
-            <input type="range" id="paper-hatch-slider" min="1" max="50" step="0.5" value="10.0" class="editor-slider">
-            
-            <span class="ribbon-group-label" style="margin-top: 4px;">Radius: <strong id="paper-kuwahara-val">3</strong></span>
-            <input type="range" id="paper-kuwahara-slider" min="1" max="5" step="1" value="3" class="editor-slider">
-          </div>
-
-          <div class="ribbon-divider"></div>
-
-          <div class="ribbon-group" style="min-width: 180px;">
-            <span class="ribbon-group-label">Color Retention: <strong id="paper-color-val">0.40</strong></span>
-            <input type="range" id="paper-color-slider" min="0" max="1" step="0.01" value="0.40" class="editor-slider">
-
-            <span class="ribbon-group-label" style="margin-top: 4px;">Edge Threshold: <strong id="paper-edge-val">0.30</strong></span>
-            <input type="range" id="paper-edge-slider" min="0" max="1" step="0.01" value="0.30" class="editor-slider">
-          </div>
-
-          <div class="ribbon-divider"></div>
-
-          <div class="ribbon-group" style="min-width: 160px;">
-            <span class="ribbon-group-label">Wobble: <strong id="paper-wobble-val">0.0005</strong></span>
-            <input type="range" id="paper-wobble-slider" min="0" max="0.005" step="0.0001" value="0.0005" class="editor-slider">
-            <div class="quick-chips-row" style="margin-top: 4px;">
-              <button class="mini-chip" id="preset-vintage">Vintage</button>
-              <button class="mini-chip" id="preset-painterly">Paint</button>
-              <button class="mini-chip" id="preset-comic">Ink</button>
-            </div>
-          </div>
-        </div>
 
       </section>
 
@@ -912,7 +851,6 @@ export class EditorUI {
     this._bindBossControls();
     this._bindShipControls();
     this._bindWorldSliders(levelCfg);
-    this._bindPaperSliders();
     this._bindFileOperations();
 
     // Listen to EditorSystem events
@@ -1440,132 +1378,6 @@ export class EditorUI {
   // -------------------------------------------------------------------------
   // Paper Shader Controls
   // -------------------------------------------------------------------------
-  _bindPaperSliders() {
-    const paperCheck = this._el.querySelector('#paper-shader-check');
-    if (paperCheck) {
-      paperCheck.onchange = (e) => {
-        emit('editorTogglePaperShader', { enabled: e.target.checked });
-      };
-    }
-
-    // God Rays Checkbox (Paper tab)
-    const godraysCheckPaper = this._el.querySelector('#godrays-check-paper');
-    if (godraysCheckPaper) {
-      godraysCheckPaper.onchange = (e) => {
-        this._setGodRays(e.target.checked);
-      };
-    }
-
-    const styleSelect = this._el.querySelector('#paper-style-select');
-    if (styleSelect) {
-      styleSelect.onchange = (e) => {
-        emit('editorSetPaperStyle', { style: parseInt(e.target.value, 10) });
-      };
-    }
-
-    const hatchSlider = this._el.querySelector('#paper-hatch-slider');
-    const hatchVal = this._el.querySelector('#paper-hatch-val');
-    if (hatchSlider) {
-      hatchSlider.oninput = (e) => {
-        const val = parseFloat(e.target.value);
-        if (hatchVal) hatchVal.innerText = val.toFixed(1);
-        emit('editorSetHatchScale', { scale: val });
-      };
-    }
-
-    const kuwaharaSlider = this._el.querySelector('#paper-kuwahara-slider');
-    const kuwaharaVal = this._el.querySelector('#paper-kuwahara-val');
-    if (kuwaharaSlider) {
-      kuwaharaSlider.oninput = (e) => {
-        const val = parseInt(e.target.value, 10);
-        if (kuwaharaVal) kuwaharaVal.innerText = val;
-        emit('editorSetKuwaharaRadius', { radius: val });
-      };
-    }
-
-    const colorSlider = this._el.querySelector('#paper-color-slider');
-    const colorVal = this._el.querySelector('#paper-color-val');
-    if (colorSlider) {
-      colorSlider.oninput = (e) => {
-        const val = parseFloat(e.target.value);
-        if (colorVal) colorVal.innerText = val.toFixed(2);
-        emit('editorSetPaperColor', { amount: val });
-      };
-    }
-
-    const edgeSlider = this._el.querySelector('#paper-edge-slider');
-    const edgeVal = this._el.querySelector('#paper-edge-val');
-    if (edgeSlider) {
-      edgeSlider.oninput = (e) => {
-        const val = parseFloat(e.target.value);
-        if (edgeVal) edgeVal.innerText = val.toFixed(2);
-        emit('editorSetPaperEdge', { threshold: val });
-      };
-    }
-
-    const wobbleSlider = this._el.querySelector('#paper-wobble-slider');
-    const wobbleVal = this._el.querySelector('#paper-wobble-val');
-    if (wobbleSlider) {
-      wobbleSlider.oninput = (e) => {
-        const val = parseFloat(e.target.value);
-        if (wobbleVal) wobbleVal.innerText = val.toFixed(4);
-        emit('editorSetPaperWobble', { intensity: val });
-      };
-    }
-
-    // Aesthetic Presets
-    const applyShaderPreset = (hatch, kuwahara, color, edge, wobble, style = 0) => {
-      if (paperCheck && !paperCheck.checked) {
-        paperCheck.checked = true;
-        emit('editorTogglePaperShader', { enabled: true });
-      }
-      if (styleSelect) {
-        styleSelect.value = style;
-        emit('editorSetPaperStyle', { style });
-      }
-      if (hatchSlider) {
-        hatchSlider.value = hatch;
-        if (hatchVal) hatchVal.innerText = hatch.toFixed(1);
-        emit('editorSetHatchScale', { scale: hatch });
-      }
-      if (kuwaharaSlider) {
-        kuwaharaSlider.value = kuwahara;
-        if (kuwaharaVal) kuwaharaVal.innerText = kuwahara;
-        emit('editorSetKuwaharaRadius', { radius: kuwahara });
-      }
-      if (colorSlider) {
-        colorSlider.value = color;
-        if (colorVal) colorVal.innerText = color.toFixed(2);
-        emit('editorSetPaperColor', { amount: color });
-      }
-      if (edgeSlider) {
-        edgeSlider.value = edge;
-        if (edgeVal) edgeVal.innerText = edge.toFixed(2);
-        emit('editorSetPaperEdge', { threshold: edge });
-      }
-      if (wobbleSlider) {
-        wobbleSlider.value = wobble;
-        if (wobbleVal) wobbleVal.innerText = wobble.toFixed(4);
-        emit('editorSetPaperWobble', { intensity: wobble });
-      }
-    };
-
-    this._el.querySelector('#preset-vintage')?.addEventListener('click', () => {
-      applyShaderPreset(12.0, 3, 0.35, 0.40, 0.0008, 0);
-      this._showToast('Applied "Vintage Map" shader preset.');
-    });
-
-    this._el.querySelector('#preset-painterly')?.addEventListener('click', () => {
-      applyShaderPreset(10.0, 4, 0.65, 0.20, 0.0003, 1);
-      this._showToast('Applied "Painterly" shader preset.');
-    });
-
-    this._el.querySelector('#preset-comic')?.addEventListener('click', () => {
-      applyShaderPreset(7.0, 2, 0.20, 0.50, 0.0010, 0);
-      this._showToast('Applied "Comic Ink" shader preset.');
-    });
-  }
-
   _setGodRays(enabled) {
     this._godRaysEnabled = !!enabled;
     const badge = this._el?.querySelector('#godrays-menu-badge');
@@ -1574,8 +1386,7 @@ export class EditorUI {
     const check1 = this._el?.querySelector('#godrays-check');
     if (check1) check1.checked = this._godRaysEnabled;
 
-    const check2 = this._el?.querySelector('#godrays-check-paper');
-    if (check2) check2.checked = this._godRaysEnabled;
+
 
     emit('editorToggleGodRays', { enabled: this._godRaysEnabled });
     this._showToast(`God Rays: ${this._godRaysEnabled ? 'Enabled' : 'Disabled'}`);

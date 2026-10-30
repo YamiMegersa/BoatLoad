@@ -250,7 +250,7 @@ export class MainMenuUI {
         <!-- Interactive Navigation Buttons -->
         <div class="main-menu-actions">
           <button class="pirate-btn primary" id="btn-menu-sail">
-            <span class="pixel-icon icon-helm-wheel size-20"></span> Play / Select Level
+            <span class="pixel-icon icon-helm-wheel size-20"></span> Play Game
           </button>
 
           <button class="pirate-btn" id="btn-menu-community" style="border-color: #ffd700; color: #ffd700;">
@@ -292,92 +292,6 @@ export class MainMenuUI {
           <button class="menu-util-btn" id="btn-menu-fullscreen">
             <span class="pixel-icon icon-fullscreen-expand size-16"></span> Fullscreen
           </button>
-        </div>
-      </div>
-
-      <!-- Level Selector Parchment Modal -->
-      <div class="codex-modal-overlay" id="level-modal" style="display: none;">
-        <div class="codex-scroll" style="width: 700px; max-width: 92vw;">
-          <div class="codex-header">
-            <h2>Chart Your Course</h2>
-            <p>~ Select a Maritime Voyage &amp; Report to the Dock ~</p>
-          </div>
-
-          <div class="level-cards-list" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px;">
-            <div class="level-card" data-day="0" style="padding: 12px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
-              <div>
-                <h3 style="margin: 0 0 4px; font-size: 19px;">Day 0: Port Rotgut (Opening &amp; Tutorial)</h3>
-                <div style="font-size: 13px;">Clerk: <strong>🦀 Barnaby Claw, Esq.</strong> • Weather: Dawn Hangover</div>
-                <div style="font-size: 12px; margin-top: 3px; opacity: 0.85;">Wake up on the island beach surrounded by empty bottles, meet the Crab Clerk, and inspect your divorce papers.</div>
-              </div>
-              <button class="pirate-btn" style="padding: 8px 14px; font-size: 14px; pointer-events: none;">Embark <span class="pixel-icon icon-arrow-right size-14"></span></button>
-            </div>
-
-            <div class="level-card" data-day="1" style="padding: 12px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
-              <div>
-                <h3 style="margin: 0 0 4px; font-size: 19px;">Day 1: Calm Shallows</h3>
-                <div style="font-size: 13px;">Vessel: <strong><span class="pixel-icon icon-sloop size-16"></span> Standard Sloop</strong> • Weather: Sunny &amp; Mild</div>
-                <div style="font-size: 12px; margin-top: 3px; opacity: 0.85;">First port of call. Patch hull breach and set sail across gentle swells.</div>
-              </div>
-              <button class="pirate-btn" style="padding: 8px 14px; font-size: 14px; pointer-events: none;">Embark <span class="pixel-icon icon-arrow-right size-14"></span></button>
-            </div>
-
-            <div class="level-card" data-day="2" style="padding: 12px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
-              <div>
-                <h3 style="margin: 0 0 4px; font-size: 19px;">Day 2: Siren's Whisper</h3>
-                <div style="font-size: 13px;">Vessel: <strong><span class="pixel-icon icon-sloop size-16"></span> Standard Sloop</strong> • Weather: Overcast &amp; Swell</div>
-                <div style="font-size: 12px; margin-top: 3px; opacity: 0.85;">Enchanting sirens dwell along the jagged reefs. Steer clear of hypnotic waters!</div>
-              </div>
-              <button class="pirate-btn" style="padding: 8px 14px; font-size: 14px; pointer-events: none;">Embark <span class="pixel-icon icon-arrow-right size-14"></span></button>
-            </div>
-
-            <div class="level-card" data-day="3" style="padding: 12px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
-              <div>
-                <h3 style="margin: 0 0 4px; font-size: 19px;">Day 3: Sunset Passage</h3>
-                <div style="font-size: 13px;">Vessel: <strong><span class="pixel-icon icon-sloop size-16"></span> Standard Sloop</strong> • Weather: Golden Hour Twilight</div>
-                <div style="font-size: 12px; margin-top: 3px; opacity: 0.85;">Narrow coral channels under blinding amber rays. Navigate with vigilance.</div>
-              </div>
-              <button class="pirate-btn" style="padding: 8px 14px; font-size: 14px; pointer-events: none;">Embark <span class="pixel-icon icon-arrow-right size-14"></span></button>
-            </div>
-
-            <div class="level-card" data-day="4" style="padding: 12px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
-              <div>
-                <h3 style="margin: 0 0 4px; font-size: 19px;">Day 4: Rolling Tempest</h3>
-                <div style="font-size: 13px;">Vessel: <strong><span class="pixel-icon icon-sloop size-16"></span> Standard Sloop</strong> • Weather: Squalls &amp; Heavy Rain</div>
-                <div style="font-size: 12px; margin-top: 3px; opacity: 0.85;">High rolling waves and crosswinds challenge your ship's structural balance.</div>
-              </div>
-              <button class="pirate-btn" style="padding: 8px 14px; font-size: 14px; pointer-events: none;">Embark <span class="pixel-icon icon-arrow-right size-14"></span></button>
-            </div>
-
-            <div class="level-card" data-day="5" style="padding: 12px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
-              <div>
-                <h3 style="margin: 0 0 4px; font-size: 19px;">Day 5: The Kraken's Maw</h3>
-                <div style="font-size: 13px;">Vessel: <strong><span class="pixel-icon icon-sloop size-16"></span> Standard Sloop</strong> • Weather: Boss Encounter</div>
-                <div style="font-size: 12px; margin-top: 3px; opacity: 0.85;">The ancient sea monster awakens. Lure its deadly tentacles through the waypoint gates!</div>
-              </div>
-              <button class="pirate-btn" style="padding: 8px 14px; font-size: 14px; pointer-events: none;">Embark <span class="pixel-icon icon-arrow-right size-14"></span></button>
-            </div>
-
-            <div class="level-card" data-day="6" style="padding: 12px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
-              <div>
-                <h3 style="margin: 0 0 4px; font-size: 19px;">Day 6: Ironclad Minefield</h3>
-                <div style="font-size: 13px;">Vessel: <strong><span class="pixel-icon icon-sloop size-16"></span> Standard Sloop</strong> • Weather: Dense Marine Fog</div>
-                <div style="font-size: 12px; margin-top: 3px; opacity: 0.85;">Explosive barrels adrift in the shoals. Use bow lanterns to spot detonators in time.</div>
-              </div>
-              <button class="pirate-btn" style="padding: 8px 14px; font-size: 14px; pointer-events: none;">Embark <span class="pixel-icon icon-arrow-right size-14"></span></button>
-            </div>
-
-            <div class="level-card" data-day="7" style="padding: 12px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
-              <div>
-                <h3 style="margin: 0 0 4px; font-size: 19px;">Day 7: The Final Gauntlet</h3>
-                <div style="font-size: 13px;">Vessel: <strong><span class="pixel-icon icon-sloop size-16"></span> Standard Sloop</strong> • Weather: Full Hurricane Gale</div>
-                <div style="font-size: 12px; margin-top: 3px; opacity: 0.85;">Every maritime peril combined. Only the finest shipwright and helmsman survives.</div>
-              </div>
-              <button class="pirate-btn" style="padding: 8px 14px; font-size: 14px; pointer-events: none;">Embark <span class="pixel-icon icon-arrow-right size-14"></span></button>
-            </div>
-          </div>
-
-          <button class="codex-close-btn" id="btn-close-level-modal">Return to Port</button>
         </div>
       </div>
 
@@ -448,50 +362,16 @@ export class MainMenuUI {
       });
     };
 
-    // Level Selector Modal & Primary CTA
-    const levelModal = this._el.querySelector('#level-modal');
+    // Primary Play Button — Always starts directly from Day 0 (Opening & Tutorial)
     const sailBtn = this._el.querySelector('#btn-menu-sail');
     if (sailBtn) {
       sailBtn.addEventListener('mouseenter', () => this._audio.playClick());
       sailBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        this._audio.playClick();
-        if (levelModal) levelModal.style.display = 'flex';
-      });
-    }
-
-    bindBtn('#btn-close-level-modal', () => {
-      if (levelModal) levelModal.style.display = 'none';
-    });
-
-    if (levelModal) {
-      levelModal.addEventListener('click', (e) => {
-        if (e.target === levelModal) {
-          levelModal.style.display = 'none';
-        }
-      });
-    }
-
-    // Level card selection
-    this._el.querySelectorAll('.level-card').forEach(card => {
-      card.addEventListener('mouseenter', () => {
-        card.style.background = 'rgba(140, 95, 45, 0.35)';
-        card.style.borderColor = '#ffd700';
-        this._audio.playClick();
-      });
-      card.addEventListener('mouseleave', () => {
-        card.style.background = 'rgba(80, 50, 20, 0.15)';
-        card.style.borderColor = '#9c6b3c';
-      });
-      card.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const parsedDay = parseInt(card.dataset.day, 10);
-        const day = Number.isNaN(parsedDay) ? 1 : parsedDay;
         this._audio.playSetSail();
-        if (levelModal) levelModal.style.display = 'none';
-        emit('requestPhaseChange', { phase: 'DOCK', day });
+        emit('requestPhaseChange', { phase: 'DOCK', day: 0 });
       });
-    });
+    }
 
     bindBtn('#btn-menu-shipyard', () => {
       emit('requestPhaseChange', { phase: 'SHIPYARD' });
@@ -585,7 +465,5 @@ export class MainMenuUI {
     this._el.style.display = 'none';
     const codex = this._el.querySelector('#codex-modal');
     if (codex) codex.style.display = 'none';
-    const levelModal = this._el.querySelector('#level-modal');
-    if (levelModal) levelModal.style.display = 'none';
   }
 }

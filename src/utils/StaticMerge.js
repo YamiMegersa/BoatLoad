@@ -34,7 +34,7 @@ export function mergeStaticMeshes(root, opts = {}) {
 
   const isExcluded = (obj) => {
     for (let n = obj; n; n = n.parent) {
-      if (exclude.has(n)) return true;
+      if (exclude.has(n) || n.visible === false) return true;
       if (n === root) break;
     }
     return false;
