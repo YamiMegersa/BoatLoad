@@ -1272,7 +1272,7 @@ body {
   }
 }
 
-/* Floating Nautical Info Pill: Day & Score */
+/* Floating Nautical Info Pill: Day */
 .hud-info-pill {
   width: fit-content;
   min-width: 50px;
