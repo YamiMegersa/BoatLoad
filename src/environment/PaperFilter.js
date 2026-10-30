@@ -172,12 +172,12 @@ export class PaperFilter {
     this._material.uniforms.uResolution.value.set(w, h);
   }
 
-  render(target) {
+  render(target, outputTarget = null) {
     this._material.uniforms.tDiffuse.value = target.texture;
     this._material.uniforms.uTime.value = performance.now() * 0.001;
 
-    // Render to screen (null target)
-    this._renderer.setRenderTarget(null);
+    // Render to outputTarget (null = screen)
+    this._renderer.setRenderTarget(outputTarget);
     this._renderer.clear();
     this._renderer.render(this._scene, this._camera);
   }
