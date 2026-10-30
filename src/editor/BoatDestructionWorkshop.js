@@ -172,6 +172,8 @@ export class BoatDestructionWorkshop {
     this._isOpen = false;
 
     const damageData = this.serializeDamage();
+    this.toggleOutlines(false);
+    this._showOutlines = false; // Reset outlines to off
 
     const dom = this._renderer?.domElement;
     if (dom) {
@@ -232,6 +234,15 @@ export class BoatDestructionWorkshop {
       }
     });
     this._pristineHullCount = Math.max(1, pristineCount);
+    if (pristineResult.gltfScene) {
+      pristineResult.gltfScene.traverse(child => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) {
+          if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+          else child.material.dispose();
+        }
+      });
+    }
 
     // 2. Build working ship with damage applied if available
     const effectiveDamage = damageEntries || this._levelCfg?.damage || null;

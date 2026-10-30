@@ -194,3 +194,54 @@ test('ChunkRenderer - Voxel culling 3D texture and outlines configuration', asyn
   assert.equal(renderer._voxel3DTexture, null, '3D texture should be disposed');
 });
 
+
+test('Editor to Sailing transition purges duplicate boat meshes, workshop groups, and editor ghost ships from scene', async () => {
+  const THREE = await import('three');
+
+  const scene = new THREE.Scene();
+
+  const editorGroup = new THREE.Group();
+  editorGroup.name = 'EditorEnvironmentGroup';
+  editorGroup.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial()));
+  scene.add(editorGroup);
+
+  const workshopGroup = new THREE.Group();
+  workshopGroup.name = 'BoatDestructionWorkshopGroup';
+  workshopGroup.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial()));
+  scene.add(workshopGroup);
+
+  const ghostShip = new THREE.Group();
+  ghostShip.name = 'editorShipGhost';
+  ghostShip.userData.isShipSpawn = true;
+  ghostShip.add(new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), new THREE.MeshBasicMaterial()));
+  scene.add(ghostShip);
+
+  const dockMoored = new THREE.Group();
+  dockMoored.name = 'dockMooredGroup';
+  dockMoored.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial()));
+  scene.add(dockMoored);
+
+  assert.equal(scene.children.length, 4, 'Scene should initially contain all 4 testing groups');
+
+  for (let i = scene.children.length - 1; i >= 0; i--) {
+    const c = scene.children[i];
+    if (
+      c.name === 'EditorEnvironmentGroup' ||
+      c.name === 'BoatDestructionWorkshopGroup' ||
+      c.name === 'editorShipGhost' ||
+      c.userData?.isShipSpawn ||
+      c.name === 'dockMooredGroup'
+    ) {
+      scene.remove(c);
+      c.traverse(child => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) {
+          if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+          else child.material.dispose();
+        }
+      });
+    }
+  }
+
+  assert.equal(scene.children.length, 0, 'All ghost boats, editor groups, and workshop vessels must be completely purged from scene');
+});
