@@ -382,50 +382,6 @@
     },
     {
       "type": "rock",
-      "assetUrl": "/assets/obstacles/rocks/voxel_Cliff.glb",
-      "scale": 8.5,
-      "rotation": 0,
-      "position": {
-        "x": 30.5,
-        "y": 0.5,
-        "z": -145.18
-      }
-    },
-    {
-      "type": "rock",
-      "assetUrl": "/assets/obstacles/rocks/voxel_Cliff.glb",
-      "scale": 8.5,
-      "rotation": 0,
-      "position": {
-        "x": 46.19,
-        "y": 0.5,
-        "z": -148.81
-      }
-    },
-    {
-      "type": "rock",
-      "assetUrl": "/assets/obstacles/rocks/voxel_Cliff.glb",
-      "scale": 8.5,
-      "rotation": 0,
-      "position": {
-        "x": 43.44,
-        "y": -1.56,
-        "z": -143.55
-      }
-    },
-    {
-      "type": "rock",
-      "assetUrl": "/assets/obstacles/rocks/voxel_basic stone 3.glb",
-      "scale": 2.5,
-      "rotation": 0,
-      "position": {
-        "x": -62.1,
-        "y": 0.5,
-        "z": -56.37
-      }
-    },
-    {
-      "type": "rock",
       "assetUrl": "/assets/obstacles/rocks/voxel_basic stone 3.glb",
       "scale": 2.5,
       "rotation": 0,
@@ -777,17 +733,6 @@
       }
     },
     {
-      "type": "rock",
-      "assetUrl": "/assets/obstacles/rocks/voxel_Rock by Danni Bittman - 4TpBWdzKDf2.glb",
-      "scale": 5.5,
-      "rotation": 0,
-      "position": {
-        "x": 0.48,
-        "y": 0.5,
-        "z": -123.37
-      }
-    },
-    {
       "type": "island",
       "assetUrl": "/islands/Low-poly landscape by sirkitree - bjsNFfddgOv.glb",
       "scale": 4,
@@ -856,78 +801,12 @@
     {
       "type": "rock",
       "assetUrl": "/assets/obstacles/rocks/voxel_Rock by Danni Bittman - 4TpBWdzKDf2.glb",
-      "scale": 10.5,
-      "rotation": 1.9,
-      "position": {
-        "x": -60.91,
-        "y": 0.5,
-        "z": -46.72
-      }
-    },
-    {
-      "type": "rock",
-      "assetUrl": "/assets/obstacles/rocks/voxel_Cliff.glb",
-      "scale": 11,
-      "rotation": 0.5,
-      "position": {
-        "x": -84.89,
-        "y": 0.5,
-        "z": -110.59
-      }
-    },
-    {
-      "type": "rock",
-      "assetUrl": "/assets/obstacles/rocks/voxel_basic stone 3.glb",
-      "scale": 10,
-      "rotation": 1.4,
-      "position": {
-        "x": -131.89,
-        "y": 0.5,
-        "z": -145.59
-      }
-    },
-    {
-      "type": "rock",
-      "assetUrl": "/assets/obstacles/rocks/voxel_Desert Pillar.glb",
-      "scale": 9,
-      "rotation": 2.7,
-      "position": {
-        "x": -103.89,
-        "y": 0.5,
-        "z": -153.59
-      }
-    },
-    {
-      "type": "rock",
-      "assetUrl": "/assets/obstacles/rocks/voxel_Cliff.glb",
-      "scale": 12,
-      "rotation": 1.1,
-      "position": {
-        "x": 38.42,
-        "y": 0.5,
-        "z": -258.99
-      }
-    },
-    {
-      "type": "rock",
-      "assetUrl": "/assets/obstacles/rocks/voxel_Rock by Danni Bittman - 4TpBWdzKDf2.glb",
       "scale": 11,
       "rotation": 2.2,
       "position": {
         "x": -15.58,
         "y": 0.5,
         "z": -218.99
-      }
-    },
-    {
-      "type": "rock",
-      "assetUrl": "/assets/obstacles/rocks/voxel_basic stone 3.glb",
-      "scale": 10,
-      "rotation": 0.6,
-      "position": {
-        "x": 18.42,
-        "y": 0.5,
-        "z": -208.99
       }
     },
     {
@@ -983,6 +862,116 @@
         "x": 61.48,
         "y": 5,
         "z": -77.78
+      }
+    },
+    {
+      "type": "rock",
+      "assetUrl": "/assets/obstacles/rocks/voxel_Rock by Quaternius - RtLRqYjfMs.glb",
+      "scale": 4.5,
+      "rotation": 0,
+      "position": {
+        "x": -64.71,
+        "y": 0.5,
+        "z": -45.55
+      }
+    },
+    {
+      "type": "rock",
+      "assetUrl": "/assets/obstacles/rocks/voxel_Rock by Danni Bittman - 4TpBWdzKDf2.glb",
+      "scale": 4,
+      "rotation": 0,
+      "position": {
+        "x": -0.95,
+        "y": 4,
+        "z": -126.65
+      }
+    },
+    {
+      "type": "rock",
+      "assetUrl": "/assets/obstacles/rocks/voxel_Cliff.glb",
+      "scale": 8,
+      "rotation": 0,
+      "position": {
+        "x": 40.44,
+        "y": 6,
+        "z": -268.48
+      }
+    },
+    {
+      "type": "rock",
+      "assetUrl": "/assets/obstacles/rocks/voxel_Rock Large by Quaternius - d2VWOdthtR.glb",
+      "scale": 9,
+      "rotation": 1.9634954084936207,
+      "position": {
+        "x": 16.74,
+        "y": 5.5,
+        "z": -211.28
+      }
+    },
+    {
+      "type": "rock",
+      "assetUrl": "/assets/obstacles/rocks/voxel_Cliff.glb",
+      "scale": 7,
+      "rotation": 0,
+      "position": {
+        "x": 30.12,
+        "y": 7,
+        "z": -135.15
+      }
+    },
+    {
+      "type": "rock",
+      "assetUrl": "/assets/obstacles/rocks/voxel_Cliff.glb",
+      "scale": 5.5,
+      "rotation": 0.7853981633974483,
+      "position": {
+        "x": 41.64,
+        "y": 7,
+        "z": -132.53
+      }
+    },
+    {
+      "type": "rock",
+      "assetUrl": "/assets/obstacles/rocks/voxel_Cliff.glb",
+      "scale": 5.5,
+      "rotation": 0.7853981633974483,
+      "position": {
+        "x": 18.25,
+        "y": 7,
+        "z": -154.57
+      }
+    },
+    {
+      "type": "rock",
+      "assetUrl": "/assets/obstacles/rocks/voxel_Rock by Quaternius - RtLRqYjfMs.glb",
+      "scale": 7.6,
+      "rotation": 0,
+      "position": {
+        "x": -130.47,
+        "y": 4.5,
+        "z": -145.32
+      }
+    },
+    {
+      "type": "rock",
+      "assetUrl": "/assets/obstacles/rocks/voxel_Rock by Danni Bittman - 4TpBWdzKDf2.glb",
+      "scale": 5.1,
+      "rotation": 0,
+      "position": {
+        "x": -109.66,
+        "y": 4.5,
+        "z": -138.19
+      }
+    },
+    {
+      "type": "rock",
+      "assetUrl": "/assets/obstacles/rocks/voxel_Cliff.glb",
+      "scale": 8.5,
+      "rotation": 1.9634954084936207,
+      "position": {
+        "x": -77.11,
+        "y": 9,
+        "z": -92.31
       }
     }
   ],
