@@ -154,6 +154,7 @@ export class GameState {
     this._weather = new WeatherSystem();
     this._dockStall = new DockStall();
     this._hasDock = true;
+    this._hasCompletedDay0Cutscene = false;
     this._isCountdownActive = false;
     this._camShudderTrauma = 0;
     this._onCameraShudder = (d) => { this._camShudderTrauma = Math.min(1.0, (this._camShudderTrauma || 0) + (d.intensity || 0.4)); };
@@ -417,21 +418,23 @@ export class GameState {
     const isPassed = opts.passed !== false && !opts.failed && !opts.isSunk;
     const isSunk = Boolean(opts.failed || opts.isSunk);
 
+    const isPracticeRun = (day === 0);
+
     // 1. Customer Repair Contract Accounting
     const defaultDayBudget = getCustomerForDay(day).basePay;
     const baseBudget = this.currentContract?.baseBudget ?? (this._levelCfg?.budget !== undefined ? this._levelCfg.budget : defaultDayBudget);
     const bargainBonus = this.currentContract?.bargainBonus ?? 0;
-    const agreedBudget = baseBudget + bargainBonus;
+    const agreedBudget = isPracticeRun ? 0 : (baseBudget + bargainBonus);
     const repairSpent = this.currentContract?.spentOnRepairs ?? (this._budgetManager?.spent ?? 0);
-    const leftoverProfit = agreedBudget - repairSpent;
+    const leftoverProfit = isPracticeRun ? 0 : (agreedBudget - repairSpent);
 
     // 2. Sailing Rewards & Bonuses
-    const baseReward = isPassed && !isCommunity ? (150 + day * 75) : 0;
+    const baseReward = isPassed && !isCommunity && !isPracticeRun ? (150 + day * 75) : 0;
     const multiplier = isPassed && !isCommunity ? this.getPedestalMultiplier() : 1.0;
     const pedestalTotal = Math.round(baseReward * multiplier);
     const pedestalBonus = Math.max(0, pedestalTotal - baseReward);
-    const sharkBonus = isPassed && !isCommunity ? Math.max(0, Math.round(this.score || 0)) : 0;
-    const sailingBonus = isCommunity ? 0 : (pedestalTotal + sharkBonus);
+    const sharkBonus = isPassed && !isCommunity && !isPracticeRun ? Math.max(0, Math.round(this.score || 0)) : 0;
+    const sailingBonus = (isCommunity || isPracticeRun) ? 0 : (pedestalTotal + sharkBonus);
 
     // 3. Incurred Voyage Damage Penalty
     let damageDiff = 0;
@@ -442,18 +445,20 @@ export class GameState {
       }
     }
     const VOXEL_DAMAGE_RATE = 8;
-    const voxelDamageCost = damageDiff * VOXEL_DAMAGE_RATE;
+    const voxelDamageCost = isPracticeRun ? 0 : (damageDiff * VOXEL_DAMAGE_RATE);
     const totalDamageIncurred = voxelDamageCost;
 
-    // 4. Net Settlement Payout (campaign only; community courses do not affect economy)
+    // 4. Net Settlement Payout (campaign only; community courses and practice runs do not affect economy)
     let netPayout = 0;
     const previousCoins = this.coins;
-    if (!isCommunity) {
+    if (!isCommunity && !isPracticeRun) {
       netPayout = leftoverProfit + sailingBonus - totalDamageIncurred;
       this.applyPayout(netPayout);
       if (isPassed) {
         this.unlockDay(day + 1);
       }
+    } else if (isPracticeRun && isPassed) {
+      this.unlockDay(1);
     }
 
     emit('uiMount', {
@@ -1089,11 +1094,18 @@ export class GameState {
     // Trigger cutscene & dialogue when a level is chosen in the logbook
     this._startLevelCutscene = () => {
       if (this.day === 0) {
-        if (this._dockStall?.crab) {
-          this._dockStall.crab.reset();
-        }
-        if (this._dockPlayerController) {
-          this._dockPlayerController.startDay0OpeningCutscene();
+        if (!this._hasCompletedDay0Cutscene) {
+          if (this._dockStall?.crab) {
+            this._dockStall.crab.reset();
+          }
+          if (this._dockPlayerController) {
+            this._dockPlayerController.startDay0OpeningCutscene(() => {
+              this._hasCompletedDay0Cutscene = true;
+            });
+            this._hasCompletedDay0Cutscene = true;
+          }
+        } else if (this._dockPlayerController) {
+          this._dockPlayerController.resumeDay0AtDock();
         }
         return;
       }
@@ -1338,11 +1350,20 @@ export class GameState {
 
     if (opts?.openShop) {
       setTimeout(() => emit('openShopUI'), 300);
+    } else if (opts?.day0TutorialCompleted || (this.day === 1 && this._hasCompletedDay0Cutscene && !this._dockShipArrived)) {
+      this._dockPlayerController.startDay1StallPrompt();
     } else if (this.day === 0) {
-      if (this._dockStall?.crab) {
-        this._dockStall.crab.reset();
+      if (!this._hasCompletedDay0Cutscene) {
+        if (this._dockStall?.crab) {
+          this._dockStall.crab.reset();
+        }
+        this._dockPlayerController.startDay0OpeningCutscene(() => {
+          this._hasCompletedDay0Cutscene = true;
+        });
+        this._hasCompletedDay0Cutscene = true;
+      } else {
+        this._dockPlayerController.resumeDay0AtDock();
       }
-      this._dockPlayerController.startDay0OpeningCutscene();
     }
   }
 
@@ -1411,6 +1432,7 @@ export class GameState {
 
   async _enterMainMenu(opts) {
     this.activeCamera = null;
+    this._hasCompletedDay0Cutscene = false;
     if (opts?.shipDef) this._shipDef = opts.shipDef;
     if (opts?.levelCfg) this._levelCfg = opts.levelCfg;
 
