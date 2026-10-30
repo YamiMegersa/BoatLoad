@@ -1934,7 +1934,7 @@ export class GameState {
       baseCam.y = p.y + camHeight;
       if (this._ocean) {
         const waveH = this._ocean.getWaveInfo(baseCam.x, baseCam.z).height;
-        baseCam.y = Math.max(baseCam.y, waveH + 0.85);
+        baseCam.y = Math.max(baseCam.y, waveH - 2.0);
       }
       this._camera.position.copy(baseCam);
       this._camLookTarget = p.clone();
@@ -2249,10 +2249,11 @@ export class GameState {
         targetCamPos.z += oz;
       }
 
-      // 5. Anti-Submersion Water Surface Clamp: never allow camera lens below ocean waves
+      // 5. Water Surface Limit: prevent camera from dropping into the infinite abyss
+      // while allowing natural wave immersion and underwater clipping
       if (this._ocean) {
         const waveH = this._ocean.getWaveInfo(targetCamPos.x, targetCamPos.z).height;
-        const minCamY = waveH + 0.85;
+        const minCamY = waveH - 3.5;
         if (targetCamPos.y < minCamY) {
           targetCamPos.y = minCamY;
         }
