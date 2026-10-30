@@ -915,6 +915,14 @@ export class EnvironmentManager {
       this._stormClouds.setTargetStorm(this._isStormy ? 1.0 : 0.0);
     }
 
+    if (this._ocean) {
+      const isRough = Boolean(this._isStormy || this._levelCfg?.weather === 'stormy' || this._levelCfg?.weather === 'gale');
+      const targetWaveScale = this._levelCfg?.waveScale ?? (isRough ? 2.6 : 1.0);
+      const targetWaveSpeed = this._levelCfg?.waveSpeed ?? (isRough ? 2.0 : 1.0);
+      this._ocean.waveScale = targetWaveScale;
+      this._ocean.waveSpeed = targetWaveSpeed;
+    }
+
     return this._isStormy;
   }
 

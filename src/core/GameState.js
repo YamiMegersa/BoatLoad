@@ -2160,6 +2160,30 @@ export class GameState {
 
     if (this._ocean) {
       this._ocean.setWorldSize(levelCfg?.worldSize || 200);
+      this._ocean.breakwaterEnabled = false;
+
+      // Ensure rough / stormy sea wave dynamics and dark oceanic palette are applied
+      const weatherKey = levelCfg?.weather || (levelCfg?.isStormy ? 'stormy' : 'sunny');
+      const weatherPreset = this._weather?.weatherConfigs?.[weatherKey] || null;
+      const isRough = Boolean(levelCfg?.isStormy || weatherKey === 'stormy' || weatherKey === 'gale');
+      const targetWaveScale = levelCfg?.waveScale ?? weatherPreset?.waveScale ?? (isRough ? 2.6 : 1.0);
+      const targetWaveSpeed = levelCfg?.waveSpeed ?? weatherPreset?.waveSpeed ?? (isRough ? 2.0 : 1.0);
+
+      this._ocean.waveScale = targetWaveScale;
+      this._ocean.waveSpeed = targetWaveSpeed;
+
+      if (this._ocean.mesh?.material?.uniforms) {
+        if (weatherPreset?.seaDeep) {
+          this._ocean.mesh.material.uniforms.uDeep.value.set(weatherPreset.seaDeep);
+        } else if (isRough) {
+          this._ocean.mesh.material.uniforms.uDeep.value.set(0x0c151a);
+        }
+        if (weatherPreset?.seaShallow) {
+          this._ocean.mesh.material.uniforms.uShallow.value.set(weatherPreset.seaShallow);
+        } else if (isRough) {
+          this._ocean.mesh.material.uniforms.uShallow.value.set(0x213642);
+        }
+      }
     }
 
     if (levelCfg && levelCfg.voxels) {

@@ -91,7 +91,10 @@ export class WeatherSystem {
       const weatherName = levelData.weather || levelData.levelData?.weather || ((levelData.timeOfDay >= 17 || levelData.levelData?.timeOfDay >= 17) ? 'sunset' : 'sunny');
       const weatherState = this.weatherConfigs[weatherName];
       if (weatherState) {
-        this.applyWeather(weatherState, sceneEntities, weatherName);
+        const activeWeather = { ...weatherState };
+        if (levelData.waveScale !== undefined) activeWeather.waveScale = levelData.waveScale;
+        if (levelData.waveSpeed !== undefined) activeWeather.waveSpeed = levelData.waveSpeed;
+        this.applyWeather(activeWeather, sceneEntities, weatherName);
       }
       return { levelData, weatherState };
     } catch (err) {
