@@ -145,80 +145,178 @@ const LEVELS = [
  * on any charted voyage across all days.
  */
 export class LevelSelectorUI {
-  constructor() {
+  constructor(gameState = null) {
+    this.gameState = gameState;
     this._el = null;
     this._isOpen = false;
-    this._selectedDay = 1;
+    this._selectedDay = 0;
 
     this._onOpen = (data) => this.open(data?.day);
     this._onClose = () => this.close();
+    this._onProgression = () => {
+      if (this._isOpen && this._el) {
+        const entryList = this._el.querySelector('.level-entry-list');
+        if (entryList) {
+          entryList.innerHTML = this._renderCardsHtml();
+          const cards = this._el.querySelectorAll('.level-card');
+          cards.forEach(card => {
+            card.addEventListener('click', () => {
+              const day = parseInt(card.dataset.level, 10);
+              if (day !== undefined && !Number.isNaN(day)) this._selectDay(day);
+            });
+          });
+        }
+        this._updateDossier();
+      }
+    };
 
     on('openLevelSelector', this._onOpen);
     on('closeLevelSelector', this._onClose);
+    on('progressionUpdated', this._onProgression);
     on('uiMount', d => {
-        if (d?.gameState?.day !== undefined) {
+      if (d?.gameState) {
+        this.gameState = d.gameState;
+        if (d.gameState.day !== undefined && d.gameState.day !== null) {
           this._selectedDay = d.gameState.day;
         }
-      });
+      }
+    });
     on('uiUnmount', d => {
       if (d?.screen === 'dock') this.close();
     });
   }
 
+  isDayUnlocked(day) {
+    if (day === 0) return true;
+    if (this.gameState && typeof this.gameState.isDayUnlocked === 'function') {
+      return this.gameState.isDayUnlocked(day);
+    }
+    try {
+      const data = localStorage.getItem('boatload_progression');
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (typeof parsed.unlockedDay === 'number') {
+          return day <= parsed.unlockedDay;
+        }
+      }
+    } catch (_) {}
+    return false;
+  }
+
   _renderCardsHtml() {
     return LEVELS.map(lvl => {
       const isSelected = lvl.day === this._selectedDay;
-      return `
-        <div class="level-card level-card-active ${isSelected ? 'selected' : ''}" data-level="${lvl.day}">
-          <div class="level-badge available">AVAILABLE</div>
-          <div class="level-card-main">
-            <span class="level-icon">${lvl.icon}</span>
-            <div class="level-info">
-              <div class="level-name">${lvl.name}</div>
-              <div class="level-meta">${lvl.meta}</div>
+      const isUnlocked = this.isDayUnlocked(lvl.day);
+
+      if (isUnlocked) {
+        return `
+          <div class="level-card level-card-active ${isSelected ? 'selected' : ''}" data-level="${lvl.day}">
+            <div class="level-badge available">AVAILABLE</div>
+            <div class="level-card-main">
+              <span class="level-icon">${lvl.icon}</span>
+              <div class="level-info">
+                <div class="level-name">${lvl.name}</div>
+                <div class="level-meta">${lvl.meta}</div>
+              </div>
+              <span class="level-stamp-indicator">READY</span>
             </div>
-            <span class="level-stamp-indicator">READY</span>
           </div>
-        </div>
-      `;
+        `;
+      } else {
+        return `
+          <div class="level-card level-card-locked ${isSelected ? 'selected' : ''}" data-level="${lvl.day}">
+            <div class="level-badge locked">🔒 LOCKED</div>
+            <div class="level-card-main">
+              <span class="level-icon"><span class="pixel-icon icon-padlock size-20">🔒</span></span>
+              <div class="level-info">
+                <div class="level-name">${lvl.name}</div>
+                <div class="level-meta">Complete Day ${lvl.day - 1} to unlock</div>
+              </div>
+              <span class="level-stamp-indicator" style="color: #796658; border-color: #796658; transform: rotate(-3deg);">LOCKED</span>
+            </div>
+          </div>
+        `;
+      }
     }).join('');
   }
 
   _updateDossier() {
     const lvl = LEVELS.find(l => l.day === this._selectedDay) || LEVELS[0];
-    const dossierRight = this._el.querySelector('.book-page.page-right');
+    const isUnlocked = this.isDayUnlocked(lvl.day);
+    const dossierRight = this._el?.querySelector('.book-page.page-right');
     if (!dossierRight) return;
 
     const padDay = String(lvl.day).padStart(2, '0');
-    dossierRight.querySelector('.dossier-stamp').textContent = `CHARTED VOYAGE #${padDay}`;
-    dossierRight.querySelector('.dossier-title').textContent = `VOYAGE DOSSIER: DAY ${lvl.day}`;
+    const stampEl = dossierRight.querySelector('.dossier-stamp');
+    if (stampEl) {
+      stampEl.textContent = isUnlocked ? `CHARTED VOYAGE #${padDay}` : `🔒 LOCKED VOYAGE #${padDay}`;
+      stampEl.style.color = isUnlocked ? '#a82e2e' : '#796658';
+      stampEl.style.borderColor = isUnlocked ? '#a82e2e' : '#796658';
+    }
+
+    const titleEl = dossierRight.querySelector('.dossier-title');
+    if (titleEl) {
+      titleEl.textContent = isUnlocked ? `VOYAGE DOSSIER: DAY ${lvl.day}` : `CLASSIFIED DOSSIER: DAY ${lvl.day}`;
+    }
 
     const values = dossierRight.querySelectorAll('.dossier-value');
-    if (values[0]) values[0].textContent = `${lvl.vessel} — ${lvl.customer}`;
-    if (values[1]) values[1].innerHTML = lvl.weather;
-    if (values[2]) values[2].innerHTML = `${lvl.budget} <span class="dossier-bargain-tag" style="font-size:10px; color:#94a3b8; font-style:italic; margin-left:6px;">[Base Contract]</span>`;
-    if (values[3]) values[3].textContent = lvl.hazard;
+    if (values[0]) values[0].textContent = isUnlocked ? `${lvl.vessel} — ${lvl.customer}` : `${lvl.vessel} (Classified)`;
+    if (values[1]) values[1].innerHTML = isUnlocked ? lvl.weather : `<span style="color:#796658; font-style:italic;">Uncharted Waters</span>`;
+    if (values[2]) values[2].innerHTML = isUnlocked ? `${lvl.budget} <span class="dossier-bargain-tag" style="font-size:10px; color:#94a3b8; font-style:italic; margin-left:6px;">[Base Contract]</span>` : `<span style="color:#796658;">??? Doubloons</span>`;
+    if (values[3]) values[3].textContent = isUnlocked ? lvl.hazard : `Hazard Level Unknown`;
 
     const dispatchBody = dossierRight.querySelector('.dispatch-body');
-    if (dispatchBody) dispatchBody.textContent = lvl.dispatch;
+    if (dispatchBody) {
+      dispatchBody.textContent = isUnlocked
+        ? lvl.dispatch
+        : `This voyage log is sealed by the Admiralty. You must complete Day ${lvl.day - 1} before setting sail on this course.`;
+    }
 
     const docketList = dossierRight.querySelector('.docket-list');
     if (docketList) {
-      docketList.innerHTML = lvl.docket.map(d => `
-        <li><span class="docket-icon">${d.icon}</span> ${d.text}</li>
-      `).join('');
+      if (isUnlocked) {
+        docketList.innerHTML = lvl.docket.map(d => `
+          <li><span class="docket-icon">${d.icon}</span> ${d.text}</li>
+        `).join('');
+      } else {
+        docketList.innerHTML = `
+          <li style="color: #796658; font-style: italic;">
+            <span class="docket-icon">🔒</span> Complete Day ${lvl.day - 1} to reveal repair docket and contract terms.
+          </li>
+        `;
+      }
     }
 
+    const embarkBtn = dossierRight.querySelector('#btn-embark-voyage');
     const embarkMain = dossierRight.querySelector('.embark-main');
-    if (embarkMain) {
-      embarkMain.textContent = `EMBARK ON VOYAGE (LEVEL ${lvl.day})`;
+    const embarkSub = dossierRight.querySelector('.embark-sub');
+    if (embarkBtn && embarkMain && embarkSub) {
+      if (isUnlocked) {
+        embarkBtn.disabled = false;
+        embarkBtn.classList.remove('embark-btn-locked');
+        embarkBtn.style.opacity = '1';
+        embarkBtn.style.filter = 'none';
+        embarkBtn.style.cursor = 'pointer';
+        embarkBtn.style.pointerEvents = 'auto';
+        embarkMain.textContent = `EMBARK ON VOYAGE (LEVEL ${lvl.day})`;
+        embarkSub.textContent = `Summon Captain & Begin Repair Cutscene`;
+      } else {
+        embarkBtn.disabled = true;
+        embarkBtn.classList.add('embark-btn-locked');
+        embarkBtn.style.opacity = '0.55';
+        embarkBtn.style.filter = 'grayscale(0.9)';
+        embarkBtn.style.cursor = 'not-allowed';
+        embarkBtn.style.pointerEvents = 'none';
+        embarkMain.textContent = `🔒 LOCKED (COMPLETE DAY ${lvl.day - 1})`;
+        embarkSub.textContent = `Voyage unavailable until previous day is cleared`;
+      }
     }
   }
 
   _selectDay(day) {
     this._selectedDay = day;
-    const cards = this._el.querySelectorAll('.level-card');
-    cards.forEach(card => {
+    const cards = this._el?.querySelectorAll('.level-card');
+    cards?.forEach(card => {
       const cardDay = parseInt(card.dataset.level, 10);
       if (cardDay === day) {
         card.classList.add('selected');
@@ -227,21 +325,26 @@ export class LevelSelectorUI {
       }
     });
     this._updateDossier();
-    emit('playSound', { sound: 'qte_success' });
+    emit('playSound', { sound: this.isDayUnlocked(day) ? 'qte_success' : 'wood_crack' });
   }
 
   open(initialDay) {
     if (this._isOpen) return;
     this._isOpen = true;
-      if (initialDay !== undefined && LEVELS.some(l => l.day === initialDay)) {
-        this._selectedDay = initialDay;
-      }
 
-      this._el = document.createElement('div');
-      this._el.id = 'level-selector-modal';
-      this._el.className = 'level-selector-backdrop';
+    if (initialDay !== undefined && initialDay !== null && LEVELS.some(l => l.day === initialDay)) {
+      this._selectedDay = initialDay;
+    } else if (this.gameState?.day !== undefined && this.gameState.day !== null && LEVELS.some(l => l.day === this.gameState.day)) {
+      this._selectedDay = this.gameState.day;
+    } else {
+      this._selectedDay = 0;
+    }
 
-      this._el.innerHTML = `
+    this._el = document.createElement('div');
+    this._el.id = 'level-selector-modal';
+    this._el.className = 'level-selector-backdrop';
+
+    this._el.innerHTML = `
       <div class="level-book-wrapper">
         <div class="level-book">
           <!-- Close button resembling a wax seal / brass emblem -->
@@ -269,26 +372,26 @@ export class LevelSelectorUI {
 
             <!-- RIGHT PAGE: Voyage Dossier & Embark Action -->
             <div class="book-page page-right">
-              <div class="dossier-stamp" id="dossier-stamp">CHARTED VOYAGE #01</div>
-              <h3 class="dossier-title" id="dossier-title">VOYAGE DOSSIER: DAY 1</h3>
+              <div class="dossier-stamp" id="dossier-stamp">CHARTED VOYAGE #00</div>
+              <h3 class="dossier-title" id="dossier-title">VOYAGE DOSSIER: DAY 0</h3>
               <div class="page-divider"></div>
 
               <div class="dossier-section">
                 <div class="dossier-row">
                   <span class="dossier-label">Vessel &amp; Client:</span>
-                  <span class="dossier-value" id="dossier-vessel">The Sorry Bastard — Old Walt Gunnet</span>
+                  <span class="dossier-value" id="dossier-vessel">Loading...</span>
                 </div>
                 <div class="dossier-row">
                   <span class="dossier-label">Weather Forecast:</span>
-                  <span class="dossier-value" id="dossier-weather"><span class="pixel-icon icon-sun-fair size-16"></span> Clear &amp; Fair Breeze</span>
+                  <span class="dossier-value" id="dossier-weather">Loading...</span>
                 </div>
                 <div class="dossier-row">
                   <span class="dossier-label">Repair Budget:</span>
-                  <span class="dossier-value highlight-gold" id="dossier-budget"><span class="pixel-icon icon-doubloon size-16"></span> 200 Doubloons</span>
+                  <span class="dossier-value highlight-gold" id="dossier-budget">Loading...</span>
                 </div>
                 <div class="dossier-row">
                   <span class="dossier-label">Hazard Rating:</span>
-                  <span class="dossier-value" id="dossier-hazard">Low (Barrels &amp; Shallow Rocks)</span>
+                  <span class="dossier-value" id="dossier-hazard">Loading...</span>
                 </div>
               </div>
 
@@ -304,7 +407,7 @@ export class LevelSelectorUI {
 
               <div class="dossier-actions">
                 <button id="btn-embark-voyage" class="embark-btn">
-                  <span class="embark-main" id="embark-title">EMBARK ON VOYAGE (LEVEL 1)</span>
+                  <span class="embark-main" id="embark-title">EMBARK ON VOYAGE</span>
                   <span class="embark-sub" id="embark-sub">Summon Captain &amp; Begin Repair Cutscene</span>
                 </button>
               </div>
@@ -314,51 +417,56 @@ export class LevelSelectorUI {
       </div>
     `;
 
-      // Populate the right page dossier with current selection
-      this._updateDossier();
+    // Populate the right page dossier with current selection
+    this._updateDossier();
 
-      // Click on level cards
-      const cards = this._el.querySelectorAll('.level-card');
-      cards.forEach(card => {
-        card.addEventListener('click', () => {
-          const day = parseInt(card.dataset.level, 10);
-          if (day) this._selectDay(day);
-        });
+    // Click on level cards
+    const cards = this._el.querySelectorAll('.level-card');
+    cards.forEach(card => {
+      card.addEventListener('click', () => {
+        const day = parseInt(card.dataset.level, 10);
+        if (day !== undefined && !Number.isNaN(day)) this._selectDay(day);
       });
+    });
 
-      // Click backdrop or close button to close
-      this._el.querySelector('#book-close-btn').addEventListener('click', () => this.close());
-      this._el.addEventListener('click', (e) => {
-        if (e.target === this._el) this.close();
-      });
+    // Click backdrop or close button to close
+    this._el.querySelector('#book-close-btn').addEventListener('click', () => this.close());
+    this._el.addEventListener('click', (e) => {
+      if (e.target === this._el) this.close();
+    });
 
-      // Embark selected level
-      const embarkBtn = this._el.querySelector('#btn-embark-voyage');
-      embarkBtn.addEventListener('click', () => {
-        emit('playSound', { sound: 'qte_success' });
-        const day = this._selectedDay || 1;
-        this.close();
-        emit('levelSelected', { day });
-      });
-
-      document.getElementById('ui-root')?.appendChild(this._el);
+    // Embark selected level
+    const embarkBtn = this._el.querySelector('#btn-embark-voyage');
+    embarkBtn.addEventListener('click', () => {
+      const day = (this._selectedDay !== undefined && this._selectedDay !== null) ? this._selectedDay : 0;
+      if (!this.isDayUnlocked(day)) {
+        emit('playSound', { sound: 'qte_fail' });
+        return;
+      }
       emit('playSound', { sound: 'qte_success' });
-
-      // Initialize dossier display for selected day
-      this._selectDay(this._selectedDay || 1);
-    }
-
-    close() {
-      if (!this._isOpen) return;
-      this._isOpen = false;
-      this._el?.remove();
-      this._el = null;
-    }
-
-    dispose() {
       this.close();
-      off('openLevelSelector', this._onOpen);
-      off('closeLevelSelector', this._onClose);
-    }
+      emit('levelSelected', { day });
+    });
+
+    document.getElementById('ui-root')?.appendChild(this._el);
+    emit('playSound', { sound: 'qte_success' });
+
+    // Initialize dossier display for selected day
+    this._selectDay(this._selectedDay);
   }
+
+  close() {
+    if (!this._isOpen) return;
+    this._isOpen = false;
+    this._el?.remove();
+    this._el = null;
+  }
+
+  dispose() {
+    this.close();
+    off('openLevelSelector', this._onOpen);
+    off('closeLevelSelector', this._onClose);
+    off('progressionUpdated', this._onProgression);
+  }
+}
 

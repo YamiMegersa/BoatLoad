@@ -260,7 +260,7 @@ const mainMenuUI = new MainMenuUI();
 const hud = new HUD();
 const dialogue = new DialogueBox();
 const pauseMenu = new PauseMenu();
-const levelSelectorUI = new LevelSelectorUI();
+const levelSelectorUI = new LevelSelectorUI(gameState);
 const divorcePapersUI = new DivorcePapersUI();
 const loadingScreenUI = new LoadingScreenUI();
 const anchorCountdownUI = new AnchorCountdownUI();
@@ -763,8 +763,12 @@ async function boot() {
       emit('hideLoading');
     });
 
-    on('levelSelected', async ({ day }) => {
-      if (day) {
+    on('levelSelected', async ({ day, force }) => {
+      if (day !== undefined && day !== null) {
+        if (!force && !GameEnv.isDev() && !gameState.isDayUnlocked(day)) {
+          console.warn(`[Progression] Day ${day} is locked; cannot select.`);
+          return;
+        }
         gameState.day = day;
         await syncLevel();
       }
@@ -844,7 +848,12 @@ async function boot() {
       try {
         const phase = opts?.phase;
         if (opts?.day !== undefined) {
-          gameState.day = opts.day;
+          if (!opts?.force && !GameEnv.isDev() && !gameState.isDayUnlocked(opts.day)) {
+            console.warn(`[Progression] Day ${opts.day} is locked; falling back to Day ${gameState.unlockedDay || 0}`);
+            gameState.day = gameState.unlockedDay || 0;
+          } else {
+            gameState.day = opts.day;
+          }
         }
         if (phase === GamePhase.MAIN_MENU) {
           if (gameState.currentPhase === GamePhase.MAIN_MENU) {

@@ -524,6 +524,7 @@ body {
   font-family: serif;
   z-index: 100;
   pointer-events: auto;
+  cursor: default;
 }
 
 #dlg-portrait {
@@ -4525,8 +4526,34 @@ body {
 
 .level-card-locked {
   opacity: 0.65;
-  cursor: not-allowed;
-  background: rgba(220, 210, 195, 0.4);
+  cursor: pointer;
+  background: rgba(210, 200, 185, 0.35);
+  border: 1px dashed #8c7b6d;
+}
+
+.level-card-locked:hover {
+  background: rgba(220, 210, 195, 0.55);
+  border-color: #6a5a4d;
+}
+
+.level-card-locked.selected {
+  background: #e8ded2;
+  border: 2px solid #6d5b4b;
+  box-shadow: 0 0 10px rgba(109, 91, 75, 0.3);
+}
+
+.level-card-locked .level-name {
+  color: #554435;
+}
+
+.level-card-locked .level-meta {
+  color: #7c6857;
+}
+
+.level-badge.locked {
+  background: #4a3b32;
+  color: #d5c8be;
+  border: 1px solid #735d4e;
 }
 
 .lock-icon {
@@ -4690,6 +4717,28 @@ body {
   font-size: 11px;
   color: #f7d499;
   font-style: italic;
+}
+
+.embark-btn.embark-btn-locked,
+.embark-btn:disabled {
+  background: linear-gradient(135deg, #48403b 0%, #302b28 100%) !important;
+  border-color: #6a5e55 !important;
+  cursor: not-allowed !important;
+  box-shadow: none !important;
+  opacity: 0.65 !important;
+  transform: none !important;
+  pointer-events: none !important;
+}
+
+.embark-btn.embark-btn-locked .embark-main,
+.embark-btn:disabled .embark-main {
+  color: #b5a99f !important;
+  text-shadow: none !important;
+}
+
+.embark-btn.embark-btn-locked .embark-sub,
+.embark-btn:disabled .embark-sub {
+  color: #8c7e73 !important;
 }
 
 /* ==========================================================================

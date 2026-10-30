@@ -31,24 +31,31 @@ export class DialogueBox {
   mount(dialogue) {
     if (this._el) this.unmount();
 
+    // Release pointer lock immediately so the player has mouse cursor control to click Next
+    if (document.exitPointerLock && (document.pointerLockElement || document.webkitPointerLockElement)) {
+      try {
+        document.exitPointerLock();
+      } catch (_) {}
+    }
+
     this._dialogueId = dialogue.id ?? null;
     this._onComplete = typeof dialogue.onComplete === 'function' ? dialogue.onComplete : null;
     this._defaultPortrait = dialogue.portrait ?? '<span class="pixel-icon icon-portrait-captain size-48"></span>';
     this._defaultName = dialogue.name ?? 'Customer';
     this._lines = dialogue.lines ?? [];
     this._idx = 0;
-      this._defaultVoice = dialogue.voice ?? {
-        pitch: 1.0,
-        pitchVariance: 0.08,
-        charIntervalMs: 30,
-        syllableStep: 2,
-        clips: null
-      };
-      this._voice = this._defaultVoice;
+    this._defaultVoice = dialogue.voice ?? {
+      pitch: 1.0,
+      pitchVariance: 0.08,
+      charIntervalMs: 30,
+      syllableStep: 2,
+      clips: null
+    };
+    this._voice = this._defaultVoice;
 
-      this._el = document.createElement('div');
-      this._el.id = 'dialogue-box';
-      this._el.innerHTML = `
+    this._el = document.createElement('div');
+    this._el.id = 'dialogue-box';
+    this._el.innerHTML = `
       <div id="dlg-portrait">${this._defaultPortrait}</div>
       <div id="dlg-content">
         <div id="dlg-name">${this._defaultName}</div>
@@ -57,17 +64,35 @@ export class DialogueBox {
       </div>
     `;
 
-      this._el.querySelector('#dlg-next').addEventListener('click', () => this._advance());
-      document.getElementById('ui-root')?.appendChild(this._el);
-      this._showLine();
-    }
+    this._el.querySelector('#dlg-next').addEventListener('click', (e) => {
+      e.stopPropagation();
+      this._advance();
+    });
 
-    unmount() {
-      this._stopTyping();
-      emit('stopVoice');
-      this._el?.remove();
-      this._el = null;
+    // Also support advancing via keyboard (Space, Enter, or E)
+    this._onKeyDown = (e) => {
+      if (e.code === 'Space' || e.code === 'Enter' || e.code === 'KeyE') {
+        e.preventDefault();
+        e.stopPropagation();
+        this._advance();
+      }
+    };
+    window.addEventListener('keydown', this._onKeyDown, true);
+
+    document.getElementById('ui-root')?.appendChild(this._el);
+    this._showLine();
+  }
+
+  unmount() {
+    this._stopTyping();
+    emit('stopVoice');
+    if (this._onKeyDown) {
+      window.removeEventListener('keydown', this._onKeyDown, true);
+      this._onKeyDown = null;
     }
+    this._el?.remove();
+    this._el = null;
+  }
 
     _stopTyping() {
       if (this._typeTimer) {
