@@ -119,3 +119,15 @@ test('GameState: transition to OBSTACLE prepares sea chart & anchor countdown be
   assert.ok(countdownIdx < hideLoadingIdx, '_startAnchorCountdownSequence must be called before hideLoading dismissal');
 });
 
+test('GameState: level completion latches goal and transitions to RESULTS without per-frame cancellation or loading spinner delay', () => {
+  const gameStateSrc = fs.readFileSync(path.join(__dirname, '../src/core/GameState.js'), 'utf8');
+
+  // 1. Synchronous nextPhase guard prevents 60fps _updateObstacle calls from cancelling an in-flight transition
+  assert.match(gameStateSrc, /if \(\(this\.currentPhase === newPhase \|\| this\.nextPhase === newPhase\) && !force\)/);
+  // 2. RESULTS skips multi-stage loading spinner delay
+  assert.match(gameStateSrc, /const skipLoading = Boolean\(opts\?\.skipLoading \|\| newPhase === GamePhase\.RESULTS\);/);
+  // 3. _updateObstacle latches _goalReached so Safe Harbor entry only triggers once
+  assert.match(gameStateSrc, /if \(this\._goalReached \|\| this\.nextPhase\) return;/);
+  assert.match(gameStateSrc, /this\._goalReached = true;/);
+});
+
