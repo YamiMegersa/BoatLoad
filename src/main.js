@@ -113,8 +113,6 @@ paperFilter.resize(window.innerWidth, window.innerHeight);
 // ---------------------------------------------------------------------------
 
 let isPaused = false;
-let paperShaderEnabled = false;
-let userPaperStyle = 0;
 
 const gameState = new GameState(scene, camera, renderer);
 gameState._ambient = ambient;
@@ -423,24 +421,8 @@ function tick() {
   // Re-apply camera FOV and far clipping plane based on Settings
   settingsManager.applyCamera(activeCam);
 
-  const isMainMenu = gameState.currentPhase === GamePhase.MAIN_MENU || gameState.currentPhase === GamePhase.CREDITS;
   const paperSetting = settingsManager.get('paperShader');
-  let usePaperShader = false;
-  if (paperSetting === 'off') {
-    usePaperShader = false;
-  } else if (paperSetting === 'painterly') {
-    usePaperShader = true;
-    paperFilter.setStyle(1);
-  } else if (paperSetting === 'hatching') {
-    usePaperShader = true;
-    paperFilter.setStyle(0);
-  } else {
-    // 'auto' mode
-    usePaperShader = isMainMenu || paperShaderEnabled;
-    if (usePaperShader) {
-      paperFilter.setStyle(isMainMenu ? 1 : userPaperStyle);
-    }
-  }
+  const usePaperShader = Boolean(paperSetting && paperSetting !== 'off');
 
   const godRaysEnabled = Boolean(settingsManager.get('godRays'));
 
@@ -856,16 +838,7 @@ async function boot() {
     on('editorToggleGodRays', d => {
       godRays.enabled = !!d.enabled;
     });
-    on('editorTogglePaperShader', d => paperShaderEnabled = d.enabled);
-    on('editorSetPaperStyle', d => {
-      userPaperStyle = d.style;
-      paperFilter.setStyle(d.style);
-    });
-    on('editorSetHatchScale', d => paperFilter.setHatchScale(d.scale));
-    on('editorSetKuwaharaRadius', d => paperFilter.setKuwaharaRadius(d.radius));
-    on('editorSetPaperColor', d => paperFilter.setColorPreservation(d.amount));
-    on('editorSetPaperEdge', d => paperFilter.setEdgeThreshold(d.threshold));
-    on('editorSetPaperWobble', d => paperFilter.setWobbleIntensity(d.intensity));
+
 
     on('requestPhaseChange', async (opts) => {
       try {

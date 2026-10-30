@@ -29,6 +29,13 @@ export class PauseMenu {
         if (showFpsToggle) showFpsToggle.checked = Boolean(value);
         if (showFpsBadge) showFpsBadge.innerText = value ? 'Show' : 'Hide';
       }
+      if (key === 'paperShader' && this._el) {
+        const paperToggle = this._el.querySelector('#set-paper-shader');
+        const paperBadge = this._el.querySelector('#val-paper-shader');
+        const isEnabled = Boolean(value && value !== 'off');
+        if (paperToggle) paperToggle.checked = isEnabled;
+        if (paperBadge) paperBadge.innerText = isEnabled ? 'On' : 'Off';
+      }
     });
   }
 
@@ -201,17 +208,18 @@ export class PauseMenu {
               </div>
             </div>
 
-            <!-- Art Filter Shader -->
+            <!-- Art Filter Shader (Kuwahara) -->
             <div class="setting-item">
               <div class="setting-info">
-                <label class="setting-label">Art Filter Shader</label>
-                <span class="setting-desc">Parchment &amp; painterly post-processing style.</span>
+                <label class="setting-label" for="set-paper-shader">Painterly Filter (Kuwahara)</label>
+                <span class="setting-desc">Artistic oil-painting and parchment post-processing filter.</span>
               </div>
-              <div class="setting-pill-group" id="group-paper-shader">
-                <button class="pill-btn" data-val="off">Off (Clean)</button>
-                <button class="pill-btn" data-val="painterly">Painterly</button>
-                <button class="pill-btn" data-val="hatching">Hatching</button>
-                <button class="pill-btn active" data-val="auto">Auto</button>
+              <div class="setting-ctrl-row">
+                <label class="switch-wrap">
+                  <input type="checkbox" id="set-paper-shader">
+                  <span class="switch-slider"></span>
+                </label>
+                <span class="setting-val-badge" id="val-paper-shader">Off</span>
               </div>
             </div>
 
@@ -504,8 +512,14 @@ export class PauseMenu {
     // Shadow Quality Pill Group
     this._setupPillGroup('#group-shadows', 'shadowQuality', String);
 
-    // Paper Shader Pill Group
-    this._setupPillGroup('#group-paper-shader', 'paperShader', String);
+    // Paper Shader (Kuwahara) Toggle
+    const paperShaderToggle = this._el.querySelector('#set-paper-shader');
+    const paperShaderBadge  = this._el.querySelector('#val-paper-shader');
+    paperShaderToggle?.addEventListener('change', (e) => {
+      const checked = e.target.checked;
+      if (paperShaderBadge) paperShaderBadge.innerText = checked ? 'On' : 'Off';
+      settingsManager.set('paperShader', checked);
+    });
 
     // God Rays Toggle
     const godRaysToggle = this._el.querySelector('#set-god-rays');
@@ -692,11 +706,12 @@ export class PauseMenu {
       btn.classList.toggle('active', btn.dataset.val === shadows);
     });
 
-    // Paper Shader
-    const paper = settingsManager.get('paperShader');
-    this._el.querySelectorAll('#group-paper-shader .pill-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.val === paper);
-    });
+    // Paper Shader (Kuwahara)
+    const paper = Boolean(settingsManager.get('paperShader') && settingsManager.get('paperShader') !== 'off');
+    const paperToggle = this._el.querySelector('#set-paper-shader');
+    const paperBadge  = this._el.querySelector('#val-paper-shader');
+    if (paperToggle) paperToggle.checked = paper;
+    if (paperBadge) paperBadge.innerText = paper ? 'On' : 'Off';
 
     // God Rays
     const godRays = settingsManager.get('godRays');

@@ -1273,7 +1273,8 @@ body {
 
 /* Floating Nautical Info Pill: Day & Score */
 .hud-info-pill {
-  width: 80px;
+  width: fit-content;
+  min-width: 50px;
   box-sizing: border-box;
   display: flex;
   align-items: center;
@@ -1284,7 +1285,7 @@ body {
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(212, 175, 55, 0.45);
   border-radius: 12px;
-  padding: 3px 6px;
+  padding: 3px 8px;
   color: #f3d790;
   font-family: 'Cinzel', serif;
   font-size: 9.5px;
