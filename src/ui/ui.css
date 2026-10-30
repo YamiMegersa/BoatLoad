@@ -1,3 +1,7 @@
+:root {
+  --pixel-font: 'Press Start 2P', ui-monospace, 'Courier New', monospace;
+}
+
 /* UI Global Styles */
 body {
   margin: 0;
@@ -6439,43 +6443,41 @@ body {
 }
 
 /* ==========================================================================
-   Unified Helm Console — every QTE on one unit docked beside the wheel.
-   Lives inside #hud-wheel-container so it always sits flush to the wheel's
-   left edge at any wheel size. One screen, TAP/HOLD lamps, one ACT button.
+   Unified Helm Console — 16-bit Pixel Art Arcade Unit docked beside the wheel.
+   Styled in accordance with PIXEL_ART_REWORK_SPEC.md: weathered dark oak plaque,
+   brass corner rivets, CRT phosphor scanline screen, 8-bit digital clock readout,
+   arcade jewel indicator lamps, and chunky convex 16-bit push button.
    ========================================================================== */
 
 .helm-console {
-  --helm-theme: #d7b35a;
+  --helm-theme: #ffd56b;
   --helm-needle: -90deg;
   --helm-water: 1;
   position: absolute;
   right: calc(100% + 14px);
   bottom: 0;
   z-index: 3;
-  width: 176px;
+  width: 182px;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 7px 8px 10px;
+  padding: 6px 8px 8px;
   box-sizing: border-box;
   color: #fbf5df;
-  background-color: #1c1009;
-  background-image: repeating-linear-gradient(180deg,
-      #2a180e 0 6px,
-      #24150b 6px 12px,
-      #1c1009 12px 14px,
-      #120904 14px 15px);
-  border: 3px solid;
-  border-color: #f7d57f #7d5218 #4a300a #c99e32;
-  border-radius: 0;
-  box-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.22),
-    inset -1px -1px 0 #120904,
-    4px 4px 0 #120904,
-    0 10px 24px rgba(0, 0, 0, 0.6);
-  font-family: 'Cinzel', Georgia, serif;
+  background-color: #1a0f07;
+  border-style: solid;
+  border-width: 14px 14px 16px 14px;
+  border-image: url('/assets/ui/frames/frame_wooden_panel_256.png') 32 fill stretch;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
+  border-radius: 0;
+  box-shadow:
+    0 6px 0 #0d0603,
+    0 10px 0 #050201,
+    0 16px 32px rgba(0, 0, 0, 0.85);
+  font-family: var(--pixel-font, 'Courier New', monospace);
+  -webkit-font-smoothing: none;
+  font-smooth: never;
   pointer-events: none;
   user-select: none;
   -webkit-user-select: none;
@@ -6496,47 +6498,64 @@ body {
 }
 
 .helm-console.is-idle {
-  opacity: 0.62;
-  filter: saturate(0.6);
+  opacity: 0.65;
+  filter: saturate(0.65);
 }
 
 .helm-console.is-queued {
-  opacity: 0.9;
+  opacity: 0.92;
   animation: qteQueuedPulse 0.9s steps(2, jump-none) infinite alternate;
 }
 
-/* Header: icon, title, queue badge, LED timer window */
+/* Header: pixel icon, title, queue badge, 7-segment LED timer readout */
 .helm-head {
   display: flex;
   align-items: center;
   gap: 5px;
   min-height: 24px;
+  padding: 2px 4px;
+  box-sizing: border-box;
+  background: #100905;
+  border: 2px solid;
+  border-color: #241308 #523114 #523114 #150a04;
+  box-shadow: inset 1px 1px 0 rgba(0, 0, 0, 0.6);
 }
 
 .helm-icon {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  filter: drop-shadow(1px 1px 0 #000);
 }
 
 .helm-title {
   flex: 1;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-shadow: 1px 1px 0 #000;
+  font-family: var(--pixel-font, 'Courier New', monospace);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #ffd56b;
+  text-shadow: 1px 1px 0 #000, 2px 2px 0 #120904;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-transform: uppercase;
 }
 
 .helm-queue {
   display: none;
-  padding: 0 4px;
+  padding: 1px 4px;
   border: 1px solid #ffd56b;
-  background: #120904;
-  color: #ffd56b;
-  font: 800 9px/14px 'Cinzel', Georgia, serif;
+  background: #2b1704;
+  color: #ffe89e;
+  font-family: var(--pixel-font, 'Courier New', monospace);
+  font-size: 7px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 1px 1px 0 #000;
 }
 
 .helm-console.has-queue .helm-queue {
@@ -6544,25 +6563,30 @@ body {
 }
 
 .helm-clock {
-  min-width: 42px;
-  padding: 2px 5px;
+  min-width: 44px;
+  padding: 2px 4px 1px;
   box-sizing: border-box;
   border: 2px solid;
-  border-color: #0b0603 #5a3a12 #7d5218 #0b0603;
-  background: #1a0505;
-  color: #ff3b3b;
-  font: 700 13px/1 ui-monospace, "Courier New", monospace;
+  border-color: #050202 #3d1414 #3d1414 #050202;
+  background: #0d0202;
+  color: #ff3344;
+  font-family: var(--pixel-font, 'Courier New', monospace);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.1;
   text-align: center;
-  text-shadow: 0 0 6px rgba(255, 59, 59, 0.85);
+  text-shadow: 0 0 6px #ff2233;
+  box-shadow: inset 1px 1px 3px rgba(0, 0, 0, 0.95);
+  letter-spacing: 0.05em;
 }
 
 .helm-console.is-idle .helm-clock,
 .helm-console.is-queued .helm-clock {
-  color: #6b2020;
+  color: #551818;
   text-shadow: none;
 }
 
-/* Screen */
+/* Screen: CRT phosphor screen with scanlines and dark bezel */
 .helm-screen {
   position: relative;
   height: 104px;
@@ -6574,17 +6598,33 @@ body {
   overflow: hidden;
   box-sizing: border-box;
   border: 3px solid;
-  border-color: #0b0603 #5a3a12 #7d5218 #0b0603;
+  border-color: #0e1215 #2f373d #2f373d #090c0e;
   background-color: #06110f;
-  background-image: repeating-linear-gradient(0deg,
-      rgba(255, 255, 255, 0.035) 0 1px,
-      transparent 1px 3px);
-  box-shadow: inset 0 0 14px rgba(0, 0, 0, 0.9);
+  background-image:
+    repeating-linear-gradient(0deg,
+      rgba(0, 0, 0, 0.45) 0 1px,
+      transparent 1px 3px),
+    radial-gradient(ellipse at 50% 50%,
+      rgba(15, 50, 40, 0.45) 0%,
+      rgba(4, 12, 10, 0.96) 100%);
+  box-shadow:
+    inset 0 0 18px rgba(0, 0, 0, 0.98),
+    inset 0 0 4px rgba(56, 189, 248, 0.25),
+    1px 1px 0 rgba(255, 255, 255, 0.08);
   transition: box-shadow 100ms ease;
 }
 
 .helm-console.in-sweet-spot .helm-screen {
-  box-shadow: inset 0 0 0 2px #4ade80, inset 0 0 18px rgba(74, 222, 128, 0.45);
+  box-shadow:
+    inset 0 0 0 2px #00e5ff,
+    inset 0 0 22px rgba(0, 229, 255, 0.65),
+    0 0 12px rgba(0, 229, 255, 0.4);
+  animation: crtSweetFlicker 0.12s steps(2, jump-none) infinite alternate;
+}
+
+@keyframes crtSweetFlicker {
+  from { filter: brightness(1); }
+  to { filter: brightness(1.15); }
 }
 
 .helm-label {
@@ -6592,15 +6632,17 @@ body {
   padding: 0 4px;
   box-sizing: border-box;
   color: var(--helm-theme);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  line-height: 1.15;
+  font-family: var(--pixel-font, 'Courier New', monospace);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
   text-align: center;
-  text-shadow: 0 0 6px currentColor;
+  text-shadow: 1px 1px 0 #000, 0 0 6px currentColor;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-transform: uppercase;
 }
 
 .helm-view {
@@ -6618,11 +6660,15 @@ body {
 .helm-readout {
   min-height: 12px;
   color: var(--helm-theme);
-  font: 700 11px/1 ui-monospace, "Courier New", monospace;
-  text-shadow: 0 0 5px currentColor;
+  font-family: var(--pixel-font, 'Courier New', monospace);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-shadow: 1px 1px 0 #000, 0 0 6px currentColor;
+  text-transform: uppercase;
 }
 
-/* Tap mode: chronometer dial */
+/* Tap mode: chronometer dial with crisp pixelated arcs */
 .helm-dial {
   position: relative;
   width: 120px;
@@ -6633,37 +6679,40 @@ body {
   width: 100%;
   height: 100%;
   overflow: visible;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.9));
 }
 
 .helm-dial-track {
   fill: none;
-  stroke: #1d2b27;
+  stroke: #121e1a;
   stroke-width: 8;
   stroke-linecap: square;
 }
 
 .helm-dial-tick {
-  stroke: #d4af37;
-  stroke-width: 2;
+  stroke: #ffd56b;
+  stroke-width: 2.5;
   stroke-linecap: square;
 }
 
 .helm-sweet-arc {
   fill: none;
-  stroke: #38bdf8;
+  stroke: #00e5ff;
   stroke-width: 8;
   stroke-linecap: square;
+  filter: drop-shadow(0 0 4px #00e5ff);
 }
 
 .helm-perfect-arc {
   fill: none;
-  stroke: #ffea79;
-  stroke-width: 9;
+  stroke: #ffe066;
+  stroke-width: 9.5;
   stroke-linecap: square;
+  filter: drop-shadow(0 0 6px #ffe066);
 }
 
 .helm-dial-hub {
-  fill: #d4af37;
+  fill: #ffd56b;
   stroke: #120904;
   stroke-width: 2.5;
 }
@@ -6679,46 +6728,63 @@ body {
   pointer-events: none;
   background: url('/assets/ui/hud/qte_needle_hand.png') no-repeat center bottom / contain;
   image-rendering: pixelated;
-  filter: drop-shadow(1px 1px 0 #000);
+  filter: drop-shadow(2px 2px 0 #000);
 }
 
-/* Brace mode: resolve pips */
+/* Brace mode: resolve pips (16-bit glowing magenta pixel gems) */
 .helm-pips {
   display: flex;
   gap: 3px;
-  width: 136px;
+  width: 132px;
   height: 18px;
   padding: 2px;
   box-sizing: border-box;
-  background: #120914;
-  border: 1px solid #4a284e;
+  background: #0d0610;
+  border: 2px solid;
+  border-color: #1a0a20 #4a2258 #4a2258 #1a0a20;
+  box-shadow: inset 1px 1px 3px #000;
 }
 
 .helm-pips i {
   flex: 1;
   box-sizing: border-box;
   border: 2px solid;
-  border-color: #4a284e #1a0d1b #1a0d1b #3a1a3e;
-  background: #201323;
-  transition: background 60ms ease;
+  border-color: #3f1e48 #140818 #140818 #3f1e48;
+  background: #231228;
+  transition: background 60ms ease, border-color 60ms ease, box-shadow 60ms ease;
 }
 
 .helm-pips i.filled {
-  background: #ff66cc;
-  border-color: #ffd9f8 #8b1e8d #8b1e8d #ffd9f8;
-  box-shadow: 0 0 5px rgba(255, 102, 204, 0.7);
+  background: #ff40b0;
+  border-color: #ffffff #990060 #990060 #ffffff;
+  box-shadow: 0 0 8px #ff40b0, inset 1px 1px 0 rgba(255, 255, 255, 0.85);
 }
 
 /* Pump mode: bilge gauge draining as you pump */
 .helm-well {
   position: relative;
-  width: 136px;
+  width: 132px;
   height: 34px;
   box-sizing: border-box;
   border: 2px solid;
-  border-color: #0b0603 #2d4a5a #2d4a5a #0b0603;
-  background: #04080b;
+  border-color: #081014 #223f4f #223f4f #081014;
+  background: #03080c;
   overflow: hidden;
+  box-shadow: inset 0 0 8px #000;
+}
+
+.helm-well::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  right: 5px;
+  width: 14px;
+  height: 14px;
+  background: url('/assets/ui/hud/leak_water_drop_badge.png') no-repeat center / contain;
+  image-rendering: pixelated;
+  opacity: 0.85;
+  z-index: 2;
+  pointer-events: none;
 }
 
 .helm-well-water {
@@ -6727,26 +6793,34 @@ body {
   right: 0;
   bottom: 0;
   height: calc(var(--helm-water, 1) * 100%);
-  background-color: #0b3a5a;
+  background-color: #0c3e5e;
   background-image: url('/assets/ui/hud/water_flood_wave_tile.png');
   background-size: 16px 16px;
   image-rendering: pixelated;
+  box-shadow: inset 0 2px 0 #6ee2ff;
   transition: height 80ms linear;
 }
 
-/* Result flash */
+/* Result flash: bold 16-bit arcade typography banner */
 .helm-result {
   position: absolute;
   inset: 0;
   display: none;
   align-items: center;
   justify-content: center;
-  background: rgba(6, 17, 15, 0.88);
-  color: #ffd700;
-  font-size: 18px;
+  background: rgba(4, 12, 10, 0.92);
+  color: #ffd56b;
+  font-family: var(--pixel-font, 'Courier New', monospace);
+  font-size: 15px;
   font-weight: 900;
   letter-spacing: 0.08em;
-  text-shadow: 1px 1px 0 #000, 0 0 8px currentColor;
+  text-shadow:
+    2px 2px 0 #000,
+    -2px -2px 0 #000,
+    2px -2px 0 #000,
+    -2px 2px 0 #000,
+    0 0 10px currentColor;
+  z-index: 5;
 }
 
 .helm-console.is-resolving .helm-result {
@@ -6754,19 +6828,33 @@ body {
 }
 
 .helm-console.result-good .helm-result {
-  color: #4ade80;
+  color: #00ff66;
+  text-shadow:
+    2px 2px 0 #003311,
+    -2px -2px 0 #003311,
+    2px -2px 0 #003311,
+    -2px 2px 0 #003311,
+    0 0 12px #00ff66;
 }
 
 .helm-console.result-miss .helm-result {
-  color: #f87171;
+  color: #ff3344;
+  text-shadow:
+    2px 2px 0 #330000,
+    -2px -2px 0 #330000,
+    2px -2px 0 #330000,
+    -2px 2px 0 #330000,
+    0 0 12px #ff3344;
 }
 
 /* Window timer bar */
 .helm-timer-track {
-  height: 6px;
+  height: 7px;
   box-sizing: border-box;
-  background: #0d0704;
-  border: 1px solid #120904;
+  background: #090503;
+  border: 1px solid;
+  border-color: #040201 #2b170a #2b170a #040201;
+  box-shadow: inset 1px 1px 2px #000;
   overflow: hidden;
 }
 
@@ -6775,54 +6863,77 @@ body {
   height: 100%;
   background-color: var(--helm-theme);
   background-image: repeating-linear-gradient(90deg,
-      rgba(255, 255, 255, 0.25) 0 4px,
-      transparent 4px 8px);
+      rgba(255, 255, 255, 0.45) 0 3px,
+      transparent 3px 6px);
+  box-shadow: 0 0 6px var(--helm-theme);
   transition: width 50ms linear;
 }
 
-/* TAP / HOLD mode lamps */
+/* TAP / HOLD mode arcade jewel lamps */
 .helm-lamps {
   display: flex;
   justify-content: center;
+  align-items: center;
   gap: 14px;
+  padding: 1px 0;
 }
 
 .helm-lamp {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  color: #6f5f40;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
+  gap: 5px;
+  color: #634d31;
+  font-family: var(--pixel-font, 'Courier New', monospace);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-shadow: 1px 1px 0 #000;
+  transition: color 120ms ease, text-shadow 120ms ease;
 }
 
 .helm-lamp::before {
   content: '';
-  width: 9px;
-  height: 9px;
-  border: 1px solid #120904;
-  background: #3a2a14;
-  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.15);
+  width: 11px;
+  height: 11px;
+  box-sizing: border-box;
+  border: 2px solid;
+  border-color: #2b1a0a #6d471b #6d471b #180d04;
+  background: #180f05;
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.1);
+  transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
 }
 
-.helm-console.is-active.gesture-tap .lamp-tap,
-.helm-console.is-active.gesture-hold .lamp-hold {
-  color: #fbf5df;
-  text-shadow: 1px 1px 0 #000;
+.helm-console.is-active.gesture-tap .lamp-tap {
+  color: #ffffff;
+  text-shadow: 0 0 6px #00e5ff, 1px 1px 0 #000;
 }
 
 .helm-console.is-active.gesture-tap .lamp-tap::before {
-  background: #4fc3f7;
-  box-shadow: 0 0 8px #4fc3f7;
+  background: #00e5ff;
+  border-color: #ffffff #008ba3 #008ba3 #ffffff;
+  box-shadow: 0 0 10px #00e5ff, inset 1px 1px 0 #ffffff;
+  animation: pixelLampPulse 0.5s steps(2, jump-none) infinite alternate;
+}
+
+.helm-console.is-active.gesture-hold .lamp-hold {
+  color: #ffffff;
+  text-shadow: 0 0 6px #ff9100, 1px 1px 0 #000;
 }
 
 .helm-console.is-active.gesture-hold .lamp-hold::before {
-  background: #ffb347;
-  box-shadow: 0 0 8px #ffb347;
+  background: #ff9100;
+  border-color: #ffffff #b26500 #b26500 #ffffff;
+  box-shadow: 0 0 10px #ff9100, inset 1px 1px 0 #ffffff;
+  animation: pixelLampPulse 0.5s steps(2, jump-none) infinite alternate;
 }
 
-/* The one big ACT button */
+@keyframes pixelLampPulse {
+  from { filter: brightness(0.9); }
+  to { filter: brightness(1.25); }
+}
+
+/* The one big ACT button: 16-bit arcade push button with deep 3D lip */
 .helm-act {
   pointer-events: auto;
   align-self: center;
@@ -6831,20 +6942,21 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  width: 92px;
-  height: 92px;
+  gap: 3px;
+  width: 96px;
+  height: 96px;
   margin-bottom: 4px;
   padding: 0;
   border-radius: 50%;
   border: 4px solid;
-  border-color: #f7d57f #7d5218 #4a300a #c99e32;
-  background: radial-gradient(circle at 36% 30%, #ff9a7a 0 16%, #e2553c 17% 62%, #a8321f 63% 100%);
+  border-color: #ffd56b #7d5218 #3a220a #c99e32;
+  background: radial-gradient(circle at 35% 28%, #ff8e75 0 22%, #e53935 24% 68%, #911818 70% 100%);
   color: #fff3e8;
   box-shadow:
-    0 6px 0 #5c1f12,
-    0 9px 0 #120904,
-    inset 0 -4px 0 rgba(0, 0, 0, 0.25);
+    0 6px 0 #4d0e0e,
+    0 10px 0 #120904,
+    inset 0 2px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -3px 0 rgba(0, 0, 0, 0.35);
   cursor: pointer;
   touch-action: none;
   user-select: none;
@@ -6856,22 +6968,28 @@ body {
 }
 
 .helm-act-label {
-  font-size: 11.5px;
+  font-family: var(--pixel-font, 'Courier New', monospace);
+  font-size: 9.5px;
   font-weight: 900;
   line-height: 1.15;
   text-align: center;
   max-width: 82px;
-  letter-spacing: 0.06em;
-  text-shadow: 1px 1px 0 #5c1f12;
+  letter-spacing: 0.05em;
+  color: #ffffff;
+  text-shadow: 1px 1px 0 #4d0e0e, 2px 2px 0 #120904;
   text-transform: uppercase;
 }
 
 .helm-act-key {
-  padding: 0 4px;
-  border: 1px solid rgba(255, 243, 232, 0.55);
-  font: 700 8px/12px ui-monospace, "Courier New", monospace;
+  padding: 1px 5px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  font-family: var(--pixel-font, 'Courier New', monospace);
+  font-size: 6.5px;
+  font-weight: 700;
   letter-spacing: 0.08em;
-  opacity: 0.85;
+  color: #ffe8d6;
+  box-shadow: 1px 1px 0 #000;
 }
 
 @media (pointer: coarse) {
@@ -6881,21 +6999,21 @@ body {
 }
 
 .helm-console:not(.is-active) .helm-act {
-  filter: saturate(0.35) brightness(0.7);
+  filter: saturate(0.35) brightness(0.68);
   cursor: default;
 }
 
 .helm-console.is-active .helm-act {
-  animation: helmActPulse 0.8s steps(2, jump-none) infinite alternate;
+  animation: helmActPulse 0.75s steps(2, jump-none) infinite alternate;
 }
 
 .helm-console.is-pressed .helm-act,
 .helm-console.is-holding .helm-act {
   transform: translateY(6px);
   box-shadow:
-    0 0 0 #5c1f12,
-    0 3px 0 #120904,
-    inset 0 3px 0 rgba(0, 0, 0, 0.3),
+    0 0 0 #4d0e0e,
+    0 4px 0 #120904,
+    inset 0 3px 0 rgba(0, 0, 0, 0.5),
     0 0 16px var(--helm-theme);
   animation: none;
 }
@@ -6903,19 +7021,25 @@ body {
 .helm-console.is-latched .helm-act::after {
   content: 'LOCKED';
   position: absolute;
-  top: -14px;
-  font: 800 8px/1 'Cinzel', Georgia, serif;
-  letter-spacing: 0.1em;
+  top: -15px;
+  font-family: var(--pixel-font, 'Courier New', monospace);
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   color: #ffb347;
+  background: #180a02;
+  padding: 1px 4px;
+  border: 1px solid #ffb347;
   text-shadow: 1px 1px 0 #000;
+  box-shadow: 1px 1px 0 #000;
 }
 
 .helm-console.strike-open .helm-act {
   box-shadow:
-    0 6px 0 #5c1f12,
-    0 9px 0 #120904,
+    0 6px 0 #4d0e0e,
+    0 10px 0 #120904,
     0 0 0 3px #00e5ff,
-    0 0 22px rgba(0, 229, 255, 0.85);
+    0 0 24px rgba(0, 229, 255, 0.9);
 }
 
 @keyframes helmActPulse {
@@ -6928,60 +7052,160 @@ body {
   }
 }
 
-/* Compact helm on small / short screens */
+/* Compact helm on small / short screens — lowered and streamlined so boat view is completely unobstructed */
 @media (max-width: 768px),
 (max-height: 540px) {
   .helm-console {
-    right: calc(100% + 8px);
-    width: 136px;
-    gap: 4px;
-    padding: 5px 6px 7px;
+    /* Anchored low so base aligns flush with the wheel pedestal base & bottom viewport margin */
+    bottom: calc(max(6px, env(safe-area-inset-bottom)) - max(48px, calc(env(safe-area-inset-bottom) + 42px)));
+    right: calc(100% + 6px);
+    width: 124px;
+    gap: 3px;
+    padding: 3px 5px 5px;
+    border-width: 8px 8px 10px 8px;
+  }
+
+  .helm-head {
+    min-height: 18px;
+    gap: 3px;
+    padding: 1px 3px;
+  }
+
+  .helm-icon {
+    width: 14px;
+    height: 14px;
+  }
+
+  .helm-icon .pixel-icon {
+    width: 14px;
+    height: 14px;
   }
 
   .helm-title {
-    font-size: 9.5px;
+    font-size: 7px;
+    letter-spacing: 0;
   }
 
   .helm-clock {
-    min-width: 36px;
-    font-size: 11px;
+    min-width: 32px;
+    font-size: 8px;
+    padding: 1px 2px;
+    letter-spacing: 0;
   }
 
   .helm-screen {
-    height: 76px;
+    height: 56px;
+    gap: 2px;
+    border-width: 2px;
   }
 
   .helm-label {
-    font-size: 9.5px;
+    font-size: 6.5px;
+    letter-spacing: 0.03em;
+  }
+
+  .helm-readout {
+    font-size: 6.5px;
+    min-height: 8px;
   }
 
   .helm-dial {
-    width: 92px;
-    height: 48px;
+    width: 76px;
+    height: 38px;
   }
 
   .helm-needle {
-    width: 11px;
-    height: 35px;
+    width: 8px;
+    height: 26px;
   }
 
   .helm-pips,
   .helm-well {
-    width: 108px;
+    width: 92px;
   }
 
-  .helm-act {
-    width: 76px;
-    height: 76px;
+  .helm-pips {
+    height: 12px;
+    gap: 1.5px;
+    padding: 1px;
   }
 
-  .helm-act-label {
-    font-size: 9px;
-    max-width: 64px;
+  .helm-well {
+    height: 22px;
+  }
+
+  .helm-well::before {
+    width: 10px;
+    height: 10px;
+    top: 1px;
+    right: 2px;
+  }
+
+  .helm-result {
+    font-size: 11px;
+  }
+
+  .helm-timer-track {
+    height: 4px;
+  }
+
+  .helm-lamps {
+    gap: 8px;
+    padding: 0;
   }
 
   .helm-lamp {
-    font-size: 8px;
+    font-size: 6px;
+    gap: 3px;
+    letter-spacing: 0.04em;
+  }
+
+  .helm-lamp::before {
+    width: 7px;
+    height: 7px;
+    border-width: 1px;
+  }
+
+  .helm-act {
+    width: 58px;
+    height: 58px;
+    margin-bottom: 2px;
+    border-width: 3px;
+    box-shadow:
+      0 4px 0 #4d0e0e,
+      0 6px 0 #120904,
+      inset 0 1px 0 rgba(255, 255, 255, 0.45),
+      inset 0 -2px 0 rgba(0, 0, 0, 0.35);
+  }
+
+  .helm-console.is-pressed .helm-act,
+  .helm-console.is-holding .helm-act {
+    transform: translateY(4px);
+    box-shadow:
+      0 0 0 #4d0e0e,
+      0 2px 0 #120904,
+      inset 0 2px 0 rgba(0, 0, 0, 0.5),
+      0 0 10px var(--helm-theme);
+  }
+
+  .helm-console.strike-open .helm-act {
+    box-shadow:
+      0 4px 0 #4d0e0e,
+      0 6px 0 #120904,
+      0 0 0 2px #00e5ff,
+      0 0 14px rgba(0, 229, 255, 0.9);
+  }
+
+  .helm-act-label {
+    font-size: 7px;
+    max-width: 50px;
+    letter-spacing: 0.03em;
+  }
+
+  .helm-console.is-latched .helm-act::after {
+    top: -11px;
+    font-size: 5.5px;
+    padding: 0 2px;
   }
 }
 
