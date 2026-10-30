@@ -841,33 +841,40 @@ async function boot() {
       });
     });
 
+    let isEditorPlayTransitioning = false;
     on('editorRequestPlay', async (d) => {
+      if (isEditorPlayTransitioning) return;
       if (gameState.currentPhase === GamePhase.EDITOR && gameState._editorSystem) {
-        const customLevelCfg = gameState._editorSystem.getPlayableConfig();
-        const activeShipId = customLevelCfg.ship || DEFAULT_SHIP_ID;
-        const activeShipDef = LevelConfig.getShipDef(activeShipId);
-        const profile = ShipRegistry.get(activeShipId);
+        isEditorPlayTransitioning = true;
+        try {
+          const customLevelCfg = gameState._editorSystem.getPlayableConfig();
+          const activeShipId = customLevelCfg.ship || DEFAULT_SHIP_ID;
+          const activeShipDef = LevelConfig.getShipDef(activeShipId);
+          const profile = ShipRegistry.get(activeShipId);
 
-        gameState._isEditorPlay = true;
-        gameState._editorPlayLevelCfg = customLevelCfg;
+          gameState._isEditorPlay = true;
+          gameState._editorPlayLevelCfg = customLevelCfg;
 
-        // Ensure clear check is active for verification
-        if (!ClearCheckManager._activeCheck) {
-          ClearCheckManager.startClearCheck(customLevelCfg);
+          // Ensure clear check is active for verification without re-emitting editorRequestPlay
+          if (!ClearCheckManager._activeCheck) {
+            await ClearCheckManager.startClearCheck(customLevelCfg, { emitEvent: false });
+          }
+
+          // Every play/test path from the editor routes to the Shipyard first with the allocated budget
+          emit('showLoading', { title: 'Shipyard: Hull Repair', message: 'Routing to drydock shipyard to repair vessel with allocated budget before sailing...', progress: 0.1 });
+          logEvent(`Editor Play -> Shipyard: Vessel [${profile.name}] with repair budget [$${customLevelCfg.budget}]...`);
+          gameState._isClearCheckRepair = true;
+          await gameState.transition(GamePhase.SHIPYARD, {
+            shipDef: activeShipDef,
+            levelCfg: customLevelCfg,
+            fishModels: level.fishModels,
+            isEditorPlay: true,
+            isClearCheck: true,
+            forceNew: true
+          });
+        } finally {
+          isEditorPlayTransitioning = false;
         }
-
-        // Every play/test path from the editor routes to the Shipyard first with the allocated budget
-        emit('showLoading', { title: 'Shipyard: Hull Repair', message: 'Routing to drydock shipyard to repair vessel with allocated budget before sailing...', progress: 0.1 });
-        logEvent(`Editor Play -> Shipyard: Vessel [${profile.name}] with repair budget [$${customLevelCfg.budget}]...`);
-        gameState._isClearCheckRepair = true;
-        await gameState.transition(GamePhase.SHIPYARD, {
-          shipDef: activeShipDef,
-          levelCfg: customLevelCfg,
-          fishModels: level.fishModels,
-          isEditorPlay: true,
-          isClearCheck: true,
-          forceNew: true
-        });
       }
     });
 

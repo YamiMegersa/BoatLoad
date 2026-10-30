@@ -880,38 +880,16 @@ export class EditorSystem {
       }
     }
 
-    off('editorSelectType');
-    off('editorSelectTool');
-    off('editorSetTransform');
-    off('editorClearAll');
-    off('editorImportLevel');
-    off('editorSetWorldSize');
-    off('editorSetWindDir');
-    off('editorSetFogDensity');
-    off('editorSetTimeOfDay');
-    off('editorSetStormy');
-    off('editorToggleGodRays');
-    off('editorToggleDock');
-    off('editorExport');
-    off('editorSelectTentacle');
-    off('editorAddTentacle');
-    off('editorRemoveTentacle');
-    off('editorSetTentacleSpeed');
-    off('editorSetTentacleDuration');
-    off('editorClearWaypoints');
-    off('editorRemoveBoss');
-    off('editorOpenDamageWorkshop');
-    off('editorCloseDamageWorkshop');
-    off('workshopSelectBrush');
-    off('workshopSelectSize');
-    off('workshopRotateBrush');
-    off('workshopTogglePitch');
-    off('workshopToggleMirror');
-    off('workshopToggleOutlines');
-    off('workshopUndo');
-    off('workshopRedo');
-    off('workshopResetPristine');
-    off('workshopImportBoat');
+    // Unsubscribe every EventBus handler registered through listen().
+    // (off(evt) without the handler reference is a no-op, so the stored cleanups are required —
+    // otherwise disposed EditorSystems keep reacting to editor/workshop events and spawn
+    // stray workshop boats and ghosts into later phases.)
+    if (Array.isArray(this._eventCleanups)) {
+      for (const cleanup of this._eventCleanups) {
+        try { cleanup(); } catch (e) { /* ignore */ }
+      }
+      this._eventCleanups.length = 0;
+    }
 
     if (this._envManager) {
       this._envManager.dispose();
@@ -1986,72 +1964,8 @@ export class EditorSystem {
     else if (this._scene) this._scene.add(this._shipGhostGroup);
   }
 
-  dispose() {
-    if (this._shipGhostGroup) {
-      if (this._shipGhostGroup.parent) this._shipGhostGroup.parent.remove(this._shipGhostGroup);
-      this._editorGroup?.remove(this._shipGhostGroup);
-      this._scene?.remove(this._shipGhostGroup);
-      this._shipGhostGroup.traverse(child => {
-        if (child.geometry) child.geometry.dispose();
-        if (child.material) {
-          if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
-          else child.material.dispose();
-        }
-      });
-      this._shipGhostGroup = null;
-    }
-
-    if (this._windArrowHelper) {
-      this._scene?.remove(this._windArrowHelper);
-      this._windArrowHelper = null;
-    }
-
-    if (this._krakenVisualGroup) {
-      this._scene?.remove(this._krakenVisualGroup);
-      this._krakenVisualGroup = null;
-    }
-
-    if (this._endLocationVisualGroup) {
-      if (this._endLocationVisualGroup.parent) {
-        this._endLocationVisualGroup.parent.remove(this._endLocationVisualGroup);
-      }
-      this._scene?.remove(this._endLocationVisualGroup);
-      this._editorGroup?.remove(this._endLocationVisualGroup);
-      this._endLocationVisualGroup.traverse(child => {
-        if (child.isMesh || child.isLine || child.isSprite) {
-          child.geometry?.dispose();
-          if (child.material) {
-            if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
-            else child.material.dispose();
-          }
-        }
-      });
-      this._endLocationVisualGroup = null;
-    }
-
-    if (this._previewMesh) {
-      this._scene?.remove(this._previewMesh.mesh);
-      this._previewMesh = null;
-    }
-
-    this._renderer?.domElement.removeEventListener('pointerdown', this._boundPointerDown);
-    this._renderer?.domElement.removeEventListener('pointermove', this._boundPointerMove);
-    window.removeEventListener('pointerup', this._boundPointerUp);
-    this._renderer?.domElement.removeEventListener('wheel', this._boundWheel);
-    window.removeEventListener('keydown', this._boundKeyDown);
-
-    if (this._destructionWorkshop) {
-      this._destructionWorkshop.close();
-    }
-    if (window.gameState?._orbitControls) {
-      window.gameState._orbitControls.enabled = true;
-    }
-    if (this._damageUI) {
-      this._damageUI.dispose();
-    }
-  }
-
   update(delta) {
+    if (this._isDisposed) return;
     if (this._destructionWorkshop && this._destructionWorkshop.isOpen) {
       this._destructionWorkshop.update(delta);
       return;
