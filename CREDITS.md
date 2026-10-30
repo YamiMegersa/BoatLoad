@@ -1,87 +1,91 @@
 # BOATLOAD
 ~ Shipwreck & Sail ~
 
-> "Seven days on the treacherous seas, and the old hull still floats!"
+> "Three perilous days on treacherous waters, and the old hull still floats!"
 
 ---
 
 ## [icon-anchor] THE CREW — DEVELOPMENT TEAM
 
-### Shipwrights & Core Engineers
+### Core Engineering & Game Design
+- Christopher Giles
+- Zaeem Fakir
 - Yamlack Megersa
-- ZFakir
-- chrisgiles
+
+### Voice Acting & Syllable Recordings
+- George, Brendan, Branden & Team : Customer Dialogue & Shouts
 
 ---
 
-## [icon-helm-wheel] GAME DESIGN & ARCHITECTURE
+## [icon-helm-wheel] ORIGINAL TEAM WORK & ARCHITECTURE
 
-### Voxel Shipyard & Hull Physics
-- Voxel Grid & Chunk Instancing Renderer
-- BVH Spatial Raycasting & Blueprint Snapping
-- Dynamic Buoyancy, Flooding & Hull Destruction
+### Custom Shaders & Graphics (Coursework Highlights)
+- Procedural Underwater Caustics Shader (GLSL injection, depth extinction & chromatic dispersion)
+- Procedural Gerstner Ocean Wave Dynamics & Surface Deformation
+- Volumetric God Rays & Atmospheric Fog Volumes
+- Dynamic Weather Systems (Squalls, Overcast Lighting, Storm Rain & Sea Wind)
 
-### High Seas, Weather & Shaders
-- Procedural Gerstner Ocean Surface & Wave Physics
-- Volumetric God Rays & Painterly Paper Post-Processing
-- Dynamic Squalls, Sea Fog, Wind Gusts & Lightning
-
-### Monsters, Combat & Quick-Time Events
-- The Ancient Kraken Multi-Phase Boss Encounter
-- Siren Allure, Sharks & Harpoon Defense Stations
-- Swivel Deck Cannon & Emergency Repair QTEs
-
-### Harbor Dock & Economy
-- Island Dock Village & First-Person Harbour Walk
-- Ghost Merchant "Deadly Business" Outfitting Stall
-- Captain's Logbook & Voyage Ledger System
+### Gameplay Systems & Mechanics
+- Voxel Grid Hull Construction, Blueprint Snapping & Real-Time Damage System
+- Buoyancy Simulation & Flooding Calculations
+- BVH Accelerated Spatial Raycasting
+- Siren Allure Resistance & Reversible Steering State Machine
+- Shark AI Threat & Harpoon Station QTE Mechanics
+- Multi-Phase Kraken Boss Encounter & Tentacle Follower Sequences
+- Harbor Dock Village, Ghost Merchant Outfitting Stall & Economy Ledger
+- Custom 16-Bit Pixel-Art UI, Compass & Nautical Telemetry Gauges
 
 ---
 
-## [icon-siren-note] MUSIC, SHANTIES & SOUNDTRACK
+## [icon-siren-note] MUSIC & SOUND EFFECTS
 
-### Sea Shanties & Musical Score
-- Main Menu Theme : [Song Title] — [Artist / Composer]
-- Harbour & Shipyard Theme : [Song Title] — [Artist / Composer]
-- High Seas Voyage Theme : [Song Title] — [Artist / Composer]
-- Night Storm & Kraken Boss Theme : [Song Title] — [Artist / Composer]
-- Siren's Lullaby : [Song Title] — [Artist / Vocalist]
+### Musical Score
+- alkakrab : "Free 10 Pirate Game Tracks Music Pack Vol. 2" (Royalty-Free / Itch.io)
+  - "Silent Harbor", "Foggy Shores", "Ocean's Grasp" (Dock & Calm Sailing)
+  - "Drunken Sailors", "Blackened Tide" (Tavern & Harbor)
+  - "Windward Chase", "Sea Wolves", "Black Flag Rise" (Storms & High Seas)
 
-### Sound Effects & Audio Engineering
-- Procedural Web Audio Synthesizer : BoatLoad Audio Engine
-- Ocean Waves, Wind & Storm Ambience : [Sound Designer / Source]
-- Cannon, Harpoon & Hull Impact SFX : [Sound Designer / Source]
+### Sound Effects
+- Pixabay : All Environmental Audio & Sound Effects (Pixabay Content License)
+  - Sailing water wash & rough ocean ambience
+  - Sea storm & howling wind ("Sea-storm-wind" #308764)
+  - Kraken roar, rumble & underwater disturbances
+  - Siren's alluring vocal call
+  - Wood hull stress, creaking, knocks & splintering collisions
+- BoatLoad Audio Engine : Procedural Web Audio Synthesizer (Harpoon shots, QTE chimes, hit thuds)
 
 ---
 
 ## [icon-artist-palette] 3D MODELS & ART ASSETS
 
-### Voxel & Environmental 3D Models
-- Quaternius : Rocks, Barrels & Wood Planks
-- Danni Bittman : Voxel Reef Outcroppings
-- Christopher F : Bull Kelp & Seaweed Beds
-- Poly by Google : Crashing Waves & Island Peaks
-- sirkitree : Low-Poly Archipelago Landscapes
-- Matthew Burdette : Mountaintop Terrain
+### Quaternius (CC0 1.0 Public Domain)
+- Animated Low-Poly Fish Pack (Sharks, Dolphins, Whales, Manta Rays, Fish)
+- Environmental Props (Barrels, Wooden Planks, Craggy Rocks)
 
-### Interface & Visual Style
-- 16-Bit Pixel Art Nautical UI & 9-Slice Frames
-- Custom SVG Pirate Crest & Brass Telemetry Instruments
+### Google Poly & Poly Pizza Contributors (CC-BY 3.0 / 4.0)
+- Poly by Google : Crashing Waves & Island Mountain Peaks
+- sirkitree : Low-Poly Archipelago Landscape
+- Matthew Burdette : Mountaintop Island Terrain
+- Christopher F : Bull Kelp & Seaweed Formations
+- Danni Bittman : Desert Pillars & Voxel Reef Outcroppings
+
+### Ships & Creatures
+- Team Voxel Modeling & Conversion : Player Sloop, Large Ships, Kraken Boss & Shoal Sirens
 
 ---
 
-## [icon-compass] ENGINE & TECHNOLOGY
+## [icon-compass] LIBRARIES & TECHNOLOGY
 
-- Three.js : 3D WebGL Rendering Engine
-- three-mesh-bvh : Accelerated Raycasting & Collisions
-- Vite : Frontend Build & Module Bundler
+- Three.js : 3D WebGL Rendering Engine (MIT License)
+- three-mesh-bvh : Spatial Raycasting & Accelerated Collisions (MIT License)
+- Vite : Frontend Build Tooling & Bundler (MIT License)
 
 ---
 
 ## [icon-ship-lantern] SPECIAL THANKS
 
-- Computer Graphics and Visualisation Course Staff
-- Every Helmsman & Shipwright Who Braved All Seven Days
+- Computer Graphics and Visualisation Course Staff (Wits University)
+- All playtesters who braved the rocky passages!
 
 ---
 
