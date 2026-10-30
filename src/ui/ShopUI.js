@@ -58,6 +58,12 @@ export class ShopUI {
           </div>
         </div>
 
+        <!-- Tutorial Guide Strip -->
+        <div class="shop-tutorial-guide">
+          <span class="pixel-icon icon-scroll size-16"></span>
+          <span><strong>Phantom Outfitter:</strong> Spend voyage Doubloons to purchase permanent nautical enhancements. Click <strong>Equip</strong> on any owned piece to outfit your active ship!</span>
+        </div>
+
         <!-- Category Navigation Tabs -->
         <div class="shop-tabs-row">
           <button class="shop-tab-btn ${this.activeTab === ItemType.WHEEL ? 'active' : ''}" data-tab="${ItemType.WHEEL}">

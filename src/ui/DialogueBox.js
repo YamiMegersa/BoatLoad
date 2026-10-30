@@ -60,7 +60,7 @@ export class DialogueBox {
       <div id="dlg-content">
         <div id="dlg-name">${this._defaultName}</div>
         <div id="dlg-text"></div>
-        <button id="dlg-next">Next <span class="pixel-icon icon-play-step size-14"></span></button>
+        <button id="dlg-next"><span class="dlg-space-badge">SPACE</span> Next <span class="pixel-icon icon-play-step size-14"></span></button>
       </div>
     `;
 
@@ -151,6 +151,16 @@ export class DialogueBox {
       }
       if (portraitEl) {
         portraitEl.innerHTML = (entry && typeof entry === 'object' && entry.portrait) ? entry.portrait : this._defaultPortrait;
+      }
+
+      const nextBtn = this._el?.querySelector('#dlg-next');
+      if (nextBtn) {
+        const isLastLine = this._idx >= this._lines.length - 1;
+        if (isLastLine) {
+          nextBtn.innerHTML = '<span class="dlg-space-badge">SPACE</span> Continue <span class="pixel-icon icon-confirm-check size-14"></span>';
+        } else {
+          nextBtn.innerHTML = '<span class="dlg-space-badge">SPACE</span> Next <span class="pixel-icon icon-play-step size-14"></span>';
+        }
       }
 
       if (!fullLine) {

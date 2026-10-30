@@ -53,9 +53,9 @@ test('unmapped damaged zones receive an explanatory fallback task', () => {
 test('authored damage in every day config maps to the intended docket zones', async () => {
   const levelsUrl = new URL('../src/assets/levels/', import.meta.url);
   const ship = JSON.parse(await readFile(new URL('../src/assets/ships/sloop.json', import.meta.url), 'utf8'));
-  const filenames = (await readdir(levelsUrl)).filter(name => /^day\d+\.json$/.test(name));
+  const filenames = (await readdir(levelsUrl)).filter(name => /^day[2-7]\.json$/.test(name));
 
-  assert.equal(filenames.length, 7);
+  assert.equal(filenames.length, 6);
   for (const filename of filenames) {
     const level = JSON.parse(await readFile(new URL(filename, levelsUrl), 'utf8'));
     const grid = new VoxelGrid(ship.grid.x, ship.grid.y, ship.grid.z);

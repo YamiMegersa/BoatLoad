@@ -940,6 +940,17 @@ export class HUD {
         if (pillEl) pillEl.textContent = entry.queuedType ? 'LOCK+1' : 'LOCKED';
         if (hintEl) hintEl.textContent = 'TAP / [SPACE] IN ZONE';
         if (resultEl) resultEl.textContent = '';
+
+        if (!this._hasShownHarpoonTutorial) {
+          this._hasShownHarpoonTutorial = true;
+          this._showTutorialBanner({
+            icon: '🦈',
+            title: 'SHARK ATTACK! — HARPOON TUTORIAL',
+            text: 'Press [SPACE] or Click when the sweeping needle enters the GOLD arc to strike the shark!',
+            theme: 'harpoon',
+            durationMs: 4500
+          });
+        }
       } else if (entry.state === 'queued') {
         if (iconEl) iconEl.innerHTML = theme?.icon ?? DEFAULT_TIMING_ICON;
         if (labelEl) labelEl.textContent = entry.label || 'INCOMING';
@@ -974,6 +985,17 @@ export class HUD {
         if (progressEl) progressEl.textContent = '0%';
         if (hintEl) hintEl.textContent = 'TRACE RING · TAP BAR 50%';
         if (resultEl) resultEl.textContent = '';
+
+        if (!this._hasShownBailTutorial) {
+          this._hasShownBailTutorial = true;
+          this._showTutorialBanner({
+            icon: '🪣',
+            title: 'WATER IN HOLD! — BILGE BAILING TUTORIAL',
+            text: 'Draw a circle inside the pump well with your mouse, or tap [SPACE] repeatedly to bail water!',
+            theme: 'bail',
+            durationMs: 4500
+          });
+        }
       } else if (entry.state === 'queued') {
         if (labelEl) labelEl.textContent = 'BILGE PUMP';
         if (progressEl) progressEl.textContent = 'QUEUED';
@@ -1231,6 +1253,7 @@ export class HUD {
     const banner = this._el?.querySelector('#hud-banner');
     if (!banner || !label) return;
     clearTimeout(this._bannerTimer);
+    banner.className = '';
     banner.textContent = label;
     banner.style.display = 'block';
     banner.classList.toggle('hidden', false);
@@ -1238,6 +1261,29 @@ export class HUD {
       banner.classList.add('hidden');
       this._bannerTimer = setTimeout(() => { banner.style.display = 'none'; }, 260);
     }, 2000);
+  }
+
+  _showTutorialBanner({ icon = '⚓', title = '', text = '', theme = 'harpoon', durationMs = 4500 } = {}) {
+    const banner = this._el?.querySelector('#hud-banner');
+    if (!banner || !text) return;
+    clearTimeout(this._bannerTimer);
+    banner.className = `hud-banner-tutorial theme-${theme}`;
+    banner.innerHTML = `
+      <div class="hud-banner-tut-header">
+        <span class="hud-banner-tut-icon">${icon}</span>
+        <span class="hud-banner-tut-title">${title}</span>
+      </div>
+      <div class="hud-banner-tut-body">${text}</div>
+    `;
+    banner.style.display = 'block';
+    banner.classList.toggle('hidden', false);
+    this._bannerTimer = setTimeout(() => {
+      banner.classList.add('hidden');
+      this._bannerTimer = setTimeout(() => {
+        banner.style.display = 'none';
+        banner.className = '';
+      }, 300);
+    }, durationMs);
   }
 
   _showDebugQTEResult({ source, accepted }) {

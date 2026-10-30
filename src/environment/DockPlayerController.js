@@ -694,14 +694,14 @@ export class DockPlayerController {
         this.dockStall.setShopDoorGlowVisible(false);
       }
       this.setObjective(
-        `🛠️ <span style="color:#00ffaa;">Harbor Tour Complete!</span> Interact with the glowing <strong>Shipyard Workbench</strong> or the <strong>Abandoned Scrap Sloop</strong> to practice <span style="color:#ffd700;">[E or Click]</span>`
+        `⛵ <span style="color:#ffd700;">Sea Trial Directive:</span> Interact with the <strong>Scrap Skiff</strong> or <strong>Workbench</strong> to repair leaks, then <strong>Set Sail When Ready</strong>! <span style="color:#ffd700;">[E or Click]</span>`
       );
       this.showAreaPopup({
         icon: '⚓',
         areaName: 'Area 4 of 4 • West Drydock',
-        title: 'The Shipyard & Abandoned Scrap Ship',
-        purposeText: 'Welcome to your <b>West Drydock & Shipyard</b>! That battered vessel moored at the pier is the ship <b>an old customer abandoned here for scrap</b>. Since nobody is coming back for it, you can use it to practice your hull repairs and sea trials risk-free.',
-        actionText: 'Approach the glowing <b>Shipyard Workbench</b> or the moored <b>Abandoned Scrap Sloop</b> and press <b>[E]</b> or <b>Click</b> to practice on it (or return to the Shop <b>Logbook</b> whenever you\'re ready).'
+        title: 'The Shipyard & Abandoned Scrap Skiff',
+        purposeText: 'Welcome to your <b>West Drydock & Shipyard</b>! That battered vessel moored at the pier is the swift skiff <b>an old customer abandoned here for scrap</b>. Since nobody is coming back for it, you can use it to practice your hull repairs and sea trials risk-free.',
+        actionText: 'Approach the glowing <b>Shipyard Workbench</b> or the moored <b>Abandoned Scrap Skiff</b> and press <b>[E]</b> or <b>Click</b> to begin repairs. Once all leaks are sealed, click <b>"Set Sail When Ready!"</b> in the top right to embark on your test voyage!'
       });
     }
   }
@@ -726,6 +726,84 @@ export class DockPlayerController {
     if (this.objectiveBanner) {
       this.objectiveBanner.style.display = 'none';
     }
+  }
+
+  resumeDay0AtDock() {
+    this._clearCutsceneTimers();
+    if (this._cutsceneOverlay && this._cutsceneOverlay.parentNode) {
+      this._cutsceneOverlay.parentNode.removeChild(this._cutsceneOverlay);
+      this._cutsceneOverlay = null;
+    }
+    this._cutsceneActive = false;
+    this.mode = 'player';
+    if (this.crosshair) this.crosshair.style.display = 'block';
+    if (this.instructions) this.instructions.style.display = 'flex';
+
+    // Position player standing by the West Shipyard pier walkway
+    const s = this.scale;
+    this.yawObject.position.set((-22 - 7.5) * s, 1.25 * s, 2.0 * s);
+    this.yawObject.rotation.y = -Math.PI / 2;
+    this.pitchObject.rotation.x = 0;
+    this.camera.rotation.z = 0;
+
+    this.tutorialActive = true;
+    this.tutorialStep = 'PRACTICE_SHIP';
+
+    if (this.dockStall) {
+      this.dockStall.setDivorcePostRingVisible(false);
+      this.dockStall.setShipyardTutorialCircleVisible(false);
+      this.dockStall.setShopDoorGlowVisible(false);
+    }
+
+    emit('setMusicState', { state: 'calm', fade: 1.2 });
+    this.setObjective(
+      `⛵ <span style="color:#ffd700;">Sea Trial Directive:</span> Interact with the <strong>Scrap Skiff</strong> or <strong>Workbench</strong> to repair leaks, then <strong>Set Sail When Ready</strong>! <span style="color:#ffd700;">[E or Click]</span>`
+    );
+  }
+
+  startDay1StallPrompt() {
+    this._clearCutsceneTimers();
+    this.closeAreaPopup();
+    if (this._cutsceneOverlay && this._cutsceneOverlay.parentNode) {
+      this._cutsceneOverlay.parentNode.removeChild(this._cutsceneOverlay);
+      this._cutsceneOverlay = null;
+    }
+    this._cutsceneActive = false;
+    this.mode = 'player';
+    this.tutorialActive = false;
+    this.tutorialStep = null;
+
+    if (this.crosshair) this.crosshair.style.display = 'block';
+    if (this.instructions) this.instructions.style.display = 'flex';
+
+    // Position player on the dock promenade near the island path leading to the shop pier
+    const s = this.scale;
+    this.yawObject.position.set((-22 + 6.0) * s, 1.25 * s, 0.0);
+    // Face eastward toward the shop pier
+    this.yawObject.rotation.y = Math.PI / 2;
+    this.pitchObject.rotation.x = 0;
+    this.camera.rotation.z = 0;
+
+    if (this.dockStall) {
+      this.dockStall.setDivorcePostRingVisible(false);
+      this.dockStall.setShipyardTutorialCircleVisible(false);
+      this.dockStall.setShopDoorGlowVisible(true);
+    }
+
+    emit('setMusicState', { state: 'calm', fade: 1.2 });
+
+    this.setObjective(
+      `📖 <span style="color:#ffd700;">Tutorial Complete!</span> Enter your <strong>Shipwright Stall</strong> on the pier and open the <strong>Captain's Logbook</strong> [E or Click] to begin Day 1!`
+    );
+
+    this.showAreaPopup({
+      icon: '📜',
+      areaName: 'Tutorial Complete • Day 1 Morning',
+      title: 'Your First Paying Customer',
+      purposeText: 'Congratulations on completing your sea trial! Your reputation as an honest shipwright is spreading around Port Rotgut, and your first paying captain is waiting to do business.',
+      actionText: 'Head across the pier into your <b>Shipwright Stall</b> and inspect the <b>Captain\'s Logbook</b> on the front counter to review the customer contract and begin Day 1!',
+      buttonText: 'Head to Stall [Space / Click]'
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -1152,6 +1230,8 @@ enterShop() {
 
   if (this.tutorialActive && this.tutorialStep === 'ENTER_SHOP') {
     this.advanceTutorialStep('VISIT_SHIPYARD');
+  } else if (!this.tutorialActive && window.gameState?.day === 1) {
+    this.setObjective('📖 <span style="color:#ffd700;">Day 1 Contract:</span> Inspect the <strong>Captain\'s Logbook</strong> on the counter [E or Click] to begin Day 1!');
   }
 }
 
@@ -1601,6 +1681,32 @@ _interactWithGhost() {
   if (this.isLocked && document.exitPointerLock) {
     document.exitPointerLock();
   }
+
+  if (!this._hasSeenGhostTutorial) {
+    this._hasSeenGhostTutorial = true;
+    emit('showDialogue', {
+      id: 'ghost_merchant_intro',
+      portrait: '<span class="pixel-icon icon-phantom-ghost size-48"></span>',
+      name: 'Barnaby • The Phantom Outfitter',
+      lines: [
+        'Hsssh... greetings, mortal shipwright. Welcome to Deadly Business.',
+        'Out in the deep channels, plain timber alone will not save thee from crushing reefs, siren tempests, or the beasts below.',
+        'Bring me the Doubloons you salvage and earn from your voyages, and I shall outfit your fleet with spectral relics: ornate steering wheels, solid brass pedestals, and enchanted ward lanterns.',
+        'Each piece is yours forever once purchased. Equip and swap them at leisure to enhance your ship. Look upon my wares...'
+      ],
+      voice: {
+        pitch: 0.65,
+        pitchVariance: 0.05,
+        charIntervalMs: 38,
+        syllableStep: 2
+      },
+      onComplete: () => {
+        emit('openShopUI');
+      }
+    });
+    return;
+  }
+
   emit('openShopUI');
 }
 

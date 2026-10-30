@@ -177,10 +177,20 @@ export class ResultsUI {
               <span class="ledger-val highlight-gold">${timeText}</span>
             </div>` : ''}
 
+            ${day === 0 ? `
+            <div class="ledger-row highlight">
+              <div class="ledger-mult-desc">
+                <span class="ledger-label">Practice Run Commercial Bounty</span>
+                <span class="ledger-subtext">Abandoned Skiff • No Paying Customer</span>
+              </div>
+              <span class="ledger-val">0 <span class="pixel-icon icon-doubloon size-16"></span></span>
+            </div>
+            ` : `
             <div class="ledger-row">
               <span class="ledger-label">Passage Delivery Bounty</span>
               <span class="ledger-val">${sailing.baseReward > 0 ? `+${sailing.baseReward}` : '0 (Passage Incomplete)'} <span class="pixel-icon icon-doubloon size-16"></span></span>
             </div>
+            `}
 
             ${sailing.pedestalBonus > 0 ? `
             <div class="ledger-row highlight">
@@ -249,13 +259,12 @@ export class ResultsUI {
           if (day === 0 && isPassed) {
             this.gameState.day = 1;
             this.gameState.unlockDay?.(1);
-            emit('levelSelected', { day: 1 });
           } else if (isPassed) {
             const nextDay = Math.min(7, day + 1);
             this.gameState.day = nextDay;
             this.gameState.unlockDay?.(nextDay);
           }
-          emit('requestPhaseChange', { phase: GamePhase.DOCK });
+          emit('requestPhaseChange', { phase: GamePhase.DOCK, day0TutorialCompleted: (day === 0 && isPassed) });
         };
       }
     }
