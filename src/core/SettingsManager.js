@@ -9,7 +9,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   cutWithFog: true,       // Cuts geometry off cleanly with atmospheric horizon fog
   renderScale: 1.0,       // 0.5, 0.75, 1.0, 1.25
   shadowQuality: 'high',  // 'off', 'low', 'high'
-  paperShader: 'auto',    // 'auto', 'painterly', 'hatching', 'off'
+  paperShader: false,     // boolean toggle: Kuwahara painterly filter on/off
   godRays: true,          // boolean
   showFps: true,          // boolean
   autoPerformance: false, // boolean (toggleable in Performance Menu)
@@ -40,6 +40,9 @@ export class SettingsManager {
       if (saved) {
         const parsed = JSON.parse(saved);
         this._settings = { ...DEFAULT_SETTINGS, ...parsed };
+        if (parsed.paperShader !== undefined) {
+          this._settings.paperShader = parsed.paperShader === 'painterly' || parsed.paperShader === true;
+        }
       }
     } catch (e) {
       console.warn('[SettingsManager] Failed to load settings from localStorage:', e);

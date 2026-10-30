@@ -90,3 +90,16 @@ test('Sailing fix: Boats sailing down course (z <= -220) do not trigger out-of-b
   assert.ok(!minimapSrc.includes('minimap-kill-radius'), 'Minimap must not include minimap-kill-radius element');
 });
 
+test('HUD declutter: settings cog button and coin/doubloon UI removed from sailing HUD', () => {
+  const hudSrc = fs.readFileSync(path.join(__dirname, '../src/ui/HUD.js'), 'utf8');
+
+  // Verify settings cog button is removed
+  assert.ok(!hudSrc.includes('id="hud-btn-pause"'), 'Settings cog button must be removed from sailing HUD');
+  assert.ok(!hudSrc.includes('icon-settings-cog'), 'Settings cog icon must be removed from sailing HUD');
+
+  // Verify coins counter and doubloon icon are removed
+  assert.ok(!hudSrc.includes('hud-score-coin'), 'Coin UI must be removed from sailing HUD');
+  assert.ok(!hudSrc.includes('icon-doubloon'), 'Doubloon icon must be removed from sailing HUD');
+  assert.ok(!hudSrc.includes('id="hud-score-val"'), 'Score val element must be removed from sailing HUD template');
+});
+

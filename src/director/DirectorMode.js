@@ -817,16 +817,7 @@ export class DirectorMode {
     }
   }
 
-  setPaperShaderStyle(style) {
-    const styleMap = { 0: 'off', 1: 'painterly', 2: 'hatching' };
-    const val = styleMap[style] || 'off';
-    settingsManager.set('paperShader', val);
-    if (this._paperFilter) {
-      if (style === 1) this._paperFilter.setStyle(1);
-      if (style === 2) this._paperFilter.setStyle(0);
-    }
-    this._showToast(`Art Style: ${style === 0 ? 'Clean 3D' : style === 1 ? 'Kuwahara Painterly' : 'Crosshatch'}`);
-  }
+
 
   // ---------------------------------------------------------------------------
   // DOM Setup & UI Construction
@@ -1157,14 +1148,7 @@ export class DirectorMode {
                   <input type="range" id="slider-waves" min="0.2" max="3.5" step="0.1" value="1.0" />
                   <span class="deck-val-readout" id="val-waves">1.0m</span>
                 </div>
-                <div class="deck-field-row">
-                  <label>Art Shader</label>
-                  <select id="select-shader-style" style="background:#111824; color:#ffd700; border:2px solid #3b4e68; border-radius:0; font-family:'Cinzel', serif; font-size:10px; padding:3px 6px; outline:none;">
-                    <option value="0">Clean 3D</option>
-                    <option value="1">Kuwahara Painterly</option>
-                    <option value="2">Crosshatch Sketch</option>
-                  </select>
-                </div>
+
               </div>
             </div>
           </div>
@@ -1500,9 +1484,7 @@ export class DirectorMode {
       c.querySelector('#val-waves').innerText = `${w.toFixed(1)}m`;
     });
 
-    c.querySelector('#select-shader-style')?.addEventListener('change', (e) => {
-      this.setPaperShaderStyle(parseInt(e.target.value, 10));
-    });
+
   }
 
   // ---------------------------------------------------------------------------

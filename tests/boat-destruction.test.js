@@ -173,14 +173,14 @@ test('ChunkRenderer - Voxel culling 3D texture and outlines configuration', asyn
   gltfScene.add(dummyMesh);
 
   const renderer = new ChunkRenderer();
-  renderer.init(grid, scene, gltfScene, { showMissingOutlines: false });
+  renderer.init(grid, scene, gltfScene, { showMissingOutlines: false, filterMissingByLevelDamage: false });
 
   assert.ok(renderer._voxel3DTexture, 'Should create 3D Data texture for voxel culling');
   assert.equal(renderer._showMissingOutlines, false, 'Outlines should be disabled');
   assert.equal(renderer._individualMeshes.size, 0, 'No red outline mesh should spawn when outlines are false');
 
   // Enable outlines
-  renderer.setShowMissingOutlines(true);
+  renderer.setShowMissingOutlines(true, false);
   assert.equal(renderer._showMissingOutlines, true, 'Outlines should be enabled');
   assert.ok(renderer._individualMeshes.size > 0, 'Should spawn missing outline mesh when enabled');
 

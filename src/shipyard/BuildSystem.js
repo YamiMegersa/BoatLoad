@@ -152,7 +152,7 @@ export class BuildSystem {
     on('undoBuild',        this._onUndo);
     on('redoBuild',        this._onRedo);
 
-    window.addEventListener('keydown', this._onKeyDown);
+    if (typeof window !== 'undefined') window.addEventListener('keydown', this._onKeyDown);
 
     this._refreshGhostMesh();
   }
@@ -169,7 +169,7 @@ export class BuildSystem {
     off('undoBuild',        this._onUndo);
     off('redoBuild',        this._onRedo);
 
-    window.removeEventListener('keydown', this._onKeyDown);
+    if (typeof window !== 'undefined') window.removeEventListener('keydown', this._onKeyDown);
 
     if (this._ghostGroup.parent) {
       this._ghostGroup.parent.remove(this._ghostGroup);
@@ -629,15 +629,26 @@ export class BuildSystem {
         totalRefunded += refund;
       }
 
+      let nextState = CellState.MISSING;
+      if (isSession) {
+        const init = (this._grid.initialState && this._grid.initialState[this._grid.index(x, y, z)] !== undefined)
+          ? this._grid.initialState[this._grid.index(x, y, z)]
+          : (this._grid.isLevelDamage?.(x, y, z) ? CellState.MISSING : CellState.EMPTY);
+        nextState = init;
+      } else {
+        nextState = CellState.MISSING;
+      }
+
       previousRecords.push({
         x, y, z,
         previousState: curState,
         previousColor: curColor,
         wasSessionRepair: isSession,
-        refundedAmount: refund
+        refundedAmount: refund,
+        erasedToState: nextState
       });
 
-      this._grid.setState(x, y, z, CellState.MISSING);
+      this._grid.setState(x, y, z, nextState);
       changed = true;
     }
 
@@ -718,7 +729,12 @@ export class BuildSystem {
         if (this._budgetManager) {
           this._budgetManager.refundCell(rec.x, rec.y, rec.z);
         }
-        this._grid.setState(rec.x, rec.y, rec.z, CellState.MISSING);
+        const nextState = rec.erasedToState !== undefined
+          ? rec.erasedToState
+          : (rec.wasSessionRepair && this._grid.initialState
+              ? this._grid.initialState[this._grid.index(rec.x, rec.y, rec.z)]
+              : CellState.MISSING);
+        this._grid.setState(rec.x, rec.y, rec.z, nextState);
       }
       this._undoStack.push(action);
     }

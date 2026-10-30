@@ -89,7 +89,7 @@ export class BoatDestructionWorkshop {
   toggleOutlines(enabled = null) {
     this._showOutlines = enabled !== null ? Boolean(enabled) : !this._showOutlines;
     if (this._chunkRenderer) {
-      this._chunkRenderer.setShowMissingOutlines(this._showOutlines);
+      this._chunkRenderer.setShowMissingOutlines(this._showOutlines, false);
     }
     emit('workshopOutlinesChanged', { enabled: this._showOutlines });
     return this._showOutlines;
@@ -241,7 +241,7 @@ export class BoatDestructionWorkshop {
 
     // 3. Initialize chunk renderer positioned at West dock berth, utilizing authentic voxel mesh from gltfScene
     this._chunkRenderer = new ChunkRenderer();
-    this._chunkRenderer.init(grid, this._workshopGroup, gltfScene, { showMissingOutlines: this._showOutlines });
+    this._chunkRenderer.init(grid, this._workshopGroup, gltfScene, { showMissingOutlines: this._showOutlines, filterMissingByLevelDamage: false });
 
     const profile = getShipProfile(this._shipId) || {};
     const s = this._shipDef.scale || profile.scale || 0.12;

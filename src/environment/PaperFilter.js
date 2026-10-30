@@ -11,14 +11,13 @@ const PaperShader = {
     uInkColor: { value: new THREE.Color(0x2c1e16) },
     uPaperColor: { value: new THREE.Color(0xdac5a5) }, // Darker parchment base
     uPaperHighlight: { value: new THREE.Color(0xf6ebd1) }, // Lighter parchment
-    
-    // Configurable parameters
-    uStyle: { value: 0 }, // 0 = Hatching, 1 = Kuwahara
-    uHatchScale: { value: 10.0 },
-    uKuwaharaRadius: { value: 3 }, // 1 to 5
-    uColorPreservation: { value: 0.4 },
-    uEdgeThreshold: { value: 0.3 },
-    uWobbleIntensity: { value: 0.0005 },
+
+    // Fixed Kuwahara filter parameters:
+    // Radius 3, colour retention 0.73, edge threshold 0.03, wobble 0.0015
+    uKuwaharaRadius: { value: 3 },
+    uColorPreservation: { value: 0.73 },
+    uEdgeThreshold: { value: 0.03 },
+    uWobbleIntensity: { value: 0.0015 },
   },
   vertexShader: /* glsl */`
     varying vec2 vUv;
@@ -37,8 +36,6 @@ const PaperShader = {
     uniform vec3 uPaperColor;
     uniform vec3 uPaperHighlight;
 
-    uniform int uStyle;
-    uniform float uHatchScale;
     uniform int uKuwaharaRadius;
     uniform float uColorPreservation;
     uniform float uEdgeThreshold;
@@ -46,47 +43,7 @@ const PaperShader = {
 
     varying vec2 vUv;
 
-    // Fast pseudo-random noise function
-    float rand(vec2 n) { 
-      return fract(sin(dot(n, vec2(12.9898, 4.1414))) * 43758.5453);
-    }
-
-    // Helper for Hatching: fast trigonometric wobble
-    float hatch(vec2 uv, float luma, float scale) {
-      float h = 1.0;
-      float hatchSpacing = scale * 50.0;
-      
-      // Hand-drawn line wobble using fast analytical sine/cosine
-      float lineWobble = (sin(uv.y * 60.0 + uv.x * 20.0) + cos(uv.x * 60.0 - uv.y * 20.0)) * 0.25;
-      
-      float w1 = sin((uv.x + uv.y) * hatchSpacing + lineWobble);
-      float w2 = sin((uv.x - uv.y) * hatchSpacing + lineWobble);
-      float w3 = sin((uv.x + uv.y - 0.5) * hatchSpacing * 0.5 + lineWobble);
-      float w4 = sin((uv.x - uv.y + 0.5) * hatchSpacing * 0.5 + lineWobble);
-      
-      // Thin lines
-      float t = 0.8; 
-      
-      if (luma < 0.55) {
-        if (w1 > t) h -= 0.4;
-      }
-      if (luma < 0.40) {
-        if (w2 > t) h -= 0.4;
-      }
-      if (luma < 0.25) {
-        if (w3 > t) h -= 0.4;
-      }
-      if (luma < 0.15) {
-        if (w4 > t) h -= 0.4;
-      }
-      
-      return clamp(h, 0.0, 1.0);
-    }
-    
-    // Helper for Kuwahara:
-    // Fixed 5x5 kernel (radius 2, 25 samples total).
-    // Replaces the 121-loop kernel and dynamic branching with a constant, branchless
-    // hardware-friendly texture accumulation that eliminates warp divergence.
+    // Fixed 5x5 Kuwahara kernel (constant, branchless, hardware-friendly)
     vec3 kuwahara(sampler2D tex, vec2 uv, vec2 texel) {
       vec3 m0 = vec3(0.0), m1 = vec3(0.0), m2 = vec3(0.0), m3 = vec3(0.0);
       vec3 s0 = vec3(0.0), s1 = vec3(0.0), s2 = vec3(0.0), s3 = vec3(0.0);
@@ -97,7 +54,6 @@ const PaperShader = {
         for (int i = -2; i <= 2; ++i) {
           vec3 c = texture2D(tex, uv + vec2(float(i), float(j)) * texel).rgb;
           vec3 cc = c * c;
-          
           if (i <= 0 && j <= 0) { m0 += c; s0 += cc; }
           if (i >= 0 && j <= 0) { m1 += c; s1 += cc; }
           if (i >= 0 && j >= 0) { m2 += c; s2 += cc; }
@@ -125,34 +81,20 @@ const PaperShader = {
     }
 
     void main() {
-      // 1. Subtle UV Wobble (fast analytical sine/cosine)
+      // 1. Subtle UV Wobble: fixed 0.0015 intensity
       vec2 wobble = vec2(
         sin(vUv.y * 25.0 + uTime * 0.4) * cos(vUv.x * 15.0),
         cos(vUv.x * 25.0 - uTime * 0.4) * sin(vUv.y * 15.0)
       );
       vec2 uv = vUv + wobble * uWobbleIntensity;
 
-      // 2. Base scene color & Shading Style
+      // 2. Base scene color: Kuwahara Filter with fixed Radius 3
       vec2 texel = 1.0 / uResolution;
-      vec4 baseColor;
-      float shadingLuma = 1.0;
-      float hatchMask = 1.0;
-      
-      if (uStyle == 1) {
-        // Kuwahara Filter
-        // Widened texel step based on radius gives broad painterly strokes
-        vec2 wideTexel = texel * (1.0 + float(uKuwaharaRadius) * 1.5);
-        baseColor = vec4(kuwahara(tDiffuse, uv, wideTexel), 1.0);
-        shadingLuma = dot(baseColor.rgb, vec3(0.299, 0.587, 0.114));
-      } else {
-        // Hatching Filter
-        baseColor = texture2D(tDiffuse, uv);
-        float luma = dot(baseColor.rgb, vec3(0.299, 0.587, 0.114));
-        hatchMask = hatch(vUv, luma, uHatchScale);
-        shadingLuma = luma;
-      }
+      vec2 wideTexel = texel * (1.0 + float(uKuwaharaRadius) * 1.5);
+      vec4 baseColor = vec4(kuwahara(tDiffuse, uv, wideTexel), 1.0);
+      float shadingLuma = dot(baseColor.rgb, vec3(0.299, 0.587, 0.114));
 
-      // 3. Fast 4-tap Edge Detection (cardinal samples)
+      // 3. Fast 4-tap Edge Detection with fixed 0.03 threshold
       vec2 edgeTexel = 2.5 / uResolution;
       float sLeft  = dot(texture2D(tDiffuse, uv - vec2(edgeTexel.x, 0.0)).rgb, vec3(0.299, 0.587, 0.114));
       float sRight = dot(texture2D(tDiffuse, uv + vec2(edgeTexel.x, 0.0)).rgb, vec3(0.299, 0.587, 0.114));
@@ -161,19 +103,12 @@ const PaperShader = {
       float edge = length(vec2(sRight - sLeft, sDown - sUp)) * 2.2;
       float edgeMask = smoothstep(uEdgeThreshold, uEdgeThreshold + 0.35, edge);
 
-      // 4. Paper Base Color & Grain (fast high-frequency stipple)
+      // 4. Paper Base Color & Grain
       float paperNoise = fract(sin(dot(floor(vUv * uResolution * 0.25), vec2(12.9898, 78.233))) * 43758.5453);
       vec3 paperBase = mix(uPaperColor, uPaperHighlight, paperNoise * 0.5);
 
-      // 5. Sepia & Color Preservation
-      vec3 sepiaColor;
-      if (uStyle == 1) {
-        sepiaColor = mix(uInkColor, paperBase, shadingLuma * 0.7 + 0.3);
-      } else {
-        sepiaColor = mix(uInkColor, paperBase, shadingLuma * 0.6 + 0.4); 
-        sepiaColor = mix(uInkColor * 0.5, sepiaColor, hatchMask);
-      }
-      
+      // 5. Sepia & Color Preservation with fixed 0.73 retention
+      vec3 sepiaColor = mix(uInkColor, paperBase, shadingLuma * 0.7 + 0.3);
       vec3 tintedOriginal = baseColor.rgb * paperBase * 1.2;
       vec3 mixedColor = mix(sepiaColor, tintedOriginal, uColorPreservation); 
       vec3 finalColor = mix(mixedColor, uInkColor, edgeMask);
@@ -247,12 +182,13 @@ export class PaperFilter {
     this._renderer.render(this._scene, this._camera);
   }
 
-  setStyle(val) { this._material.uniforms.uStyle.value = val; }
-  setHatchScale(val) { this._material.uniforms.uHatchScale.value = val; }
-  setKuwaharaRadius(val) { this._material.uniforms.uKuwaharaRadius.value = val; }
-  setColorPreservation(val) { this._material.uniforms.uColorPreservation.value = val; }
-  setEdgeThreshold(val) { this._material.uniforms.uEdgeThreshold.value = val; }
-  setWobbleIntensity(val) { this._material.uniforms.uWobbleIntensity.value = val; }
+  // Dials are removed per requirements — fixed constants are enforced
+  setStyle() {}
+  setHatchScale() {}
+  setKuwaharaRadius() {}
+  setColorPreservation() {}
+  setEdgeThreshold() {}
+  setWobbleIntensity() {}
 
   dispose() {
     this._material.dispose();

@@ -24,6 +24,7 @@ import { ParticleSystem } from './environment/ParticleSystem.js';
 import { DamageSystem } from './shipyard/DamageSystem.js';
 import { GodRays } from './environment/GodRays.js';
 import { PaperFilter } from './environment/PaperFilter.js';
+import { UnderwaterFilter } from './environment/UnderwaterFilter.js';
 import { AudioManager } from './utils/AudioManager.js';
 import { DEBUG } from './utils/debug.js';
 import { exportToGLB } from './utils/exportGLTF.js';
@@ -108,13 +109,19 @@ const mainRT = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight
 const paperFilter = new PaperFilter(renderer);
 paperFilter.resize(window.innerWidth, window.innerHeight);
 
+const underwaterRT = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {
+  minFilter: THREE.LinearFilter,
+  magFilter: THREE.LinearFilter,
+  format: THREE.RGBAFormat,
+});
+const underwaterFilter = new UnderwaterFilter(renderer);
+underwaterFilter.resize(window.innerWidth, window.innerHeight);
+
 // ---------------------------------------------------------------------------
 // Global Managers and UI
 // ---------------------------------------------------------------------------
 
 let isPaused = false;
-let paperShaderEnabled = false;
-let userPaperStyle = 0;
 
 const gameState = new GameState(scene, camera, renderer);
 gameState._ambient = ambient;
@@ -123,6 +130,7 @@ gameState._moon = moon;
 gameState._godRays = godRays;
 window.gameState = gameState;
 window.godRays = godRays;
+window.underwaterFilter = underwaterFilter;
 window.exportToGLB = exportToGLB;
 
 window.inspectTriangles = () => {
@@ -309,7 +317,9 @@ window.addEventListener('resize', () => {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
   godRays.resize(window.innerWidth, window.innerHeight);
   mainRT.setSize(window.innerWidth, window.innerHeight);
+  underwaterRT.setSize(window.innerWidth, window.innerHeight);
   paperFilter.resize(window.innerWidth, window.innerHeight);
+  underwaterFilter.resize(window.innerWidth, window.innerHeight);
 });
 
 // ---------------------------------------------------------------------------
@@ -368,6 +378,7 @@ on('weatherChanged', () => {
 // ---------------------------------------------------------------------------
 
 const clock = new THREE.Clock();
+const _camWorldPos = new THREE.Vector3();
 
 function tick() {
   requestAnimationFrame(tick);
@@ -423,31 +434,35 @@ function tick() {
   // Re-apply camera FOV and far clipping plane based on Settings
   settingsManager.applyCamera(activeCam);
 
-  const isMainMenu = gameState.currentPhase === GamePhase.MAIN_MENU || gameState.currentPhase === GamePhase.CREDITS;
   const paperSetting = settingsManager.get('paperShader');
-  let usePaperShader = false;
-  if (paperSetting === 'off') {
-    usePaperShader = false;
-  } else if (paperSetting === 'painterly') {
-    usePaperShader = true;
-    paperFilter.setStyle(1);
-  } else if (paperSetting === 'hatching') {
-    usePaperShader = true;
-    paperFilter.setStyle(0);
-  } else {
-    // 'auto' mode
-    usePaperShader = isMainMenu || paperShaderEnabled;
-    if (usePaperShader) {
-      paperFilter.setStyle(isMainMenu ? 1 : userPaperStyle);
-    }
-  }
+  const usePaperShader = Boolean(paperSetting && paperSetting !== 'off');
 
   const godRaysEnabled = Boolean(settingsManager.get('godRays'));
 
   // Clear render metrics once per frame before any render passes execute
   renderer.info.reset();
 
-  if (usePaperShader) {
+  activeCam.getWorldPosition(_camWorldPos);
+  let waterY = -0.5;
+  if (gameState._ocean) {
+    waterY = gameState._ocean.getWaveInfo(_camWorldPos.x, _camWorldPos.z).height;
+  }
+  underwaterFilter.update(delta, _camWorldPos.y, waterY);
+
+  const isSubmerged = underwaterFilter.isSubmerged;
+
+  if (isSubmerged) {
+    // Underwater: capture clean base scene into mainRT (preventing atmospheric god rays from flickering in water)
+    renderer.setRenderTarget(mainRT);
+    renderer.render(scene, activeCam);
+
+    if (usePaperShader) {
+      underwaterFilter.render(mainRT, underwaterRT);
+      paperFilter.render(underwaterRT);
+    } else {
+      underwaterFilter.render(mainRT, null);
+    }
+  } else if (usePaperShader) {
     if (godRaysEnabled) {
       godRays.render(sun, moon, mainRT);
     } else {
@@ -759,7 +774,7 @@ async function boot() {
       const baseBudget = customLevelCfg.budget !== undefined ? customLevelCfg.budget : 200;
       gameState.initContract(1, baseBudget);
 
-      gameState.transition(GamePhase.SHIPYARD, {
+      await gameState.transition(GamePhase.SHIPYARD, {
         shipDef: activeShipDef,
         levelCfg: customLevelCfg,
         fishModels: level.fishModels,
@@ -813,7 +828,7 @@ async function boot() {
       if (!gameState._voyageStartTime) {
         gameState._voyageStartTime = performance.now();
       }
-      gameState.transition(GamePhase.OBSTACLE, {
+      await gameState.transition(GamePhase.OBSTACLE, {
         shipDef: activeShipDef,
         levelCfg: currentLevelCfg,
         shipStats: { hullHP: hp, profile },
@@ -826,7 +841,7 @@ async function boot() {
       });
     });
 
-    on('editorRequestPlay', (d) => {
+    on('editorRequestPlay', async (d) => {
       if (gameState.currentPhase === GamePhase.EDITOR && gameState._editorSystem) {
         const customLevelCfg = gameState._editorSystem.getPlayableConfig();
         const activeShipId = customLevelCfg.ship || DEFAULT_SHIP_ID;
@@ -845,7 +860,7 @@ async function boot() {
         emit('showLoading', { title: 'Shipyard: Hull Repair', message: 'Routing to drydock shipyard to repair vessel with allocated budget before sailing...', progress: 0.1 });
         logEvent(`Editor Play -> Shipyard: Vessel [${profile.name}] with repair budget [$${customLevelCfg.budget}]...`);
         gameState._isClearCheckRepair = true;
-        gameState.transition(GamePhase.SHIPYARD, {
+        await gameState.transition(GamePhase.SHIPYARD, {
           shipDef: activeShipDef,
           levelCfg: customLevelCfg,
           fishModels: level.fishModels,
@@ -860,16 +875,7 @@ async function boot() {
     on('editorToggleGodRays', d => {
       godRays.enabled = !!d.enabled;
     });
-    on('editorTogglePaperShader', d => paperShaderEnabled = d.enabled);
-    on('editorSetPaperStyle', d => {
-      userPaperStyle = d.style;
-      paperFilter.setStyle(d.style);
-    });
-    on('editorSetHatchScale', d => paperFilter.setHatchScale(d.scale));
-    on('editorSetKuwaharaRadius', d => paperFilter.setKuwaharaRadius(d.radius));
-    on('editorSetPaperColor', d => paperFilter.setColorPreservation(d.amount));
-    on('editorSetPaperEdge', d => paperFilter.setEdgeThreshold(d.threshold));
-    on('editorSetPaperWobble', d => paperFilter.setWobbleIntensity(d.intensity));
+
 
     on('requestPhaseChange', async (opts) => {
       try {

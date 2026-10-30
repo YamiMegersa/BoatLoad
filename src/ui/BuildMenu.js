@@ -54,15 +54,11 @@ export class BuildMenu {
       this._updateToolButtons();
     };
 
-    this._onEnvModeChanged = ({ isDev }) => {
-      const tweaks = this._el.querySelector('#shipyard-shader-tweaks');
-      if (tweaks) tweaks.style.display = isDev ? 'block' : 'none';
-    };
+
 
     on('budgetChanged', this._onBudgetChanged);
     on('shipyardSummaryUpdated', this._onSummaryUpdated);
     on('mirrorModeChanged', this._onMirrorChanged);
-    on('envModeChanged', this._onEnvModeChanged);
 
     on('uiMount', d => {
       if (d.screen === 'shipyard') {
@@ -203,20 +199,7 @@ export class BuildMenu {
           </div>
         </div>
 
-        <!-- Dev Controls Divider & Group -->
-        <div class="ribbon-divider" style="display: ${GameEnv.isDev() ? 'block' : 'none'};"></div>
-        <div class="ribbon-group" id="shipyard-shader-tweaks" style="display: ${GameEnv.isDev() ? 'flex' : 'none'};">
-          <span class="ribbon-group-label">Shaders (Dev)</span>
-          <div class="ribbon-group-row" style="gap: 8px;">
-            <label style="display:flex; align-items:center; gap:4px; font-size:11px; color:#cbd5e1; cursor:pointer;">
-              <input type="checkbox" id="shipyard-paper-shader-check"> Paper
-            </label>
-            <select id="shipyard-paper-style-select" style="background:#1e293b; color:white; border:1px solid #475569; border-radius:4px; padding:2px 4px; font-size:10px;">
-              <option value="0">Hatching</option>
-              <option value="1">Kuwahara</option>
-            </select>
-          </div>
-        </div>
+
       </section>
     `;
 
@@ -273,20 +256,7 @@ export class BuildMenu {
       emit('undoBuild');
     });
 
-    // Paper shader controls
-    const paperCheck = this._el.querySelector('#shipyard-paper-shader-check');
-    if (paperCheck) {
-      paperCheck.onchange = (e) => {
-        emit('editorTogglePaperShader', { enabled: e.target.checked });
-      };
-    }
 
-    const styleSelect = this._el.querySelector('#shipyard-paper-style-select');
-    if (styleSelect) {
-      styleSelect.onchange = (e) => {
-        emit('editorSetPaperStyle', { style: parseInt(e.target.value, 10) });
-      };
-    }
   }
 
   mount(parent, opts = {}) {

@@ -483,6 +483,43 @@ export class VoxelTerrain {
     }
   }
 
+  async deserializeAsync(data, onProgress = null) {
+    if (!data) return;
+    this.chunks.clear();
+    for (const mesh of this.meshes.values()) {
+      mesh.geometry?.dispose();
+    }
+    this.meshGroup.clear();
+    this.meshes.clear();
+
+    const chunkSource = data.chunks ? data.chunks : data;
+    if (data.biome) {
+      this.biome = data.biome;
+      this.activeBiome = data.biome;
+    }
+    const keys = Object.keys(chunkSource).filter(k => k !== 'biome' && k !== 'chunks');
+    const total = keys.length;
+    let count = 0;
+
+    for (const key of keys) {
+      const chunk = this.decompressChunk(chunkSource[key]);
+      if (!this.isChunkEmpty(chunk)) {
+        this.chunks.set(key, chunk);
+        const [cx, cz] = key.split(',').map(Number);
+        this.updateChunkMesh(cx, cz);
+      }
+      count++;
+      if (onProgress && total > 0) {
+        onProgress(count / total);
+      }
+      // Periodically yield to allow browser layout & paint without freezing UI animations
+      if (count % 2 === 0 || count === total) {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+    }
+  }
+
+
   hasCollision(worldX, worldZ) {
     const wx = Math.floor(worldX);
     const wz = Math.floor(worldZ);
