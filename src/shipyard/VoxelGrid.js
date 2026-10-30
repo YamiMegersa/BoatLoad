@@ -60,6 +60,44 @@ export class VoxelGrid {
 
     /** Set to true when the hull topology changed (cells added/removed from hull). */
     this.topologyDirty = false;
+
+    /** Set of flat indices for cells that were authored/set as damage in the level JSON */
+    this.levelDamageCells = new Set();
+
+    /** Snapshot of cell states before player shipyard modifications */
+    this.initialState = null;
+  }
+
+  /**
+   * Snapshot current grid data as initial/pre-session state.
+   */
+  captureInitialState() {
+    this.initialState = new Uint8Array(this.data);
+  }
+
+  /**
+   * Check if a cell coordinate was marked as authored level damage from level JSON.
+   * @param {number} x
+   * @param {number} [y]
+   * @param {number} [z]
+   * @returns {boolean}
+   */
+  isLevelDamage(x, y, z) {
+    if (!this.levelDamageCells) return false;
+    const idx = (y === undefined && z === undefined) ? x : this.index(x, y, z);
+    return this.levelDamageCells.has(idx);
+  }
+
+  /**
+   * Register a cell as authored level damage from level JSON.
+   * @param {number} x
+   * @param {number} [y]
+   * @param {number} [z]
+   */
+  addLevelDamage(x, y, z) {
+    if (!this.levelDamageCells) this.levelDamageCells = new Set();
+    const idx = (y === undefined && z === undefined) ? x : this.index(x, y, z);
+    this.levelDamageCells.add(idx);
   }
 
   // -------------------------------------------------------------------------

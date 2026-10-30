@@ -61,6 +61,7 @@ export class ChunkRenderer {
 
     this._scene = null;
     this._showMissingOutlines = false;
+    this._filterMissingByLevelDamage = true;
     this._voxel3DTexture = null;
     this._voxelUniforms = null;
   }
@@ -81,6 +82,7 @@ export class ChunkRenderer {
     this._grid = grid;
     this._gltfScene = gltfScene;
     this._showMissingOutlines = options.showMissingOutlines !== undefined ? Boolean(options.showMissingOutlines) : false;
+    this._filterMissingByLevelDamage = options.filterMissingByLevelDamage !== undefined ? Boolean(options.filterMissingByLevelDamage) : true;
 
     if (this._gltfScene) {
       this.container.add(this._gltfScene);
@@ -121,9 +123,12 @@ export class ChunkRenderer {
    *
    * @param {boolean} show
    */
-  setShowMissingOutlines(show) {
+  setShowMissingOutlines(show, filterMissingByLevelDamage = undefined) {
     const shouldShow = Boolean(show);
-    if (this._showMissingOutlines === shouldShow) return;
+    if (filterMissingByLevelDamage !== undefined) {
+      this._filterMissingByLevelDamage = Boolean(filterMissingByLevelDamage);
+    }
+    if (this._showMissingOutlines === shouldShow && filterMissingByLevelDamage === undefined) return;
     this._showMissingOutlines = shouldShow;
     if (!this._showMissingOutlines) {
       for (const [flatIdx, mesh] of this._individualMeshes.entries()) {
@@ -390,13 +395,18 @@ export class ChunkRenderer {
         break;
 
       case CellState.MISSING:
-      case CellState.DAMAGED:
-        if (this._showMissingOutlines) {
+      case CellState.DAMAGED: {
+        const isLevelDamage = grid.isLevelDamage ? grid.isLevelDamage(flatIdx) : false;
+        const shouldShowOutline = this._showMissingOutlines && (
+          !this._filterMissingByLevelDamage || isLevelDamage
+        );
+        if (shouldShowOutline) {
           this._spawnIndividual(grid, x, y, z, flatIdx, missingMaterial, true);
         } else {
           this._removeIndividual(flatIdx);
         }
         break;
+      }
 
       case CellState.FLOODED:
         this._spawnIndividual(grid, x, y, z, flatIdx, floodedMaterial);

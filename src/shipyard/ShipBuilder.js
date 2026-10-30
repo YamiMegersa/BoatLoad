@@ -38,6 +38,7 @@ export class ShipBuilder {
         }
       }
       this._applyDamage(grid, levelCfg);
+      grid.captureInitialState();
       grid.dirtySet.clear();
       grid.topologyDirty = false;
       return { grid, zones: shipDef.zones || {}, def: shipDef, gltfScene: null };
@@ -170,6 +171,7 @@ export class ShipBuilder {
 
     // 2. Apply damage from the level config
     this._applyDamage(grid, levelCfg);
+    grid.captureInitialState();
 
     // 3. Reset tracking flags for the initial render pass
     grid.dirtySet.clear();
@@ -183,6 +185,10 @@ export class ShipBuilder {
   // ---------------------------------------------------------------------------
 
   static _applyDamage(grid, levelCfg) {
+    if (!grid) return;
+    if (grid.levelDamageCells) {
+      grid.levelDamageCells.clear();
+    }
     if (!levelCfg?.damage || !Array.isArray(levelCfg.damage)) return;
     
     const stateMap = {
@@ -195,8 +201,13 @@ export class ShipBuilder {
       if (!entry.cells || !Array.isArray(entry.cells)) continue;
       const targetState = stateMap[entry.state] ?? CellState.DAMAGED;
       for (const [cx, cy, cz] of entry.cells) {
-        if (grid.inBounds(cx, cy, cz) && grid.getState(cx, cy, cz) !== CellState.EMPTY) {
-          grid.setState(cx, cy, cz, targetState);
+        if (grid.inBounds(cx, cy, cz)) {
+          if (grid.getState(cx, cy, cz) !== CellState.EMPTY) {
+            grid.setState(cx, cy, cz, targetState);
+          }
+          if (grid.levelDamageCells) {
+            grid.levelDamageCells.add(grid.index(cx, cy, cz));
+          }
         }
       }
     }

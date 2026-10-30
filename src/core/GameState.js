@@ -1550,7 +1550,7 @@ export class GameState {
           this._scene.add(this._chunkRenderer.container);
         }
       }
-      this._chunkRenderer.setShowMissingOutlines(true);
+      this._chunkRenderer.setShowMissingOutlines(true, true);
       this._chunkRenderer.sync(this._grid);
     } else {
       // Cleanly dispose any existing chunk renderer first so no duplicate/ghost boat remains
@@ -1566,7 +1566,7 @@ export class GameState {
 
       // Chunk renderer - show missing outlines for shipyard repair
       this._chunkRenderer = new ChunkRenderer();
-      this._chunkRenderer.init(grid, this._scene, gltfScene, { showMissingOutlines: true });
+      this._chunkRenderer.init(grid, this._scene, gltfScene, { showMissingOutlines: true, filterMissingByLevelDamage: true });
       this._chunkRenderer.container.position.copy(containerPos);
       this._chunkRenderer.container.rotation.copy(SHIP_MOORED_ROT);
       this._chunkRenderer.container.scale.set(s, s, s);
