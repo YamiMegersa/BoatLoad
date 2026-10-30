@@ -182,7 +182,7 @@ export const CUSTOMER_SCRIPTS = {
     shipName: 'The Black Widow',
     spritePath: 'assets/npc/custom_npc.png',
     complaintShort: `"She needs sorting before Thursday."`,
-    basePay: 900,
+    basePay: 500,
     bio: 'Charming, flirty, and widowed seven times. Every death was an accident.',
     voice: {
       pitch: 1.24,
@@ -204,7 +204,7 @@ export const CUSTOMER_SCRIPTS = {
     customerName: 'Barnacle Bill',
     customerRole: 'Obvious Undercover Admiral',
     shipName: 'The Totally Legitimate Pirate Vessel',
-    spritePath: 'assets/npc/custom_npc.png',
+    spritePath: 'assets/npc/zaeem.png',
     complaintShort: `"She's seen action. From nobody."`,
     basePay: 1200,
     bio: 'Obviously a Navy admiral in a fake beard and a painted pigeon. Everyone in port knows. Nobody says.',

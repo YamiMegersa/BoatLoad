@@ -391,10 +391,11 @@ export class GhostMerchant {
     this.group.add(this.ghostLight);
 
     // 5. Raycasting Hitbox for easy clicking
-    const hitBoxGeo = new THREE.BoxGeometry(0.72, 0.82, 0.72);
+    const hitBoxGeo = new THREE.BoxGeometry(1.6, 2.2, 1.5);
     const hitBoxMat = new THREE.MeshBasicMaterial({ visible: false });
     this.hitBox = new THREE.Mesh(hitBoxGeo, hitBoxMat);
-    this.hitBox.userData = { isGhostMerchant: true, name: 'GhostMerchantHitbox' };
+    this.hitBox.position.set(0, 0.45, 0.25);
+    this.hitBox.userData = { isGhostMerchant: true, noWalk: true, name: 'GhostMerchantHitbox' };
     this.group.add(this.hitBox);
     this.interactables.push(this.hitBox);
   }

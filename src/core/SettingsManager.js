@@ -10,6 +10,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   renderScale: 1.0,       // 0.5, 0.75, 1.0, 1.25
   shadowQuality: 'high',  // 'off', 'low', 'high'
   paperShader: false,     // boolean toggle: Kuwahara painterly filter on/off
+  ditherShader: false,    // boolean toggle: Dithering map filter on/off
   godRays: true,          // boolean
   showFps: true,          // boolean
   autoPerformance: false, // boolean (toggleable in Performance Menu)
@@ -42,6 +43,9 @@ export class SettingsManager {
         this._settings = { ...DEFAULT_SETTINGS, ...parsed };
         if (parsed.paperShader !== undefined) {
           this._settings.paperShader = parsed.paperShader === 'painterly' || parsed.paperShader === true;
+        }
+        if (parsed.ditherShader !== undefined) {
+          this._settings.ditherShader = Boolean(parsed.ditherShader && parsed.ditherShader !== 'off');
         }
       }
     } catch (e) {
@@ -114,6 +118,7 @@ export class SettingsManager {
         this.applyFps();
         break;
       case 'paperShader':
+      case 'ditherShader':
       case 'godRays':
         // Observed directly in main.js render loop via settingsManager.get(...)
         break;

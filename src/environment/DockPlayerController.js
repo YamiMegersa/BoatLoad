@@ -58,7 +58,7 @@ export class DockPlayerController {
     this.downRaycaster = new THREE.Raycaster();
     this.downRaycaster.far = 10.0;
     this.interactRaycaster = new THREE.Raycaster();
-    this.interactRaycaster.far = 6.5;
+    this.interactRaycaster.far = 10.0;
 
     // Mouse & Pointer Lock
     this.isLocked = false;
@@ -93,6 +93,10 @@ export class DockPlayerController {
     // Voxel first-person arms & props
     this.voxelArms = new VoxelArms(this.camera);
 
+    // Mirror-only Pirate Avatar (voxel arms + pirate hat + eyepatch, only visible in mirror reflections)
+    this._mirrorAvatar = this._buildMirrorAvatar();
+    this.camera.add(this._mirrorAvatar);
+
     // Emote Wheel UI
     this.emoteWheel = new EmoteWheelUI({
       onSelect: (emoteId) => this.playEmote(emoteId)
@@ -100,6 +104,312 @@ export class DockPlayerController {
 
     // Event listeners
     this._bindEvents();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Mirror-Only Pirate Avatar Construction
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Builds the mirror-only pirate avatar (pirate hat + eyepatch + head + captain coat + voxel arms).
+   * All meshes are set to layer 1 so they are strictly rendered by mirror reflection cameras
+   * and remain 100% invisible to the player's first-person eye camera (which renders layer 0 only).
+   */
+  _buildMirrorAvatar() {
+    const VOXEL = 0.022; // Matches VoxelArms base voxel unit (2.2cm)
+    const avatarGroup = new THREE.Group();
+    avatarGroup.name = 'MirrorPlayerAvatar';
+
+    // Material caching helper for mirror avatar
+    const matCache = new Map();
+    const getMat = (color, opts = {}) => {
+      const key = `${color}_${opts.roughness ?? 0.85}_${opts.metalness ?? 0.12}_${opts.flatShading ?? true}`;
+      let m = matCache.get(key);
+      if (!m) {
+        m = new THREE.MeshStandardMaterial({
+          color,
+          roughness: opts.roughness ?? 0.85,
+          metalness: opts.metalness ?? 0.12,
+          flatShading: true
+        });
+        matCache.set(key, m);
+      }
+      return m;
+    };
+
+    const mats = {
+      skin: getMat(0xd69974), // Warm pirate skin tone
+      sleeve: getMat(0x1c2b3c), // Navy blue captain's coat (matches VoxelArms)
+      sleeveStripe: getMat(0xded8c8), // Cream cuff stripe & cravat (matches VoxelArms)
+      brass: getMat(0xc8a44b, { roughness: 0.35, metalness: 0.75 }), // Polished gold / brass
+      darkFelt: getMat(0x16161a, { roughness: 0.95 }), // Tricorn felt
+      hatGoldTrim: getMat(0xd4af37, { roughness: 0.4, metalness: 0.6 }), // Gold braid
+      feather: getMat(0xbe123c, { roughness: 0.8 }), // Crimson plume / cockade
+      leather: getMat(0x1a1a1e, { roughness: 0.85 }), // Black leather eyepatch & straps
+      hair: getMat(0x28180c, { roughness: 0.9 }), // Dark pirate locks, mustache & stubble
+      eyeWhite: getMat(0xf8fafc, { roughness: 0.5 }), // Right eye sclera
+      iris: getMat(0x1d4ed8, { roughness: 0.4 }), // Deep blue iris
+      pupil: getMat(0x0f172a, { roughness: 0.9 }) // Pupil
+    };
+
+    const createBox = (w, h, d, mat) => {
+      return new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    };
+
+    // ----------------------------------------------------
+    // 1. HEAD & FACE RIG (Eyes, Eyepatch, Hat, Hair, Stubble)
+    // ----------------------------------------------------
+    const headGroup = new THREE.Group();
+    headGroup.name = 'MirrorAvatarHead';
+    avatarGroup.add(headGroup);
+    this._mirrorHead = headGroup;
+
+    // Head base block: centered slightly back (+Z) from eye center at z=0
+    const headBase = createBox(7.8 * VOXEL, 8.4 * VOXEL, 7.8 * VOXEL, mats.skin);
+    headBase.position.set(0, -0.4 * VOXEL, 1.4 * VOXEL);
+    headGroup.add(headBase);
+
+    // Right Eye (Open, looking forward)
+    const rightEyeSclera = createBox(1.7 * VOXEL, 1.1 * VOXEL, 0.4 * VOXEL, mats.eyeWhite);
+    rightEyeSclera.position.set(1.9 * VOXEL, 0.3 * VOXEL, -2.5 * VOXEL);
+    headGroup.add(rightEyeSclera);
+
+    const rightEyeIris = createBox(0.9 * VOXEL, 0.9 * VOXEL, 0.5 * VOXEL, mats.iris);
+    rightEyeIris.position.set(1.9 * VOXEL, 0.3 * VOXEL, -2.7 * VOXEL);
+    headGroup.add(rightEyeIris);
+
+    const rightEyePupil = createBox(0.45 * VOXEL, 0.45 * VOXEL, 0.55 * VOXEL, mats.pupil);
+    rightEyePupil.position.set(1.9 * VOXEL, 0.3 * VOXEL, -2.8 * VOXEL);
+    headGroup.add(rightEyePupil);
+
+    const rightEyebrow = createBox(2.2 * VOXEL, 0.5 * VOXEL, 0.6 * VOXEL, mats.hair);
+    rightEyebrow.position.set(1.9 * VOXEL, 1.2 * VOXEL, -2.6 * VOXEL);
+    headGroup.add(rightEyebrow);
+
+    // Left Eye: Authentic Pirate Eyepatch
+    const eyepatch = createBox(2.8 * VOXEL, 2.6 * VOXEL, 0.8 * VOXEL, mats.leather);
+    eyepatch.position.set(-1.9 * VOXEL, 0.2 * VOXEL, -2.6 * VOXEL);
+    headGroup.add(eyepatch);
+
+    // Golden Jolly Roger / skull rivet stud in center of eyepatch
+    const patchStud = createBox(0.8 * VOXEL, 0.8 * VOXEL, 0.8 * VOXEL, mats.brass);
+    patchStud.position.set(-1.9 * VOXEL, 0.2 * VOXEL, -3.1 * VOXEL);
+    headGroup.add(patchStud);
+
+    // Diagonal forehead strap running from patch up to right temple
+    const strapDiag = createBox(4.5 * VOXEL, 0.35 * VOXEL, 0.35 * VOXEL, mats.leather);
+    strapDiag.position.set(0.4 * VOXEL, 1.2 * VOXEL, -2.5 * VOXEL);
+    strapDiag.rotation.z = 0.38;
+    headGroup.add(strapDiag);
+
+    // Horizontal strap around left temple
+    const strapSide = createBox(0.35 * VOXEL, 0.35 * VOXEL, 6.2 * VOXEL, mats.leather);
+    strapSide.position.set(-4.0 * VOXEL, 0.2 * VOXEL, 1.2 * VOXEL);
+    headGroup.add(strapSide);
+
+    // 3D Voxel Nose
+    const nose = createBox(1.2 * VOXEL, 1.4 * VOXEL, 1.2 * VOXEL, mats.skin);
+    nose.position.set(0, -0.6 * VOXEL, -2.9 * VOXEL);
+    headGroup.add(nose);
+
+    // Pirate Mustache & Stubble / Beard
+    const mustacheCenter = createBox(3.6 * VOXEL, 0.8 * VOXEL, 0.8 * VOXEL, mats.hair);
+    mustacheCenter.position.set(0, -1.6 * VOXEL, -2.7 * VOXEL);
+    headGroup.add(mustacheCenter);
+
+    const mustacheLeft = createBox(0.8 * VOXEL, 1.2 * VOXEL, 0.7 * VOXEL, mats.hair);
+    mustacheLeft.position.set(-1.6 * VOXEL, -2.2 * VOXEL, -2.6 * VOXEL);
+    headGroup.add(mustacheLeft);
+
+    const mustacheRight = createBox(0.8 * VOXEL, 1.2 * VOXEL, 0.7 * VOXEL, mats.hair);
+    mustacheRight.position.set(1.6 * VOXEL, -2.2 * VOXEL, -2.6 * VOXEL);
+    headGroup.add(mustacheRight);
+
+    const beardChin = createBox(3.0 * VOXEL, 1.6 * VOXEL, 0.9 * VOXEL, mats.hair);
+    beardChin.position.set(0, -3.8 * VOXEL, -2.2 * VOXEL);
+    headGroup.add(beardChin);
+
+    // Dark Pirate Hair Locks (Sideburns & Back Hair)
+    const hairLeft = createBox(1.0 * VOXEL, 3.5 * VOXEL, 1.8 * VOXEL, mats.hair);
+    hairLeft.position.set(-4.0 * VOXEL, -1.8 * VOXEL, 0.5 * VOXEL);
+    headGroup.add(hairLeft);
+
+    const hairRight = createBox(1.0 * VOXEL, 3.5 * VOXEL, 1.8 * VOXEL, mats.hair);
+    hairRight.position.set(4.0 * VOXEL, -1.8 * VOXEL, 0.5 * VOXEL);
+    headGroup.add(hairRight);
+
+    const hairBack = createBox(7.6 * VOXEL, 4.5 * VOXEL, 1.2 * VOXEL, mats.hair);
+    hairBack.position.set(0, -1.8 * VOXEL, 5.2 * VOXEL);
+    headGroup.add(hairBack);
+
+    // ----------------------------------------------------
+    // Authentic Pirate Tricorn Hat
+    // ----------------------------------------------------
+    const hatGroup = new THREE.Group();
+    hatGroup.name = 'PirateTricornHat';
+    headGroup.add(hatGroup);
+
+    // Tricorn Crown
+    const hatCrown = createBox(9.2 * VOXEL, 4.2 * VOXEL, 9.2 * VOXEL, mats.darkFelt);
+    hatCrown.position.set(0, 5.2 * VOXEL, 1.4 * VOXEL);
+    hatGroup.add(hatCrown);
+
+    // Tricorn Brim Base
+    const hatBrim = createBox(16.5 * VOXEL, 0.7 * VOXEL, 16.5 * VOXEL, mats.darkFelt);
+    hatBrim.position.set(0, 4.0 * VOXEL, 1.4 * VOXEL);
+    hatGroup.add(hatBrim);
+
+    // Three Swept-up Tricorn Flaps (Front-Left, Front-Right, Back)
+    const flapFL = createBox(0.7 * VOXEL, 4.8 * VOXEL, 9.5 * VOXEL, mats.darkFelt);
+    flapFL.position.set(-6.2 * VOXEL, 6.2 * VOXEL, -1.5 * VOXEL);
+    flapFL.rotation.z = -0.52;
+    flapFL.rotation.y = 0.5;
+    hatGroup.add(flapFL);
+
+    const flapFR = createBox(0.7 * VOXEL, 4.8 * VOXEL, 9.5 * VOXEL, mats.darkFelt);
+    flapFR.position.set(6.2 * VOXEL, 6.2 * VOXEL, -1.5 * VOXEL);
+    flapFR.rotation.z = 0.52;
+    flapFR.rotation.y = -0.5;
+    hatGroup.add(flapFR);
+
+    const flapBack = createBox(11.5 * VOXEL, 4.8 * VOXEL, 0.7 * VOXEL, mats.darkFelt);
+    flapBack.position.set(0, 6.2 * VOXEL, 7.2 * VOXEL);
+    flapBack.rotation.x = -0.52;
+    hatGroup.add(flapBack);
+
+    // Gold Braided Trim along upper edges of all 3 flaps
+    const trimFL = createBox(0.8 * VOXEL, 0.6 * VOXEL, 9.8 * VOXEL, mats.hatGoldTrim);
+    trimFL.position.set(-7.2 * VOXEL, 8.4 * VOXEL, -1.5 * VOXEL);
+    trimFL.rotation.z = -0.52;
+    trimFL.rotation.y = 0.5;
+    hatGroup.add(trimFL);
+
+    const trimFR = createBox(0.8 * VOXEL, 0.6 * VOXEL, 9.8 * VOXEL, mats.hatGoldTrim);
+    trimFR.position.set(7.2 * VOXEL, 8.4 * VOXEL, -1.5 * VOXEL);
+    trimFR.rotation.z = 0.52;
+    trimFR.rotation.y = -0.5;
+    hatGroup.add(trimFR);
+
+    const trimBack = createBox(11.8 * VOXEL, 0.6 * VOXEL, 0.8 * VOXEL, mats.hatGoldTrim);
+    trimBack.position.set(0, 8.4 * VOXEL, 8.2 * VOXEL);
+    trimBack.rotation.x = -0.52;
+    hatGroup.add(trimBack);
+
+    // Crimson Feather Plume & Gold Anchor Cockade Pin on Left Flap
+    const plume = createBox(0.5 * VOXEL, 5.5 * VOXEL, 1.4 * VOXEL, mats.feather);
+    plume.position.set(-6.8 * VOXEL, 7.8 * VOXEL, -1.0 * VOXEL);
+    plume.rotation.z = -0.28;
+    plume.rotation.y = 0.4;
+    hatGroup.add(plume);
+
+    const cockadePin = createBox(0.6 * VOXEL, 1.0 * VOXEL, 1.0 * VOXEL, mats.brass);
+    cockadePin.position.set(-7.0 * VOXEL, 5.5 * VOXEL, -1.0 * VOXEL);
+    hatGroup.add(cockadePin);
+
+    // ----------------------------------------------------
+    // 2. TORSO & COAT RIG (Navy Captain's Coat & Cravat)
+    // ----------------------------------------------------
+    const bodyGroup = new THREE.Group();
+    bodyGroup.name = 'MirrorAvatarBody';
+    avatarGroup.add(bodyGroup);
+    this._mirrorBody = bodyGroup;
+
+    // Popped High Collar
+    const collarBack = createBox(8.5 * VOXEL, 2.5 * VOXEL, 0.8 * VOXEL, mats.sleeve);
+    collarBack.position.set(0, -4.8 * VOXEL, 4.8 * VOXEL);
+    bodyGroup.add(collarBack);
+
+    const collarLeft = createBox(0.8 * VOXEL, 2.5 * VOXEL, 5.0 * VOXEL, mats.sleeve);
+    collarLeft.position.set(-4.2 * VOXEL, -4.8 * VOXEL, 2.4 * VOXEL);
+    bodyGroup.add(collarLeft);
+
+    const collarRight = createBox(0.8 * VOXEL, 2.5 * VOXEL, 5.0 * VOXEL, mats.sleeve);
+    collarRight.position.set(4.2 * VOXEL, -4.8 * VOXEL, 2.4 * VOXEL);
+    bodyGroup.add(collarRight);
+
+    // Main Frock Coat Torso
+    const coatTorso = createBox(13.5 * VOXEL, 18.0 * VOXEL, 7.5 * VOXEL, mats.sleeve);
+    coatTorso.position.set(0, -14.0 * VOXEL, 1.2 * VOXEL);
+    bodyGroup.add(coatTorso);
+
+    // Cream Ruffled Cravat / Shirt Front
+    const cravat = createBox(3.2 * VOXEL, 12.0 * VOXEL, 0.6 * VOXEL, mats.sleeveStripe);
+    cravat.position.set(0, -11.5 * VOXEL, -2.6 * VOXEL);
+    bodyGroup.add(cravat);
+
+    // Double-breasted Polished Brass Buttons
+    [-1.8 * VOXEL, 1.8 * VOXEL].forEach(bx => {
+      [-8.0 * VOXEL, -11.0 * VOXEL, -14.0 * VOXEL].forEach(by => {
+        const button = createBox(0.7 * VOXEL, 0.7 * VOXEL, 0.5 * VOXEL, mats.brass);
+        button.position.set(bx, by, -2.6 * VOXEL);
+        bodyGroup.add(button);
+      });
+    });
+
+    // Cross-body Leather Baldric Sash
+    const baldric = createBox(2.2 * VOXEL, 20.0 * VOXEL, 0.6 * VOXEL, mats.leather);
+    baldric.position.set(0, -14.0 * VOXEL, -2.7 * VOXEL);
+    baldric.rotation.z = 0.38;
+    bodyGroup.add(baldric);
+
+    const baldricBuckle = createBox(2.4 * VOXEL, 2.4 * VOXEL, 0.6 * VOXEL, mats.brass);
+    baldricBuckle.position.set(0, -13.5 * VOXEL, -2.9 * VOXEL);
+    bodyGroup.add(baldricBuckle);
+
+    // ----------------------------------------------------
+    // 3. RESTING VOXEL ARMS (Shown when player is not emoting)
+    // ----------------------------------------------------
+    const idleArmsGroup = new THREE.Group();
+    idleArmsGroup.name = 'MirrorAvatarIdleArms';
+    bodyGroup.add(idleArmsGroup);
+    this._mirrorIdleArms = idleArmsGroup;
+
+    // Left Arm (Sleeve + Cream Stripe Cuff + Skin Hand)
+    const leftUpperArm = createBox(3.0 * VOXEL, 7.0 * VOXEL, 3.0 * VOXEL, mats.sleeve);
+    leftUpperArm.position.set(-8.2 * VOXEL, -10.5 * VOXEL, 1.0 * VOXEL);
+    idleArmsGroup.add(leftUpperArm);
+
+    const leftForearm = createBox(2.8 * VOXEL, 6.5 * VOXEL, 2.8 * VOXEL, mats.sleeve);
+    leftForearm.position.set(-8.0 * VOXEL, -16.5 * VOXEL, 0.4 * VOXEL);
+    idleArmsGroup.add(leftForearm);
+
+    const leftCuff = createBox(3.0 * VOXEL, 1.2 * VOXEL, 3.0 * VOXEL, mats.sleeveStripe);
+    leftCuff.position.set(-8.0 * VOXEL, -19.2 * VOXEL, 0.4 * VOXEL);
+    idleArmsGroup.add(leftCuff);
+
+    const leftHand = createBox(2.6 * VOXEL, 2.4 * VOXEL, 2.4 * VOXEL, mats.skin);
+    leftHand.position.set(-8.0 * VOXEL, -20.8 * VOXEL, 0.4 * VOXEL);
+    idleArmsGroup.add(leftHand);
+
+    // Right Arm (Sleeve + Cream Stripe Cuff + Skin Hand)
+    const rightUpperArm = createBox(3.0 * VOXEL, 7.0 * VOXEL, 3.0 * VOXEL, mats.sleeve);
+    rightUpperArm.position.set(8.2 * VOXEL, -10.5 * VOXEL, 1.0 * VOXEL);
+    idleArmsGroup.add(rightUpperArm);
+
+    const rightForearm = createBox(2.8 * VOXEL, 6.5 * VOXEL, 2.8 * VOXEL, mats.sleeve);
+    rightForearm.position.set(8.0 * VOXEL, -16.5 * VOXEL, 0.4 * VOXEL);
+    idleArmsGroup.add(rightForearm);
+
+    const rightCuff = createBox(3.0 * VOXEL, 1.2 * VOXEL, 3.0 * VOXEL, mats.sleeveStripe);
+    rightCuff.position.set(8.0 * VOXEL, -19.2 * VOXEL, 0.4 * VOXEL);
+    idleArmsGroup.add(rightCuff);
+
+    const rightHand = createBox(2.6 * VOXEL, 2.4 * VOXEL, 2.4 * VOXEL, mats.skin);
+    rightHand.position.set(8.0 * VOXEL, -20.8 * VOXEL, 0.4 * VOXEL);
+    idleArmsGroup.add(rightHand);
+
+    // CRITICAL: Set all avatar meshes to Layer 1 exclusively!
+    // Layer 0 is the default main camera view. By setting to Layer 1, the avatar is
+    // completely invisible to the player camera, but rendered by mirror reflection cameras!
+    avatarGroup.traverse((child) => {
+      if (child.isMesh) {
+        child.layers.set(1);
+        child.castShadow = false;
+        child.receiveShadow = false;
+      }
+    });
+
+    return avatarGroup;
   }
 
   // ---------------------------------------------------------------------------
@@ -216,7 +526,8 @@ export class DockPlayerController {
     this.domElement.addEventListener('pointerdown', this._onPointerDown);
 
     this.dialogueActive = false;
-    this._onShowDialogue = () => {
+    this._onShowDialogue = (d) => {
+      if (!(d?.dialogue || d?.lines)) return;
       this.dialogueActive = true;
       this.keys.forward = false;
       this.keys.backward = false;
@@ -273,7 +584,7 @@ export class DockPlayerController {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     if (this.mode === 'cutscene') return;
     if (this._tutorialPopupEl) return;
-    if (this.dialogueActive || document.getElementById('dialogue-box')) return;
+    if (this.dialogueActive || document.getElementById('dialogue-box') || document.getElementById('deadly-business-modal')) return;
 
     switch (e.code) {
       case 'KeyW':
@@ -359,7 +670,7 @@ export class DockPlayerController {
   _onMouseMove(e) {
     if (this.mode === 'cutscene') return;
     if (this._tutorialPopupEl) return;
-    if (this.dialogueActive || document.getElementById('dialogue-box')) return;
+    if (this.dialogueActive || document.getElementById('dialogue-box') || document.getElementById('deadly-business-modal')) return;
     if (this.isLocked) {
       const movementX = e.movementX || 0;
       const movementY = e.movementY || 0;
@@ -384,7 +695,7 @@ export class DockPlayerController {
     if (this.mode === 'cutscene') return;
     if (this._tutorialPopupEl) return;
     if (this.emoteWheel && this.emoteWheel.isOpen) return;
-    if (this.dialogueActive || document.getElementById('dialogue-box')) return;
+    if (this.dialogueActive || document.getElementById('dialogue-box') || document.getElementById('deadly-business-modal')) return;
 
     if (this.hoveredCrab) {
       this._interactWithCrab();
@@ -735,6 +1046,10 @@ export class DockPlayerController {
       this._cutsceneOverlay = null;
     }
     this._cutsceneActive = false;
+    if (this._cleanupWakeupInput) {
+      this._cleanupWakeupInput();
+      this._cleanupWakeupInput = null;
+    }
     this.mode = 'player';
     if (this.crosshair) this.crosshair.style.display = 'block';
     if (this.instructions) this.instructions.style.display = 'flex';
@@ -769,6 +1084,10 @@ export class DockPlayerController {
       this._cutsceneOverlay = null;
     }
     this._cutsceneActive = false;
+    if (this._cleanupWakeupInput) {
+      this._cleanupWakeupInput();
+      this._cleanupWakeupInput = null;
+    }
     this.mode = 'player';
     this.tutorialActive = false;
     this.tutorialStep = null;
@@ -849,7 +1168,7 @@ export class DockPlayerController {
     const overlay = document.createElement('div');
     overlay.id = 'day0-cutscene-overlay';
     overlay.style.cssText = `
-      position: fixed; inset: 0; z-index: 250;
+      position: fixed; inset: 0; z-index: 500;
       pointer-events: auto; user-select: none; overflow: hidden;
       display: flex; align-items: center; justify-content: center;
     `;
@@ -1058,6 +1377,20 @@ const beginWakeupBlink = () => {
   }, 5400);
 
   this._cutsceneTimeouts.push(t1, t2, t3, t4);
+
+  const onSkipWakeup = (e) => {
+    if (e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape') {
+      if (this._cleanupWakeupInput) {
+        this._cleanupWakeupInput();
+        this._cleanupWakeupInput = null;
+      }
+      this._cutsceneTimer = this._cutsceneKeyframes[this._cutsceneKeyframes.length - 1].t;
+    }
+  };
+  window.addEventListener('keydown', onSkipWakeup);
+  this._cleanupWakeupInput = () => {
+    window.removeEventListener('keydown', onSkipWakeup);
+  };
 };
 
 showCurrentCard(300);
@@ -1071,6 +1404,10 @@ _clearCutsceneTimers() {
   if (this._cleanupPremiseInput) {
     this._cleanupPremiseInput();
     this._cleanupPremiseInput = null;
+  }
+  if (this._cleanupWakeupInput) {
+    this._cleanupWakeupInput();
+    this._cleanupWakeupInput = null;
   }
 }
 
@@ -1089,6 +1426,10 @@ _updateCutscene(delta) {
     this.camera.rotation.z = 0;
 
     this._cutsceneActive = false;
+    if (this._cleanupWakeupInput) {
+      this._cleanupWakeupInput();
+      this._cleanupWakeupInput = null;
+    }
     this.mode = 'player';
     if (this.crosshair) this.crosshair.style.display = 'block';
     if (this.instructions) this.instructions.style.display = 'flex';
@@ -1267,6 +1608,10 @@ update(delta) {
     if (this.voxelArms) {
       this.voxelArms.update(delta);
     }
+    if (this._mirrorIdleArms) {
+      const isEmoting = !!(this.voxelArms && this.voxelArms.isEmoting);
+      this._mirrorIdleArms.visible = !isEmoting;
+    }
     return;
   }
 
@@ -1291,6 +1636,16 @@ update(delta) {
 
   if (this.voxelArms) {
     this.voxelArms.update(delta);
+  }
+
+  // Synchronize mirror avatar arms & posture
+  if (this._mirrorIdleArms) {
+    const isEmoting = !!(this.voxelArms && this.voxelArms.isEmoting);
+    this._mirrorIdleArms.visible = !isEmoting;
+  }
+  if (this._mirrorBody && this.pitchObject) {
+    this._mirrorBody.rotation.x = -this.pitchObject.rotation.x * 0.7;
+    this._mirrorBody.position.z = Math.sin(this.pitchObject.rotation.x) * 0.044;
   }
 }
 
@@ -1470,7 +1825,7 @@ _getGroundHeightAt(x, z) {
 }
 
 _updateInteractionRaycast() {
-  if (this.dialogueActive || document.getElementById('dialogue-box')) {
+  if (this.dialogueActive || document.getElementById('dialogue-box') || document.getElementById('deadly-business-modal')) {
     this._setHoverState(null);
     return;
   }
@@ -1564,7 +1919,7 @@ _updateInteractionRaycast() {
             return;
           }
         } else if (hit.object.userData.isGhostMerchant) {
-          if (hit.distance <= 7.5 * this.scale) {
+          if (hit.distance <= 10.0 * this.scale) {
             this._setHoverState(hit.object, 'ghost');
             return;
           }
@@ -1618,7 +1973,7 @@ _setHoverState(obj, type = null) {
         this.prompt.innerHTML = `<span class="pixel-icon icon-map-maker-scroll size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Read Divorce Papers`;
       }
     } else if (type === 'ghost') {
-      if (this.tutorialActive && this.tutorialStep !== 'PRACTICE_SHIP') {
+      if (this.tutorialActive && this.tutorialStep !== 'PRACTICE_SHIP' && this.tutorialStep !== 'VISIT_SHIPYARD') {
         this.prompt.innerHTML = `🔒 <span style="color:#ff9b94;">Complete Harbor Tour First</span>`;
       } else {
         this.prompt.innerHTML = `<span class="pixel-icon icon-phantom-ghost size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click Ghost to Barter Wares`;
@@ -1672,7 +2027,7 @@ _setHoverState(obj, type = null) {
 }
 
 _interactWithGhost() {
-  if (this.tutorialActive && this.tutorialStep !== 'PRACTICE_SHIP') {
+  if (this.tutorialActive && this.tutorialStep !== 'PRACTICE_SHIP' && this.tutorialStep !== 'VISIT_SHIPYARD') {
     emit('playSound', { sound: 'qte_fail' });
     this.showLockedHint('🔒 <b>Ghost Merchant Locked:</b> Complete your harbor tour first! Check the instruction at the top.');
     return;
@@ -1685,23 +2040,25 @@ _interactWithGhost() {
   if (!this._hasSeenGhostTutorial) {
     this._hasSeenGhostTutorial = true;
     emit('showDialogue', {
-      id: 'ghost_merchant_intro',
-      portrait: '<span class="pixel-icon icon-phantom-ghost size-48"></span>',
-      name: 'Barnaby • The Phantom Outfitter',
-      lines: [
-        'Hsssh... greetings, mortal shipwright. Welcome to Deadly Business.',
-        'Out in the deep channels, plain timber alone will not save thee from crushing reefs, siren tempests, or the beasts below.',
-        'Bring me the Doubloons you salvage and earn from your voyages, and I shall outfit your fleet with spectral relics: ornate steering wheels, solid brass pedestals, and enchanted ward lanterns.',
-        'Each piece is yours forever once purchased. Equip and swap them at leisure to enhance your ship. Look upon my wares...'
-      ],
-      voice: {
-        pitch: 0.65,
-        pitchVariance: 0.05,
-        charIntervalMs: 38,
-        syllableStep: 2
-      },
-      onComplete: () => {
-        emit('openShopUI');
+      dialogue: {
+        id: 'ghost_merchant_intro',
+        portrait: '<span class="pixel-icon icon-phantom-ghost size-48"></span>',
+        name: 'Barnaby • The Phantom Outfitter',
+        lines: [
+          'Hsssh... greetings, mortal shipwright. Welcome to Deadly Business.',
+          'Out in the deep channels, plain timber alone will not save thee from crushing reefs, siren tempests, or the beasts below.',
+          'Bring me the Doubloons you salvage and earn from your voyages, and I shall outfit your fleet with spectral relics: ornate steering wheels, solid brass pedestals, and enchanted ward lanterns.',
+          'Each piece is yours forever once purchased. Equip and swap them at leisure to enhance your ship. Look upon my wares...'
+        ],
+        voice: {
+          pitch: 0.65,
+          pitchVariance: 0.05,
+          charIntervalMs: 38,
+          syllableStep: 2
+        },
+        onComplete: () => {
+          emit('openShopUI');
+        }
       }
     });
     return;
@@ -1735,6 +2092,25 @@ dispose() {
   if (this.voxelArms) {
     this.voxelArms.dispose();
     this.voxelArms = null;
+  }
+
+  if (this._mirrorAvatar) {
+    if (this._mirrorAvatar.parent) {
+      this._mirrorAvatar.parent.remove(this._mirrorAvatar);
+    }
+    this._mirrorAvatar.traverse(child => {
+      if (child.isMesh) {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) {
+          if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+          else child.material.dispose();
+        }
+      }
+    });
+    this._mirrorAvatar = null;
+    this._mirrorIdleArms = null;
+    this._mirrorBody = null;
+    this._mirrorHead = null;
   }
 
   if (this.emoteWheel) {

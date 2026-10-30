@@ -89,18 +89,17 @@ const LEVELS = [
   {
     day: 5,
     name: `Day 5: ${CUSTOMER_SCRIPTS[5].shipName}`,
-    icon: '<span class="pixel-icon icon-ocean-wave size-20"></span>',
+    icon: '<span class="pixel-icon icon-frigate size-20"></span>',
     meta: `${CUSTOMER_SCRIPTS[5].customerName} • <span class="pixel-icon icon-doubloon size-14"></span> ${CUSTOMER_SCRIPTS[5].basePay}`,
     customer: `${CUSTOMER_SCRIPTS[5].customerName} (${CUSTOMER_SCRIPTS[5].customerRole})`,
     vessel: CUSTOMER_SCRIPTS[5].shipName,
-    weather: '<span class="pixel-icon icon-ocean-wave size-16"></span> Heavy Squall &amp; Torrential Rain',
+    weather: '<span class="pixel-icon icon-dusk-sunset size-16"></span> Golden Sunset &amp; Fair Breeze',
     budget: `<span class="pixel-icon icon-doubloon size-16"></span> ${CUSTOMER_SCRIPTS[5].basePay} Doubloons`,
-    hazard: 'Extreme (Abyssal Currents &amp; Sea Beasts)',
+    hazard: 'Extreme (Whirlpools, Sirens &amp; Powder Kegs)',
     dispatch: `${CUSTOMER_SCRIPTS[5].complaintShort} — "${CUSTOMER_SCRIPTS[5].lines[1]} ${CUSTOMER_SCRIPTS[5].lines[2]}"`,
     docket: [
       { icon: '<span class="pixel-icon icon-hammer size-18"></span>', text: '<strong>Patch Hull Breaches</strong> (Hammer &amp; Planks)' },
-      { icon: '<span class="pixel-icon icon-sail-needle size-18"></span>', text: '<strong>Mend Torn Sail Cloth</strong> (Sailmaker Needle)' },
-      { icon: '<span class="pixel-icon icon-rope-knot size-18"></span>', text: '<strong>Reinforce Cracked Mast</strong> (Hemp Rope)' }
+      { icon: '<span class="pixel-icon icon-hammer size-18"></span>', text: '<strong>Repair Deck Planking</strong> (Hammer &amp; Planks)' }
     ]
   },
   {

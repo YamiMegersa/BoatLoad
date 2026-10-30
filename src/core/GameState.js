@@ -446,11 +446,11 @@ export class GameState {
 
     // 3. Incurred Voyage Damage Penalty
     let damageDiff = 0;
-    if (this._grid) {
-      const currentIntact = DamageSystem.getSummary(this._grid).intact;
-      if (this._sailInitialIntactCount !== null && this._sailInitialIntactCount !== undefined) {
-        damageDiff = Math.max(0, this._sailInitialIntactCount - currentIntact);
-      }
+    const currentIntact = this._grid
+      ? DamageSystem.getSummary(this._grid).intact
+      : this._sailFinalIntactCount;
+    if (currentIntact !== null && currentIntact !== undefined && this._sailInitialIntactCount !== null && this._sailInitialIntactCount !== undefined) {
+      damageDiff = Math.max(0, this._sailInitialIntactCount - currentIntact);
     }
     const VOXEL_DAMAGE_RATE = 8;
     const voxelDamageCost = isPracticeRun ? 0 : (damageDiff * VOXEL_DAMAGE_RATE);
@@ -593,13 +593,19 @@ export class GameState {
    * @param {boolean} [force]   Force transition even if newPhase === currentPhase
    */
   async transition(newPhase, opts = {}, force = false) {
-    if (this.currentPhase === newPhase && !force) {
-      emit('hideLoading');
+    if ((this.currentPhase === newPhase || this.nextPhase === newPhase) && !force) {
+      if (this.currentPhase === newPhase) {
+        emit('hideLoading');
+      }
       return;
     }
 
     const txId = (this._transitionGen = (this._transitionGen || 0) + 1);
-    const skipLoading = opts?.skipLoading || false;
+    this.nextPhase = newPhase;
+    const skipLoading = Boolean(opts?.skipLoading || newPhase === GamePhase.RESULTS);
+    if (newPhase === GamePhase.RESULTS) {
+      emit('hideLoading', { immediate: true });
+    }
     if (!skipLoading) {
       const titles = {
         [GamePhase.DOCK]: 'Mooring at Harbor',
@@ -667,14 +673,14 @@ export class GameState {
       this._startAnchorCountdownSequence();
     }
 
-    // Ensure the 3D scene renders cleanly with character and camera in place before revealing
-    await new Promise(resolve => {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(resolve);
-      });
-    });
-
     if (!skipLoading) {
+      // Ensure the 3D scene renders cleanly with character and camera in place before revealing
+      await new Promise(resolve => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(resolve);
+        });
+      });
+
       emit('updateLoading', { progress: 1.0, message: 'Ready to cast off!' });
     }
 
@@ -895,7 +901,9 @@ export class GameState {
 
       case GamePhase.OBSTACLE:
         if (this._dockStall && this._hasDock) this._dockStall.update(delta, this._time);
-        this._updateObstacle(delta);
+        if (!this.nextPhase) {
+          this._updateObstacle(delta);
+        }
         break;
 
       case GamePhase.EDITOR:
@@ -998,6 +1006,9 @@ export class GameState {
   // =========================================================================
 
   async _enterDock(opts) {
+    this._isEditorPlay = false;
+    this._isClearCheckRepair = false;
+    this._editorPlayLevelCfg = null;
     if (opts?.shipDef) this._shipDef = opts.shipDef;
     if (opts?.levelCfg) this._levelCfg = opts.levelCfg;
     if (opts?.day !== undefined) this.day = opts.day;
@@ -1175,7 +1186,6 @@ export class GameState {
             this._dockPlayerController.startDay0OpeningCutscene(() => {
               this._hasCompletedDay0Cutscene = true;
             });
-            this._hasCompletedDay0Cutscene = true;
           }
         } else if (this._dockPlayerController) {
           this._dockPlayerController.resumeDay0AtDock();
@@ -1415,7 +1425,7 @@ export class GameState {
 
     emit('uiMount', { screen: 'dock', dockStall: this._dockStall, gameState: this, dockPlayerController: this._dockPlayerController });
 
-    if (opts?.day !== undefined) {
+    if (opts?.day !== undefined && opts.day !== 0) {
       setTimeout(() => {
         if (this._startLevelCutscene) this._startLevelCutscene();
       }, 400);
@@ -1433,7 +1443,6 @@ export class GameState {
         this._dockPlayerController.startDay0OpeningCutscene(() => {
           this._hasCompletedDay0Cutscene = true;
         });
-        this._hasCompletedDay0Cutscene = true;
       } else {
         this._dockPlayerController.resumeDay0AtDock();
       }
@@ -1505,6 +1514,9 @@ export class GameState {
 
   async _enterMainMenu(opts) {
     this.activeCamera = null;
+    this._isEditorPlay = false;
+    this._isClearCheckRepair = false;
+    this._editorPlayLevelCfg = null;
     this._hasCompletedDay0Cutscene = false;
     if (opts?.shipDef) this._shipDef = opts.shipDef;
     if (opts?.levelCfg) this._levelCfg = opts.levelCfg;
@@ -1591,7 +1603,7 @@ export class GameState {
 
   async _enterShipyard({ shipDef, levelCfg, fishModels, forceNew = false, isEditorPlay = false, isClearCheck = false } = {}) {
     this._levelCfg = levelCfg || this._levelCfg;
-    this._isEditorPlay = isEditorPlay || this._isEditorPlay || false;
+    this._isEditorPlay = Boolean(isEditorPlay);
     this._isClearCheckRepair = Boolean(isClearCheck);
     if (this._ocean) {
       this._ocean.setWorldSize(this._levelCfg?.worldSize || 200);
@@ -1999,6 +2011,8 @@ export class GameState {
   async _enterObstacle({ shipDef, levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel, isEditorPlay, isCommunity, course }) {
     this._levelCfg = levelCfg;
     this._obstacleOpts = { shipDef, levelCfg, shipStats, rockModels, fishModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, krakenModel, isEditorPlay, isCommunity, course };
+    this._goalReached = false;
+    this._sailFinalIntactCount = null;
     if (isEditorPlay !== undefined) {
       this._isEditorPlay = Boolean(isEditorPlay);
     }
@@ -2716,6 +2730,7 @@ export class GameState {
       });
 
       if (dist <= (this._endLocation.radius || 16) + 2.0) {
+        if (this._goalReached || this.nextPhase) return;
         const krakenUndefeated = this._krakenBoss && (typeof this._krakenBoss.isDefeated === 'function' ? !this._krakenBoss.isDefeated() : true);
         if (krakenUndefeated) {
           if (!this._krakenBlockNoticeTime || this._time - this._krakenBlockNoticeTime > 3.5) {
@@ -2725,6 +2740,7 @@ export class GameState {
           }
           return;
         }
+        this._goalReached = true;
         emit('playSound', { sound: 'qte_success' });
         if (this._isEditorPlay || this._obstacleOpts?.isEditorPlay) {
           ClearCheckManager.completeActiveCheck(true);
@@ -2742,6 +2758,7 @@ export class GameState {
           };
           this._isEditorPlay = false;
           this._isClearCheckRepair = false;
+          if (this._obstacleOpts) this._obstacleOpts.isEditorPlay = false;
           emit('showLoading', { title: 'Safe Harbor Reached!', message: 'Course verified! Opening dispatch harbor...', progress: 0.2 });
           this.transition(GamePhase.EDITOR, editorOpts);
           return;
@@ -2914,6 +2931,7 @@ export class GameState {
     this._qteSystem = null;
     this._inputRouter = null;
     this._chunkRenderer = null;
+    this._sailFinalIntactCount = this._grid ? DamageSystem.getSummary(this._grid).intact : null;
     this._grid = null;
     this._windManager = null;
 
