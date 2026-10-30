@@ -78,17 +78,6 @@
   "obstacles": [
     {
       "type": "rock",
-      "assetUrl": "/assets/obstacles/rocks/voxel_Cliff.glb",
-      "scale": 9,
-      "rotation": 0.4,
-      "position": {
-        "x": -16,
-        "y": 0.5,
-        "z": -40
-      }
-    },
-    {
-      "type": "rock",
       "assetUrl": "/assets/obstacles/rocks/voxel_Rock by Danni Bittman - 4TpBWdzKDf2.glb",
       "scale": 10,
       "rotation": 1.2,
@@ -173,17 +162,6 @@
         "x": -18,
         "y": 0.5,
         "z": -298
-      }
-    },
-    {
-      "type": "rock",
-      "assetUrl": "/assets/obstacles/rocks/voxel_Rock-4TpBWdzKDf2.glb",
-      "scale": 10,
-      "rotation": 2.4,
-      "position": {
-        "x": 18,
-        "y": 0.5,
-        "z": -312
       }
     },
     {
@@ -470,17 +448,6 @@
         "x": -72.97,
         "y": 0.5,
         "z": -252.32
-      }
-    },
-    {
-      "type": "rock",
-      "assetUrl": "/assets/obstacles/rocks/voxel_Rock Large by Quaternius - d2VWOdthtR.glb",
-      "scale": 14,
-      "rotation": 1.5707963267948966,
-      "position": {
-        "x": 34.66,
-        "y": 0.5,
-        "z": -44.98
       }
     },
     {
@@ -826,28 +793,6 @@
     },
     {
       "type": "rock",
-      "assetUrl": "/assets/obstacles/rocks/voxel_Desert Pillar.glb",
-      "scale": 4.5,
-      "rotation": 0,
-      "position": {
-        "x": 28.4,
-        "y": 4.5,
-        "z": -84.45
-      }
-    },
-    {
-      "type": "rock",
-      "assetUrl": "/assets/obstacles/rocks/voxel_Rock by Danni Bittman - 4TpBWdzKDf2.glb",
-      "scale": 8,
-      "rotation": 0,
-      "position": {
-        "x": -3.59,
-        "y": 4.5,
-        "z": -142.65
-      }
-    },
-    {
-      "type": "rock",
       "assetUrl": "/assets/obstacles/rocks/voxel_Cliff.glb",
       "scale": 6.5,
       "rotation": -0.39269908169872414,
@@ -866,17 +811,6 @@
         "x": 12.24,
         "y": 6,
         "z": -204.84
-      }
-    },
-    {
-      "type": "rock",
-      "assetUrl": "/assets/obstacles/rocks/voxel_Desert Pillar.glb",
-      "scale": 9.1,
-      "rotation": 0,
-      "position": {
-        "x": 17.62,
-        "y": 8.5,
-        "z": -124.88
       }
     },
     {
@@ -968,17 +902,6 @@
       }
     },
     {
-      "type": "rock",
-      "assetUrl": "/assets/obstacles/rocks/voxel_Cliff.glb",
-      "scale": 9,
-      "rotation": 0,
-      "position": {
-        "x": 62.88,
-        "y": 0.5,
-        "z": -110.55
-      }
-    },
-    {
       "type": "barrel",
       "assetUrl": null,
       "scale": 1.6,
@@ -1025,24 +948,7 @@
     {
       "type": "whirlpool",
       "assetUrl": null,
-      "scale": 0.9,
-      "pullForce": 6,
-      "strength": 6,
-      "damage": 8,
-      "rotation": 0,
-      "position": {
-        "x": 15,
-        "y": 0.1,
-        "z": -135
-      }
-    },
-    {
-      "type": "whirlpool",
-      "assetUrl": null,
       "scale": 1.3,
-      "pullForce": 10,
-      "strength": 10,
-      "damage": 12,
       "rotation": 0,
       "position": {
         "x": 58,
@@ -1053,29 +959,34 @@
     {
       "type": "whirlpool",
       "assetUrl": null,
-      "scale": 1.8,
-      "pullForce": 14,
-      "strength": 14,
-      "damage": 15,
+      "scale": 2,
       "rotation": 0,
       "position": {
-        "x": -48,
-        "y": 0.1,
-        "z": -265
+        "x": 49.31,
+        "y": 0.5,
+        "z": -109.74
       }
     },
     {
       "type": "whirlpool",
       "assetUrl": null,
-      "scale": 2.6,
-      "pullForce": 22,
-      "strength": 22,
-      "damage": 25,
+      "scale": 2,
       "rotation": 0,
       "position": {
-        "x": 140,
-        "y": 0.1,
-        "z": -435
+        "x": -63.53,
+        "y": 0.5,
+        "z": -249.4
+      }
+    },
+    {
+      "type": "whirlpool",
+      "assetUrl": null,
+      "scale": 2,
+      "rotation": 0,
+      "position": {
+        "x": 175.54,
+        "y": 0.5,
+        "z": -359.41
       }
     }
   ],
@@ -1210,5 +1121,19 @@
     "whirlpool",
     "maelstrom",
     "rough seas"
-  ]
+  ],
+  "kraken": null,
+  "metadata": {
+    "title": "Day 4: Storm's Maelstrom",
+    "description": "Navigate a tempestuous passage beset by raging maelstroms and turbulent seas. Avoid the swirling depths and guide your sloop safely to harbor.",
+    "tags": [
+      "storm",
+      "whirlpool",
+      "maelstrom",
+      "rough seas"
+    ],
+    "budget": 900
+  },
+  "waveScale": 2.6,
+  "waveSpeed": 2
 }
