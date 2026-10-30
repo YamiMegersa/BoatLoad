@@ -321,16 +321,22 @@ export class TentacleFollower {
       const contactNormal = new THREE.Vector3(dirX, 0, dirZ);
       const contactPoint = shipPos.clone().addScaledVector(contactNormal, -1.5);
 
-      // Deal damage and trigger physical response
+      // Deal damage and trigger physical response (knocks boat without stopping it)
       if (typeof playerShip.applyPhysicalImpact === 'function') {
         playerShip.applyPhysicalImpact(contactPoint, contactNormal, 9.0, 'kraken_tentacle', rockDamage);
       } else {
         playerShip.takeDamage(rockDamage, 'kraken_tentacle', { nx: dirX, nz: dirZ });
-        playerShip.bounceBack(dirX * 8.0, dirZ * 8.0, 'rock');
       }
 
-      // Downward smash impulse
-      _V.set(dirX * 25.0, -35.0, dirZ * 25.0);
+      // Knock the boat away from the tentacle strike while preserving forward momentum
+      const flankPos = this._smoothedFlankPos || this._krakenOrigin;
+      const kdx = shipPos.x - flankPos.x;
+      const kdz = shipPos.z - flankPos.z;
+      const kDist = Math.hypot(kdx, kdz) || 0.001;
+      const knockX = (kdx / kDist) * 0.65 + dirX * 0.35;
+      const knockZ = (kdz / kDist) * 0.65 + dirZ * 0.35;
+      const knockLen = Math.hypot(knockX, knockZ) || 1.0;
+      _V.set((knockX / knockLen) * 22.0, -18.0, (knockZ / knockLen) * 22.0);
       playerShip.applyKnockback(_V);
 
       // Audio & feedback

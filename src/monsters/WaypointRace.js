@@ -100,14 +100,29 @@ export class WaypointRace {
       return;
     }
 
-    // Check if player reached current waypoint
+    // Check if player reached current waypoint (forgiving hull-graze check)
+    if (!Array.isArray(this._waypoints) || this._waypoints.length === 0 || this._currentIdx >= this._waypoints.length) {
+      return;
+    }
     const wp = this._waypoints[this._currentIdx];
     const shipPos = playerShip.mesh.position;
     const dx = shipPos.x - wp.position.x;
     const dz = shipPos.z - wp.position.z;
-    const dist = Math.hypot(dx, dz);
+    let dist = Math.hypot(dx, dz);
 
-    if (dist < (wp.radius ?? 8)) {
+    if (playerShip.obb && typeof playerShip.obb.clampPoint === 'function') {
+      if (!this._clampTarget) this._clampTarget = new THREE.Vector3();
+      if (!this._clampResult) this._clampResult = new THREE.Vector3();
+      this._clampTarget.set(wp.position.x, playerShip.obb.center.y, wp.position.z);
+      playerShip.obb.clampPoint(this._clampTarget, this._clampResult);
+      const obbDist = Math.hypot(this._clampResult.x - wp.position.x, this._clampResult.z - wp.position.z);
+      dist = Math.min(dist, obbDist);
+    } else {
+      dist = Math.max(0, dist - (playerShip.collisionRadius ?? 2.8));
+    }
+
+    const effectiveRadius = (wp.radius ?? 8) + 2.5;
+    if (dist <= effectiveRadius) {
       // Waypoint reached!
       this._currentIdx++;
 
@@ -116,7 +131,7 @@ export class WaypointRace {
         total: this._waypoints.length,
       });
 
-      if (this._currentIdx >= this._waypoints.length) {
+      if (this._waypoints.length > 0 && this._currentIdx >= this._waypoints.length) {
         // All waypoints cleared
         this._complete = true;
         this._active = false;
@@ -226,7 +241,7 @@ export class WaypointRace {
 
     for (let i = 0; i < this._waypoints.length; i++) {
       const wp = this._waypoints[i];
-      const radius = (wp.radius ?? 8) * 0.9;
+      const radius = wp.radius ?? 8;
       const wpY = wp.position.y ?? 0;
 
       const gateGroup = new THREE.Group();

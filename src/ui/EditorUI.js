@@ -541,23 +541,26 @@ export class EditorUI {
 
           <div class="ribbon-divider"></div>
 
-          <div class="ribbon-group" style="min-width: 260px;">
+          <div class="ribbon-group" style="min-width: 280px;">
             <span class="ribbon-group-label">Tentacle Configuration</span>
             <div style="display: flex; gap: 6px; align-items: center; margin-bottom: 6px;">
               <select id="editor-tentacle-select" class="editor-select" style="flex: 1; padding: 4px 6px; background: rgba(0,0,0,0.5); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; font-size: 12px;">
-                <option value="0">Tentacle 1 (0 pts)</option>
+                <option value="0">Tentacle 1 (0 pts • 25s)</option>
               </select>
               <button class="mini-chip" id="btn-add-tentacle" title="Add Tentacle" style="padding: 4px 8px;"><span class="pixel-icon icon-plus size-14"></span> Add</button>
               <button class="mini-chip" id="btn-remove-tentacle" title="Delete Tentacle" style="padding: 4px 8px; background: rgba(200,40,40,0.4);"><span class="pixel-icon icon-cancel size-14"></span> Del</button>
             </div>
-            <div style="display: flex; gap: 12px;">
+            <div style="display: flex; gap: 12px; align-items: flex-end;">
               <div style="flex: 1;">
                 <span style="font-size: 11px; opacity: 0.85;">Speed: <strong id="tentacle-speed-val">12</strong></span>
                 <input type="range" id="tentacle-speed-slider" min="6" max="25" step="1" value="12" class="editor-slider">
               </div>
-              <div style="flex: 1;">
-                <span style="font-size: 11px; opacity: 0.85;">Duration: <strong id="tentacle-duration-val">25s</strong></span>
-                <input type="range" id="tentacle-duration-slider" min="10" max="60" step="1" value="25" class="editor-slider">
+              <div style="flex: 1.2;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px;">
+                  <span style="font-size: 11px; opacity: 0.85;">Race Duration: <strong id="tentacle-duration-val">25s</strong></span>
+                  <input type="number" id="tentacle-duration-input" min="5" max="120" step="1" value="25" title="Tentacle race duration in seconds" style="width: 48px; padding: 1px 4px; background: rgba(0,0,0,0.55); color: #ffd700; border: 1px solid rgba(255,255,255,0.25); border-radius: 4px; font-size: 11px; font-weight: bold; text-align: center;">
+                </div>
+                <input type="range" id="tentacle-duration-slider" min="5" max="120" step="1" value="25" class="editor-slider">
               </div>
             </div>
           </div>
@@ -1424,12 +1427,36 @@ export class EditorUI {
     }
 
     const tentacleDurationSlider = this._el.querySelector('#tentacle-duration-slider');
+    const tentacleDurationInput = this._el.querySelector('#tentacle-duration-input');
     const tentacleDurationVal = this._el.querySelector('#tentacle-duration-val');
+
+    const applyTentacleDuration = (rawVal) => {
+      const val = Math.max(5, Math.min(120, parseInt(rawVal, 10) || 25));
+      if (tentacleDurationSlider) tentacleDurationSlider.value = val;
+      if (tentacleDurationInput) tentacleDurationInput.value = val;
+      if (tentacleDurationVal) tentacleDurationVal.textContent = val + 's';
+      if (tentacleSelect && tentacleSelect.selectedOptions?.[0]) {
+        const opt = tentacleSelect.selectedOptions[0];
+        opt.textContent = opt.textContent.replace(/•\s*\d+s\)/, `• ${val}s)`);
+      }
+      emit('editorSetTentacleDuration', { duration: val });
+    };
+
     if (tentacleDurationSlider) {
       tentacleDurationSlider.oninput = (e) => {
-        const val = parseInt(e.target.value, 10);
-        if (tentacleDurationVal) tentacleDurationVal.textContent = val + 's';
-        emit('editorSetTentacleDuration', { duration: val });
+        applyTentacleDuration(e.target.value);
+      };
+    }
+
+    if (tentacleDurationInput) {
+      tentacleDurationInput.onchange = (e) => {
+        applyTentacleDuration(e.target.value);
+      };
+      tentacleDurationInput.oninput = (e) => {
+        const parsed = parseInt(e.target.value, 10);
+        if (!isNaN(parsed) && parsed >= 5 && parsed <= 120) {
+          applyTentacleDuration(parsed);
+        }
       };
     }
 
@@ -1450,27 +1477,45 @@ export class EditorUI {
       const sSlider = this._el.querySelector('#tentacle-speed-slider');
       const sVal = this._el.querySelector('#tentacle-speed-val');
       const dSlider = this._el.querySelector('#tentacle-duration-slider');
+      const dInput = this._el.querySelector('#tentacle-duration-input');
       const dVal = this._el.querySelector('#tentacle-duration-val');
 
       if (tSelect && d.tentacles) {
-        tSelect.innerHTML = d.tentacles.map((t, idx) => `
-          <option value="${idx}">Tentacle ${idx + 1} (${t.waypoints?.length || 0} pts)</option>
-        `).join('');
-        tSelect.value = String(d.activeIdx ?? 0);
+        if (d.tentacles.length > 0) {
+          tSelect.innerHTML = d.tentacles.map((t, idx) => `
+            <option value="${idx}">Tentacle ${idx + 1} (${t.waypoints?.length || 0} pts • ${t.raceDuration ?? 25}s)</option>
+          `).join('');
+          tSelect.value = String(d.activeIdx ?? 0);
+        } else {
+          const curDur = dSlider ? (parseInt(dSlider.value, 10) || 25) : 25;
+          tSelect.innerHTML = `<option value="0">Tentacle 1 (0 pts • ${curDur}s)</option>`;
+          tSelect.value = '0';
+        }
       }
 
       if (d.currentTentacle) {
-        if (sSlider) {
-          sSlider.value = d.currentTentacle.speed ?? 12;
-          if (sVal) sVal.textContent = d.currentTentacle.speed ?? 12;
-        }
-        if (dSlider) {
-          dSlider.value = d.currentTentacle.raceDuration ?? 25;
-          if (dVal) dVal.textContent = (d.currentTentacle.raceDuration ?? 25) + 's';
-        }
+        const speed = d.currentTentacle.speed ?? 12;
+        const dur = d.currentTentacle.raceDuration ?? 25;
+        if (sSlider) sSlider.value = speed;
+        if (sVal) sVal.textContent = speed;
+        if (dSlider) dSlider.value = dur;
+        if (dInput) dInput.value = dur;
+        if (dVal) dVal.textContent = dur + 's';
       }
     };
     on('editorBossConfigUpdated', this._onBossConfigUpdated);
+
+    // Initial sync with current EditorSystem / levelCfg boss config on mount
+    const editorSys = window.gameState?._editorSystem;
+    const initialKraken = editorSys?._krakenConfig || this._levelCfg?.kraken;
+    if (initialKraken && Array.isArray(initialKraken.tentacles) && initialKraken.tentacles.length > 0) {
+      const activeIdx = editorSys?._activeTentacleIdx ?? 0;
+      this._onBossConfigUpdated({
+        tentacles: initialKraken.tentacles,
+        activeIdx,
+        currentTentacle: initialKraken.tentacles[activeIdx] || initialKraken.tentacles[0],
+      });
+    }
 
     this._onShipSpawnPlaced = (d) => {
       if (d && d.shipSpawn) {
@@ -1763,6 +1808,20 @@ export class EditorUI {
 
     if (cfg.godRays !== undefined) {
       this._setGodRays(cfg.godRays);
+    }
+
+    if (cfg.kraken && Array.isArray(cfg.kraken.tentacles)) {
+      this._onBossConfigUpdated?.({
+        tentacles: cfg.kraken.tentacles,
+        activeIdx: 0,
+        currentTentacle: cfg.kraken.tentacles[0] || null,
+      });
+    } else if (cfg.kraken === null) {
+      this._onBossConfigUpdated?.({
+        tentacles: [],
+        activeIdx: 0,
+        currentTentacle: null,
+      });
     }
   }
 

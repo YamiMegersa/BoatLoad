@@ -135,6 +135,12 @@ export class LevelConfig {
           timeOfDay: levelCfg.timeOfDay !== undefined ? levelCfg.timeOfDay : levelCfg.levelData.timeOfDay,
           isStormy: levelCfg.isStormy !== undefined ? levelCfg.isStormy : levelCfg.levelData.isStormy,
           budget: levelCfg.budget !== undefined ? levelCfg.budget : levelCfg.levelData.budget,
+          kraken: levelCfg.kraken || levelCfg.levelData.kraken || null,
+          sirens: levelCfg.sirens || levelCfg.levelData.sirens || [],
+          shipSpawn: levelCfg.shipSpawn || levelCfg.levelData.shipSpawn || null,
+          hasDock: levelCfg.hasDock !== undefined ? levelCfg.hasDock : (levelCfg.levelData.hasDock !== false),
+          globalWindDir: levelCfg.globalWindDir !== undefined ? levelCfg.globalWindDir : (levelCfg.levelData.globalWindDir || 0),
+          fogDensity: levelCfg.fogDensity !== undefined ? levelCfg.fogDensity : (levelCfg.levelData.fogDensity ?? 0.006),
           damage: (levelCfg.damage && levelCfg.damage.length > 0) ? levelCfg.damage : (levelCfg.levelData?.damage || []),
           docket: (levelCfg.docket && levelCfg.docket.length > 0) ? levelCfg.docket : (levelCfg.levelData?.docket || []),
         };

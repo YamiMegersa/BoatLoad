@@ -673,8 +673,8 @@ export class PlayerShip {
     _windNorm.copy(localWind).normalize();
     const windDot = _shipDir.dot(_windNorm); // 1.0 (with wind), -1.0 (against wind)
 
-    // Map dot product [-1, 1] to speed multiplier [0.3, 1.0] (never negative)
-    const windSpeedMult = 0.3 + ((windDot + 1) / 2) * 0.7;
+    // Map dot product [-1, 1] to speed multiplier [0.65, 1.0] (slowdown halved from 0.7 to 0.35)
+    const windSpeedMult = 0.65 + ((windDot + 1) / 2) * 0.35;
 
     // Smoothly damp throttle towards targetThrottle
     if (this._isHalted) {
@@ -1213,10 +1213,11 @@ export class PlayerShip {
     const normal = contactNormal ? contactNormal.clone().normalize() : new THREE.Vector3(0, 0, 1);
     const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.mesh.quaternion).normalize();
     const currentSpeed = this.getCurrentSpeed();
+    const isKrakenHit = type === 'kraken_tentacle' || type === 'kraken';
 
-    // Enter grounded / blocked state on head-on impact into obstacle/land
+    // Enter grounded / blocked state on head-on impact into obstacle/land (never on Kraken strikes)
     const inDot = forward.dot(normal);
-    if (inDot < -0.05) {
+    if (!isKrakenHit && inDot < -0.05) {
       this.setBlocked(normal);
     }
 
@@ -1232,10 +1233,15 @@ export class PlayerShip {
 
     // 1. Kinetic Momentum Inelastic Loss
     // Wood on wet rock is heavily inelastic (e ~ 0.1). High impacts drop throttle to zero.
-    const speedLossRatio = Math.min(1.0, vn / 10.0);
-    this.throttle = Math.max(0, this.throttle * (1.0 - speedLossRatio * 0.85));
-    if (vn >= 8.0) {
-      this.throttle = 0;
+    // Kraken strikes knock the vessel aside without stopping it in its tracks.
+    if (isKrakenHit) {
+      this.throttle = Math.max(0.85, this.throttle);
+    } else {
+      const speedLossRatio = Math.min(1.0, vn / 10.0);
+      this.throttle = Math.max(0, this.throttle * (1.0 - speedLossRatio * 0.85));
+      if (vn >= 8.0) {
+        this.throttle = 0;
+      }
     }
 
     // 2. Realistic Contact Torque (Pivoting around Center of Mass)

@@ -77,6 +77,7 @@ export class HUD {
     on('scoreAdded', this._onScore);
     on('sharkHitConfirmed', d => this._showSharkConfirm(d));
     on('sirenWarning', d => this._showBanner(d));
+    on('showBanner', d => this._showBanner(d));
     this._hasSirens = false;
     this._onSirensConfigured = ({ hasSirens }) => {
       this.setSirenStationVisible(hasSirens);

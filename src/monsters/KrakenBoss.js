@@ -74,6 +74,11 @@ export class KrakenBoss {
     this._krakenMesh = null;
     this._krakenModel = null;
     this._time = 0;
+    this._isSinking = false;
+    this._sunk = false;
+    this._sinkTimer = 0;
+    this._sinkDuration = 3.5;
+    this._sinkStartY = -5;
 
     // Cooldown timer
     this._cooldownTimer = 0;
@@ -126,9 +131,13 @@ export class KrakenBoss {
     // Build race start marker
     this._buildStartMarker();
 
-    // Pre-create tentacles (hidden until activated)
-    for (let i = 0; i < config.tentacles.length; i++) {
-      const tentDef = config.tentacles[i];
+    // Pre-create tentacles (hidden until activated), filtering to tentacles that have waypoints
+    const rawTentacles = Array.isArray(config.tentacles) ? config.tentacles : [];
+    const validTentacles = rawTentacles.filter(t => Array.isArray(t?.waypoints) && t.waypoints.length > 0);
+    this._tentacleDefs = validTentacles.length > 0 ? validTentacles : rawTentacles;
+
+    for (let i = 0; i < this._tentacleDefs.length; i++) {
+      const tentDef = this._tentacleDefs[i];
       const spawnPos = new THREE.Vector3(
         this._krakenPos.x + (tentDef.spawnOffset?.x ?? 0),
         this._krakenPos.y + (tentDef.spawnOffset?.y ?? 0),
@@ -162,16 +171,32 @@ export class KrakenBoss {
   update(delta) {
     this._time += delta;
     if (this._krakenMesh) {
-      const heave = Math.sin(this._time * 1.2) * 0.4;
-      this._krakenMesh.position.y = this._krakenPos.y + heave;
+      if (this._sunk) {
+        this._krakenMesh.visible = false;
+      } else if (this._isSinking) {
+        this._sinkTimer += delta;
+        const progress = Math.min(1.0, this._sinkTimer / this._sinkDuration);
+        const ease = progress * progress;
+        this._krakenMesh.position.y = this._sinkStartY - ease * 28.0;
+        this._krakenMesh.rotation.x = -ease * 0.6 + Math.sin(this._time * 10.0) * 0.06 * (1 - progress);
+        this._krakenMesh.rotation.z = Math.cos(this._time * 8.0) * 0.08 * (1 - progress);
+        if (progress >= 1.0) {
+          this._isSinking = false;
+          this._sunk = true;
+          this._krakenMesh.visible = false;
+        }
+      } else if (!this.isCinematicActive()) {
+        const heave = Math.sin(this._time * 1.2) * 0.4;
+        this._krakenMesh.position.y = this._krakenPos.y + heave;
 
-      // Distance culling: hide 15.8k-triangle Kraken body when player is far away (>170m) unless in active fight
-      if (this._playerShip && this._playerShip.mesh) {
-        const dx = this._krakenPos.x - this._playerShip.mesh.position.x;
-        const dz = this._krakenPos.z - this._playerShip.mesh.position.z;
-        const distSq = dx * dx + dz * dz;
-        const inFight = this._state !== BossState.IDLE;
-        this._krakenMesh.visible = inFight || (distSq <= 170 * 170);
+        // Distance culling: hide 15.8k-triangle Kraken body when player is far away (>170m) unless in active fight
+        if (this._playerShip && this._playerShip.mesh) {
+          const dx = this._krakenPos.x - this._playerShip.mesh.position.x;
+          const dz = this._krakenPos.z - this._playerShip.mesh.position.z;
+          const distSq = dx * dx + dz * dz;
+          const inFight = this._state !== BossState.IDLE;
+          this._krakenMesh.visible = inFight || (distSq <= 170 * 170);
+        }
       }
     }
 
@@ -205,6 +230,13 @@ export class KrakenBoss {
         // Nothing to update
         break;
     }
+  }
+
+  /**
+   * @returns {boolean} True if the Kraken has been defeated.
+   */
+  isDefeated() {
+    return this._state === BossState.VICTORY;
   }
 
   /**
@@ -336,18 +368,29 @@ export class KrakenBoss {
   // -----------------------------------------------------------------------
 
   _updateIdle(delta) {
-    // Check if player entered the trigger zone
+    // Check if player entered the trigger zone (forgiving hull-graze check)
     const shipPos = this._playerShip.mesh.position;
     const dx = shipPos.x - this._raceStartPos.x;
     const dz = shipPos.z - this._raceStartPos.z;
-    const dist = Math.hypot(dx, dz);
+    let dist = Math.hypot(dx, dz);
+
+    if (this._playerShip.obb && typeof this._playerShip.obb.clampPoint === 'function') {
+      if (!this._clampTarget) this._clampTarget = new THREE.Vector3();
+      if (!this._clampResult) this._clampResult = new THREE.Vector3();
+      this._clampTarget.set(this._raceStartPos.x, this._playerShip.obb.center.y, this._raceStartPos.z);
+      this._playerShip.obb.clampPoint(this._clampTarget, this._clampResult);
+      const obbDist = Math.hypot(this._clampResult.x - this._raceStartPos.x, this._clampResult.z - this._raceStartPos.z);
+      dist = Math.min(dist, obbDist);
+    } else {
+      dist = Math.max(0, dist - (this._playerShip.collisionRadius ?? 2.8));
+    }
 
     // Pulse the start marker
     if (this._startMarker) {
       this._startMarker.rotation.y += delta * 1.5;
     }
 
-    if (dist < this._raceStartRadius) {
+    if (dist <= this._raceStartRadius + 2.5) {
       this._startBossFight();
     }
   }
@@ -447,6 +490,14 @@ export class KrakenBoss {
         break;
 
       case BossState.VICTORY:
+        if (!this._sunk && !this._isSinking) {
+          this._isSinking = true;
+          this._sinkTimer = 0;
+          this._sinkStartY = this._krakenMesh ? this._krakenMesh.position.y : this._krakenPos.y;
+        }
+        if (this._krakenPos) {
+          emit('spawnParticles', { type: 'massiveSplash', position: new THREE.Vector3(this._krakenPos.x, 0, this._krakenPos.z) });
+        }
         emit('krakenDefeated', {});
         break;
 
@@ -480,9 +531,12 @@ export class KrakenBoss {
   }
 
   _startCurrentRace() {
-    const tentDef = this._config.tentacles[this._currentTentacleIdx];
+    const tentDefs = this._tentacleDefs || this._config?.tentacles || [];
+    const tentDef = tentDefs[this._currentTentacleIdx];
     if (!tentDef) {
-      this._transitionTo(BossState.VICTORY);
+      if (tentDefs.length > 0 && this._currentTentacleIdx >= tentDefs.length) {
+        this._transitionTo(BossState.VICTORY);
+      }
       return;
     }
 
@@ -522,7 +576,8 @@ export class KrakenBoss {
 
   _restartCurrentRace() {
     // Reset tentacle reaching from kraken to pursue player
-    const tentDef = this._config.tentacles[this._currentTentacleIdx];
+    const tentDefs = this._tentacleDefs || this._config?.tentacles || [];
+    const tentDef = tentDefs[this._currentTentacleIdx];
     const tentacle = this._tentacles[this._currentTentacleIdx];
     if (tentacle) {
       const tentOrigin = new THREE.Vector3(
@@ -556,9 +611,9 @@ export class KrakenBoss {
   }
 
   _startCinematic() {
-    const tentDef = this._config.tentacles[this._currentTentacleIdx];
     const tentacle = this._tentacles[this._currentTentacleIdx];
-    const damageAmount = tentDef?.damagePerTentacle ?? Math.floor(this._bossMaxHP / this._tentacles.length);
+    const totalTentacles = Math.max(1, this._tentacles.length);
+    const isFinalHit = (this._currentTentacleIdx + 1 >= totalTentacles);
 
     emit('krakenCinematicStart', {});
 
@@ -579,24 +634,26 @@ export class KrakenBoss {
         // Hide defeated tentacle completely now that cinematic is finished
         tentacle?.setVisible(false);
 
-        // Apply damage to boss
-        this._bossHP = Math.max(0, this._bossHP - damageAmount);
+        // Advance to next tentacle
+        this._currentTentacleIdx++;
+
+        // Apply proportional damage to boss so it only reaches 0 HP when all tentacles are completed
+        const completedRatio = Math.min(1, this._currentTentacleIdx / totalTentacles);
+        this._bossHP = isFinalHit ? 0 : Math.max(1, Math.round(this._bossMaxHP * (1 - completedRatio)));
         emit('krakenHealthChanged', {
           hp: this._bossHP,
           maxHP: this._bossMaxHP,
         });
 
-        // Advance to next tentacle or victory
-        this._currentTentacleIdx++;
-
-        if (this._currentTentacleIdx >= this._tentacles.length || this._bossHP <= 0) {
+        if (this._currentTentacleIdx >= totalTentacles) {
           this._transitionTo(BossState.VICTORY);
         } else {
           // Brief cooldown before next tentacle
           this._cooldownTimer = 0;
           this._state = BossState.RACE_COOLDOWN;
         }
-      }
+      },
+      isFinalHit
     );
   }
 
