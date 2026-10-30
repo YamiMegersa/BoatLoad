@@ -22,7 +22,7 @@ export class EmoteWheelUI {
         fullTitle: 'Light & Smoke',
         desc: 'A sailor’s quiet tobacco break',
         icon: '<span class="pixel-icon icon-smoke-pipe size-24"></span>',
-        angle: 270 // 12 o'clock (Top)
+        angle: 270 // 12 o'clock
       },
       {
         id: 'fist_bump',
@@ -30,8 +30,8 @@ export class EmoteWheelUI {
         title: 'Fist Bump',
         fullTitle: 'Self Fist Bump',
         desc: 'Knuckle bump yourself & boom!',
-        icon: '<span style="font-size: 22px; line-height: 1;">👊</span>',
-        angle: 315 // 1:30 (Top-Right)
+        icon: '<span style="font-size: 20px; line-height: 1;">👊</span>',
+        angle: 300 // 1 o'clock
       },
       {
         id: 'middle_finger',
@@ -40,7 +40,7 @@ export class EmoteWheelUI {
         fullTitle: 'Middle Finger',
         desc: 'Defiant salute to the high seas',
         icon: '<span class="pixel-icon icon-defiant-finger size-24"></span>',
-        angle: 0 // 3 o'clock (Right)
+        angle: 330 // 2 o'clock
       },
       {
         id: 'hook_hand',
@@ -48,44 +48,80 @@ export class EmoteWheelUI {
         title: 'Hook Hand',
         fullTitle: 'Pirate Hook Hand',
         desc: 'Buff the steel hook until it shines',
-        icon: '<span style="font-size: 22px; line-height: 1;">🪝</span>',
-        angle: 45 // 4:30 (Bottom-Right)
+        icon: '<span style="font-size: 20px; line-height: 1;">🪝</span>',
+        angle: 0 // 3 o'clock
+      },
+      {
+        id: 'rum_swig',
+        key: '5',
+        title: 'Rum Swig',
+        fullTitle: 'Swig of Grog',
+        desc: 'Uncork the bottle & hearty swig',
+        icon: '<span style="font-size: 20px; line-height: 1;">🍾</span>',
+        angle: 30 // 4 o'clock
       },
       {
         id: 'clap',
-        key: '5',
+        key: '6',
         title: 'Applause',
         fullTitle: 'Cheer & Clap',
         desc: 'Hearty applause for the crew',
         icon: '<span class="pixel-icon icon-clap-hands size-24"></span>',
-        angle: 90 // 6 o'clock (Bottom)
+        angle: 60 // 5 o'clock
+      },
+      {
+        id: 'coin_flip',
+        key: '7',
+        title: 'Coin Flip',
+        fullTitle: 'Gold Doubloon Flip',
+        desc: 'Spin a gold coin high in the air',
+        icon: '<span class="pixel-icon icon-doubloon size-20"></span>',
+        angle: 90 // 6 o'clock
       },
       {
         id: 'card_trick',
-        key: '6',
+        key: '8',
         title: 'Card Trick',
         fullTitle: 'Disappearing Card',
         desc: 'Sleight of hand card magic',
-        icon: '<span style="font-size: 22px; line-height: 1;">🃏</span>',
-        angle: 135 // 7:30 (Bottom-Left)
+        icon: '<span style="font-size: 20px; line-height: 1;">🃏</span>',
+        angle: 120 // 7 o'clock
+      },
+      {
+        id: 'spyglass',
+        key: '9',
+        title: 'Spyglass',
+        fullTitle: 'Brass Spyglass',
+        desc: 'Extend telescope & scan horizon',
+        icon: '<span class="pixel-icon icon-optics-lens size-20"></span>',
+        angle: 150 // 8 o'clock
       },
       {
         id: 'jazz_hands',
-        key: '7',
+        key: '0',
         title: 'Jazz Hands',
         fullTitle: 'Sparkle Jazz Hands',
         desc: 'Showtime shimmy with both palms',
-        icon: '<span style="font-size: 22px; line-height: 1;">👐</span>',
-        angle: 180 // 9 o'clock (Left)
+        icon: '<span style="font-size: 20px; line-height: 1;">👐</span>',
+        angle: 180 // 9 o'clock
       },
       {
         id: 'needle',
-        key: '8',
+        key: '-',
         title: 'Syringe',
         fullTitle: 'Arm Injection',
         desc: 'Quick vitamin dose straight to vein',
-        icon: '<span class="pixel-icon icon-sail-needle size-24"></span>',
-        angle: 225 // 10:30 (Top-Left)
+        icon: '<span class="pixel-icon icon-sail-needle size-20"></span>',
+        angle: 210 // 10 o'clock
+      },
+      {
+        id: 'facepalm',
+        key: '=',
+        title: 'Facepalm',
+        fullTitle: 'Captain’s Facepalm',
+        desc: 'Slap forehead in exasperated defeat',
+        icon: '<span style="font-size: 20px; line-height: 1;">🤦</span>',
+        angle: 240 // 11 o'clock
       }
     ];
 
@@ -120,8 +156,8 @@ export class EmoteWheelUI {
         }
         .emote-wheel-container {
           position: relative;
-          width: 380px;
-          height: 380px;
+          width: 440px;
+          height: 440px;
           border-radius: 50%;
           transform: scale(0.9);
           transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
@@ -136,15 +172,15 @@ export class EmoteWheelUI {
           border-radius: 50%;
           background: radial-gradient(circle, rgba(16, 24, 38, 0.94) 0%, rgba(8, 13, 22, 0.96) 100%);
           border: 2px solid rgba(212, 175, 55, 0.65);
-          box-shadow: 0 0 30px rgba(0, 0, 0, 0.85), 0 0 20px rgba(212, 175, 55, 0.25), inset 0 0 15px rgba(0, 0, 0, 0.6);
+          box-shadow: 0 0 32px rgba(0, 0, 0, 0.85), 0 0 20px rgba(212, 175, 55, 0.25), inset 0 0 15px rgba(0, 0, 0, 0.6);
           pointer-events: none;
         }
         .emote-wheel-hub {
           position: absolute;
           top: 50%;
           left: 50%;
-          width: 130px;
-          height: 130px;
+          width: 136px;
+          height: 136px;
           transform: translate(-50%, -50%);
           border-radius: 50%;
           background: radial-gradient(circle, #1a2536 0%, #0d1520 100%);
@@ -162,17 +198,17 @@ export class EmoteWheelUI {
         }
         .emote-hub-title {
           font-family: 'Cinzel', Georgia, serif, system-ui;
-          font-size: 13px;
+          font-size: 12.5px;
           font-weight: 700;
           color: #f5d77f;
-          letter-spacing: 1px;
+          letter-spacing: 0.8px;
           text-transform: uppercase;
           text-shadow: 0 1px 3px rgba(0,0,0,0.8);
           line-height: 1.2;
         }
         .emote-hub-desc {
           font-family: system-ui, -apple-system, sans-serif;
-          font-size: 10px;
+          font-size: 9.5px;
           color: #a0aec0;
           margin-top: 4px;
           line-height: 1.2;
@@ -181,14 +217,14 @@ export class EmoteWheelUI {
           font-family: monospace;
           font-size: 9px;
           color: #718096;
-          margin-top: 6px;
+          margin-top: 5px;
         }
         .emote-slice-btn {
           position: absolute;
           top: 50%;
           left: 50%;
-          width: 72px;
-          height: 72px;
+          width: 64px;
+          height: 64px;
           border-radius: 50%;
           background: rgba(22, 33, 49, 0.90);
           border: 1.5px solid rgba(255, 255, 255, 0.22);
@@ -209,17 +245,17 @@ export class EmoteWheelUI {
           background: rgba(45, 65, 95, 0.98);
           border-color: #f5d77f;
           box-shadow: 0 0 16px rgba(245, 215, 127, 0.6), 0 4px 15px rgba(0, 0, 0, 0.7);
-          transform: translate(calc(-50% + var(--btn-x, 0px)), calc(-50% + var(--btn-y, 0px))) scale(1.12);
+          transform: translate(calc(-50% + var(--btn-x, 0px)), calc(-50% + var(--btn-y, 0px))) scale(1.14);
           z-index: 6;
         }
         .emote-slice-icon {
-          font-size: 24px;
+          font-size: 20px;
           line-height: 1;
           filter: drop-shadow(0 2px 4px rgba(0,0,0,0.6));
         }
         .emote-slice-label {
           font-family: system-ui, -apple-system, sans-serif;
-          font-size: 10px;
+          font-size: 9px;
           font-weight: 600;
           color: #e2e8f0;
           margin-top: 2px;
@@ -234,10 +270,10 @@ export class EmoteWheelUI {
           border: 1px solid #d4af37;
           border-radius: 4px;
           font-family: monospace;
-          font-size: 9px;
+          font-size: 8.5px;
           font-weight: bold;
           color: #fef3c7;
-          padding: 1px 4px;
+          padding: 1px 3.5px;
           box-shadow: 0 2px 5px rgba(0,0,0,0.5);
         }
       `;
@@ -272,8 +308,8 @@ export class EmoteWheelUI {
     this.hubTitle = this.hub.querySelector('#emote-hub-title');
     this.hubDesc = this.hub.querySelector('#emote-hub-desc');
 
-    // Slices
-    const radius = 126; // Distance from center
+    // Slices (12 radial items around the circle)
+    const radius = 152; // Distance from center
     this.sliceButtons = [];
 
     this.emotes.forEach((emote, idx) => {
@@ -316,7 +352,7 @@ export class EmoteWheelUI {
       const dy = e.clientY - centerY;
       const dist = Math.hypot(dx, dy);
 
-      if (dist >= 45 && dist <= 200) {
+      if (dist >= 55 && dist <= 235) {
         let deg = (Math.atan2(dy, dx) * 180) / Math.PI;
         if (deg < 0) deg += 360;
 
@@ -333,7 +369,7 @@ export class EmoteWheelUI {
         });
 
         this._highlightSlice(closestIdx);
-      } else if (dist < 45) {
+      } else if (dist < 55) {
         this._clearHighlight();
       }
     });
@@ -396,7 +432,7 @@ export class EmoteWheelUI {
         return;
       }
 
-      // Quick numbers 1 through 8
+      // Quick numbers 1 through 12
       const digitMap = {
         Digit1: 0, Numpad1: 0,
         Digit2: 1, Numpad2: 1,
@@ -405,7 +441,11 @@ export class EmoteWheelUI {
         Digit5: 4, Numpad5: 4,
         Digit6: 5, Numpad6: 5,
         Digit7: 6, Numpad7: 6,
-        Digit8: 7, Numpad8: 7
+        Digit8: 7, Numpad8: 7,
+        Digit9: 8, Numpad9: 8,
+        Digit0: 9, Numpad0: 9,
+        Minus: 10, NumpadSubtract: 10,
+        Equal: 11, NumpadAdd: 11
       };
 
       if (e.code in digitMap) {

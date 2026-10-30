@@ -349,6 +349,215 @@ class EmoteAudio {
     gain.connect(ctx.destination);
     noise.start(now);
   }
+
+  playCorkPop() {
+    const ctx = this._getCtx();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(440, now);
+    osc.frequency.exponentialRampToValueAtTime(140, now + 0.06);
+    gain.gain.setValueAtTime(0.5, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.07);
+
+    // Suction air pop
+    const bufferSize = ctx.sampleRate * 0.03;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.sin(i / 10);
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(800, now);
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.3, now);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+    noise.connect(filter);
+    filter.connect(noiseGain);
+    noiseGain.connect(ctx.destination);
+    noise.start(now);
+  }
+
+  playSwigGlug() {
+    const ctx = this._getCtx();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+
+    [0, 0.22].forEach((offset) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(240, now + offset);
+      osc.frequency.exponentialRampToValueAtTime(360, now + offset + 0.04);
+      osc.frequency.exponentialRampToValueAtTime(180, now + offset + 0.12);
+      gain.gain.setValueAtTime(0.35, now + offset);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.14);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + offset);
+      osc.stop(now + offset + 0.15);
+    });
+  }
+
+  playSailorSigh() {
+    const ctx = this._getCtx();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+
+    const dur = 0.6;
+    const bufferSize = ctx.sampleRate * dur;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.sin(Math.PI * i / bufferSize);
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(500, now);
+    filter.frequency.exponentialRampToValueAtTime(180, now + dur);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    noise.start(now);
+  }
+
+  playCoinToss() {
+    const ctx = this._getCtx();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+
+    // Resonant metallic chime
+    [2600, 5200].forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.98, now + 0.55);
+      gain.gain.setValueAtTime(idx === 0 ? 0.35 : 0.18, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.56);
+    });
+  }
+
+  playCoinCatch() {
+    const ctx = this._getCtx();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(3200, now);
+    osc.frequency.exponentialRampToValueAtTime(1800, now + 0.05);
+    gain.gain.setValueAtTime(0.4, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.06);
+  }
+
+  playSpyglassExtend() {
+    const ctx = this._getCtx();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+
+    [0, 0.08, 0.16].forEach((offset, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(1800 + idx * 300, now + offset);
+      gain.gain.setValueAtTime(0.25, now + offset);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.04);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + offset);
+      osc.stop(now + offset + 0.05);
+    });
+  }
+
+  playSpyglassCollapse() {
+    const ctx = this._getCtx();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(1200, now);
+    osc.frequency.exponentialRampToValueAtTime(600, now + 0.08);
+    gain.gain.setValueAtTime(0.35, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.09);
+  }
+
+  playFacepalm() {
+    const ctx = this._getCtx();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+
+    // Fleshy slap impact
+    const bufferSize = ctx.sampleRate * 0.08;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.015));
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(750, now);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.5, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    noise.start(now);
+
+    // Followed by low sigh
+    const sighDur = 0.5;
+    const sighBuffer = ctx.createBuffer(1, ctx.sampleRate * sighDur, ctx.sampleRate);
+    const sData = sighBuffer.getChannelData(0);
+    for (let i = 0; i < sData.length; i++) {
+      sData[i] = (Math.random() * 2 - 1) * (1 - i / sData.length);
+    }
+    const sigh = ctx.createBufferSource();
+    sigh.buffer = sighBuffer;
+    const sFilter = ctx.createBiquadFilter();
+    sFilter.type = 'bandpass';
+    sFilter.frequency.setValueAtTime(420, now + 0.08);
+    sFilter.frequency.exponentialRampToValueAtTime(220, now + 0.08 + sighDur);
+    const sGain = ctx.createGain();
+    sGain.gain.setValueAtTime(0.25, now + 0.08);
+    sGain.gain.exponentialRampToValueAtTime(0.001, now + 0.08 + sighDur);
+    sigh.connect(sFilter);
+    sFilter.connect(sGain);
+    sGain.connect(ctx.destination);
+    sigh.start(now + 0.08);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -376,7 +585,13 @@ const PALETTE = {
   syringeFluid: 0x22c55e,
   syringeGlass: 0xbae6fd,
   hookSteel: 0xe2e8f0,
-  hookDarkSteel: 0x475569
+  hookDarkSteel: 0x475569,
+  rumGlass: 0x1f3b25,
+  rumLiquid: 0x612c0e,
+  bottleLabel: 0xded1b1,
+  goldCoin: 0xf59e0b,
+  goldCoinEdge: 0xb45309,
+  lensGlass: 0x38bdf8
 };
 
 /**
@@ -805,6 +1020,97 @@ export class VoxelArms {
     const cardMark = createVoxelBox(0.7 * VOXEL, 0.1 * VOXEL, 0.9 * VOXEL, PALETTE.cardSpadeBlack);
     cardMark.position.set(0, 0.04 * VOXEL, 0);
     this.playingCard.add(cardMark);
+
+    // ----------------------------------------------------
+    // RUM BOTTLE (Attached to Right Wrist)
+    // ----------------------------------------------------
+    this.rumBottle = new THREE.Group();
+    this.rumBottle.name = 'RumBottle';
+    this.rumBottle.visible = false;
+    this.rightWrist.add(this.rumBottle);
+    this.rumBottle.position.set(-0.2 * VOXEL, 0.8 * VOXEL, -2.6 * VOXEL);
+
+    // Green glass body
+    const bottleBody = createVoxelBox(2.2 * VOXEL, 4.2 * VOXEL, 2.2 * VOXEL, PALETTE.rumGlass);
+    bottleBody.position.set(0, 0, -2.1 * VOXEL);
+    this.rumBottle.add(bottleBody);
+
+    // Parchment label on front
+    const bottleLabel = createVoxelBox(2.22 * VOXEL, 2.0 * VOXEL, 2.22 * VOXEL, PALETTE.bottleLabel);
+    bottleLabel.position.set(0, 0, -2.1 * VOXEL);
+    this.rumBottle.add(bottleLabel);
+
+    // Tapered neck
+    const bottleNeck = createVoxelBox(1.1 * VOXEL, 1.8 * VOXEL, 1.1 * VOXEL, PALETTE.rumGlass);
+    bottleNeck.position.set(0, 0, -4.6 * VOXEL);
+    this.rumBottle.add(bottleNeck);
+
+    // Cork Stopper (can pop off during uncorking)
+    this.bottleCork = createVoxelBox(0.95 * VOXEL, 1.0 * VOXEL, 0.95 * VOXEL, PALETTE.cork);
+    this.bottleCork.position.set(0, 0, -5.6 * VOXEL);
+    this.rumBottle.add(this.bottleCork);
+
+    // ----------------------------------------------------
+    // GOLD DOUBLOON (Attached to Right Wrist)
+    // ----------------------------------------------------
+    this.goldCoin = new THREE.Group();
+    this.goldCoin.name = 'GoldDoubloon';
+    this.goldCoin.visible = false;
+    this.rightWrist.add(this.goldCoin);
+    this.goldCoin.position.set(0, 0.7 * VOXEL, -3.2 * VOXEL);
+
+    // Coin face
+    const coinFace = createVoxelBox(1.8 * VOXEL, 0.22 * VOXEL, 1.8 * VOXEL, PALETTE.goldCoin);
+    this.goldCoin.add(coinFace);
+
+    // Coin outer rim
+    const coinRim = createVoxelBox(1.85 * VOXEL, 0.16 * VOXEL, 1.85 * VOXEL, PALETTE.goldCoinEdge);
+    this.goldCoin.add(coinRim);
+
+    // Anchor emblem on coin
+    const coinEmblem = createVoxelBox(0.6 * VOXEL, 0.28 * VOXEL, 0.6 * VOXEL, PALETTE.brassDark);
+    this.goldCoin.add(coinEmblem);
+
+    // ----------------------------------------------------
+    // BRASS SPYGLASS (Attached to Right Wrist)
+    // ----------------------------------------------------
+    this.spyglass = new THREE.Group();
+    this.spyglass.name = 'BrassSpyglass';
+    this.spyglass.visible = false;
+    this.rightWrist.add(this.spyglass);
+    this.spyglass.position.set(-0.3 * VOXEL, 0.8 * VOXEL, -2.6 * VOXEL);
+
+    // Base barrel (leather wrapped / dark brass)
+    const spyMain = createVoxelBox(1.6 * VOXEL, 1.6 * VOXEL, 3.4 * VOXEL, PALETTE.brassDark);
+    spyMain.position.set(0, 0, -1.7 * VOXEL);
+    this.spyglass.add(spyMain);
+
+    // Brass decorative rings
+    const spyRing1 = createVoxelBox(1.7 * VOXEL, 1.7 * VOXEL, 0.4 * VOXEL, PALETTE.brass);
+    spyRing1.position.set(0, 0, -0.4 * VOXEL);
+    this.spyglass.add(spyRing1);
+
+    const spyRing2 = createVoxelBox(1.7 * VOXEL, 1.7 * VOXEL, 0.4 * VOXEL, PALETTE.brass);
+    spyRing2.position.set(0, 0, -3.2 * VOXEL);
+    this.spyglass.add(spyRing2);
+
+    // Middle extending brass tube
+    this.spyglassTube1 = new THREE.Group();
+    this.spyglass.add(this.spyglassTube1);
+    const tube1 = createVoxelBox(1.2 * VOXEL, 1.2 * VOXEL, 3.2 * VOXEL, PALETTE.brass);
+    tube1.position.set(0, 0, -1.6 * VOXEL);
+    this.spyglassTube1.add(tube1);
+
+    // Front extending brass tube & glass lens
+    this.spyglassTube2 = new THREE.Group();
+    this.spyglass.add(this.spyglassTube2);
+    const tube2 = createVoxelBox(0.9 * VOXEL, 0.9 * VOXEL, 3.0 * VOXEL, PALETTE.brass);
+    tube2.position.set(0, 0, -1.5 * VOXEL);
+    this.spyglassTube2.add(tube2);
+
+    const spyLens = createVoxelBox(0.8 * VOXEL, 0.8 * VOXEL, 0.25 * VOXEL, PALETTE.lensGlass, 0x103040);
+    spyLens.position.set(0, 0, -3.1 * VOXEL);
+    this.spyglassTube2.add(spyLens);
   }
 
   // ---------------------------------------------------------------------------
@@ -903,11 +1209,14 @@ export class VoxelArms {
     if (this.hookGlint) this.hookGlint.visible = false;
     if (this.syringe) this.syringe.visible = false;
     if (this.playingCard) this.playingCard.visible = false;
+    if (this.rumBottle) this.rumBottle.visible = false;
+    if (this.goldCoin) this.goldCoin.visible = false;
+    if (this.spyglass) this.spyglass.visible = false;
   }
 
   /**
    * Start an emote animation.
-   * @param {'smoke' | 'middle_finger' | 'clap' | 'fist_bump' | 'jazz_hands' | 'needle' | 'hook_hand' | 'card_trick'} name
+   * @param {'smoke' | 'middle_finger' | 'clap' | 'fist_bump' | 'jazz_hands' | 'needle' | 'hook_hand' | 'card_trick' | 'rum_swig' | 'coin_flip' | 'spyglass' | 'facepalm'} name
    */
   playEmote(name) {
     this.currentEmote = name;
@@ -974,6 +1283,40 @@ export class VoxelArms {
         }
         break;
 
+      case 'rum_swig':
+        this.emoteDuration = 4.8;
+        if (this.rightFingersGroup) this.rightFingersGroup.visible = true;
+        if (this.rumBottle) {
+          this.rumBottle.visible = true;
+          if (this.bottleCork) this.bottleCork.position.set(0, 0, -5.6 * VOXEL);
+        }
+        break;
+
+      case 'coin_flip':
+        this.emoteDuration = 3.5;
+        if (this.rightFingersGroup) this.rightFingersGroup.visible = true;
+        if (this.goldCoin) {
+          this.goldCoin.visible = true;
+          this.goldCoin.position.set(0, 0.7 * VOXEL, -3.2 * VOXEL);
+          this.goldCoin.rotation.set(0, 0, 0);
+        }
+        break;
+
+      case 'spyglass':
+        this.emoteDuration = 4.4;
+        if (this.rightFingersGroup) this.rightFingersGroup.visible = true;
+        if (this.spyglass) {
+          this.spyglass.visible = true;
+          if (this.spyglassTube1) this.spyglassTube1.position.set(0, 0, 0);
+          if (this.spyglassTube2) this.spyglassTube2.position.set(0, 0, 0);
+        }
+        break;
+
+      case 'facepalm':
+        this.emoteDuration = 3.0;
+        if (this.rightFingersGroup) this.rightFingersGroup.visible = true;
+        break;
+
       default:
         console.warn(`VoxelArms: Unknown emote "${name}"`);
         this.stopEmote();
@@ -1020,6 +1363,13 @@ export class VoxelArms {
 
     this._hideAllProps();
     if (this.rightFingersGroup) this.rightFingersGroup.visible = true;
+    if (this.bottleCork) this.bottleCork.position.set(0, 0, -5.6 * VOXEL);
+    if (this.goldCoin) {
+      this.goldCoin.position.set(0, 0.7 * VOXEL, -3.2 * VOXEL);
+      this.goldCoin.rotation.set(0, 0, 0);
+    }
+    if (this.spyglassTube1) this.spyglassTube1.position.set(0, 0, 0);
+    if (this.spyglassTube2) this.spyglassTube2.position.set(0, 0, 0);
   }
 
   _setFingerCurl(finger, curlRad) {
@@ -1088,6 +1438,22 @@ export class VoxelArms {
 
       case 'card_trick':
         this._animateCardTrick(this.emoteTime);
+        break;
+
+      case 'rum_swig':
+        this._animateRumSwig(this.emoteTime);
+        break;
+
+      case 'coin_flip':
+        this._animateCoinFlip(this.emoteTime);
+        break;
+
+      case 'spyglass':
+        this._animateSpyglass(this.emoteTime);
+        break;
+
+      case 'facepalm':
+        this._animateFacepalm(this.emoteTime);
         break;
     }
   }
@@ -1854,6 +2220,406 @@ export class VoxelArms {
       const ease = p * p;
       posY = -0.13 - ease * 0.47;
       this.leftArm.visible = false;
+    }
+
+    this.rightArm.position.set(posX, posY, posZ);
+    this.rightArm.rotation.set(rotX, rotY, rotZ);
+  }
+
+  // ---------------------------------------------------------------------------
+  // 9. RUM SWIG ANIMATION
+  // ---------------------------------------------------------------------------
+
+  _animateRumSwig(t) {
+    this.leftArm.visible = true;
+    this.rightArm.visible = true;
+    if (this.rumBottle) this.rumBottle.visible = true;
+
+    // Right hand grips bottle
+    this._setFingerCurl(this.rightThumb, 0.9);
+    this._setFingerCurl(this.rightIndex, 1.2);
+    this._setMiddleFingerCurl(1.3);
+    this._setFingerCurl(this.rightRing, 1.3);
+    this._setFingerCurl(this.rightPinky, 1.3);
+
+    // Left hand pinches cork
+    this._setFingerCurl(this.leftThumb, 0.6);
+    this._setFingerCurl(this.leftIndex, 0.8);
+    this._setMiddleFingerCurl(1.0);
+    this._setFingerCurl(this.leftRing, 1.2);
+    this._setFingerCurl(this.leftPinky, 1.2);
+
+    let rightX = 0.08;
+    let rightY = -0.16;
+    let rightZ = -0.34;
+    let rightRotX = 0.35;
+    let rightRotY = -0.25;
+    let rightRotZ = 0.05;
+
+    let leftX = -0.12;
+    let leftY = -0.18;
+    let leftZ = -0.34;
+    let leftRotX = 0.4;
+    let leftRotY = 0.4;
+    let leftRotZ = 0.0;
+
+    if (t < 0.6) {
+      // Raise bottle and left hand
+      const p = t / 0.6;
+      const ease = 1 - Math.pow(1 - p, 2);
+      rightY = -0.60 + ease * 0.44;
+      leftY = -0.60 + ease * 0.42;
+    } else if (t < 1.0) {
+      // Left hand grasps cork and POP!
+      const p = (t - 0.6) / 0.4;
+      leftX = THREE.MathUtils.lerp(-0.12, 0.06, p);
+      leftY = THREE.MathUtils.lerp(-0.18, -0.06, p);
+      leftZ = -0.32;
+
+      if (t >= 0.82 && !this._soundFlags['cork_pop']) {
+        this._soundFlags['cork_pop'] = true;
+        this.audio.playCorkPop();
+        if (this.bottleCork) {
+          this.bottleCork.position.z = -7.5 * VOXEL; // cork pops free!
+        }
+      }
+    } else if (t < 1.6) {
+      // Cork removed; left hand retreats down, right arm tilts bottle towards mouth
+      const p = (t - 1.0) / 0.6;
+      const ease = 1 - Math.pow(1 - p, 2);
+      leftY = -0.06 - ease * 0.45;
+      rightX = THREE.MathUtils.lerp(0.08, 0.04, ease);
+      rightY = THREE.MathUtils.lerp(-0.16, -0.11, ease);
+      rightZ = THREE.MathUtils.lerp(-0.34, -0.28, ease);
+      rightRotX = THREE.MathUtils.lerp(0.35, -0.65, ease);
+    } else if (t < 3.2) {
+      // DRINKING SWIG!
+      const drinkProg = (t - 1.6) / 1.6;
+      const gulpBob = Math.sin(drinkProg * Math.PI * 6.0) * 0.008;
+
+      rightX = 0.04;
+      rightY = -0.10 + gulpBob;
+      rightZ = -0.27;
+      rightRotX = -0.85 + Math.sin(drinkProg * Math.PI * 3.0) * 0.15; // tilting higher!
+      rightRotY = -0.15;
+
+      if (t >= 1.9 && !this._soundFlags['glug']) {
+        this._soundFlags['glug'] = true;
+        this.audio.playSwigGlug();
+      }
+    } else if (t < 4.0) {
+      // Bottle lowers, left forearm comes across to wipe mouth with sleeve!
+      const p = (t - 3.2) / 0.8;
+      const ease = 1 - Math.pow(1 - p, 2);
+      rightX = 0.10;
+      rightY = THREE.MathUtils.lerp(-0.10, -0.22, ease);
+      rightZ = -0.36;
+      rightRotX = THREE.MathUtils.lerp(-0.85, 0.3, ease);
+
+      // Left arm wipe
+      leftX = THREE.MathUtils.lerp(-0.25, 0.02, Math.sin(p * Math.PI));
+      leftY = THREE.MathUtils.lerp(-0.45, -0.11, Math.sin(p * Math.PI));
+      leftZ = -0.28;
+      leftRotX = 0.6;
+      leftRotZ = -0.7;
+
+      if (t >= 3.5 && !this._soundFlags['sigh']) {
+        this._soundFlags['sigh'] = true;
+        this.audio.playSailorSigh();
+      }
+    } else {
+      // Lower down
+      const p = (t - 4.0) / (this.emoteDuration - 4.0);
+      const ease = p * p;
+      rightY = -0.22 - ease * 0.42;
+      leftY = -0.45 - ease * 0.2;
+    }
+
+    this.leftArm.position.set(leftX, leftY, leftZ);
+    this.leftArm.rotation.set(leftRotX, leftRotY, leftRotZ);
+
+    this.rightArm.position.set(rightX, rightY, rightZ);
+    this.rightArm.rotation.set(rightRotX, rightRotY, rightRotZ);
+  }
+
+  // ---------------------------------------------------------------------------
+  // 10. COIN FLIP ANIMATION
+  // ---------------------------------------------------------------------------
+
+  _animateCoinFlip(t) {
+    this.rightArm.visible = true;
+    this.leftArm.visible = true;
+    if (this.goldCoin) this.goldCoin.visible = true;
+
+    let posX = 0.05;
+    let posY = -0.16;
+    let posZ = -0.34;
+    let rotX = 0.45;
+    let rotY = -0.2;
+    let rotZ = 0.05;
+
+    let coinYOffset = 0;
+    let coinSpin = 0;
+
+    const raiseEnd = 0.5;
+    const flipTime = 0.55;
+    const catchTime = 1.7;
+    const showTime = 2.7;
+    const lowerStart = 2.9;
+
+    if (t < raiseEnd) {
+      const p = t / raiseEnd;
+      const ease = 1 - Math.pow(1 - p, 2);
+      posY = -0.60 + ease * 0.44;
+      this.leftArm.visible = false;
+
+      // Thumb cocked under index finger
+      this._setFingerCurl(this.rightThumb, 0.9);
+      this._setFingerCurl(this.rightIndex, 1.1);
+      this._setMiddleFingerCurl(1.3);
+      this._setFingerCurl(this.rightRing, 1.4);
+      this._setFingerCurl(this.rightPinky, 1.4);
+    } else if (t < catchTime) {
+      // Thumb snaps up and launches the doubloon into the sky!
+      if (!this._soundFlags['coin_toss']) {
+        this._soundFlags['coin_toss'] = true;
+        this.audio.playCoinToss();
+      }
+      this._setFingerCurl(this.rightThumb, -0.2); // thumb flicked up
+
+      const flipProg = (t - flipTime) / (catchTime - flipTime);
+      coinYOffset = Math.sin(flipProg * Math.PI) * 0.22; // flies up in air!
+      coinSpin = flipProg * Math.PI * 14.0; // spinning rapidly!
+
+      // Left hand rises in preparation to catch
+      this.leftArm.visible = true;
+      const p = Math.min(1.0, (t - 0.9) / 0.8);
+      this.leftArm.position.set(-0.02, -0.60 + p * 0.44, -0.33);
+      this.leftArm.rotation.set(0.4, 0.3, 0.2);
+    } else if (t < showTime) {
+      // Slapped and caught on left palm!
+      if (!this._soundFlags['coin_catch']) {
+        this._soundFlags['coin_catch'] = true;
+        this.audio.playCoinCatch();
+      }
+      coinYOffset = 0;
+      coinSpin = 0;
+
+      // Both hands together presenting the coin
+      this.leftArm.visible = true;
+      this.leftArm.position.set(0.02, -0.14, -0.33);
+      this.leftArm.rotation.set(0.45, 0.1, 0.0);
+
+      // Open palms flat
+      this._setFingerCurl(this.leftThumb, 0.05);
+      this._setFingerCurl(this.leftIndex, 0.05);
+      this._setFingerCurl(this.leftMiddle, 0.05);
+      this._setFingerCurl(this.leftRing, 0.05);
+      this._setFingerCurl(this.leftPinky, 0.05);
+
+      this._setFingerCurl(this.rightThumb, 0.1);
+      this._setFingerCurl(this.rightIndex, 0.1);
+      this._setMiddleFingerCurl(0.1);
+      this._setFingerCurl(this.rightRing, 0.1);
+      this._setFingerCurl(this.rightPinky, 0.1);
+
+      posX = 0.12;
+      posY = -0.16;
+      rotX = 0.45;
+    } else {
+      // Lower down
+      const p = (t - lowerStart) / (this.emoteDuration - lowerStart);
+      const ease = p * p;
+      posY = -0.16 - ease * 0.44;
+      this.leftArm.position.y = -0.14 - ease * 0.46;
+    }
+
+    if (this.goldCoin) {
+      this.goldCoin.position.set(0, 0.7 * VOXEL + coinYOffset, -3.2 * VOXEL);
+      this.goldCoin.rotation.set(coinSpin, 0, coinSpin * 0.5);
+    }
+
+    this.rightArm.position.set(posX, posY, posZ);
+    this.rightArm.rotation.set(rotX, rotY, rotZ);
+  }
+
+  // ---------------------------------------------------------------------------
+  // 11. SPYGLASS LOOKOUT ANIMATION
+  // ---------------------------------------------------------------------------
+
+  _animateSpyglass(t) {
+    this.rightArm.visible = true;
+    this.leftArm.visible = true;
+    if (this.spyglass) this.spyglass.visible = true;
+
+    // Right hand grips barrel
+    this._setFingerCurl(this.rightThumb, 0.8);
+    this._setFingerCurl(this.rightIndex, 1.1);
+    this._setMiddleFingerCurl(1.2);
+    this._setFingerCurl(this.rightRing, 1.2);
+    this._setFingerCurl(this.rightPinky, 1.2);
+
+    // Left hand supports front barrel
+    this._setFingerCurl(this.leftThumb, 0.7);
+    this._setFingerCurl(this.leftIndex, 1.0);
+    this._setMiddleFingerCurl(1.1);
+    this._setFingerCurl(this.leftRing, 1.1);
+    this._setFingerCurl(this.leftPinky, 1.1);
+
+    let rightX = 0.04;
+    let rightY = -0.16;
+    let rightZ = -0.34;
+    let rightRotX = 0.2;
+    let rightRotY = -0.1;
+    let rightRotZ = 0.0;
+
+    let leftX = -0.06;
+    let leftY = -0.18;
+    let leftZ = -0.34;
+
+    let extendRatio = 0.0;
+
+    if (t < 0.6) {
+      // Raise spyglass
+      const p = t / 0.6;
+      const ease = 1 - Math.pow(1 - p, 2);
+      rightY = -0.60 + ease * 0.44;
+      leftY = -0.60 + ease * 0.42;
+      extendRatio = 0.0;
+    } else if (t < 1.1) {
+      // Telescoping extension chk-chk-chk!
+      const p = (t - 0.6) / 0.5;
+      extendRatio = 1 - Math.pow(1 - p, 2);
+
+      leftX = THREE.MathUtils.lerp(-0.06, -0.02, p);
+      leftZ = THREE.MathUtils.lerp(-0.34, -0.38, p);
+
+      if (t >= 0.75 && !this._soundFlags['spy_extend']) {
+        this._soundFlags['spy_extend'] = true;
+        this.audio.playSpyglassExtend();
+      }
+    } else if (t < 1.6) {
+      // Bring up to eye level
+      extendRatio = 1.0;
+      const p = (t - 1.1) / 0.5;
+      const ease = 1 - Math.pow(1 - p, 2);
+      rightX = THREE.MathUtils.lerp(0.04, 0.015, ease);
+      rightY = THREE.MathUtils.lerp(-0.16, -0.04, ease);
+      rightZ = THREE.MathUtils.lerp(-0.34, -0.22, ease);
+      leftY = THREE.MathUtils.lerp(-0.18, -0.07, ease);
+      leftZ = THREE.MathUtils.lerp(-0.38, -0.28, ease);
+    } else if (t < 3.2) {
+      // Scanning the horizon: panning slowly left to right
+      extendRatio = 1.0;
+      const scanProg = (t - 1.6) / 1.6;
+      const pan = Math.sin(scanProg * Math.PI * 2.0) * 0.22;
+
+      rightX = 0.015;
+      rightY = -0.04 + Math.sin(scanProg * Math.PI * 4.0) * 0.004;
+      rightZ = -0.22;
+      rightRotY = pan;
+
+      leftX = -0.01 + pan * 0.05;
+      leftY = -0.07;
+      leftZ = -0.28;
+    } else if (t < 3.8) {
+      // Pull down and collapse sections!
+      const p = (t - 3.2) / 0.6;
+      extendRatio = Math.max(0, 1.0 - p * 1.5);
+
+      rightY = THREE.MathUtils.lerp(-0.04, -0.18, p);
+      rightZ = THREE.MathUtils.lerp(-0.22, -0.34, p);
+      rightRotY = 0;
+
+      leftY = THREE.MathUtils.lerp(-0.07, -0.18, p);
+      leftZ = THREE.MathUtils.lerp(-0.28, -0.34, p);
+
+      if (t >= 3.45 && !this._soundFlags['spy_collapse']) {
+        this._soundFlags['spy_collapse'] = true;
+        this.audio.playSpyglassCollapse();
+      }
+    } else {
+      // Lower down
+      extendRatio = 0.0;
+      const p = (t - 3.8) / (this.emoteDuration - 3.8);
+      const ease = p * p;
+      rightY = -0.18 - ease * 0.42;
+      leftY = -0.18 - ease * 0.42;
+    }
+
+    if (this.spyglassTube1) {
+      this.spyglassTube1.position.z = -2.6 * VOXEL * extendRatio;
+    }
+    if (this.spyglassTube2) {
+      this.spyglassTube2.position.z = -5.0 * VOXEL * extendRatio;
+    }
+
+    this.leftArm.position.set(leftX, leftY, leftZ);
+    this.leftArm.rotation.set(0.3, 0.4, 0.1);
+
+    this.rightArm.position.set(rightX, rightY, rightZ);
+    this.rightArm.rotation.set(rightRotX, rightRotY, rightRotZ);
+  }
+
+  // ---------------------------------------------------------------------------
+  // 12. FACEPALM ANIMATION
+  // ---------------------------------------------------------------------------
+
+  _animateFacepalm(t) {
+    this.rightArm.visible = true;
+    this.leftArm.visible = false;
+
+    // Cup fingers slightly
+    this._setFingerCurl(this.rightThumb, 0.3);
+    this._setFingerCurl(this.rightIndex, 0.4);
+    this._setMiddleFingerCurl(0.45);
+    this._setFingerCurl(this.rightRing, 0.5);
+    this._setFingerCurl(this.rightPinky, 0.5);
+
+    let posX = 0.04;
+    let posY = -0.14;
+    let posZ = -0.32;
+    let rotX = 1.35;
+    let rotY = -0.15;
+    let rotZ = 0.1;
+
+    const raiseEnd = 0.5;
+    const slapTime = 0.52;
+    const dragEnd = 2.2;
+    const lowerStart = 2.3;
+
+    if (t < raiseEnd) {
+      const p = t / raiseEnd;
+      const ease = 1 - Math.pow(1 - p, 2);
+      posY = -0.60 + ease * 0.54;
+      posZ = -0.40 + ease * 0.16;
+    } else if (t < dragEnd) {
+      // SLAP on face!
+      if (!this._soundFlags['facepalm_slap']) {
+        this._soundFlags['facepalm_slap'] = true;
+        this.audio.playFacepalm();
+      }
+
+      const dragP = (t - slapTime) / (dragEnd - slapTime);
+      // Hand slowly drags down the face in defeat
+      posY = -0.06 - dragP * 0.09;
+      posZ = -0.24;
+
+      // Slight head shake in disbelief
+      rotZ = 0.1 + Math.sin(dragP * Math.PI * 4.0) * 0.04;
+
+      // Fingers curl tighter as they drag down
+      const curl = 0.45 + dragP * 0.5;
+      this._setFingerCurl(this.rightIndex, curl);
+      this._setMiddleFingerCurl(curl);
+      this._setFingerCurl(this.rightRing, curl);
+      this._setFingerCurl(this.rightPinky, curl);
+    } else {
+      // Lower down
+      const p = (t - lowerStart) / (this.emoteDuration - lowerStart);
+      const ease = p * p;
+      posY = -0.15 - ease * 0.45;
+      posZ = -0.24 - ease * 0.16;
     }
 
     this.rightArm.position.set(posX, posY, posZ);
