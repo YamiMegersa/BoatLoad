@@ -393,6 +393,53 @@ export class BuildSystem {
   // ---------------------------------------------------------------------------
 
   /**
+   * Resolve the target placement cell from a raycast hit.
+   * When targeting a damaged/missing cell, snaps directly to it.
+   * When clicking an intact/repaired outer voxel whose outward neighbor is empty air
+   * while an inner cell along the ray (-normal) is still damaged/missing, targets the
+   * inner damaged cell so multi-layer hull breaches can be completely filled.
+   */
+  _resolveTargetCell(cellX, cellY, cellZ, normal, isEraser) {
+    if (isEraser || !normal) {
+      return { x: cellX, y: cellY, z: cellZ };
+    }
+
+    const isDamagedState = (s) => (
+      s === CellState.MISSING ||
+      s === CellState.DAMAGED ||
+      s === CellState.FLOODED
+    );
+
+    const state = this._grid.getState(cellX, cellY, cellZ);
+    if (isDamagedState(state)) {
+      return { x: cellX, y: cellY, z: cellZ };
+    }
+
+    const outX = cellX + normal.x;
+    const outY = cellY + normal.y;
+    const outZ = cellZ + normal.z;
+    const outState = this._grid.getState(outX, outY, outZ);
+    if (isDamagedState(outState)) {
+      return { x: outX, y: outY, z: outZ };
+    }
+
+    // Check inward along -normal for un-repaired inner-layer hull damage
+    for (let depth = 1; depth <= 3; depth++) {
+      const inX = cellX - normal.x * depth;
+      const inY = cellY - normal.y * depth;
+      const inZ = cellZ - normal.z * depth;
+      if (!this._grid.inBounds(inX, inY, inZ)) break;
+      const inState = this._grid.getState(inX, inY, inZ);
+      if (isDamagedState(inState)) {
+        return { x: inX, y: inY, z: inZ };
+      }
+      if (inState === CellState.EMPTY) break;
+    }
+
+    return { x: outX, y: outY, z: outZ };
+  }
+
+  /**
    * Called on pointer move to position the holographic preview.
    * @param {number} cellX
    * @param {number} cellY
@@ -408,20 +455,10 @@ export class BuildSystem {
     const [sx, sy, sz] = this.getBrushDimensions();
     const isEraser = this._activeBrush.isEraser;
 
-    let targetX = cellX;
-    let targetY = cellY;
-    let targetZ = cellZ;
-
-    const state = this._grid.getState(cellX, cellY, cellZ);
-    const isHole = (state === CellState.MISSING || state === CellState.DAMAGED || state === CellState.FLOODED);
-
-    // If eraser or targeting a hole, snap directly onto the cell.
-    // If placing a new block on intact/repaired hull, snap adjacent to the clicked face.
-    if (!isEraser && normal && !isHole) {
-      targetX += normal.x;
-      targetY += normal.y;
-      targetZ += normal.z;
-    }
+    const resolved = this._resolveTargetCell(cellX, cellY, cellZ, normal, isEraser);
+    let targetX = resolved.x;
+    let targetY = resolved.y;
+    let targetZ = resolved.z;
 
     this._currentPlacement = { cellX, cellY, cellZ, normal };
 
@@ -524,18 +561,10 @@ export class BuildSystem {
     const isEraser = this._activeBrush.isEraser;
     const [sx, sy, sz] = this.getBrushDimensions();
 
-    let targetX = cellX;
-    let targetY = cellY;
-    let targetZ = cellZ;
-
-    const state = this._grid.getState(cellX, cellY, cellZ);
-    const isHole = (state === CellState.MISSING || state === CellState.DAMAGED || state === CellState.FLOODED);
-
-    if (!isEraser && normal && !isHole) {
-      targetX += normal.x;
-      targetY += normal.y;
-      targetZ += normal.z;
-    }
+    const resolved = this._resolveTargetCell(cellX, cellY, cellZ, normal, isEraser);
+    let targetX = resolved.x;
+    let targetY = resolved.y;
+    let targetZ = resolved.z;
 
     // --- CASE 1: ERASER MODE ---
     if (isEraser) {

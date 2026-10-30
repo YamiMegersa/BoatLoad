@@ -65,7 +65,7 @@ export class ClearCheckManager {
    * @param {object} levelCfg - The current level config from EditorSystem
    * @returns {Promise<string>} The checksum being verified
    */
-  static async startClearCheck(levelCfg) {
+  static async startClearCheck(levelCfg, { emitEvent = true } = {}) {
     this.init();
     const cleanLevel = LevelSerializer.cleanLevelConfig(levelCfg);
     const checksum = await LevelSerializer.computeChecksum(cleanLevel);
@@ -81,11 +81,13 @@ export class ClearCheckManager {
     console.log(`[ClearCheck] Started verification run for course hash: ${checksum.slice(0, 8)}... (routing to Shipyard repair first)`);
 
     // Emit event requesting GameState to route to SHIPYARD repair phase first with clearCheck flag
-    emit('editorRequestPlay', {
-      mode: 'repair',
-      isClearCheck: true,
-      clearCheckHash: checksum
-    });
+    if (emitEvent) {
+      emit('editorRequestPlay', {
+        mode: 'repair',
+        isClearCheck: true,
+        clearCheckHash: checksum
+      });
+    }
 
     return checksum;
   }

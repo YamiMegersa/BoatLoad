@@ -588,6 +588,7 @@ export class GameState {
       return;
     }
 
+    const txId = (this._transitionGen = (this._transitionGen || 0) + 1);
     const skipLoading = opts?.skipLoading || false;
     if (!skipLoading) {
       const titles = {
@@ -623,17 +624,24 @@ export class GameState {
       });
     }
 
+    if (txId !== this._transitionGen) return;
+
     this.nextPhase = newPhase;
     await this._onExit(this.currentPhase);
+    if (txId !== this._transitionGen) return;
+
     if (!skipLoading) {
       emit('updateLoading', { progress: 0.40, message: 'Clearing outfitting berth...' });
       await new Promise(resolve => setTimeout(resolve, 0));
     }
+    if (txId !== this._transitionGen) return;
 
     this.currentPhase = newPhase;
     this.nextPhase = null;
     this._keys = {};
     await this._onEnter(newPhase, opts);
+    if (txId !== this._transitionGen) return;
+
     if (!skipLoading) {
       emit('updateLoading', { progress: 0.92, message: 'Vessel in position...' });
       await new Promise(resolve => setTimeout(resolve, 0));
@@ -666,6 +674,52 @@ export class GameState {
       await new Promise(resolve => {
         emit('hideLoading', { onDismissed: resolve });
       });
+    }
+  }
+
+  /**
+   * Purge any orphaned ShipChunkContainer or editor ship/workshop groups from the scene.
+   * Ensures only the active ship container (if any) remains in the scene graph.
+   * @param {THREE.Object3D|null} [keepContainer=null]
+   */
+  _purgeOrphanedShipContainers(keepContainer = null) {
+    if (!this._scene) return;
+    for (let i = this._scene.children.length - 1; i >= 0; i--) {
+      const c = this._scene.children[i];
+      if (!c || c === keepContainer) continue;
+      if (this._playerShip?.mesh && c === this._playerShip.mesh) continue;
+
+      if (c.name === 'ShipChunkContainer' || c.userData?.isShipChunkContainer) {
+        if (c.userData?.chunkRenderer && typeof c.userData.chunkRenderer.dispose === 'function') {
+          c.userData.chunkRenderer.dispose(this._scene);
+        } else {
+          this._scene.remove(c);
+          c.traverse(child => {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) {
+              if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+              else child.material.dispose();
+            }
+          });
+        }
+        continue;
+      }
+
+      if (
+        c.name === 'EditorEnvironmentGroup' ||
+        c.name === 'BoatDestructionWorkshopGroup' ||
+        c.name === 'editorShipGhost' ||
+        c.userData?.isShipSpawn
+      ) {
+        this._scene.remove(c);
+        c.traverse(child => {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) {
+            if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+            else child.material.dispose();
+          }
+        });
+      }
     }
   }
 
@@ -1605,16 +1659,24 @@ export class GameState {
           this._scene.add(this._chunkRenderer.container);
         }
       }
+      this._chunkRenderer.updateTransform();
       this._chunkRenderer.setShowMissingOutlines(true, true);
       this._chunkRenderer.sync(this._grid);
+      this._purgeOrphanedShipContainers(this._chunkRenderer.container);
     } else {
       // Cleanly dispose any existing chunk renderer first so no duplicate/ghost boat remains
       if (this._chunkRenderer) {
         this._chunkRenderer.dispose(this._scene);
         this._chunkRenderer = null;
       }
+      this._purgeOrphanedShipContainers(null);
       this._currentShipId = activeShipId;
       const { grid, zones, def: builtDef, gltfScene } = await ShipBuilder.build(activeShipDef, this._levelCfg);
+      // Guard against concurrent build completion
+      if (this._chunkRenderer) {
+        this._chunkRenderer.dispose(this._scene);
+        this._chunkRenderer = null;
+      }
       this._grid = grid;
       this._zones = zones;
       def = builtDef;
@@ -1625,6 +1687,8 @@ export class GameState {
       this._chunkRenderer.container.position.copy(containerPos);
       this._chunkRenderer.container.rotation.copy(SHIP_MOORED_ROT);
       this._chunkRenderer.container.scale.set(s, s, s);
+      this._chunkRenderer.updateTransform();
+      this._purgeOrphanedShipContainers(this._chunkRenderer.container);
     }
 
     // BVH raycaster - pass container for world space transforms
@@ -2153,6 +2217,7 @@ export class GameState {
     };
 
     this._playerShip = new PlayerShip(effectiveShipStats, this._scene, this._chunkRenderer, this._grid, this._qteSystem);
+    this._purgeOrphanedShipContainers(this._chunkRenderer?.container);
     this._playerShip.setDepartureGrace(9.0); // Full immunity during anchor countdown + initial departure
     if (spawnX !== 0 || spawnY !== 0 || spawnZ !== 0) {
       this._playerShip.mesh.position.set(spawnX, spawnY, spawnZ);
