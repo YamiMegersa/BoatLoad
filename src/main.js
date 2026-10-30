@@ -24,6 +24,7 @@ import { ParticleSystem } from './environment/ParticleSystem.js';
 import { DamageSystem } from './shipyard/DamageSystem.js';
 import { GodRays } from './environment/GodRays.js';
 import { PaperFilter } from './environment/PaperFilter.js';
+import { UnderwaterFilter } from './environment/UnderwaterFilter.js';
 import { AudioManager } from './utils/AudioManager.js';
 import { DEBUG } from './utils/debug.js';
 import { exportToGLB } from './utils/exportGLTF.js';
@@ -108,6 +109,14 @@ const mainRT = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight
 const paperFilter = new PaperFilter(renderer);
 paperFilter.resize(window.innerWidth, window.innerHeight);
 
+const underwaterRT = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {
+  minFilter: THREE.LinearFilter,
+  magFilter: THREE.LinearFilter,
+  format: THREE.RGBAFormat,
+});
+const underwaterFilter = new UnderwaterFilter(renderer);
+underwaterFilter.resize(window.innerWidth, window.innerHeight);
+
 // ---------------------------------------------------------------------------
 // Global Managers and UI
 // ---------------------------------------------------------------------------
@@ -121,6 +130,7 @@ gameState._moon = moon;
 gameState._godRays = godRays;
 window.gameState = gameState;
 window.godRays = godRays;
+window.underwaterFilter = underwaterFilter;
 window.exportToGLB = exportToGLB;
 
 window.inspectTriangles = () => {
@@ -307,7 +317,9 @@ window.addEventListener('resize', () => {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
   godRays.resize(window.innerWidth, window.innerHeight);
   mainRT.setSize(window.innerWidth, window.innerHeight);
+  underwaterRT.setSize(window.innerWidth, window.innerHeight);
   paperFilter.resize(window.innerWidth, window.innerHeight);
+  underwaterFilter.resize(window.innerWidth, window.innerHeight);
 });
 
 // ---------------------------------------------------------------------------
@@ -366,6 +378,7 @@ on('weatherChanged', () => {
 // ---------------------------------------------------------------------------
 
 const clock = new THREE.Clock();
+const _camWorldPos = new THREE.Vector3();
 
 function tick() {
   requestAnimationFrame(tick);
@@ -429,7 +442,27 @@ function tick() {
   // Clear render metrics once per frame before any render passes execute
   renderer.info.reset();
 
-  if (usePaperShader) {
+  activeCam.getWorldPosition(_camWorldPos);
+  let waterY = -0.5;
+  if (gameState._ocean) {
+    waterY = gameState._ocean.getWaveInfo(_camWorldPos.x, _camWorldPos.z).height;
+  }
+  underwaterFilter.update(delta, _camWorldPos.y, waterY);
+
+  const isSubmerged = underwaterFilter.isSubmerged;
+
+  if (isSubmerged) {
+    // Underwater: capture clean base scene into mainRT (preventing atmospheric god rays from flickering in water)
+    renderer.setRenderTarget(mainRT);
+    renderer.render(scene, activeCam);
+
+    if (usePaperShader) {
+      underwaterFilter.render(mainRT, underwaterRT);
+      paperFilter.render(underwaterRT);
+    } else {
+      underwaterFilter.render(mainRT, null);
+    }
+  } else if (usePaperShader) {
     if (godRaysEnabled) {
       godRays.render(sun, moon, mainRT);
     } else {
