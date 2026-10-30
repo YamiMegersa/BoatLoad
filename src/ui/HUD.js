@@ -157,8 +157,6 @@ export class HUD {
     this._score = 0;
     const defaultArcs = describeSweetSpotArcs([0.4, 0.6]);
 
-    const isCommunity = Boolean(window.gameState?._isCommunityCourse || window.gameState?._activeCommunityCourseCode);
-    const dayLabel = isCommunity ? 'Voyage' : `Day ${day ?? (window.gameState?.day ?? 1)}`;
 
     this._el = document.createElement('div');
     this._el.id = 'hud';
