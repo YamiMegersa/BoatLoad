@@ -12,12 +12,13 @@ const damagedMaterial = new THREE.MeshLambertMaterial({ color: 0x5c3317 });
 applyCausticsToMaterial(intactMaterial, { multiplier: 0.9 });
 applyCausticsToMaterial(damagedMaterial, { multiplier: 0.9 });
 
-/** Missing/Broken/Damaged cell — prominent red outline */
+/** Missing/Broken/Damaged cell — prominent red outline with standard scene depth testing */
 const missingMaterial = new THREE.LineBasicMaterial({
   color: 0xff1533,
   transparent: true,
   opacity: 0.95,
-  depthTest: false,
+  depthTest: true,
+  depthWrite: false,
 });
 
 /** Flooded bilge — translucent ocean blue */
@@ -33,7 +34,7 @@ const floodedMaterial = new THREE.MeshPhongMaterial({
  */
 const MAX_INDIVIDUAL_MESHES = 1024;
 const BOX_GEO = new THREE.BoxGeometry(CELL_SIZE, CELL_SIZE, CELL_SIZE);
-const OUTLINE_BOX_GEO = new THREE.BoxGeometry(CELL_SIZE * 1.04, CELL_SIZE * 1.04, CELL_SIZE * 1.04);
+const OUTLINE_BOX_GEO = new THREE.BoxGeometry(CELL_SIZE * 0.998, CELL_SIZE * 0.998, CELL_SIZE * 0.998);
 const EDGES_GEO = new THREE.EdgesGeometry(OUTLINE_BOX_GEO);
 
 // ---------------------------------------------------------------------------
@@ -193,9 +194,19 @@ export class ChunkRenderer {
    */
   dispose(scene) {
     if (this.container) {
-      scene.remove(this.container);
+      if (this.container.parent) {
+        this.container.parent.remove(this.container);
+      }
+      scene?.remove(this.container);
       if (this._gltfScene) {
         this.container.remove(this._gltfScene);
+        this._gltfScene.traverse(child => {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) {
+            if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+            else child.material.dispose();
+          }
+        });
         this._gltfScene = null;
       }
     }
@@ -428,6 +439,9 @@ export class ChunkRenderer {
     if (mesh.geometry !== BOX_GEO && mesh.geometry !== EDGES_GEO && mesh.geometry !== OUTLINE_BOX_GEO) {
       mesh.geometry.dispose();
     }
+    if (mesh.material && mesh.material !== missingMaterial && mesh.material !== damagedMaterial && mesh.material !== floodedMaterial) {
+      mesh.material.dispose();
+    }
   }
 
   _spawnIndividual(grid, x, y, z, flatIdx, material, isOutline = false) {
@@ -449,9 +463,6 @@ export class ChunkRenderer {
 
     const obj = isOutline ? new THREE.LineSegments(EDGES_GEO, material) : new THREE.Mesh(BOX_GEO, material);
     obj.position.copy(grid.toWorldPos(x, y, z));
-    if (isOutline) {
-      obj.renderOrder = 999;
-    }
     this.container.add(obj);
 
     this._individualMeshes.set(flatIdx, obj);
@@ -462,7 +473,7 @@ export class ChunkRenderer {
     const mesh = this._individualMeshes.get(flatIdx);
     if (!mesh) return;
 
-    this.container.remove(mesh);
+    this._disposeIndividualMesh(mesh);
     this._individualMeshes.delete(flatIdx);
 
     const qIdx = this._individualQueue.indexOf(flatIdx);

@@ -160,6 +160,7 @@ export class GameState {
     this._weather = new WeatherSystem();
     this._dockStall = new DockStall();
     this._hasDock = true;
+    this._hasCompletedDay0Cutscene = false;
     this._isCountdownActive = false;
     this._camShudderTrauma = 0;
     this._onCameraShudder = (d) => { this._camShudderTrauma = Math.min(1.0, (this._camShudderTrauma || 0) + (d.intensity || 0.4)); };
@@ -423,22 +424,25 @@ export class GameState {
     const isPassed = opts.passed !== false && !opts.failed && !opts.isSunk;
     const isSunk = Boolean(opts.failed || opts.isSunk);
 
+    const isPracticeRun = (day === 0);
+
     // 1. Customer Repair Contract Accounting
     const defaultDayBudget = getCustomerForDay(day).basePay;
     const baseBudget = this.currentContract?.baseBudget ?? (this._levelCfg?.budget !== undefined ? this._levelCfg.budget : defaultDayBudget);
     const bargainBonus = this.currentContract?.bargainBonus ?? 0;
-    const agreedBudget = baseBudget + bargainBonus;
+    const agreedBudget = isPracticeRun ? 0 : (baseBudget + bargainBonus);
     const repairSpent = this.currentContract?.spentOnRepairs ?? (this._budgetManager?.spent ?? 0);
-    const leftoverProfit = agreedBudget - repairSpent;
+    const leftoverProfit = isPracticeRun ? 0 : (agreedBudget - repairSpent);
 
     // 2. Sailing Rewards & Bonuses
-    const baseReward = isPassed && !isCommunity ? (150 + day * 75) : 0;
+    const baseReward = isPassed && !isCommunity && !isPracticeRun ? (150 + day * 75) : 0;
     const multiplier = isPassed && !isCommunity ? this.getPedestalMultiplier() : 1.0;
     const pedestalTotal = Math.round(baseReward * multiplier);
     const pedestalBonus = Math.max(0, pedestalTotal - baseReward);
     const sharksHit = this.sharksHitCount || Math.round((this.score || 0) / 25);
-    const sharkBonus = isPassed && !isCommunity ? Math.max(0, Math.round(this.score || 0)) : 0;
-    const sailingBonus = isCommunity ? 0 : (pedestalTotal + sharkBonus);
+    const sharkBonus = isPassed && !isCommunity && !isPracticeRun ? Math.max(0, Math.round(this.score || 0)) : 0;
+    const sailingBonus = (isCommunity || isPracticeRun) ? 0 : (pedestalTotal + sharkBonus);
+
 
     // 3. Incurred Voyage Damage Penalty
     let damageDiff = 0;
@@ -449,18 +453,20 @@ export class GameState {
       }
     }
     const VOXEL_DAMAGE_RATE = 8;
-    const voxelDamageCost = damageDiff * VOXEL_DAMAGE_RATE;
+    const voxelDamageCost = isPracticeRun ? 0 : (damageDiff * VOXEL_DAMAGE_RATE);
     const totalDamageIncurred = voxelDamageCost;
 
-    // 4. Net Settlement Payout (campaign only; community courses do not affect economy)
+    // 4. Net Settlement Payout (campaign only; community courses and practice runs do not affect economy)
     let netPayout = 0;
     const previousCoins = this.coins;
-    if (!isCommunity) {
+    if (!isCommunity && !isPracticeRun) {
       netPayout = leftoverProfit + sailingBonus - totalDamageIncurred;
       this.applyPayout(netPayout);
       if (isPassed) {
         this.unlockDay(day + 1);
       }
+    } else if (isPracticeRun && isPassed) {
+      this.unlockDay(1);
     }
 
     emit('uiMount', {
@@ -1107,11 +1113,18 @@ export class GameState {
     // Trigger cutscene & dialogue when a level is chosen in the logbook
     this._startLevelCutscene = () => {
       if (this.day === 0) {
-        if (this._dockStall?.crab) {
-          this._dockStall.crab.reset();
-        }
-        if (this._dockPlayerController) {
-          this._dockPlayerController.startDay0OpeningCutscene();
+        if (!this._hasCompletedDay0Cutscene) {
+          if (this._dockStall?.crab) {
+            this._dockStall.crab.reset();
+          }
+          if (this._dockPlayerController) {
+            this._dockPlayerController.startDay0OpeningCutscene(() => {
+              this._hasCompletedDay0Cutscene = true;
+            });
+            this._hasCompletedDay0Cutscene = true;
+          }
+        } else if (this._dockPlayerController) {
+          this._dockPlayerController.resumeDay0AtDock();
         }
         return;
       }
@@ -1356,11 +1369,20 @@ export class GameState {
 
     if (opts?.openShop) {
       setTimeout(() => emit('openShopUI'), 300);
+    } else if (opts?.day0TutorialCompleted || (this.day === 1 && this._hasCompletedDay0Cutscene && !this._dockShipArrived)) {
+      this._dockPlayerController.startDay1StallPrompt();
     } else if (this.day === 0) {
-      if (this._dockStall?.crab) {
-        this._dockStall.crab.reset();
+      if (!this._hasCompletedDay0Cutscene) {
+        if (this._dockStall?.crab) {
+          this._dockStall.crab.reset();
+        }
+        this._dockPlayerController.startDay0OpeningCutscene(() => {
+          this._hasCompletedDay0Cutscene = true;
+        });
+        this._hasCompletedDay0Cutscene = true;
+      } else {
+        this._dockPlayerController.resumeDay0AtDock();
       }
-      this._dockPlayerController.startDay0OpeningCutscene();
     }
   }
 
@@ -1429,8 +1451,42 @@ export class GameState {
 
   async _enterMainMenu(opts) {
     this.activeCamera = null;
+    this._hasCompletedDay0Cutscene = false;
     if (opts?.shipDef) this._shipDef = opts.shipDef;
     if (opts?.levelCfg) this._levelCfg = opts.levelCfg;
+
+    // Clean up any lingering editor system, editor environment group, workshop or voxel terrain
+    if (this._editorSystem) {
+      this._editorSystem.dispose();
+      this._editorSystem = null;
+    }
+    const lingeringEditorGroup = this._scene.getObjectByName('EditorEnvironmentGroup');
+    if (lingeringEditorGroup) {
+      this._scene.remove(lingeringEditorGroup);
+    }
+    for (let i = this._scene.children.length - 1; i >= 0; i--) {
+      const c = this._scene.children[i];
+      if (
+        c.name === 'EditorEnvironmentGroup' ||
+        c.name === 'BoatDestructionWorkshopGroup' ||
+        c.name === 'editorShipGhost' ||
+        c.userData?.isShipSpawn ||
+        c.name === 'dockMooredGroup'
+      ) {
+        this._scene.remove(c);
+        c.traverse(child => {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) {
+            if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+            else child.material.dispose();
+          }
+        });
+      }
+    }
+    if (this._voxelTerrain) {
+      this._voxelTerrain.dispose();
+      this._voxelTerrain = null;
+    }
 
     // Ensure any loaded boat/vessel meshes are hidden and positioned well out of the camera's sightline
     if (this._chunkRenderer && this._chunkRenderer.container) {
@@ -1586,11 +1642,12 @@ export class GameState {
     this._raycaster.build(this._grid, this._scene, this._chunkRenderer.container);
 
     // Budget manager for level repairs
-    if (!this.currentContract || this.currentContract.day !== this.day) {
-      const defaultBudget = this._levelCfg?.budget !== undefined ? this._levelCfg.budget : getCustomerForDay(this.day).basePay;
+    const configuredBudget = levelCfg?.budget !== undefined ? levelCfg.budget : (this._levelCfg?.budget !== undefined ? this._levelCfg.budget : undefined);
+    if (!this.currentContract || this.currentContract.day !== this.day || isEditorPlay || isClearCheck || configuredBudget !== undefined) {
+      const defaultBudget = configuredBudget !== undefined ? configuredBudget : getCustomerForDay(this.day).basePay;
       this.initContract(this.day, defaultBudget);
     }
-    const levelBudget = this.currentContract?.agreedBudget ?? (this._levelCfg?.budget !== undefined ? this._levelCfg.budget : getCustomerForDay(this.day).basePay);
+    const levelBudget = configuredBudget !== undefined ? configuredBudget : (this.currentContract?.agreedBudget ?? getCustomerForDay(this.day).basePay);
     if (!this._budgetManager) {
       this._budgetManager = new BudgetManager(levelBudget);
     } else {
@@ -1793,11 +1850,11 @@ export class GameState {
 
     const group = new THREE.Group();
     group.name = 'damageDocketDebugOverlay';
-    const geometry = new THREE.BoxGeometry(1.04, 1.04, 1.04);
+    const geometry = new THREE.BoxGeometry(1.0, 1.0, 1.0);
     const materials = {
-      [CellState.MISSING]: new THREE.MeshBasicMaterial({ color: 0xff3939, wireframe: true, depthTest: false }),
-      [CellState.DAMAGED]: new THREE.MeshBasicMaterial({ color: 0xffc247, wireframe: true, depthTest: false }),
-      [CellState.FLOODED]: new THREE.MeshBasicMaterial({ color: 0x39d8ff, wireframe: true, depthTest: false }),
+      [CellState.MISSING]: new THREE.MeshBasicMaterial({ color: 0xff3939, wireframe: true, depthTest: true, depthWrite: false }),
+      [CellState.DAMAGED]: new THREE.MeshBasicMaterial({ color: 0xffc247, wireframe: true, depthTest: true, depthWrite: false }),
+      [CellState.FLOODED]: new THREE.MeshBasicMaterial({ color: 0x39d8ff, wireframe: true, depthTest: true, depthWrite: false }),
     };
     for (const task of this._docket) {
       for (const cell of task.targetCells) {
@@ -1903,6 +1960,27 @@ export class GameState {
       }
       this._scene.remove(this._dockMooredGroup);
       this._dockMooredGroup = null;
+    }
+
+    // Safety sweep: purge any lingering editor groups, workshop groups, ghost ships, or moored groups
+    for (let i = this._scene.children.length - 1; i >= 0; i--) {
+      const c = this._scene.children[i];
+      if (
+        c.name === 'EditorEnvironmentGroup' ||
+        c.name === 'BoatDestructionWorkshopGroup' ||
+        c.name === 'editorShipGhost' ||
+        c.userData?.isShipSpawn ||
+        c.name === 'dockMooredGroup'
+      ) {
+        this._scene.remove(c);
+        c.traverse(child => {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) {
+            if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+            else child.material.dispose();
+          }
+        });
+      }
     }
 
     if (this._weather?.rainMesh) {
@@ -2964,6 +3042,30 @@ export class GameState {
 
     this._editorSystem?.dispose();
     this._editorSystem = null;
+
+    // Safety sweep: Remove any lingering editor scene groups, workshop groups, ghost ships, or preview meshes
+    for (let i = this._scene.children.length - 1; i >= 0; i--) {
+      const c = this._scene.children[i];
+      if (
+        c.name === 'EditorEnvironmentGroup' ||
+        c.name === 'BoatDestructionWorkshopGroup' ||
+        c.name === 'editorShipGhost' ||
+        c.userData?.isShipSpawn
+      ) {
+        this._scene.remove(c);
+        c.traverse(child => {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) {
+            if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+            else child.material.dispose();
+          }
+        });
+      }
+    }
+    if (this._voxelTerrain) {
+      this._voxelTerrain.dispose();
+      this._voxelTerrain = null;
+    }
 
     this._orbitControls?.dispose();
     this._orbitControls = null;

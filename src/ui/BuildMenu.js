@@ -148,6 +148,12 @@ export class BuildMenu {
         </div>
       </header>
 
+      <!-- Shipyard Directive Banner -->
+      <div id="shipyard-directive-bar" class="shipyard-directive-bar">
+        <span class="pixel-icon icon-compass size-16"></span>
+        <span id="shipyard-directive-text">Directive: Seal all leaks below the waterline, then click <strong>Set Sail When Ready!</strong> in the top right.</span>
+      </div>
+
       <!-- RIBBON SHELF: Materials, Brushes & Placement Tools -->
       <section class="shipyard-ribbon-shelf" id="shipyard-ribbon-shelf">
         <!-- 1. MATERIAL SELECTION GROUP -->
@@ -556,6 +562,24 @@ export class BuildMenu {
         leaksBox.classList.add('warning-pulse');
       } else {
         leaksBox.classList.remove('warning-pulse');
+      }
+    }
+
+    // Update Directive Banner & Sail Button Pulse
+    const directiveText = this._el.querySelector('#shipyard-directive-text');
+    const sailBtn = this._el.querySelector('#btn-shipyard-sail');
+    if (directiveText) {
+      if (leaks > 0) {
+        directiveText.innerHTML = `⚠️ <strong style="color:#ffd700;">Directive:</strong> Seal ${leaks} waterline breach${leaks > 1 ? 'es' : ''}! Once watertight, click <strong>"Set Sail When Ready!"</strong> in the top right.`;
+      } else {
+        directiveText.innerHTML = `✅ <strong style="color:#4ade80;">Watertight &amp; Seaworthy!</strong> All leaks sealed. Click <strong>"Set Sail When Ready!"</strong> in the top right to embark on your voyage!`;
+      }
+    }
+    if (sailBtn) {
+      if (leaks === 0) {
+        sailBtn.classList.add('sail-btn-pulse');
+      } else {
+        sailBtn.classList.remove('sail-btn-pulse');
       }
     }
 

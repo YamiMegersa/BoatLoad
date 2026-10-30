@@ -8,7 +8,7 @@
     "authorName": "Sailor #2308",
     "tags": []
   },
-  "ship": "Ship_Large_Voxelized",
+  "ship": "Ship_Small_Voxelized",
   "weather": "sunset",
   "budget": 300,
   "worldSize": 400,
@@ -187,24 +187,11 @@
     {
       "zone": "hull",
       "cells": [
-        [22, 4, 38],
-        [22, 4, 37],
-        [23, 4, 37],
-        [23, 3, 37],
-        [22, 12, 43],
-        [23, 12, 43],
-        [24, 12, 43],
-        [23, 12, 44]
-      ],
-      "state": "MISSING"
-    },
-    {
-      "zone": "sail",
-      "cells": [
-        [22, 16, 35],
-        [23, 16, 35],
-        [22, 16, 36],
-        [23, 16, 36]
+        [5, 2, 7],
+        [5, 2, 8],
+        [5, 1, 15],
+        [4, 2, 17],
+        [8, 1, 12]
       ],
       "state": "MISSING"
     }
@@ -213,16 +200,9 @@
     {
       "id": "hull_breach",
       "zone": "hull",
-      "label": "Seal waterline breaches & hull planks",
+      "label": "Seal scrapped waterline breaches & planks",
       "tool": "hammer",
       "mandatory": true
-    },
-    {
-      "id": "sail_mend",
-      "zone": "sail",
-      "label": "Mend torn storm canvas",
-      "tool": "needle",
-      "mandatory": false
     }
   ],
   "rewardAbilities": [
@@ -232,7 +212,7 @@
   ],
   "tutorialPrompts": true,
   "levelData": {
-    "ship": "Ship_Large_Voxelized",
+    "ship": "Ship_Small_Voxelized",
     "budget": 300,
     "worldSize": 400,
     "globalWindDir": 90,

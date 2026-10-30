@@ -58,6 +58,15 @@ test('Shipyard repair: only unpatched level json damage cells render red outline
 
   assert.equal(countOutlines(), 2, 'Only the 2 level damage cells should initially have red outline squares');
 
+  // Verify damage indicators respect materials (depth testing enabled, not rendering over all scene geometry)
+  for (const mesh of renderer._individualMeshes.values()) {
+    if (mesh.type === 'LineSegments' || mesh.isLineSegments) {
+      assert.equal(mesh.material.depthTest, true, 'Damage outline material MUST have depthTest enabled to prevent rendering through materials');
+      assert.equal(mesh.material.depthWrite, false, 'Damage outline material should have depthWrite: false');
+      assert.notEqual(mesh.renderOrder, 999, 'Damage outline must NOT force renderOrder 999 over solid geometry');
+    }
+  }
+
   // 2. BuildSystem: Player patches one level damage cell (3, 2, 3)
   const budget = new BudgetManager(500);
   const buildSystem = new BuildSystem();
