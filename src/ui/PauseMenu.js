@@ -36,6 +36,13 @@ export class PauseMenu {
         if (paperToggle) paperToggle.checked = isEnabled;
         if (paperBadge) paperBadge.innerText = isEnabled ? 'On' : 'Off';
       }
+      if (key === 'ditherShader' && this._el) {
+        const ditherToggle = this._el.querySelector('#set-dither-shader');
+        const ditherBadge = this._el.querySelector('#val-dither-shader');
+        const isEnabled = Boolean(value && value !== 'off');
+        if (ditherToggle) ditherToggle.checked = isEnabled;
+        if (ditherBadge) ditherBadge.innerText = isEnabled ? 'On' : 'Off';
+      }
     });
   }
 
@@ -220,6 +227,21 @@ export class PauseMenu {
                   <span class="switch-slider"></span>
                 </label>
                 <span class="setting-val-badge" id="val-paper-shader">Off</span>
+              </div>
+            </div>
+
+            <!-- Dithering Map Shader -->
+            <div class="setting-item">
+              <div class="setting-info">
+                <label class="setting-label" for="set-dither-shader">Dithering Map Shader</label>
+                <span class="setting-desc">Retro ordered Bayer dithering and color map quantization filter.</span>
+              </div>
+              <div class="setting-ctrl-row">
+                <label class="switch-wrap">
+                  <input type="checkbox" id="set-dither-shader">
+                  <span class="switch-slider"></span>
+                </label>
+                <span class="setting-val-badge" id="val-dither-shader">Off</span>
               </div>
             </div>
 
@@ -519,6 +541,21 @@ export class PauseMenu {
       const checked = e.target.checked;
       if (paperShaderBadge) paperShaderBadge.innerText = checked ? 'On' : 'Off';
       settingsManager.set('paperShader', checked);
+      if (checked && settingsManager.get('ditherShader')) {
+        settingsManager.set('ditherShader', false);
+      }
+    });
+
+    // Dithering Map Shader Toggle
+    const ditherShaderToggle = this._el.querySelector('#set-dither-shader');
+    const ditherShaderBadge  = this._el.querySelector('#val-dither-shader');
+    ditherShaderToggle?.addEventListener('change', (e) => {
+      const checked = e.target.checked;
+      if (ditherShaderBadge) ditherShaderBadge.innerText = checked ? 'On' : 'Off';
+      settingsManager.set('ditherShader', checked);
+      if (checked && settingsManager.get('paperShader')) {
+        settingsManager.set('paperShader', false);
+      }
     });
 
     // God Rays Toggle
@@ -712,6 +749,13 @@ export class PauseMenu {
     const paperBadge  = this._el.querySelector('#val-paper-shader');
     if (paperToggle) paperToggle.checked = paper;
     if (paperBadge) paperBadge.innerText = paper ? 'On' : 'Off';
+
+    // Dithering Map Shader
+    const dither = Boolean(settingsManager.get('ditherShader') && settingsManager.get('ditherShader') !== 'off');
+    const ditherToggle = this._el.querySelector('#set-dither-shader');
+    const ditherBadge  = this._el.querySelector('#val-dither-shader');
+    if (ditherToggle) ditherToggle.checked = dither;
+    if (ditherBadge) ditherBadge.innerText = dither ? 'On' : 'Off';
 
     // God Rays
     const godRays = settingsManager.get('godRays');

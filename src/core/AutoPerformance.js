@@ -208,7 +208,8 @@ export class AutoPerformanceController {
       drawDistance: settingsManager.get('drawDistance'),
       shadowQuality: settingsManager.get('shadowQuality'),
       godRays: settingsManager.get('godRays'),
-      paperShader: settingsManager.get('paperShader')
+      paperShader: settingsManager.get('paperShader'),
+      ditherShader: settingsManager.get('ditherShader')
     };
 
     // Determine initial indexes from current settings
@@ -242,6 +243,9 @@ export class AutoPerformanceController {
       settingsManager.set('godRays', s.godRays);
       if (s.paperShader !== undefined) {
         settingsManager.set('paperShader', s.paperShader);
+      }
+      if (s.ditherShader !== undefined) {
+        settingsManager.set('ditherShader', s.ditherShader);
       }
     }
     this._emitStatus();
