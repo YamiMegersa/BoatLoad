@@ -494,17 +494,40 @@ export class GameState {
       const loadingMessage = opts.loadingMessage || messages[newPhase] || 'Plotting course...';
 
       emit('showLoading', { title: loadingTitle, message: loadingMessage, progress: 0.15 });
+
+      // Yield execution so the browser layout engine can paint the loading overlay to screen
+      await new Promise(resolve => {
+        requestAnimationFrame(() => {
+          setTimeout(resolve, 40);
+        });
+      });
     }
 
     this.nextPhase = newPhase;
     await this._onExit(this.currentPhase);
-    if (!skipLoading) emit('updateLoading', { progress: 0.45 });
+    if (!skipLoading) {
+      emit('updateLoading', { progress: 0.40, message: 'Clearing outfitting berth...' });
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
 
     this.currentPhase = newPhase;
     this.nextPhase = null;
     this._keys = {};
     await this._onEnter(newPhase, opts);
-    if (!skipLoading) emit('updateLoading', { progress: 0.88 });
+    if (!skipLoading) {
+      emit('updateLoading', { progress: 0.92, message: 'Vessel in position...' });
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+
+    // Pre-render and prepare the top-down sea chart and anchor countdown
+    // while the loading screen persists so the sailing phase never freezes on reveal
+    if (newPhase === GamePhase.OBSTACLE) {
+      if (!skipLoading) {
+        emit('updateLoading', { progress: 0.96, message: 'Charting navigational sea chart...' });
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+      this._startAnchorCountdownSequence();
+    }
 
     // Ensure the 3D scene renders cleanly with character and camera in place before revealing
     await new Promise(resolve => {
@@ -514,7 +537,7 @@ export class GameState {
     });
 
     if (!skipLoading) {
-      emit('updateLoading', { progress: 1.0 });
+      emit('updateLoading', { progress: 1.0, message: 'Ready to cast off!' });
     }
 
     emit('phaseChanged', { phase: newPhase });
@@ -523,20 +546,6 @@ export class GameState {
       await new Promise(resolve => {
         emit('hideLoading', { onDismissed: resolve });
       });
-    }
-
-    // Now the loading screen is fully dismissed and the player is stably loaded and visible
-    if (newPhase === GamePhase.OBSTACLE) {
-      // Allow a brief pause (2 animation frames + 100ms) for the player to see their
-      // ship stably resting at the berth before the anchor countdown begins.
-      await new Promise(resolve => {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            setTimeout(resolve, 100);
-          });
-        });
-      });
-      this._startAnchorCountdownSequence();
     }
   }
 
@@ -1836,8 +1845,19 @@ export class GameState {
     }
 
     if (levelCfg && levelCfg.voxels) {
+      emit('updateLoading', { progress: 0.50, message: 'Constructing terrain & archipelagos...' });
       this._voxelTerrain = new VoxelTerrain(this._scene);
-      this._voxelTerrain.deserialize(levelCfg.voxels);
+      if (typeof this._voxelTerrain.deserializeAsync === 'function') {
+        await this._voxelTerrain.deserializeAsync(levelCfg.voxels, (pct) => {
+          emit('updateLoading', {
+            progress: 0.50 + pct * 0.20,
+            message: `Constructing terrain & archipelagos (${Math.round(pct * 100)}%)...`
+          });
+        });
+      } else {
+        this._voxelTerrain.deserialize(levelCfg.voxels);
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
     }
 
     // Ship state. On a fresh Set Sail the shipyard grid/renderer are still live,
@@ -1915,8 +1935,13 @@ export class GameState {
     if (this._playerShip.baseOBB && this._playerShip.obb) {
       this._playerShip.obb.copy(this._playerShip.baseOBB).applyMatrix4(this._playerShip.mesh.matrixWorld);
     }
+    emit('updateLoading', { progress: 0.72, message: 'Charting navigational hazards & reefs...' });
+    await new Promise(resolve => setTimeout(resolve, 0));
     this._obstacleManager = new ObstacleManager();
     this._obstacleManager.init(levelCfg, this._scene, rockModels, pickupModels, seaweedModels, waveModels, islandModels, sirenModel, this._qteSystem);
+
+    emit('updateLoading', { progress: 0.85, message: 'Calibrating winds & rigging canvas...' });
+    await new Promise(resolve => setTimeout(resolve, 0));
     this._environmentManager = new EnvironmentManager();
     this._environmentManager.init(this._scene, fishModels, levelCfg, this._qteSystem, this._ocean, this._clouds);
     this._sirenManager = new SirenManager();

@@ -17,7 +17,7 @@ export class LoadingScreenUI {
     this._progress = 0;
     this._visible = false;
     this._showStartTime = 0;
-    this._minDisplayMs = 380;
+    this._minDisplayMs = 420;
     this._hideTimeout = null;
 
     this._initDOM();
@@ -163,15 +163,21 @@ export class LoadingScreenUI {
 
     if (this._titleEl) this._titleEl.innerText = title;
     if (this._messageEl) this._messageEl.innerText = message;
-    this._setProgress(initialProgress);
 
-    this._showStartTime = performance.now();
-    this._visible = true;
+    if (!this._visible) {
+      this._setProgress(initialProgress);
+      this._showStartTime = performance.now();
+      this._visible = true;
 
-    this._el.style.display = 'flex';
-    // Force browser reflow so transition plays cleanly
-    void this._el.offsetWidth;
-    this._el.classList.add('active');
+      this._el.style.display = 'flex';
+      // Force browser reflow so transition plays cleanly
+      void this._el.offsetWidth;
+      this._el.classList.add('active');
+    } else {
+      if (opts.progress !== undefined) {
+        this._setProgress(opts.progress);
+      }
+    }
   }
 
   /**
@@ -231,7 +237,7 @@ export class LoadingScreenUI {
 
     const elapsed = performance.now() - this._showStartTime;
     const remainingMin = immediate ? 0 : Math.max(0, this._minDisplayMs - elapsed);
-    const finishDelay = immediate ? 0 : 180; // Brief delay for the ship to reach 100%
+    const finishDelay = immediate ? 0 : 200; // Brief delay for the ship to reach 100%
 
     if (this._hideTimeout) clearTimeout(this._hideTimeout);
 

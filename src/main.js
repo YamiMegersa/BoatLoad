@@ -725,7 +725,7 @@ async function boot() {
       const baseBudget = customLevelCfg.budget !== undefined ? customLevelCfg.budget : 200;
       gameState.initContract(1, baseBudget);
 
-      gameState.transition(GamePhase.SHIPYARD, {
+      await gameState.transition(GamePhase.SHIPYARD, {
         shipDef: activeShipDef,
         levelCfg: customLevelCfg,
         fishModels: level.fishModels,
@@ -772,7 +772,7 @@ async function boot() {
       if (isCommunity && !gameState._communityVoyageStartTime) {
         gameState._communityVoyageStartTime = performance.now();
       }
-      gameState.transition(GamePhase.OBSTACLE, {
+      await gameState.transition(GamePhase.OBSTACLE, {
         shipDef: activeShipDef,
         levelCfg: currentLevelCfg,
         shipStats: { hullHP: hp, profile },
@@ -785,7 +785,7 @@ async function boot() {
       });
     });
 
-    on('editorRequestPlay', (d) => {
+    on('editorRequestPlay', async (d) => {
       if (gameState.currentPhase === GamePhase.EDITOR && gameState._editorSystem) {
         const customLevelCfg = gameState._editorSystem.getPlayableConfig();
         const activeShipId = customLevelCfg.ship || DEFAULT_SHIP_ID;
@@ -804,7 +804,7 @@ async function boot() {
         emit('showLoading', { title: 'Shipyard: Hull Repair', message: 'Routing to drydock shipyard to repair vessel with allocated budget before sailing...', progress: 0.1 });
         logEvent(`Editor Play -> Shipyard: Vessel [${profile.name}] with repair budget [$${customLevelCfg.budget}]...`);
         gameState._isClearCheckRepair = true;
-        gameState.transition(GamePhase.SHIPYARD, {
+        await gameState.transition(GamePhase.SHIPYARD, {
           shipDef: activeShipDef,
           levelCfg: customLevelCfg,
           fishModels: level.fishModels,
