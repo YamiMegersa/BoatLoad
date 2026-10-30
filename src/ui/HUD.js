@@ -534,8 +534,6 @@ export class HUD {
       sirenStation.addEventListener('pointercancel', endSirenHold);
     }
 
-    // ammoChanged fires in _enterObstacle before uiMount — replay stored state
-    this._applyAmmo();
     
 
     // Steering Wheel Interaction
