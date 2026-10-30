@@ -39,38 +39,41 @@
 
 ## [icon-siren-note] MUSIC & SOUND EFFECTS
 
-### Musical Score
-- alkakrab : "Free 10 Pirate Game Tracks Music Pack Vol. 2" (Royalty-Free / Itch.io)
-  - "Silent Harbor", "Foggy Shores", "Ocean's Grasp" (Dock & Calm Sailing)
-  - "Drunken Sailors", "Blackened Tide" (Tavern & Harbor)
-  - "Windward Chase", "Sea Wolves", "Black Flag Rise" (Storms & High Seas)
+### Musical Score & Audio Composers
+- alkakrab : "Pirate Game Music Pack" (https://alkakrab.itch.io/pirate-game-music-pack)
+- Tracks : "Silent Harbor", "Foggy Shores", "Ocean's Grasp", "Drunken Sailors", "Blackened Tide", "Windward Chase", "Sea Wolves", "Black Flag Rise"
+- Lisette Amago : Music & Audio Design (https://lisetteamago.itch.io/)
 
 ### Sound Effects
 - Pixabay : All Environmental Audio & Sound Effects (Pixabay Content License)
-  - Sailing water wash & rough ocean ambience
-  - Sea storm & howling wind ("Sea-storm-wind" #308764)
-  - Kraken roar, rumble & underwater disturbances
-  - Siren's alluring vocal call
-  - Wood hull stress, creaking, knocks & splintering collisions
+- Sailing water wash & rough ocean ambience
+- Sea storm & howling wind ("Sea-storm-wind" #308764)
+- Kraken roar, rumble & underwater disturbances
+- Siren's alluring vocal call
+- Wood hull stress, creaking, knocks & splintering collisions
 - BoatLoad Audio Engine : Procedural Web Audio Synthesizer (Harpoon shots, QTE chimes, hit thuds)
 
 ---
 
-## [icon-artist-palette] 3D MODELS & ART ASSETS
+## [icon-artist-palette] 3D MODELS & ANIMATION ASSETS
 
 ### Quaternius (CC0 1.0 Public Domain)
-- Animated Low-Poly Fish Pack (Sharks, Dolphins, Whales, Manta Rays, Fish)
-- Environmental Props (Barrels, Wooden Planks, Craggy Rocks)
+- Various models such as rocks, fish, boats by Quaternius
+- Universal Animation Library by Quaternius (https://quaternius.itch.io/universal-animation-library)
 
-### Google Poly & Poly Pizza Contributors (CC-BY 3.0 / 4.0)
-- Poly by Google : Crashing Waves & Island Mountain Peaks
-- sirkitree : Low-Poly Archipelago Landscape
-- Matthew Burdette : Mountaintop Island Terrain
-- Christopher F : Bull Kelp & Seaweed Formations
-- Danni Bittman : Desert Pillars & Voxel Reef Outcroppings
+### Poly Pizza & Google Poly 3D Assets [CC-BY]
+- Mountaintop by Matthew Burdette [CC-BY] (https://creativecommons.org/licenses/by/3.0/) via Poly Pizza (https://poly.pizza/m/8mWDJgGcXSH)
+- Mountain by Poly by Google [CC-BY] (https://creativecommons.org/licenses/by/3.0/) via Poly Pizza (https://poly.pizza/m/7Jhw3p6TusU)
+- Low-poly landscape by sirkitree [CC-BY] (https://creativecommons.org/licenses/by/3.0/) via Poly Pizza (https://poly.pizza/m/bjsNFfddgOv)
+- Octopus by jeremy [CC-BY] (https://creativecommons.org/licenses/by/3.0/) via Poly Pizza (https://poly.pizza/m/6KQsV8qo5E0)
+- Mermaid by Kamylle B. Grenier [CC-BY] (https://creativecommons.org/licenses/by/3.0/) via Poly Pizza (https://poly.pizza/m/7X8_6iciXvk)
+- Octopus by Poly by Google [CC-BY] (https://creativecommons.org/licenses/by/3.0/) via Poly Pizza (https://poly.pizza/m/9-b6-yqrwEe)
+- Wave by Poly by Google [CC-BY] via Poly Pizza (https://poly.pizza/m/6mpwUZqCgzy)
+- Kelp by Christopher F [CC-BY] via Poly Pizza (https://poly.pizza/m/3VhttTFyADO)
+- Rock by Danni Bittman [CC-BY] via Poly Pizza (https://poly.pizza/m/4TpBWdzKDf2)
 
-### Ships & Creatures
-- Team Voxel Modeling & Conversion : Player Sloop, Large Ships, Kraken Boss & Shoal Sirens
+### Voxel Adaptations
+- Voxelized conversions and optimization performed by the development team
 
 ---
 
