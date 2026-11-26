@@ -329,6 +329,11 @@ export class MainMenuUI {
             <p>Design custom maritime obstacle routes, place coral archipelagos, drop cargo, and test your own challenges directly in the level editor.</p>
           </div>
 
+          <div class="codex-section">
+            <h3>🎮 Xbox Controller Support</h3>
+            <p>Plug in any Xbox controller at any time. Seamlessly mirrors <strong>Sea of Thieves</strong> (Dock &amp; Sailing) and <strong>Kerbal Space Program</strong> (Shipyard &amp; Map Maker, with <span class="codex-key">L3</span> Virtual UI Cursor). Customize sensitivity and view all bindings in <strong>Settings → Xbox Controller</strong>.</p>
+          </div>
+
           <button class="codex-close-btn" id="btn-close-codex">Aye, Captain! Return to Menu</button>
         </div>
       </div>

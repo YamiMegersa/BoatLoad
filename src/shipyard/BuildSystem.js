@@ -388,6 +388,26 @@ export class BuildSystem {
     }
   }
 
+  cycleMaterial(dir = 1) {
+    const keys = Object.keys(MATERIAL_REGISTRY);
+    if (keys.length === 0) return;
+    const curIdx = Math.max(0, keys.indexOf(this._activeMaterial?.id));
+    const nextIdx = (curIdx + dir + keys.length) % keys.length;
+    this._selectMaterialByIndex(nextIdx);
+  }
+
+  cycleBrush(dir = 1) {
+    const keys = Object.keys(BRUSHES);
+    if (keys.length === 0) return;
+    const curIdx = Math.max(0, keys.indexOf(this._activeBrush?.id));
+    const nextIdx = (curIdx + dir + keys.length) % keys.length;
+    const nextId = keys[nextIdx];
+    this._activeBrush = getBrush(nextId);
+    this._refreshGhostMesh();
+    this._retriggerPreview();
+    emit('brushSelected', { brushId: nextId });
+  }
+
   // ---------------------------------------------------------------------------
   // Preview Loop
   // ---------------------------------------------------------------------------

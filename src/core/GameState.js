@@ -157,6 +157,7 @@ export class GameState {
     this._hasCompletedDay0Cutscene = false;
     this._isCountdownActive = false;
     this._camShudderTrauma = 0;
+    this._sailingLookOffset = { yaw: 0, pitch: 0 };
     this._onCameraShudder = (d) => { this._camShudderTrauma = Math.min(1.0, (this._camShudderTrauma || 0) + (d.intensity || 0.4)); };
     on('cameraShudder', this._onCameraShudder);
 
@@ -1732,6 +1733,8 @@ export class GameState {
       shipWorldCenter.y + 2.4 * scaleFactor,
       shipWorldCenter.z + 4.2 * scaleFactor
     );
+    this._shipyardDefaultCamPos = this._camera.position.clone();
+    this._shipyardDefaultLookAt = shipWorldCenter.clone();
     this._shipyardFlyControls.lookAt(shipWorldCenter);
 
     // PROTOTYPE DEBUG: Render a random fish directly next to the boat
@@ -1980,6 +1983,79 @@ export class GameState {
     } else {
       this._buildSystem.clearPreview();
     }
+  }
+
+  /**
+   * Raycast from screen center (0, 0) for controller reticle aiming in Shipyard.
+   * @param {boolean} [place=false] If true, places/erases at the aimed cell
+   * @returns {boolean}
+   */
+  shipyardRaycastCenter(place = false) {
+    if (this.currentPhase !== GamePhase.SHIPYARD || !this._raycaster || !this._buildSystem) return false;
+    const centerNDC = new THREE.Vector2(0, 0);
+    const result = this._raycaster.cast(centerNDC, this._camera);
+    if (result) {
+      this._buildSystem.updatePreview(result.cell.x, result.cell.y, result.cell.z, result.normal);
+      if (place) {
+        return this._buildSystem.placeObject(result.cell.x, result.cell.y, result.cell.z, result.normal);
+      }
+      return true;
+    }
+    this._buildSystem.clearPreview();
+    return false;
+  }
+
+  shipyardRecenterCamera() {
+    if (this.currentPhase !== GamePhase.SHIPYARD || !this._camera || !this._shipyardFlyControls) return false;
+    if (this._shipyardDefaultCamPos && this._shipyardDefaultLookAt) {
+      this._camera.position.copy(this._shipyardDefaultCamPos);
+      this._shipyardFlyControls.lookAt(this._shipyardDefaultLookAt);
+      return true;
+    }
+    return false;
+  }
+
+  setSailingLookOffset(yawOffset = 0, pitchOffset = 0) {
+    this._sailingLookOffset.yaw = THREE.MathUtils.clamp(yawOffset, -0.85, 0.85);
+    this._sailingLookOffset.pitch = THREE.MathUtils.clamp(pitchOffset, -0.25, 0.35);
+  }
+
+  editorGamepadCamera(lsX = 0, lsY = 0, rsX = 0, rsY = 0, zoomDelta = 0, delta = 0.016) {
+    if (this.currentPhase !== GamePhase.EDITOR || !this._camera || !this._orbitControls || !this._orbitControls.enabled) return;
+
+    // 1. Pan in camera-relative XZ plane (Left Stick)
+    if (Math.abs(lsX) > 0.001 || Math.abs(lsY) > 0.001) {
+      const forward = new THREE.Vector3();
+      this._camera.getWorldDirection(forward);
+      forward.y = 0;
+      if (forward.lengthSq() > 0.0001) forward.normalize();
+      else forward.set(0, 0, -1);
+
+      const right = new THREE.Vector3().crossVectors(forward, this._camera.up).normalize();
+      const distFactor = Math.max(18, this._camera.position.distanceTo(this._orbitControls.target) * 0.9);
+      const move = new THREE.Vector3()
+        .addScaledVector(right, lsX)
+        .addScaledVector(forward, -lsY)
+        .multiplyScalar(distFactor * delta);
+
+      this._camera.position.add(move);
+      this._orbitControls.target.add(move);
+    }
+
+    // 2. Orbit azimuth/polar & zoom around target (Right Stick + Triggers)
+    if (Math.abs(rsX) > 0.001 || Math.abs(rsY) > 0.001 || Math.abs(zoomDelta) > 0.001) {
+      const offset = this._camera.position.clone().sub(this._orbitControls.target);
+      const spherical = new THREE.Spherical().setFromVector3(offset);
+      spherical.theta -= rsX * 2.1 * delta;
+      spherical.phi = THREE.MathUtils.clamp(spherical.phi - rsY * 1.6 * delta, 0.12, Math.PI * 0.48);
+      if (zoomDelta !== 0) {
+        spherical.radius = THREE.MathUtils.clamp(spherical.radius * (1 - zoomDelta * 1.4 * delta), 8, 280);
+      }
+      offset.setFromSpherical(spherical);
+      this._camera.position.copy(this._orbitControls.target).add(offset);
+    }
+
+    this._orbitControls.update();
   }
 
   // =========================================================================
@@ -2544,8 +2620,16 @@ export class GameState {
       this._camOvershootVel += force * delta;
       this._camOvershoot += this._camOvershootVel * delta;
 
-      // 3. Final Ideal Target P3
-      const P3 = baseTarget.clone().add(rightDir.clone().multiplyScalar(this._camOvershoot));
+      // 3. Final Ideal Target P3 (with optional Sea of Thieves chase-camera look-around offset)
+      const lookYaw = this._sailingLookOffset?.yaw || 0;
+      const lookPitch = this._sailingLookOffset?.pitch || 0;
+      let P3 = baseTarget.clone().add(rightDir.clone().multiplyScalar(this._camOvershoot));
+      if (Math.abs(lookYaw) > 0.001 || Math.abs(lookPitch) > 0.001) {
+        const rel = P3.clone().sub(p);
+        rel.applyAxisAngle(new THREE.Vector3(0, 1, 0), -lookYaw);
+        rel.y = Math.max(1.0, rel.y + lookPitch * 6.0);
+        P3 = p.clone().add(rel);
+      }
 
       // 4. Spring-Arm Occlusion Probe (Anti-clipping raycast)
       // Focus/pivot point on the ship deck (slightly raised to clear hull floor)

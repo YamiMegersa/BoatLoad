@@ -1,3 +1,5 @@
+import { XBOX_BUTTON } from '../core/GamepadManager.js';
+
 /**
  * EmoteWheelUI — Radial/circular popup menu for selecting first-person emotes.
  * Triggered by pressing 'Q'.
@@ -465,6 +467,52 @@ export class EmoteWheelUI {
     this.close();
     if (this.onSelect) {
       this.onSelect(emoteId);
+    }
+  }
+
+  /**
+   * Select whichever emote slice is currently highlighted (used on LB hold-release).
+   * @returns {boolean} True if an emote was selected
+   */
+  selectHighlighted() {
+    if (!this.isOpen) return false;
+    if (this.hoveredIndex >= 0 && this.hoveredIndex < this.emotes.length) {
+      this._selectEmote(this.emotes[this.hoveredIndex].id);
+      return true;
+    }
+    this.close();
+    return false;
+  }
+
+  /**
+   * Process Xbox controller stick aim & button confirmation while wheel is open.
+   */
+  updateGamepad(gp) {
+    if (!this.isOpen || !gp) return;
+
+    // Prefer Right Stick (Sea of Thieves style), fall back to Left Stick
+    const stick = gp.rightStick.magnitude > 0.25 ? gp.rightStick : gp.leftStick;
+    if (stick.magnitude > 0.25) {
+      let deg = (Math.atan2(stick.y, stick.x) * 180) / Math.PI;
+      if (deg < 0) deg += 360;
+
+      let closestIdx = 0;
+      let minDiff = 360;
+      this.emotes.forEach((emote, i) => {
+        let diff = Math.abs(deg - emote.angle);
+        if (diff > 180) diff = 360 - diff;
+        if (diff < minDiff) {
+          minDiff = diff;
+          closestIdx = i;
+        }
+      });
+      this._highlightSlice(closestIdx);
+    }
+
+    if (gp.isJustPressed(XBOX_BUTTON.A)) {
+      this.selectHighlighted();
+    } else if (gp.isJustPressed(XBOX_BUTTON.B) || gp.isJustPressed(XBOX_BUTTON.DPAD_DOWN)) {
+      this.close();
     }
   }
 

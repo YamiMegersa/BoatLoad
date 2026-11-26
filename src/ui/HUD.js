@@ -53,8 +53,13 @@ export class HUD {
     this._bossWaypointEl = null;
     this._bossBannerEl = null;
     this._bossBannerTimeout = null;
+    this._gamepadSteer = 0;
+    this._paused = false;
     this._onScore = d => this._onScoreAdded(d);
-    this._onPause = ({ paused }) => { if (paused) this._cancelBailDrawing(true); };
+    this._onPause = ({ paused }) => {
+      this._paused = Boolean(paused);
+      if (paused) this._cancelBailDrawing(true);
+    };
 
     on('uiMount', d => { if (d.screen === 'obstacle') this.mount(d); });
     on('uiUnmount', d => { if (d.screen === 'obstacle') this.unmount(); });
@@ -611,6 +616,12 @@ export class HUD {
         this._wheelAngle = Math.max(-180, this._wheelAngle - 450 * 0.016);
       } else if (this._steerKeys?.right) {
         this._wheelAngle = Math.min(180, this._wheelAngle + 450 * 0.016);
+      } else if (Math.abs(this._gamepadSteer) > 0.001) {
+        const targetAngle = this._gamepadSteer * 180;
+        const diff = targetAngle - this._wheelAngle;
+        const maxStep = 900 * 0.016;
+        if (Math.abs(diff) <= maxStep) this._wheelAngle = targetAngle;
+        else this._wheelAngle += Math.sign(diff) * maxStep;
       } else if (!this._isDraggingWheel) {
         this._wheelAngle *= 0.85; // Spring back
         if (Math.abs(this._wheelAngle) < 0.1) this._wheelAngle = 0;
@@ -922,6 +933,7 @@ export class HUD {
     const resultEl = el.querySelector('.qte-result');
     const timerFill = el.querySelector('.qte-timer-fill');
 
+    const isGamepad = typeof document !== 'undefined' && document.body?.classList?.contains('input-mode-gamepad');
     if (station === 'timing') {
       const iconEl = el.querySelector('.qte-icon');
       const labelEl = el.querySelector('.qte-label');
@@ -939,7 +951,7 @@ export class HUD {
         if (iconEl) iconEl.innerHTML = theme?.icon ?? DEFAULT_TIMING_ICON;
         if (labelEl) labelEl.textContent = entry.label || 'HARPOON';
         if (pillEl) pillEl.textContent = entry.queuedType ? 'LOCK+1' : 'LOCKED';
-        if (hintEl) hintEl.textContent = 'TAP / [SPACE] IN ZONE';
+        if (hintEl) hintEl.textContent = isGamepad ? '[RT] / [A] IN ZONE' : 'TAP / [SPACE] IN ZONE';
         if (resultEl) resultEl.textContent = '';
 
         if (!this._hasShownHarpoonTutorial) {
@@ -947,7 +959,9 @@ export class HUD {
           this._showTutorialBanner({
             icon: '🦈',
             title: 'SHARK ATTACK! — HARPOON TUTORIAL',
-            text: 'Press [SPACE] or Click when the sweeping needle enters the GOLD arc to strike the shark!',
+            text: isGamepad
+              ? 'Press [RT] or [A] when the sweeping needle enters the GOLD arc to strike the shark!'
+              : 'Press [SPACE] or Click when the sweeping needle enters the GOLD arc to strike the shark!',
             theme: 'harpoon',
             durationMs: 4500
           });
@@ -972,7 +986,7 @@ export class HUD {
         if (iconEl) iconEl.innerHTML = DEFAULT_TIMING_ICON;
         if (labelEl) labelEl.textContent = 'ORDNANCE';
         if (pillEl) pillEl.textContent = 'READY';
-        if (hintEl) hintEl.textContent = 'STANDBY · TAP / [SPACE]';
+        if (hintEl) hintEl.textContent = isGamepad ? 'STANDBY · [RT] / [A]' : 'STANDBY · TAP / [SPACE]';
         if (resultEl) resultEl.textContent = '';
         if (timerFill) timerFill.style.width = '100%';
       }
@@ -984,7 +998,7 @@ export class HUD {
       if (entry.state === 'active') {
         if (labelEl) labelEl.textContent = entry.label || 'BAIL!';
         if (progressEl) progressEl.textContent = '0%';
-        if (hintEl) hintEl.textContent = 'TRACE RING · TAP BAR 50%';
+        if (hintEl) hintEl.textContent = isGamepad ? 'SPIN [RS] · [X] 50%' : 'TRACE RING · TAP BAR 50%';
         if (resultEl) resultEl.textContent = '';
 
         if (!this._hasShownBailTutorial) {
@@ -992,7 +1006,9 @@ export class HUD {
           this._showTutorialBanner({
             icon: '🪣',
             title: 'WATER IN HOLD! — BILGE BAILING TUTORIAL',
-            text: 'Draw a circle inside the pump well with your mouse, or tap [SPACE] repeatedly to bail water!',
+            text: isGamepad
+              ? 'Spin the Right Stick in a circle to bail 100%, or press [X] / [A] for a quick 50% bail!'
+              : 'Draw a circle inside the pump well with your mouse, or tap [SPACE] repeatedly to bail water!',
             theme: 'bail',
             durationMs: 4500
           });
@@ -1008,7 +1024,7 @@ export class HUD {
       } else {
         if (labelEl) labelEl.textContent = 'BILGE PUMP';
         if (progressEl) progressEl.textContent = 'DRY';
-        if (hintEl) hintEl.textContent = 'STANDBY · TRACE / [SPACE]';
+        if (hintEl) hintEl.textContent = isGamepad ? 'STANDBY · SPIN [RS] / [X]' : 'STANDBY · TRACE / [SPACE]';
         if (resultEl) resultEl.textContent = '';
         if (timerFill) timerFill.style.width = '100%';
       }
@@ -1019,7 +1035,7 @@ export class HUD {
       if (entry.state === 'active') {
         const isHold = entry.input === 'hold';
         if (titleEl) titleEl.textContent = isHold ? 'BRACE!' : 'RESIST!';
-        if (hintEl) hintEl.textContent = isHold ? 'HOLD [SPACE]' : 'TAP / [SPACE]';
+        if (hintEl) hintEl.textContent = isHold ? (isGamepad ? 'HOLD [LT] / [RT]' : 'HOLD [SPACE]') : (isGamepad ? 'TAP [A] / [RT]' : 'TAP / [SPACE]');
         if (resultEl) resultEl.textContent = '';
       } else if (entry.state === 'queued') {
         if (titleEl) titleEl.textContent = 'SIREN';
@@ -1231,6 +1247,19 @@ export class HUD {
     context.setLineDash([6, 6]);
     context.stroke();
     context.setLineDash([]);
+  }
+
+  setGamepadSteer(val) {
+    const n = Number(val);
+    this._gamepadSteer = Number.isFinite(n) ? Math.max(-1, Math.min(1, n)) : 0;
+  }
+
+  drawGamepadBailTrace(from, to) {
+    if (from && to) this._drawBailTrace(from, to);
+  }
+
+  clearGamepadBailTrace() {
+    this._clearBailCanvas();
   }
 
   _drawBailTrace(from, to) {

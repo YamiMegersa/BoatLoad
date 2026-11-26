@@ -1,5 +1,6 @@
 import { emit, on, off } from '../core/EventBus.js';
 import { CREDITS_LIST, parseCredits, loadCreditsBlocks } from '../config/CreditsConfig.js';
+import { XBOX_BUTTON } from '../core/GamepadManager.js';
 
 /**
  * CreditsUI — Nautical Pixel-Art Rolling Credits Screen.
@@ -534,6 +535,39 @@ export class CreditsUI {
     this._isFinished = false;
     this._scrollY = Math.max(0, Math.min(this._maxScrollY, this._scrollY + e.deltaY * 0.65));
     this._applyScrollTransform();
+  }
+
+  /**
+   * Handle Xbox controller playback & navigation during Credits.
+   */
+  applyGamepadInput(gp, delta) {
+    if (!this.root || !gp) return;
+
+    this._isFastForwardKey =
+      gp.isPressed(XBOX_BUTTON.A) ||
+      gp.rightTrigger > 0.35 ||
+      gp.leftStick.y > 0.55 ||
+      gp.isPressed(XBOX_BUTTON.DPAD_DOWN);
+
+    if (gp.leftStick.y < -0.55 || gp.isPressed(XBOX_BUTTON.DPAD_UP)) {
+      this._isFinished = false;
+      this._scrollY = Math.max(0, this._scrollY - 220 * delta);
+      this._applyScrollTransform();
+    }
+
+    if (gp.isJustPressed(XBOX_BUTTON.X)) {
+      this.togglePause();
+    }
+    if (gp.isJustPressed(XBOX_BUTTON.Y)) {
+      this.cycleSpeed();
+    }
+    if (gp.isJustPressed(XBOX_BUTTON.LB)) {
+      emit('playSound', { sound: 'qte_success' });
+      this.restartRoll();
+    }
+    if (gp.isJustPressed(XBOX_BUTTON.B)) {
+      this.root.querySelector('#credits-btn-menu')?.click();
+    }
   }
 
   unmount() {

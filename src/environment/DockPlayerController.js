@@ -3,6 +3,7 @@ import { emit, on, off } from '../core/EventBus.js';
 import { VoxelArms } from './VoxelArms.js';
 import { EmoteWheelUI } from '../ui/EmoteWheelUI.js';
 import { DOCK_SCALE } from './DockStall.js';
+import { XBOX_BUTTON } from '../core/GamepadManager.js';
 
 export class DockPlayerController {
   /**
@@ -46,6 +47,13 @@ export class DockPlayerController {
       sprint: false,
       jump: false
     };
+    this._gamepadMove = { x: 0, y: 0 };
+    this._gamepadSprint = false;
+    this._gamepadJump = false;
+    this._gamepadActive = false;
+    this._lbHeld = false;
+    this._lbHoldTimer = 0;
+    this._advanceCutsceneCard = null;
     this.walkSpeed = 6.0 * this.scale;
     this.sprintSpeed = 10.5 * this.scale;
     this.velocity = new THREE.Vector3();
@@ -303,29 +311,48 @@ export class DockPlayerController {
         }
         break;
       case 'KeyE':
-        // Interaction key
-        if (this.hoveredCrab) {
-          this._interactWithCrab();
-        } else if (this.hoveredDivorcePost) {
-          this._interactWithDivorcePost();
-        } else if (this.hoveredGhost) {
-          this._interactWithGhost();
-        } else if (this.hoveredBunny) {
-          this._interactWithBunny();
-        } else if (this.hoveredDoor) {
-          this.toggleShop();
-        } else if (this.hoveredLedger) {
-          this._interactWithLedger();
-        } else if (this.hoveredShip) {
-          this._interactWithShip();
-        } else if (this.hoveredShipyard) {
-          this._interactWithShipyard();
-        }
+        this._interactWithHovered();
         break;
       case 'KeyQ':
         this.toggleEmoteWheel();
         break;
     }
+  }
+
+  _interactWithHovered() {
+    if (this.hoveredCrab) {
+      this._interactWithCrab();
+      return true;
+    }
+    if (this.hoveredDivorcePost) {
+      this._interactWithDivorcePost();
+      return true;
+    }
+    if (this.hoveredGhost) {
+      this._interactWithGhost();
+      return true;
+    }
+    if (this.hoveredBunny) {
+      this._interactWithBunny();
+      return true;
+    }
+    if (this.hoveredDoor) {
+      this.toggleShop();
+      return true;
+    }
+    if (this.hoveredLedger) {
+      this._interactWithLedger();
+      return true;
+    }
+    if (this.hoveredShip) {
+      this._interactWithShip();
+      return true;
+    }
+    if (this.hoveredShipyard) {
+      this._interactWithShipyard();
+      return true;
+    }
+    return false;
   }
 
   _onKeyUp(e) {
@@ -386,43 +413,7 @@ export class DockPlayerController {
     if (this.emoteWheel && this.emoteWheel.isOpen) return;
     if (this.dialogueActive || document.getElementById('dialogue-box')) return;
 
-    if (this.hoveredCrab) {
-      this._interactWithCrab();
-      return;
-    }
-
-    if (this.hoveredDivorcePost) {
-      this._interactWithDivorcePost();
-      return;
-    }
-
-    if (this.hoveredGhost) {
-      this._interactWithGhost();
-      return;
-    }
-
-    if (this.hoveredBunny) {
-      this._interactWithBunny();
-      return;
-    }
-
-    if (this.hoveredDoor) {
-      this.toggleShop();
-      return;
-    }
-
-    if (this.hoveredLedger) {
-      this._interactWithLedger();
-      return;
-    }
-
-    if (this.hoveredShip) {
-      this._interactWithShip();
-      return;
-    }
-
-    if (this.hoveredShipyard) {
-      this._interactWithShipyard();
+    if (this._interactWithHovered()) {
       return;
     }
 
@@ -976,14 +967,19 @@ export class DockPlayerController {
 
     overlay.addEventListener('pointerdown', onAdvanceInput);
     window.addEventListener('keydown', onAdvanceInput);
+    this._advanceCutsceneCard = () => {
+      if (!inWakeupPhase) advanceCard();
+    };
     this._cleanupPremiseInput = () => {
       overlay.removeEventListener('pointerdown', onAdvanceInput);
       window.removeEventListener('keydown', onAdvanceInput);
+      this._advanceCutsceneCard = null;
     };
 
 const beginWakeupBlink = () => {
   if (inWakeupPhase) return;
   inWakeupPhase = true;
+  this._advanceCutsceneCard = null;
   if (this._cleanupPremiseInput) {
     this._cleanupPremiseInput();
     this._cleanupPremiseInput = null;
@@ -1064,6 +1060,7 @@ showCurrentCard(300);
   }
 
 _clearCutsceneTimers() {
+  this._advanceCutsceneCard = null;
   if (this._cutsceneTimeouts) {
     this._cutsceneTimeouts.forEach(t => clearTimeout(t));
     this._cutsceneTimeouts = [];
@@ -1337,7 +1334,7 @@ _updatePlayerMovement(delta) {
     return;
   }
 
-  if (this.keys.jump && this.isGrounded) {
+  if ((this.keys.jump || this._gamepadJump) && this.isGrounded) {
     this.verticalVelocity = this.jumpSpeed;
     this.isGrounded = false;
   }
@@ -1349,12 +1346,21 @@ _updatePlayerMovement(delta) {
   if (this.keys.left) moveDir.x -= 1;
   if (this.keys.right) moveDir.x += 1;
 
+  // Combine analog left stick without letting key releases clobber controller input
+  if (Math.abs(this._gamepadMove.x) > 0.001 || Math.abs(this._gamepadMove.y) > 0.001) {
+    moveDir.x += this._gamepadMove.x;
+    moveDir.z += this._gamepadMove.y;
+  }
+
   const currentGround = this.yawObject.position.y - this.eyeHeight;
   const maxStepUp = 0.65; // Max vertical step height (allows ramps, steps, decks; blocks steep cliff drops)
 
-  if (moveDir.lengthSq() > 0) {
+  const rawMag = moveDir.length();
+  if (rawMag > 0.001) {
+    const analogScale = Math.min(1, rawMag);
     moveDir.normalize();
-    const currentSpeed = this.keys.sprint ? this.sprintSpeed : this.walkSpeed;
+    const isSprinting = this.keys.sprint || this._gamepadSprint;
+    const currentSpeed = (isSprinting ? this.sprintSpeed : this.walkSpeed) * analogScale;
     moveDir.multiplyScalar(currentSpeed * delta);
 
     // Rotate move vector by player yaw
@@ -1511,7 +1517,7 @@ _updateInteractionRaycast() {
     return;
   }
 
-  if (this.isLocked) {
+  if (this.isLocked || this._gamepadActive) {
     // Raycast from camera center (crosshair)
     this.interactRaycaster.setFromCamera({ x: 0, y: 0 }, this.camera);
   } else {
@@ -1609,27 +1615,29 @@ _setHoverState(obj, type = null) {
     this.crosshair.style.borderColor = '#ffffff';
 
     this.prompt.style.display = 'flex';
+    const keyBadge = this._gamepadActive ? 'X' : 'E';
+    const actVerb = this._gamepadActive ? 'Press [X]' : 'or Click';
     if (type === 'crab') {
-      this.prompt.innerHTML = `🦀 <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click Crab Clerk to Speak`;
+      this.prompt.innerHTML = `🦀 <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">${keyBadge}</span> ${actVerb} Crab Clerk to Speak`;
     } else if (type === 'divorcePost') {
       if (this.tutorialActive && this.tutorialStep === 'TALK_CRAB') {
         this.prompt.innerHTML = `🔒 <span style="color:#ff9b94;">Speak with Crab Lawyer on Beach First</span>`;
       } else {
-        this.prompt.innerHTML = `<span class="pixel-icon icon-map-maker-scroll size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Read Divorce Papers`;
+        this.prompt.innerHTML = `<span class="pixel-icon icon-map-maker-scroll size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">${keyBadge}</span> ${actVerb} to Read Divorce Papers`;
       }
     } else if (type === 'ghost') {
       if (this.tutorialActive && this.tutorialStep !== 'PRACTICE_SHIP') {
         this.prompt.innerHTML = `🔒 <span style="color:#ff9b94;">Complete Harbor Tour First</span>`;
       } else {
-        this.prompt.innerHTML = `<span class="pixel-icon icon-phantom-ghost size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click Ghost to Barter Wares`;
+        this.prompt.innerHTML = `<span class="pixel-icon icon-phantom-ghost size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">${keyBadge}</span> ${actVerb} Ghost to Barter Wares`;
       }
     } else if (type === 'bunny') {
-      this.prompt.innerHTML = `<span class="pixel-icon icon-easter-bunny size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Pet Bunny`;
+      this.prompt.innerHTML = `<span class="pixel-icon icon-easter-bunny size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">${keyBadge}</span> ${actVerb} to Pet Bunny`;
     } else if (type === 'ledger') {
       if (this.tutorialActive && this.tutorialStep !== 'PRACTICE_SHIP') {
         this.prompt.innerHTML = `🔒 <span style="color:#ff9b94;">Visit West Shipyard &amp; Scrap Ship First</span>`;
       } else {
-        this.prompt.innerHTML = `<span class="pixel-icon icon-closed-logbook size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click Logbook to Select Voyage`;
+        this.prompt.innerHTML = `<span class="pixel-icon icon-closed-logbook size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">${keyBadge}</span> ${actVerb} Logbook to Select Voyage`;
       }
     } else if (type === 'ship') {
       if (this.tutorialActive && (this.tutorialStep === 'TALK_CRAB' || this.tutorialStep === 'READ_NOTICE' || this.tutorialStep === 'ENTER_SHOP')) {
@@ -1639,7 +1647,7 @@ _setHoverState(obj, type = null) {
         this.prompt.innerHTML = `🔒 <span style="color:#ff9b94;">Shipyard Locked — ${reason}</span>`;
       } else {
         const shipName = this.dockStall?.activeShipProfile?.name || 'Vessel';
-        this.prompt.innerHTML = `<span class="pixel-icon icon-hammer size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shipyard &amp; Alter ${shipName}`;
+        this.prompt.innerHTML = `<span class="pixel-icon icon-hammer size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">${keyBadge}</span> ${actVerb} to Enter Shipyard &amp; Alter ${shipName}`;
       }
     } else if (type === 'shipyard') {
       if (this.tutorialActive && (this.tutorialStep === 'TALK_CRAB' || this.tutorialStep === 'READ_NOTICE' || this.tutorialStep === 'ENTER_SHOP')) {
@@ -1648,7 +1656,7 @@ _setHoverState(obj, type = null) {
           : (this.tutorialStep === 'READ_NOTICE' ? 'Read Notice Post First' : 'Visit Shipwright Shop First');
         this.prompt.innerHTML = `🔒 <span style="color:#ff9b94;">Shipyard Locked — ${reason}</span>`;
       } else {
-        this.prompt.innerHTML = `<span class="pixel-icon icon-hammer size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shipyard`;
+        this.prompt.innerHTML = `<span class="pixel-icon icon-hammer size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">${keyBadge}</span> ${actVerb} to Enter Shipyard`;
       }
     } else if (this.mode === 'player') {
       if (this.tutorialActive && (this.tutorialStep === 'TALK_CRAB' || this.tutorialStep === 'READ_NOTICE')) {
@@ -1657,10 +1665,10 @@ _setHoverState(obj, type = null) {
           : 'Read Notice Post First';
         this.prompt.innerHTML = `🔒 <span style="color:#ff9b94;">Shop Locked — ${reason}</span>`;
       } else {
-        this.prompt.innerHTML = `<span class="pixel-icon icon-cabin-door-exit size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Enter Shop`;
+        this.prompt.innerHTML = `<span class="pixel-icon icon-cabin-door-exit size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">${keyBadge}</span> ${actVerb} to Enter Shop`;
       }
     } else {
-      this.prompt.innerHTML = `<span class="pixel-icon icon-cabin-door-exit size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">E</span> or Click to Exit Shop`;
+      this.prompt.innerHTML = `<span class="pixel-icon icon-cabin-door-exit size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">${keyBadge}</span> ${actVerb} to Exit Shop`;
     }
   } else {
     this.domElement.style.cursor = 'default';
@@ -1708,6 +1716,126 @@ _interactWithGhost() {
   }
 
   emit('openShopUI');
+}
+
+// ---------------------------------------------------------------------------
+// Xbox Controller Input (Sea of Thieves Dock Scheme)
+// ---------------------------------------------------------------------------
+
+/**
+ * Process Xbox controller input for Dock exploration, shop mode, emote wheel, and Day 0 cutscene.
+ * @param {import('../core/GamepadManager.js').GamepadManager} gp
+ * @param {number} delta
+ */
+applyGamepadInput(gp, delta) {
+  if (!gp || !gp.isGamepadActive()) {
+    this._gamepadActive = false;
+    this._gamepadMove.x = 0;
+    this._gamepadMove.y = 0;
+    this._gamepadJump = false;
+    if (this.instructions && this.instructions.dataset.mode === 'gamepad') {
+      this.instructions.dataset.mode = 'kbm';
+      this.instructions.style.display = this.mode === 'cutscene' ? 'none' : 'flex';
+    }
+    return;
+  }
+
+  this._gamepadActive = true;
+  if (this.instructions && this.instructions.dataset.mode !== 'gamepad') {
+    this.instructions.dataset.mode = 'gamepad';
+    // Hide the KBM bottom banner while the dynamic Xbox hint bar is active
+    this.instructions.style.display = 'none';
+  }
+
+  // Day 0 Opening Cutscene premise card advance
+  if (this.mode === 'cutscene') {
+    this._gamepadMove.x = 0;
+    this._gamepadMove.y = 0;
+    this._gamepadJump = false;
+    if (gp.isJustPressed(XBOX_BUTTON.A) && typeof this._advanceCutsceneCard === 'function') {
+      this._advanceCutsceneCard();
+    }
+    return;
+  }
+
+  if (this._tutorialPopupEl || this.dialogueActive || (typeof document !== 'undefined' && document.getElementById('dialogue-box'))) {
+    this._gamepadMove.x = 0;
+    this._gamepadMove.y = 0;
+    this._gamepadJump = false;
+    return;
+  }
+
+  // Emote Wheel handling (LB hold-to-aim-and-release OR quick tap / D-Pad Down toggle)
+  if (gp.isJustPressed(XBOX_BUTTON.LB)) {
+    this._lbHeld = true;
+    this._lbHoldTimer = 0;
+    if (!this.emoteWheel?.isOpen) {
+      this.toggleEmoteWheel();
+    } else {
+      this.emoteWheel.close();
+      this._lbHeld = false;
+    }
+  } else if (this._lbHeld && gp.isPressed(XBOX_BUTTON.LB)) {
+    this._lbHoldTimer += delta;
+  } else if (this._lbHeld && gp.isJustReleased(XBOX_BUTTON.LB)) {
+    const heldLong = this._lbHoldTimer >= 0.22;
+    this._lbHeld = false;
+    this._lbHoldTimer = 0;
+    if (heldLong && this.emoteWheel?.isOpen) {
+      this.emoteWheel.selectHighlighted();
+    }
+  }
+
+  if (gp.isJustPressed(XBOX_BUTTON.DPAD_DOWN)) {
+    this.toggleEmoteWheel();
+  }
+
+  if (this.emoteWheel?.isOpen) {
+    this._gamepadMove.x = 0;
+    this._gamepadMove.y = 0;
+    this._gamepadJump = false;
+    this.emoteWheel.updateGamepad(gp);
+    return;
+  }
+
+  // Right Stick Look (360 degrees outside & inside shop)
+  const sens = gp.getSensitivity?.() ?? 1.0;
+  const lookSpeed = 2.5 * sens;
+  if (Math.abs(gp.rightStick.x) > 0.001 || Math.abs(gp.rightStick.y) > 0.001) {
+    this.yawObject.rotation.y -= gp.rightStick.x * lookSpeed * delta;
+    this.pitchObject.rotation.x -= gp.rightStick.y * lookSpeed * delta;
+    this.pitchObject.rotation.x = Math.max(-1.45, Math.min(1.45, this.pitchObject.rotation.x));
+  }
+
+  // Left Stick Walk/Strafe (only in 'player' mode)
+  if (this.mode === 'player') {
+    this._gamepadMove.x = gp.leftStick.x;
+    this._gamepadMove.y = gp.leftStick.y;
+
+    if (gp.leftStick.magnitude < 0.1) {
+      this._gamepadSprint = false;
+    } else if (gp.isJustPressed(XBOX_BUTTON.L3)) {
+      this._gamepadSprint = !this._gamepadSprint;
+    }
+
+    this._gamepadJump = gp.isPressed(XBOX_BUTTON.A);
+  } else {
+    this._gamepadMove.x = 0;
+    this._gamepadMove.y = 0;
+    this._gamepadSprint = false;
+    this._gamepadJump = false;
+
+    // B exits shop back onto the pier
+    if (this.mode === 'shop' && gp.isJustPressed(XBOX_BUTTON.B)) {
+      this.exitShop();
+      return;
+    }
+  }
+
+  // X interacts with hovered NPC / door / logbook / divorce post / shipyard / moored ship
+  if (gp.isJustPressed(XBOX_BUTTON.X)) {
+    this._interactWithHovered();
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -279,6 +279,44 @@ export class StudioFlyControls {
     }
   }
 
+  /**
+   * Apply analog Xbox controller fly & freelook input (KSP VAB/SPH style).
+   * Intentionally independent of _isPointerOverCanvas so controller flight
+   * works seamlessly without moving the mouse pointer.
+   */
+  applyGamepadInput({ moveX = 0, moveY = 0, flyY = 0, lookX = 0, lookY = 0, lookSpeedRad = 2.4 } = {}, delta = 0.016) {
+    if (!this.enabled || !this.camera) return;
+
+    if (Math.abs(lookX) > 0.001 || Math.abs(lookY) > 0.001) {
+      this.yaw -= lookX * lookSpeedRad * delta;
+      this.pitch -= lookY * lookSpeedRad * delta;
+      const maxPitch = Math.PI * 0.49;
+      this.pitch = Math.max(-maxPitch, Math.min(maxPitch, this.pitch));
+      this._updateCameraRotation();
+    }
+
+    const hasMove = Math.abs(moveX) > 0.001 || Math.abs(moveY) > 0.001 || Math.abs(flyY) > 0.001;
+    if (!hasMove) return;
+
+    const forward = new THREE.Vector3();
+    this.camera.getWorldDirection(forward);
+
+    const right = new THREE.Vector3();
+    right.crossVectors(forward, this.camera.up).normalize();
+
+    const move = new THREE.Vector3();
+    if (moveY !== 0) move.addScaledVector(forward, -moveY);
+    if (moveX !== 0) move.addScaledVector(right, moveX);
+    if (flyY !== 0) move.y += flyY;
+
+    // Clamp max diagonal magnitude to 1 while preserving proportional analog tilt
+    const len = move.length();
+    if (len > 1) move.divideScalar(len);
+    if (len > 0) {
+      this.camera.position.addScaledVector(move, this.moveSpeed * delta);
+    }
+  }
+
   dispose() {
     this._detach();
     this.enabled = false;

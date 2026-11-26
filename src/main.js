@@ -32,6 +32,9 @@ import { DirectorMode } from './director/DirectorMode.js';
 import { GameEnv } from './core/GameEnv.js';
 import { settingsManager } from './core/SettingsManager.js';
 import { autoPerformanceController } from './core/AutoPerformance.js';
+import { GamepadManager } from './core/GamepadManager.js';
+import { GamepadNavigator } from './core/GamepadNavigator.js';
+import { GamepadRouter } from './core/GamepadRouter.js';
 import { MeshBorderOverlay } from './rendering/MeshBorderOverlay.js';
 import './ui/ui.css';
 
@@ -295,6 +298,23 @@ window.directorMode = directorMode;
 const meshBorderOverlay = new MeshBorderOverlay(scene, camera);
 window.meshBorderOverlay = meshBorderOverlay;
 
+const gamepadManager = new GamepadManager({ settingsManager });
+const gamepadNavigator = new GamepadNavigator({ settingsManager });
+const gamepadRouter = new GamepadRouter({
+  gamepadManager,
+  navigator: gamepadNavigator,
+  gameState,
+  hud,
+  creditsUI,
+  directorMode,
+  pauseMenu,
+  audio,
+  isPaused: () => isPaused,
+});
+window.gamepadManager = gamepadManager;
+window.gamepadNavigator = gamepadNavigator;
+window.gamepadRouter = gamepadRouter;
+
 // ---------------------------------------------------------------------------
 // Resize handler
 // ---------------------------------------------------------------------------
@@ -384,6 +404,9 @@ function tick() {
   requestAnimationFrame(tick);
   const now = performance.now();
   const delta = Math.min(clock.getDelta(), 0.05); // cap at 50ms to avoid spiral of death
+
+  // Poll Xbox controller and route active phase / modal / QTE controls (works even when paused)
+  gamepadRouter.update(delta, now);
 
   // Calculate simulation delta according to Director Mode state
   let simDelta = delta;

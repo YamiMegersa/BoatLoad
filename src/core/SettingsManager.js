@@ -20,6 +20,11 @@ export const DEFAULT_SETTINGS = Object.freeze({
   ambientVolume: 0.8,     // 0.0 to 1.0
   musicVolume: 0.7,       // 0.0 to 1.0
   qteTapToLatch: false,   // Accessibility: tap Space / thumb pad to latch the Siren brace instead of holding
+  gamepadSensitivity: 1.0,// 0.3 to 2.5 camera look speed multiplier
+  gamepadDeadzone: 0.15,  // 0.05 to 0.35 radial inner deadzone
+  gamepadInvertY: false,  // Invert right-stick Y look axis
+  gamepadVibration: true, // Dual-rumble haptics on impacts/QTEs
+  gamepadShowHints: true, // Dynamic contextual Xbox button prompts
 });
 
 export class SettingsManager {

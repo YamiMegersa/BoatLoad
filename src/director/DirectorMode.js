@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { on, emit } from '../core/EventBus.js';
 import { settingsManager } from '../core/SettingsManager.js';
 import { getAssetUrl } from '../utils/paths.js';
+import { XBOX_BUTTON } from '../core/GamepadManager.js';
 import './director.css';
 
 /**
@@ -458,6 +459,42 @@ export class DirectorMode {
   stopPath() {
     this.isPlayingPath = false;
     this._updateUIState();
+  }
+
+  /**
+   * Process Xbox controller input while Director Mode is active.
+   */
+  applyGamepadInput(gp, delta) {
+    if (!this.isActive || !gp) return;
+
+    const sens = gp.getSensitivity?.() ?? 1.0;
+    const lookSpeed = 1.8 * sens * delta;
+    if (Math.abs(gp.rightStick.x) > 0.001 || Math.abs(gp.rightStick.y) > 0.001) {
+      this._angularVelocity.x -= gp.rightStick.x * lookSpeed * 0.25;
+      this._angularVelocity.y -= gp.rightStick.y * lookSpeed * 0.25;
+    }
+
+    const flyY = gp.rightTrigger - gp.leftTrigger;
+    if (gp.leftStick.magnitude > 0.01 || Math.abs(flyY) > 0.01) {
+      const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
+      const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
+      const worldUp = new THREE.Vector3(0, 1, 0);
+      const move = new THREE.Vector3()
+        .addScaledVector(right, gp.leftStick.x)
+        .addScaledVector(forward, -gp.leftStick.y)
+        .addScaledVector(worldUp, flyY);
+      const speed = this.moveSpeed * (gp.isPressed(XBOX_BUTTON.L3) ? this.sprintMultiplier : 1.0);
+      this.camera.position.addScaledVector(move, speed * delta);
+    }
+
+    if (gp.isJustPressed(XBOX_BUTTON.A)) this.toggleHalt();
+    if (gp.isJustPressed(XBOX_BUTTON.X)) this.addKeyframe();
+    if (gp.isJustPressed(XBOX_BUTTON.Y)) this.toggleUIHide();
+    if (gp.isJustPressed(XBOX_BUTTON.RB)) this.stepFrame();
+    if (gp.isJustPressed(XBOX_BUTTON.B)) {
+      if (this.uiHidden) this.toggleUIHide();
+      else this.deactivate();
+    }
   }
 
   _updatePathPlayback(delta) {

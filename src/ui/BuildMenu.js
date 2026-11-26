@@ -54,11 +54,25 @@ export class BuildMenu {
       this._updateToolButtons();
     };
 
+    this._onMaterialSelected = ({ materialId }) => {
+      if (materialId && this._activeMaterialId !== materialId) {
+        this._activeMaterialId = materialId;
+        this._renderMaterialTiles();
+      }
+    };
 
+    this._onBrushSelected = ({ brushId }) => {
+      if (brushId && this._activeBrushId !== brushId) {
+        this._activeBrushId = brushId;
+        this._renderBrushTiles();
+      }
+    };
 
     on('budgetChanged', this._onBudgetChanged);
     on('shipyardSummaryUpdated', this._onSummaryUpdated);
     on('mirrorModeChanged', this._onMirrorChanged);
+    on('materialSelected', this._onMaterialSelected);
+    on('brushSelected', this._onBrushSelected);
 
     on('uiMount', d => {
       if (d.screen === 'shipyard') {

@@ -386,6 +386,45 @@ export class BoatDestructionWorkshop {
     emit('workshopPitchChanged', { pitch: this._pitch });
   }
 
+  cycleBrush(dir = 1) {
+    const list = Object.values(DamageBrushType);
+    const idx = Math.max(0, list.indexOf(this._activeBrush));
+    this.setBrush(list[(idx + dir + list.length) % list.length]);
+  }
+
+  cycleBrushSize(dir = 1) {
+    const list = Object.values(BrushSize);
+    const idx = Math.max(0, list.indexOf(this._brushSize));
+    this.setBrushSize(list[(idx + dir + list.length) % list.length]);
+  }
+
+  recenterCamera() {
+    if (!this._grid || !this._chunkRenderer) return false;
+    const profile = getShipProfile(this._shipId) || {};
+    const s = this._shipDef?.scale || profile.scale || 0.12;
+    this._positionCameraAroundShip(this._grid.width, this._grid.height, this._grid.depth, s, this._mooredPos);
+    return true;
+  }
+
+  updateGamepadReticle(apply = false) {
+    if (!this._isOpen || !this._raycaster || !this._camera) return false;
+    this._mouseNDC.set(0, 0);
+    const hit = this._raycaster.cast(this._mouseNDC, this._camera);
+    if (hit) {
+      this._hoveredCell = hit.cell;
+      this._hoveredNormal = hit.normal;
+    } else {
+      this._hoveredCell = null;
+      this._hoveredNormal = null;
+    }
+    this._updateHoverPreview();
+    if (apply && this._hoveredCell) {
+      this.applyStroke();
+      return true;
+    }
+    return Boolean(hit);
+  }
+
   /**
    * Compute affected cells for the given brush and seed coordinate.
    *

@@ -1123,8 +1123,14 @@ export class EditorSystem {
   _onPointerMove(event) {
     if (this._destructionWorkshop?.isOpen) return;
     const rect = this._renderer.domElement.getBoundingClientRect();
-    this._mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    this._mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    const ndcX = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    const ndcY = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    this._updateRaycastFromNDC(ndcX, ndcY);
+  }
+
+  _updateRaycastFromNDC(ndcX, ndcY) {
+    if (this._destructionWorkshop?.isOpen || !this._camera) return;
+    this._mouse.set(ndcX, ndcY);
 
     this._raycaster.setFromCamera(this._mouse, this._camera);
     this._raycaster.ray.intersectPlane(this._plane, this._intersection);
@@ -1245,11 +1251,81 @@ export class EditorSystem {
     if (this._destructionWorkshop?.isOpen) return;
     // Left click only
     if (event.button !== 0) return;
-    
+
+    this._onPointerMove(event);
+    this._beginPrimaryAction();
+  }
+
+  /**
+   * Update editor raycast & preview from screen center (0, 0) for controller aiming.
+   */
+  updateGamepadReticle() {
+    if (this._destructionWorkshop?.isOpen) return;
+    this._updateRaycastFromNDC(0, 0);
+  }
+
+  gamepadActionDown() {
+    if (this._destructionWorkshop?.isOpen) return;
+    this._updateRaycastFromNDC(0, 0);
+    this._beginPrimaryAction();
+  }
+
+  gamepadActionUp() {
+    if (this._destructionWorkshop?.isOpen) return;
+    this._onPointerUp({ button: 0 });
+  }
+
+  gamepadAdjustScale(delta) {
+    const isPlaceTool = this._activeTool === 'place' && this._activeType;
+    const isTerrainTool = this._activeTool === 'terrain_raise' || this._activeTool === 'terrain_lower';
+    if (!isPlaceTool && !isTerrainTool && this._activeTool !== 'place_end_location') return;
+    this._currentScale = Math.max(0.1, Math.min(20.0, this._currentScale + delta));
+    if (isPlaceTool || this._activeTool === 'place_end_location') {
+      this._updatePreview();
+      if (this._previewMesh) {
+        this._previewMesh.mesh.position.set(this._intersection.x, this._intersection.y + this._currentY, this._intersection.z);
+      }
+    }
+    this._emitState();
+  }
+
+  gamepadAdjustY(delta) {
+    if (this._activeTool !== 'place' || !this._activeType) return;
+    this._currentY += delta;
+    if (this._previewMesh) {
+      this._previewMesh.mesh.position.set(this._intersection.x, this._intersection.y + this._currentY, this._intersection.z);
+    }
+    this._emitState();
+  }
+
+  gamepadAdjustRotation(deltaRad) {
+    const isPlaceTool = this._activeTool === 'place' && this._activeType;
+    if (!isPlaceTool && this._activeTool !== 'place_ship_spawn') return;
+    this._currentRotation += deltaRad;
+    if (this._previewMesh) {
+      this._previewMesh.mesh.rotation.y = this._currentRotation;
+    }
+    this._emitState();
+  }
+
+  cycleCameraPreset() {
+    const presets = ['default', 'top', 'isometric', 'horizon', 'harbor'];
+    this._camPresetIdx = ((this._camPresetIdx ?? 0) + 1) % presets.length;
+    emit('editorCameraPreset', { preset: presets[this._camPresetIdx] });
+  }
+
+  toggleDeleteTool() {
+    if (this._activeTool === 'delete') {
+      emit('editorSelectTool', { tool: 'select' });
+    } else {
+      emit('editorSelectTool', { tool: 'delete' });
+    }
+  }
+
+  _beginPrimaryAction() {
     this._isPointerDown = true;
     this._lastTerraformPoint = null;
     this._strokeHoldTimer = 0;
-    this._onPointerMove(event);
 
     const isTerrainTool = this._activeTool === 'terrain_raise' || this._activeTool === 'terrain_lower';
     if (isTerrainTool && this._voxelTerrain) {

@@ -1,14 +1,18 @@
-import { emit, on } from '../core/EventBus.js';
+import { emit, on, off } from '../core/EventBus.js';
 import { settingsManager } from '../core/SettingsManager.js';
 import { autoPerformanceController } from '../core/AutoPerformance.js';
+import { CONTROL_SCHEMES } from '../core/GamepadManager.js';
 
 export class PauseMenu {
   constructor() {
     this._el = null;
     this._activeTab = 'tab-graphics';
+    this._onGamepadChange = () => this._updateGamepadBadge();
 
     on('uiMount', d => { if (d.screen === 'pause') this.mount(d); });
     on('uiUnmount', d => { if (d.screen === 'pause') this.unmount(); });
+    on('gamepadConnected', this._onGamepadChange);
+    on('gamepadDisconnected', this._onGamepadChange);
 
     on('autoPerformanceAdjusted', (data) => {
       this._onAutoPerformanceAdjusted(data);
@@ -81,6 +85,7 @@ export class PauseMenu {
           <div class="settings-tabs">
             <button class="settings-tab-btn active" data-tab="tab-graphics"><span class="pixel-icon icon-display-monitor size-18"></span> Graphics &amp; Performance</button>
             <button class="settings-tab-btn" data-tab="tab-audio"><span class="pixel-icon icon-audio-horn size-18"></span> Audio Controls</button>
+            <button class="settings-tab-btn" data-tab="tab-controls">🎮 Xbox Controller</button>
           </div>
 
           <!-- Tab Content: Graphics & Draw Distance -->
@@ -318,6 +323,101 @@ export class PauseMenu {
               <div class="setting-ctrl-row">
                 <input type="range" id="set-vol-music" class="setting-slider" min="0" max="100" step="1">
                 <span class="setting-val-badge" id="val-vol-music">70%</span>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Tab Content: Xbox Controller -->
+          <div id="tab-controls" class="settings-tab-pane" style="display: none;">
+
+            <!-- Connection Status Card -->
+            <div class="setting-item highlight">
+              <div class="setting-info">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap: 10px;">
+                  <span class="setting-label" style="color:#ffd700;">Xbox Controller Status</span>
+                  <span class="setting-val-badge highlight" id="val-gamepad-status">No Controller Detected</span>
+                </div>
+                <span class="setting-desc">
+                  Plug in via USB or pair via Bluetooth, then press any button or move a stick to switch automatically between Keyboard/Mouse and Xbox controls.
+                </span>
+              </div>
+            </div>
+
+            <!-- Look Sensitivity -->
+            <div class="setting-item">
+              <div class="setting-info">
+                <label for="set-gp-sens" class="setting-label">Right Stick Look Sensitivity</label>
+                <span class="setting-desc">Camera turn speed on Dock, Shipyard, Editor, and Sailing look-around.</span>
+              </div>
+              <div class="setting-ctrl-row">
+                <input type="range" id="set-gp-sens" class="setting-slider" min="0.3" max="2.5" step="0.1">
+                <span class="setting-val-badge" id="val-gp-sens">1.0x</span>
+              </div>
+            </div>
+
+            <!-- Stick Deadzone -->
+            <div class="setting-item">
+              <div class="setting-info">
+                <label for="set-gp-deadzone" class="setting-label">Analog Stick Deadzone</label>
+                <span class="setting-desc">Scaled radial inner deadzone to eliminate stick drift.</span>
+              </div>
+              <div class="setting-ctrl-row">
+                <input type="range" id="set-gp-deadzone" class="setting-slider" min="5" max="35" step="1">
+                <span class="setting-val-badge" id="val-gp-deadzone">15%</span>
+              </div>
+            </div>
+
+            <!-- Invert Look Y -->
+            <div class="setting-item">
+              <div class="setting-info">
+                <label class="setting-label" for="set-gp-invert-y">Invert Look Y-Axis</label>
+                <span class="setting-desc">Reverses vertical camera pitch on Right Stick.</span>
+              </div>
+              <div class="setting-ctrl-row">
+                <label class="switch-wrap">
+                  <input type="checkbox" id="set-gp-invert-y">
+                  <span class="switch-slider"></span>
+                </label>
+                <span class="setting-val-badge" id="val-gp-invert-y">Off</span>
+              </div>
+            </div>
+
+            <!-- Vibration / Rumble -->
+            <div class="setting-item">
+              <div class="setting-info">
+                <label class="setting-label" for="set-gp-vibration">Controller Vibration (Rumble)</label>
+                <span class="setting-desc">Haptic feedback for hull impacts, harpoons, QTEs, and siren pulls.</span>
+              </div>
+              <div class="setting-ctrl-row">
+                <label class="switch-wrap">
+                  <input type="checkbox" id="set-gp-vibration">
+                  <span class="switch-slider"></span>
+                </label>
+                <span class="setting-val-badge" id="val-gp-vibration">On</span>
+              </div>
+            </div>
+
+            <!-- On-Screen Xbox Prompts -->
+            <div class="setting-item">
+              <div class="setting-info">
+                <label class="setting-label" for="set-gp-hints">On-Screen Xbox Button Prompts</label>
+                <span class="setting-desc">Displays contextual Xbox control hints while a controller is active.</span>
+              </div>
+              <div class="setting-ctrl-row">
+                <label class="switch-wrap">
+                  <input type="checkbox" id="set-gp-hints">
+                  <span class="switch-slider"></span>
+                </label>
+                <span class="setting-val-badge" id="val-gp-hints">On</span>
+              </div>
+            </div>
+
+            <!-- Complete Per-Phase Reference Chart -->
+            <div class="gp-reference-section">
+              <div class="gp-reference-header">Xbox Control Reference (Sea of Thieves &amp; KSP Layout)</div>
+              <div class="gp-reference-grid">
+                ${this._renderControlSchemesHtml()}
               </div>
             </div>
 
@@ -584,11 +684,99 @@ export class PauseMenu {
       settingsManager.set('musicVolume', val / 100);
     });
 
+    // Xbox Controller Controls
+    const gpSensSlider = this._el.querySelector('#set-gp-sens');
+    const gpSensBadge  = this._el.querySelector('#val-gp-sens');
+    gpSensSlider?.addEventListener('input', (e) => {
+      const val = Number(e.target.value);
+      if (gpSensBadge) gpSensBadge.innerText = `${val.toFixed(1)}x`;
+      settingsManager.set('gamepadSensitivity', val);
+    });
+
+    const gpDzSlider = this._el.querySelector('#set-gp-deadzone');
+    const gpDzBadge  = this._el.querySelector('#val-gp-deadzone');
+    gpDzSlider?.addEventListener('input', (e) => {
+      const pct = Number(e.target.value);
+      if (gpDzBadge) gpDzBadge.innerText = `${pct}%`;
+      settingsManager.set('gamepadDeadzone', pct / 100);
+    });
+
+    const gpInvertToggle = this._el.querySelector('#set-gp-invert-y');
+    const gpInvertBadge  = this._el.querySelector('#val-gp-invert-y');
+    gpInvertToggle?.addEventListener('change', (e) => {
+      const checked = e.target.checked;
+      if (gpInvertBadge) gpInvertBadge.innerText = checked ? 'On' : 'Off';
+      settingsManager.set('gamepadInvertY', checked);
+    });
+
+    const gpVibToggle = this._el.querySelector('#set-gp-vibration');
+    const gpVibBadge  = this._el.querySelector('#val-gp-vibration');
+    gpVibToggle?.addEventListener('change', (e) => {
+      const checked = e.target.checked;
+      if (gpVibBadge) gpVibBadge.innerText = checked ? 'On' : 'Off';
+      settingsManager.set('gamepadVibration', checked);
+    });
+
+    const gpHintsToggle = this._el.querySelector('#set-gp-hints');
+    const gpHintsBadge  = this._el.querySelector('#val-gp-hints');
+    gpHintsToggle?.addEventListener('change', (e) => {
+      const checked = e.target.checked;
+      if (gpHintsBadge) gpHintsBadge.innerText = checked ? 'On' : 'Off';
+      settingsManager.set('gamepadShowHints', checked);
+    });
+
     // Reset Defaults Button
     this._el.querySelector('#btn-settings-reset')?.addEventListener('click', () => {
       settingsManager.resetToDefaults();
       this._populateSettings();
     });
+  }
+
+  _renderControlSchemesHtml() {
+    return Object.values(CONTROL_SCHEMES).map((scheme) => `
+      <div class="gp-scheme-card">
+        <div class="gp-scheme-title">${scheme.title}</div>
+        <div class="gp-scheme-sub">${scheme.subtitle}</div>
+        <div class="gp-scheme-list">
+          ${scheme.bindings.map((b) => `
+            <div class="gp-scheme-row">
+              <span class="xb-btn xb-${b.kind}">${b.btn}</span>
+              <span class="gp-scheme-action">${b.action}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `).join('');
+  }
+
+  _updateGamepadBadge() {
+    if (!this._el) return;
+    const badge = this._el.querySelector('#val-gamepad-status');
+    if (!badge) return;
+    const gm = typeof window !== 'undefined' ? window.gamepadManager : null;
+    if (gm?.connected) {
+      const shortName = (gm.gamepadId || 'Xbox Controller').replace(/\s*\([^)]*\)/g, '').slice(0, 32);
+      badge.innerText = `Connected • ${shortName}`;
+      badge.style.color = '#4ade80';
+    } else {
+      badge.innerText = 'No Controller Detected';
+      badge.style.color = '#94a3b8';
+    }
+  }
+
+  isSettingsOpen() {
+    if (!this._el) return false;
+    const settingsView = this._el.querySelector('#pause-settings-view');
+    return Boolean(settingsView && settingsView.style.display !== 'none');
+  }
+
+  closeSettingsView() {
+    if (!this._el) return;
+    if (window.gameState?.currentPhase === 'MAIN_MENU') {
+      this.unmount();
+    } else {
+      this._showSettings(false);
+    }
   }
 
   _setupPillGroup(groupId, settingKey, transformFn = String, onChange = null) {
@@ -761,6 +949,39 @@ export class PauseMenu {
     const musicBadge  = this._el.querySelector('#val-vol-music');
     if (musicSlider) musicSlider.value = musicVol;
     if (musicBadge) musicBadge.innerText = `${musicVol}%`;
+
+    // Xbox Controller Settings
+    const gpSens = Number(settingsManager.get('gamepadSensitivity') ?? 1.0);
+    const gpSensSlider = this._el.querySelector('#set-gp-sens');
+    const gpSensBadge  = this._el.querySelector('#val-gp-sens');
+    if (gpSensSlider) gpSensSlider.value = gpSens;
+    if (gpSensBadge) gpSensBadge.innerText = `${gpSens.toFixed(1)}x`;
+
+    const gpDz = Math.round((settingsManager.get('gamepadDeadzone') ?? 0.15) * 100);
+    const gpDzSlider = this._el.querySelector('#set-gp-deadzone');
+    const gpDzBadge  = this._el.querySelector('#val-gp-deadzone');
+    if (gpDzSlider) gpDzSlider.value = gpDz;
+    if (gpDzBadge) gpDzBadge.innerText = `${gpDz}%`;
+
+    const gpInvert = Boolean(settingsManager.get('gamepadInvertY'));
+    const gpInvertToggle = this._el.querySelector('#set-gp-invert-y');
+    const gpInvertBadge  = this._el.querySelector('#val-gp-invert-y');
+    if (gpInvertToggle) gpInvertToggle.checked = gpInvert;
+    if (gpInvertBadge) gpInvertBadge.innerText = gpInvert ? 'On' : 'Off';
+
+    const gpVib = settingsManager.get('gamepadVibration') !== false;
+    const gpVibToggle = this._el.querySelector('#set-gp-vibration');
+    const gpVibBadge  = this._el.querySelector('#val-gp-vibration');
+    if (gpVibToggle) gpVibToggle.checked = gpVib;
+    if (gpVibBadge) gpVibBadge.innerText = gpVib ? 'On' : 'Off';
+
+    const gpHints = settingsManager.get('gamepadShowHints') !== false;
+    const gpHintsToggle = this._el.querySelector('#set-gp-hints');
+    const gpHintsBadge  = this._el.querySelector('#val-gp-hints');
+    if (gpHintsToggle) gpHintsToggle.checked = gpHints;
+    if (gpHintsBadge) gpHintsBadge.innerText = gpHints ? 'On' : 'Off';
+
+    this._updateGamepadBadge();
   }
 
   _onAutoPerformanceAdjusted({ drawDistance, renderScale, currentFps, targetFps, reason }) {
