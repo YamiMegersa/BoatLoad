@@ -24,6 +24,7 @@ import { ParticleSystem } from './environment/ParticleSystem.js';
 import { DamageSystem } from './shipyard/DamageSystem.js';
 import { GodRays } from './environment/GodRays.js';
 import { PaperFilter } from './environment/PaperFilter.js';
+import { DitherFilter } from './environment/DitherFilter.js';
 import { UnderwaterFilter } from './environment/UnderwaterFilter.js';
 import { AudioManager } from './utils/AudioManager.js';
 import { DEBUG } from './utils/debug.js';
@@ -112,6 +113,15 @@ const mainRT = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight
 const paperFilter = new PaperFilter(renderer);
 paperFilter.resize(window.innerWidth, window.innerHeight);
 
+const ditherFilter = new DitherFilter(renderer);
+ditherFilter.resize(window.innerWidth, window.innerHeight);
+
+const postRT = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {
+  minFilter: THREE.LinearFilter,
+  magFilter: THREE.LinearFilter,
+  format: THREE.RGBAFormat,
+});
+
 const underwaterRT = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {
   minFilter: THREE.LinearFilter,
   magFilter: THREE.LinearFilter,
@@ -134,6 +144,7 @@ gameState._godRays = godRays;
 window.gameState = gameState;
 window.godRays = godRays;
 window.underwaterFilter = underwaterFilter;
+window.ditherFilter = ditherFilter;
 window.exportToGLB = exportToGLB;
 
 window.inspectTriangles = () => {
@@ -338,7 +349,9 @@ window.addEventListener('resize', () => {
   godRays.resize(window.innerWidth, window.innerHeight);
   mainRT.setSize(window.innerWidth, window.innerHeight);
   underwaterRT.setSize(window.innerWidth, window.innerHeight);
+  postRT.setSize(window.innerWidth, window.innerHeight);
   paperFilter.resize(window.innerWidth, window.innerHeight);
+  ditherFilter.resize(window.innerWidth, window.innerHeight);
   underwaterFilter.resize(window.innerWidth, window.innerHeight);
 });
 
@@ -460,6 +473,9 @@ function tick() {
   const paperSetting = settingsManager.get('paperShader');
   const usePaperShader = Boolean(paperSetting && paperSetting !== 'off');
 
+  const ditherSetting = settingsManager.get('ditherShader');
+  const useDitherShader = Boolean(ditherSetting && ditherSetting !== 'off');
+
   const godRaysEnabled = Boolean(settingsManager.get('godRays'));
 
   // Clear render metrics once per frame before any render passes execute
@@ -479,12 +495,28 @@ function tick() {
     renderer.setRenderTarget(mainRT);
     renderer.render(scene, activeCam);
 
-    if (usePaperShader) {
+    if (usePaperShader && useDitherShader) {
+      underwaterFilter.render(mainRT, underwaterRT);
+      paperFilter.render(underwaterRT, postRT);
+      ditherFilter.render(postRT, null);
+    } else if (usePaperShader) {
       underwaterFilter.render(mainRT, underwaterRT);
       paperFilter.render(underwaterRT);
+    } else if (useDitherShader) {
+      underwaterFilter.render(mainRT, underwaterRT);
+      ditherFilter.render(underwaterRT, null);
     } else {
       underwaterFilter.render(mainRT, null);
     }
+  } else if (usePaperShader && useDitherShader) {
+    if (godRaysEnabled) {
+      godRays.render(sun, moon, mainRT);
+    } else {
+      renderer.setRenderTarget(mainRT);
+      renderer.render(scene, activeCam);
+    }
+    paperFilter.render(mainRT, postRT);
+    ditherFilter.render(postRT, null);
   } else if (usePaperShader) {
     if (godRaysEnabled) {
       godRays.render(sun, moon, mainRT);
@@ -493,6 +525,14 @@ function tick() {
       renderer.render(scene, activeCam);
     }
     paperFilter.render(mainRT);
+  } else if (useDitherShader) {
+    if (godRaysEnabled) {
+      godRays.render(sun, moon, mainRT);
+    } else {
+      renderer.setRenderTarget(mainRT);
+      renderer.render(scene, activeCam);
+    }
+    ditherFilter.render(mainRT, null);
   } else {
     if (godRaysEnabled) {
       godRays.render(sun, moon, null);
@@ -939,7 +979,7 @@ async function boot() {
           const activeShipId = opts?.shipDef?.id || gameState._levelCfg?.ship || level.levelCfg?.ship || DEFAULT_SHIP_ID;
           const activeShipDef = opts?.shipDef || LevelConfig.getShipDef(activeShipId);
           const activeLevelCfg = opts?.levelCfg || gameState._levelCfg || level.levelCfg;
-          await gameState.transition(GamePhase.DOCK, { shipDef: activeShipDef, levelCfg: activeLevelCfg, fishModels: level.fishModels, openShop: opts?.openShop, day: opts?.day }, true);
+          await gameState.transition(GamePhase.DOCK, { shipDef: activeShipDef, levelCfg: activeLevelCfg, fishModels: level.fishModels, openShop: opts?.openShop, day: opts?.day });
         } else if (phase === GamePhase.SHIPYARD) {
           logEvent('Entering Shipyard...');
           emit('showLoading', { title: 'Entering Shipyard', message: 'Entering outfitting berth & inspecting hull...', progress: 0.1 });

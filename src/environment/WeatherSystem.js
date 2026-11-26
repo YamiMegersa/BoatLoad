@@ -88,9 +88,10 @@ export class WeatherSystem {
       const levelRes = await fetch(getAssetUrl(`assets/levels/day${dayNum}.json`));
       const levelData = await levelRes.json();
       
-      const weatherState = this.weatherConfigs[levelData.weather];
+      const weatherName = levelData.weather || levelData.levelData?.weather || ((levelData.timeOfDay >= 17 || levelData.levelData?.timeOfDay >= 17) ? 'sunset' : 'sunny');
+      const weatherState = this.weatherConfigs[weatherName];
       if (weatherState) {
-        this.applyWeather(weatherState, sceneEntities, levelData.weather);
+        this.applyWeather(weatherState, sceneEntities, weatherName);
       }
       return { levelData, weatherState };
     } catch (err) {

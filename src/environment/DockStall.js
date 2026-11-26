@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { Reflector } from 'three/examples/jsm/objects/Reflector.js';
 import { VoxelLopBunny } from './VoxelLopBunny.js';
 import { VoxelCrab } from './VoxelCrab.js';
 import { DockNPC } from './DockNPC.js';
@@ -183,6 +184,71 @@ function createDeadlyBusinessSignTexture() {
 }
 
 /**
+ * Procedural canvas texture for the exterior grooming mirror sign: "Hello Handsome"
+ */
+function createHelloHandsomeSignTexture() {
+  if (typeof document === 'undefined') return new THREE.Texture();
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 160;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return new THREE.Texture();
+
+  // Weathered dark maritime timber
+  ctx.fillStyle = '#1e140d';
+  ctx.fillRect(0, 0, 512, 160);
+
+  // Distressed horizontal wood grain planks
+  ctx.fillStyle = '#2d1b11';
+  for (let y = 0; y < 160; y += 8) {
+    ctx.fillRect(0, y, 512, 3);
+  }
+
+  // Golden brass beveled borders with rivet corner dots
+  ctx.strokeStyle = '#c8a44b';
+  ctx.lineWidth = 6;
+  ctx.strokeRect(8, 8, 496, 144);
+  ctx.strokeStyle = '#fef08a';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(14, 14, 484, 132);
+
+  // Corner rivet dots
+  ctx.fillStyle = '#fef08a';
+  [[11, 11], [501, 11], [11, 149], [501, 149]].forEach(([cx, cy]) => {
+    ctx.beginPath();
+    ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // "Hello Handsome" header
+  ctx.font = '900 46px "Cinzel", Georgia, serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  // Warm amber glow & drop shadow
+  ctx.shadowColor = '#d97706';
+  ctx.shadowBlur = 14;
+  ctx.fillStyle = '#fde68a';
+  ctx.fillText('Hello Handsome', 256, 68);
+
+  // Sharp text core
+  ctx.shadowBlur = 2;
+  ctx.fillStyle = '#fffbeb';
+  ctx.fillText('Hello Handsome', 256, 68);
+
+  // Subtitle / nautical flair
+  ctx.font = 'bold 15px sans-serif';
+  ctx.fillStyle = '#fcd34d';
+  ctx.shadowColor = '#92400e';
+  ctx.shadowBlur = 5;
+  ctx.fillText('⚓  LOOKIN\' SHARP, CAPTAIN  ⚓', 256, 118);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/**
  * Creates a flat-shaded standard material matching VoxelArms / ChunkRenderer aesthetics.
  */
 const _voxelMatCache = new Map();
@@ -313,6 +379,7 @@ export class DockStall {
     this.ghostMerchantInteractables = [];
     this.bookLight = null;
     this.bookAura = null;
+    this.exteriorMirror = null;
     this._isBuilt = false;
   }
 
@@ -696,6 +763,216 @@ export class DockStall {
     const muntinV = createVoxelBox(0.06, portholeR * 1.6, 0.05, mats.brass);
     muntinV.position.set(0.11, portholeY, portholeZ);
     leftWallGroup.add(muntinV);
+
+    // -------------------------------------------------------------------------
+    // Exterior Grooming Mirror & "Hello Handsome" Sign (Opposite to Door Wall)
+    // -------------------------------------------------------------------------
+    const mirrorZ = 1.25;
+    const mirrorY = 2.65;
+    const mirrorW = 1.35;
+    const mirrorH = 2.05;
+
+    // Dark timber mirror backboard (prevent light leaks behind frame)
+    const mirrorBacking = createVoxelBox(0.04, mirrorH + 0.16, mirrorW + 0.16, mats.woodDark);
+    mirrorBacking.position.set(-0.015, mirrorY, mirrorZ);
+    leftWallGroup.add(mirrorBacking);
+
+    // Planar Reflector mirror surface (faces outward in shop -X / dock +X)
+    const reflector = new Reflector(new THREE.PlaneGeometry(mirrorW, mirrorH), {
+      clipBias: 0.003,
+      textureWidth: 1024,
+      textureHeight: 1024,
+      color: 0x8899aa
+    });
+    reflector.position.set(-0.038, mirrorY, mirrorZ);
+    reflector.rotation.y = -Math.PI / 2;
+
+    // Reflection camera passes: render default scene (layer 0) AND player mirror avatar (layer 1)
+    const origReflectorOnBeforeRender = reflector.onBeforeRender;
+    reflector.onBeforeRender = function(renderer, scene, camera) {
+      const refCam = this.getReflectionCamera(camera);
+      if (refCam) {
+        refCam.layers.enable(0);
+        refCam.layers.enable(1);
+      }
+      origReflectorOnBeforeRender.call(this, renderer, scene, camera);
+    };
+    leftWallGroup.add(reflector);
+    this.exteriorMirror = reflector;
+
+    // Heavy Carved Voxel Frame around mirror
+    const frameBorder = 0.10;
+    const frameThick = 0.06;
+    const frameMat = mats.woodTrim;
+
+    // Top & Bottom frame bars
+    const frameTop = createVoxelBox(frameThick, frameBorder, mirrorW + frameBorder * 2, frameMat);
+    frameTop.position.set(-0.045, mirrorY + mirrorH / 2 + frameBorder / 2, mirrorZ);
+    leftWallGroup.add(frameTop);
+
+    const frameBottom = createVoxelBox(frameThick, frameBorder, mirrorW + frameBorder * 2, frameMat);
+    frameBottom.position.set(-0.045, mirrorY - mirrorH / 2 - frameBorder / 2, mirrorZ);
+    leftWallGroup.add(frameBottom);
+
+    // Left (back Z) & Right (front Z) frame bars
+    const frameSideBack = createVoxelBox(frameThick, mirrorH, frameBorder, frameMat);
+    frameSideBack.position.set(-0.045, mirrorY, mirrorZ - mirrorW / 2 - frameBorder / 2);
+    leftWallGroup.add(frameSideBack);
+
+    const frameSideFront = createVoxelBox(frameThick, mirrorH, frameBorder, frameMat);
+    frameSideFront.position.set(-0.045, mirrorY, mirrorZ + mirrorW / 2 + frameBorder / 2);
+    leftWallGroup.add(frameSideFront);
+
+    // Brass corner braces on the mirror frame
+    const cornerRosetteSize = 0.11;
+    [
+      [mirrorY - mirrorH / 2 - frameBorder / 2, mirrorZ - mirrorW / 2 - frameBorder / 2],
+      [mirrorY - mirrorH / 2 - frameBorder / 2, mirrorZ + mirrorW / 2 + frameBorder / 2],
+      [mirrorY + mirrorH / 2 + frameBorder / 2, mirrorZ - mirrorW / 2 - frameBorder / 2],
+      [mirrorY + mirrorH / 2 + frameBorder / 2, mirrorZ + mirrorW / 2 + frameBorder / 2]
+    ].forEach(([cy, cz]) => {
+      const cornerBrace = createVoxelBox(frameThick + 0.02, cornerRosetteSize, cornerRosetteSize, mats.brass);
+      cornerBrace.position.set(-0.048, cy, cz);
+      leftWallGroup.add(cornerBrace);
+    });
+
+    // -------------------------------------------------------------------------
+    // "Hello Handsome" Carved Sign directly above the Mirror
+    // -------------------------------------------------------------------------
+    const signY = 4.05;
+    const signW = 1.55;
+    const signH = 0.46;
+    const signD = 0.06;
+
+    const helloHandsomeTex = createHelloHandsomeSignTexture();
+    const helloHandsomeMat = createVoxelMat(0xffffff, { map: helloHandsomeTex, roughness: 0.75 });
+
+    // Sign backing plaque
+    const signBacking = createVoxelBox(signD, signH, signW, mats.woodDark);
+    signBacking.position.set(-0.035, signY, mirrorZ);
+    leftWallGroup.add(signBacking);
+
+    // Sign canvas face
+    const signFace = new THREE.Mesh(new THREE.PlaneGeometry(signW - 0.06, signH - 0.06), helloHandsomeMat);
+    signFace.position.set(-0.068, signY, mirrorZ);
+    signFace.rotation.y = -Math.PI / 2;
+    leftWallGroup.add(signFace);
+
+    // Sign wooden rim trim
+    const signTrimBorder = 0.05;
+    const signTrimMat = mats.woodTrim;
+    const signTrimTop = createVoxelBox(0.08, signTrimBorder, signW + 0.04, signTrimMat);
+    signTrimTop.position.set(-0.05, signY + signH / 2 + signTrimBorder / 2, mirrorZ);
+    leftWallGroup.add(signTrimTop);
+
+    const signTrimBottom = createVoxelBox(0.08, signTrimBorder, signW + 0.04, signTrimMat);
+    signTrimBottom.position.set(-0.05, signY - signH / 2 - signTrimBorder / 2, mirrorZ);
+    leftWallGroup.add(signTrimBottom);
+
+    const signTrimBack = createVoxelBox(0.08, signH, signTrimBorder, signTrimMat);
+    signTrimBack.position.set(-0.05, signY, mirrorZ - signW / 2 - signTrimBorder / 2);
+    leftWallGroup.add(signTrimBack);
+
+    const signTrimFront = createVoxelBox(0.08, signH, signTrimBorder, signTrimMat);
+    signTrimFront.position.set(-0.05, signY, mirrorZ + signW / 2 + signTrimBorder / 2);
+    leftWallGroup.add(signTrimFront);
+
+    // Iron suspension brackets hanging the sign
+    [-signW * 0.35, signW * 0.35].forEach(szOffset => {
+      const chain = createVoxelBox(0.03, 0.45, 0.03, mats.iron);
+      chain.position.set(-0.05, signY + signH / 2 + 0.22, mirrorZ + szOffset);
+      leftWallGroup.add(chain);
+
+      const hangerRing = createVoxelOctagonRing(0.06, 0.025, 0.025, mats.iron);
+      hangerRing.rotation.y = Math.PI / 2;
+      hangerRing.position.set(-0.05, signY + signH / 2 + 0.44, mirrorZ + szOffset);
+      leftWallGroup.add(hangerRing);
+    });
+
+    // -------------------------------------------------------------------------
+    // Vanity Grooming Shelf & Sconces below the Mirror
+    // -------------------------------------------------------------------------
+    const shelfY = 1.48;
+    const shelfW = 1.45;
+    const shelfD = 0.28;
+    const shelfThick = 0.06;
+
+    const shelfPlank = createVoxelBox(shelfD, shelfThick, shelfW, mats.woodHi);
+    shelfPlank.position.set(-shelfD / 2, shelfY, mirrorZ);
+    leftWallGroup.add(shelfPlank);
+
+    // Two carved shelf brackets
+    [-shelfW * 0.32, shelfW * 0.32].forEach(szOffset => {
+      const bracket = createVoxelBox(shelfD * 0.75, 0.24, 0.06, mats.woodTrim);
+      bracket.position.set(-shelfD * 0.4, shelfY - 0.14, mirrorZ + szOffset);
+      leftWallGroup.add(bracket);
+    });
+
+    // Grooming accessories on shelf
+    // Polished brass comb
+    const comb = createVoxelBox(0.08, 0.015, 0.18, mats.brass);
+    comb.position.set(-0.12, shelfY + shelfThick / 2 + 0.01, mirrorZ - 0.35);
+    comb.rotation.y = 0.25;
+    leftWallGroup.add(comb);
+
+    // Razor
+    const razor = createVoxelBox(0.04, 0.02, 0.14, mats.iron);
+    razor.position.set(-0.16, shelfY + shelfThick / 2 + 0.015, mirrorZ - 0.22);
+    razor.rotation.y = -0.4;
+    leftWallGroup.add(razor);
+
+    // Bay Rum grooming tonic bottle (amber translucent body + cork)
+    const tonicMat = createVoxelMat(0xb45309, { roughness: 0.25, transparent: true, opacity: 0.85 });
+    const tonicBody = createVoxelBox(0.09, 0.16, 0.09, tonicMat);
+    tonicBody.position.set(-0.13, shelfY + shelfThick / 2 + 0.08, mirrorZ + 0.28);
+    leftWallGroup.add(tonicBody);
+
+    const tonicCork = createVoxelBox(0.05, 0.04, 0.05, mats.woodTrim);
+    tonicCork.position.set(-0.13, shelfY + shelfThick / 2 + 0.18, mirrorZ + 0.28);
+    leftWallGroup.add(tonicCork);
+
+    // Polished brass shaving mug with lather foam
+    const shavingMug = createVoxelBox(0.11, 0.12, 0.11, mats.brass);
+    shavingMug.position.set(-0.13, shelfY + shelfThick / 2 + 0.06, mirrorZ + 0.05);
+    leftWallGroup.add(shavingMug);
+
+    const shavingFoam = createVoxelBox(0.09, 0.04, 0.09, createVoxelMat(0xf0fdf4, { roughness: 0.9 }));
+    shavingFoam.position.set(-0.13, shelfY + shelfThick / 2 + 0.13, mirrorZ + 0.05);
+    leftWallGroup.add(shavingFoam);
+
+    // Two warm nautical wall sconce lanterns flanking the mirror
+    const lanternMat = mats.brass;
+    const lanternGlassMat = createVoxelMat(0xf59e0b, { emissive: 0xf59e0b, emissiveIntensity: 1.8 });
+
+    [-0.92, 0.92].forEach(zOffset => {
+      const lZ = mirrorZ + zOffset;
+      const lY = 2.95;
+
+      // Iron wall arm
+      const arm = createVoxelBox(0.24, 0.04, 0.04, mats.iron);
+      arm.position.set(-0.12, lY + 0.12, lZ);
+      leftWallGroup.add(arm);
+
+      // Lantern cage
+      const cage = createVoxelBox(0.16, 0.24, 0.16, lanternMat);
+      cage.position.set(-0.24, lY, lZ);
+      leftWallGroup.add(cage);
+
+      // Amber glowing glass core
+      const glowGlass = createVoxelBox(0.12, 0.18, 0.12, lanternGlassMat);
+      glowGlass.position.set(-0.24, lY, lZ);
+      leftWallGroup.add(glowGlass);
+
+      // Lantern top cap
+      const cap = createVoxelBox(0.18, 0.05, 0.18, mats.brassDark);
+      cap.position.set(-0.24, lY + 0.145, lZ);
+      leftWallGroup.add(cap);
+
+      // Warm subtle point light
+      const lanternLight = new THREE.PointLight(0xffbe6b, 1.2, 5.5, 1.4);
+      lanternLight.position.set(-0.35, lY, lZ);
+      leftWallGroup.add(lanternLight);
+    });
 
     // -------------------------------------------------------------------------
     // Right Wall: Doorway, Lintel & Interactive Voxel Shop Door
@@ -1304,7 +1581,7 @@ export class DockStall {
     // 3 Octagonal Voxel Barrels (Built with clean faceted staves and offset bands)
     const barrelLocations = [
       { x: leftX - 0.75, z: -0.5, h: 1.25, r: 0.38 },
-      { x: leftX - 0.65, z: 0.65, h: 1.05, r: 0.32 },
+      { x: leftX - 0.75, z: -1.25, h: 1.05, r: 0.32 }, // Positioned with barrel 1 to keep mirror walkway open
       { x: rightX + 0.72, z: -2.0, h: 1.35, r: 0.4 } // Sits securely on the extended dock!
     ];
     barrelLocations.forEach(b => {
@@ -3769,6 +4046,10 @@ export class DockStall {
     if (this.crab) {
       this.crab.dispose();
       this.crab = null;
+    }
+    if (this.exteriorMirror && typeof this.exteriorMirror.dispose === 'function') {
+      this.exteriorMirror.dispose();
+      this.exteriorMirror = null;
     }
     this.group.traverse(child => {
       if (child.isMesh) {
