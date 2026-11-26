@@ -692,7 +692,7 @@ export class GamepadNavigator {
     this._hintBarEl.style.display = (showHints && isGp && this._lastHintKey) ? 'flex' : 'none';
   }
 
-  updateHints({ phase, isWorkshop = false, isModal = false, isCursorMode = false, activeQTE = null, isDirector = false } = {}) {
+  updateHints({ phase, isWorkshop = false, isModal = false, isCursorMode = false, activeQTE = null, activeQTEType = null, isDirector = false } = {}) {
     if (!this._doc) return;
     const showHints = this._settings?.get?.('gamepadShowHints') !== false;
     const isGp = this._doc.body?.classList?.contains('input-mode-gamepad');
@@ -744,7 +744,7 @@ export class GamepadNavigator {
         { btn: 'L3', kind: 'stick', text: 'UI Cursor' },
       ];
     } else if (phase === 'OBSTACLE') {
-      key = `SAIL_${activeQTE || 'NONE'}`;
+      key = `SAIL_${activeQTE || 'NONE'}_${activeQTEType || 'ANY'}`;
       if (activeQTE === 'draw') {
         items = [
           { btn: 'LS', kind: 'stick', text: 'Steer' },
@@ -755,7 +755,7 @@ export class GamepadNavigator {
       } else if (activeQTE === 'hold') {
         items = [
           { btn: 'LS', kind: 'stick', text: 'Steer' },
-          { btn: 'Hold LT / RT', kind: 'a', text: 'Brace Against Siren' },
+          { btn: 'Hold LT / RT / A', kind: 'a', text: activeQTEType === 'BAIL' ? 'Bail Water' : 'Brace Against Siren' },
           { btn: 'Menu', kind: 'bump', text: 'Pause' },
         ];
       } else if (activeQTE === 'timing') {

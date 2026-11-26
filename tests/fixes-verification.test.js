@@ -103,3 +103,11 @@ test('HUD declutter: settings cog button and coin/doubloon UI removed from saili
   assert.ok(!hudSrc.includes('id="hud-score-val"'), 'Score val element must be removed from sailing HUD template');
 });
 
+test('Ghost Merchant fix: _interactWithGhost wraps showDialogue payload in { dialogue } and DialogueBox mounts it', () => {
+  const dockCtrlSrc = fs.readFileSync(path.join(__dirname, '../src/environment/DockPlayerController.js'), 'utf8');
+  const dlgBoxSrc = fs.readFileSync(path.join(__dirname, '../src/ui/DialogueBox.js'), 'utf8');
+
+  assert.match(dockCtrlSrc, /emit\('showDialogue',\s*\{\s*dialogue:\s*\{\s*id:\s*'ghost_merchant_intro'/, '_interactWithGhost must wrap showDialogue payload in { dialogue }');
+  assert.match(dlgBoxSrc, /const dlg = d\?\.dialogue \?\? \(d\?\.lines \? d : null\)/, 'DialogueBox must accept both wrapped and direct dialogue payloads');
+});
+

@@ -141,7 +141,7 @@ export class SirenManager {
    * @param {import('../obstacle/PlayerShip.js').PlayerShip} playerShip
    */
   update(delta, playerShip) {
-    if (!playerShip || playerShip.sunk) return;
+    if (!playerShip || playerShip.sunk || playerShip.isSinkingDeath) return;
 
     this._time += delta;
     const shipPos = playerShip.mesh.position;
@@ -285,13 +285,14 @@ export class SirenManager {
         // a compelling pull that requires deliberate counter-steering or bracing to fight off.
         const activeResolve = Math.max(0, Math.min(1, this._qteSystem?.getActiveResolve?.('siren') ?? 0));
         const braceDamping = 1 - 0.85 * activeResolve;
-        const torque = turnDir * turnFactor * (2.6 * intensity) * t * braceDamping;
+        const disorientDamping = siren.disorientationRemaining > 0 ? 0.45 : 1.0;
+        const torque = turnDir * turnFactor * (2.6 * intensity) * t * braceDamping * disorientDamping;
         playerShip.yawVelocity += torque * delta;
 
         // Visceral physical leaning into the forced turn
         playerShip.rollVelocity -= turnDir * t * 0.4 * braceDamping * delta;
 
-        const pullStrength = t * intensity * braceDamping;
+        const pullStrength = t * intensity * braceDamping * disorientDamping;
         if (pullStrength > maxIntensityThisFrame) {
           maxIntensityThisFrame = pullStrength;
           // In HUD conventions: positive steerInput is RIGHT, negative is LEFT.
@@ -303,15 +304,17 @@ export class SirenManager {
           closestDz = dz;
         }
 
-        // Trigger SIREN QTE when close
+        // Trigger SIREN QTE when close (urgent combat: bypasses forward hazard check deferral)
         if (this._qteSystem && !siren.qteTriggered && siren.retryRemaining <= 0 &&
-          siren.resistanceRemaining <= 0 && dist < def.attractRadius * 0.7) {
+          siren.resistanceRemaining <= 0 && dist < def.attractRadius * 0.85 &&
+          !playerShip?.sunk && !playerShip?.isSinkingDeath) {
           const accepted = this._qteSystem.trigger({
             type: 'SIREN',
             source: 'siren',
-            metadata: { source: 'siren', instanceId: siren.instanceId, side: turnDir > 0 ? 'left' : 'right' },
+            urgent: true,
+            metadata: { source: 'siren', instanceId: siren.instanceId, urgent: true, side: turnDir > 0 ? 'left' : 'right' },
             onSuccess: () => {
-              siren.resistanceRemaining = def.resistanceDuration ?? 5;
+              siren.resistanceRemaining = def.resistanceDuration ?? 6.0;
               siren.disorientationRemaining = 0;
               playerShip.setSirenDisorientation?.(siren.instanceId, false);
               siren.qteTriggered = false;
@@ -322,7 +325,7 @@ export class SirenManager {
                 siren.qteTriggered = false;
                 return;
               }
-              siren.disorientationRemaining = def.disorientationDuration ?? 2;
+              siren.disorientationRemaining = def.disorientationDuration ?? 5.0;
               siren.retryRemaining = siren.disorientationRemaining;
               playerShip.setSirenDisorientation?.(siren.instanceId, true);
               siren.qteTriggered = false;

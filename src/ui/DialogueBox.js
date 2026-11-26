@@ -17,7 +17,7 @@ export class DialogueBox {
     this._isTyping = false;
     this._charIndex = 0;
 
-    this._onShowDialogue = d => { if (d?.dialogue) this.mount(d.dialogue); };
+    this._onShowDialogue = d => { const dlg = d?.dialogue ?? (d?.lines ? d : null); if (dlg) this.mount(dlg); };
     this._onHideDialogue = () => this.unmount();
     on('showDialogue', this._onShowDialogue);
     on('hideDialogue', this._onHideDialogue);

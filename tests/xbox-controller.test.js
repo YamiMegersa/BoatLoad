@@ -267,11 +267,11 @@ test('GamepadRouter OBSTACLE phase: analog steering, Harpoon RT, Siren LT hold, 
   router.update(0.016, 100);
   assert.ok(steeredVal < -0.5 && steeredVal > -1, `Expected analog port steer, got ${steeredVal}`);
 
-  // 2. Harpoon Timing QTE via RT
+  // 2. Harpoon Timing QTE via RT (windowMs=1600, sweetSpot=[0.24, 0.58])
   let harpoonWon = false;
   qteSystem.trigger({ source: 'shark', debug: true, onSuccess: () => { harpoonWon = true; } });
-  // Advance into sweetSpot [0.55, 0.80]
-  qteSystem.update(1.3);
+  // Advance into sweetSpot [0.24, 0.58] -> 0.65s / 1.6s = 0.40625
+  qteSystem.update(0.65);
   setBtn(pad, XBOX_BUTTON.RT, 0.9);
   router.update(0.016, 150);
   assert.equal(harpoonWon, true, 'RT should strike Harpoon timing QTE');
@@ -289,23 +289,20 @@ test('GamepadRouter OBSTACLE phase: analog steering, Harpoon RT, Siren LT hold, 
   setBtn(pad, XBOX_BUTTON.LT, 0);
   router.update(0.016, 220);
 
-  // 4. Bail Draw QTE via Right Stick 360-degree spin (>90% accuracy)
-  let bailAccuracy = 0;
+  // 4. Bail Hold QTE via RT (holdDurationSec=2.4)
+  let bailWon = false;
   qteSystem.trigger({
     source: 'bail',
     debug: true,
-    onSuccess: (res) => { bailAccuracy = res.accuracy; },
+    onSuccess: () => { bailWon = true; },
   });
-  for (let i = 0; i <= 36; i++) {
-    const theta = (i / 36) * Math.PI * 2;
-    pad.axes[2] = Math.cos(theta);
-    pad.axes[3] = Math.sin(theta);
-    router.update(0.016, 300 + i * 16);
-    if (!qteSystem.hasActive()) break;
-  }
-  assert.ok(bailAccuracy >= 0.9, `Right Stick circle trace should score >= 90% accuracy, got ${bailAccuracy}`);
-  pad.axes[2] = 0;
-  pad.axes[3] = 0;
+  setBtn(pad, XBOX_BUTTON.RT, 0.9);
+  router.update(0.016, 300);
+  assert.equal(qteSystem._active?.isHolding, true, 'RT hold should engage Bail pump');
+  qteSystem.update(2.6);
+  assert.equal(bailWon, true, 'Holding RT should complete hold-based Bail QTE');
+  setBtn(pad, XBOX_BUTTON.RT, 0);
+  router.update(0.016, 320);
 
   // 5. Fog toggle via Y
   setBtn(pad, XBOX_BUTTON.Y, true);

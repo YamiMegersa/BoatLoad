@@ -56,7 +56,7 @@ export class EditorUI {
     // Stop 3D canvas interaction when clicking anywhere in UI
     this._el.addEventListener('pointerdown', e => e.stopPropagation());
     this._el.addEventListener('click', e => e.stopPropagation());
-    this._el.addEventListener('wheel', e => e.stopPropagation());
+    this._el.addEventListener('wheel', e => e.stopPropagation(), { passive: true });
 
     this._onKeyDown = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;

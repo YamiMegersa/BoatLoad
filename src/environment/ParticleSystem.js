@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { on, off } from '../core/EventBus.js';
 
 export function harpoonFlightDuration(distance) {
-  return THREE.MathUtils.clamp(distance / 120, 0.10, 0.20);
+  return THREE.MathUtils.clamp(distance / 80, 0.18, 0.30);
 }
 
 /**
@@ -31,27 +31,37 @@ export class ParticleSystem {
     this._geoBloodSplash = new THREE.BoxGeometry(0.3, 0.3, 0.3);
     this._matBloodSplash = new THREE.MeshLambertMaterial({ color: 0xaa0000, transparent: true, opacity: 0.9 });
 
-    // Harpoon projectile geometries (proportional ~1.85m vessel harpoon):
+    // Harpoon projectile geometries (substantial high-visibility vessel harpoon):
     // Note: THREE.Group.lookAt(target) aligns local +Z toward target.
-    // We place the spearhead penetration point at z = 0, tip at z = +0.28, and shaft extending back to z = -1.76.
-    this._geoHarpoon = new THREE.CylinderGeometry(0.055, 0.068, 1.55, 8);
+    // Penetration point at z = 0, steel spearhead at z > 0, robust shaft extending back to z = -2.2.
+    this._geoHarpoon = new THREE.CylinderGeometry(0.11, 0.13, 2.2, 8);
     this._geoHarpoon.rotateX(Math.PI / 2); // aligned along Z axis
-    this._geoHarpoonCollar = new THREE.CylinderGeometry(0.082, 0.075, 0.18, 8);
+    this._geoHarpoonCollar = new THREE.CylinderGeometry(0.18, 0.15, 0.28, 8);
     this._geoHarpoonCollar.rotateX(Math.PI / 2);
-    this._geoHarpoonHead = new THREE.ConeGeometry(0.15, 0.46, 4);
+    this._geoHarpoonHead = new THREE.ConeGeometry(0.26, 0.68, 4);
     this._geoHarpoonHead.rotateX(Math.PI / 2); // cone apex points toward +Z (flight direction)
-    this._geoHarpoonBarb = new THREE.BoxGeometry(0.28, 0.045, 0.14);
+    this._geoHarpoonBarb = new THREE.BoxGeometry(0.44, 0.08, 0.20);
 
-    this._matHarpoon = new THREE.MeshLambertMaterial({ color: 0x7a4c28 });
-    this._matHarpoonCollar = new THREE.MeshLambertMaterial({
-      color: 0xd7b35a,
-      emissive: 0x4a3510,
-      emissiveIntensity: 0.35,
+    this._matHarpoon = new THREE.MeshStandardMaterial({
+      color: 0x8d5b32,
+      roughness: 0.5,
+      metalness: 0.1,
+      emissive: 0x3d2210,
+      emissiveIntensity: 0.25,
     });
-    this._matHarpoonHead = new THREE.MeshLambertMaterial({
-      color: 0xdbe4eb,
-      emissive: 0x2c3e50,
-      emissiveIntensity: 0.4,
+    this._matHarpoonCollar = new THREE.MeshStandardMaterial({
+      color: 0xffd54f,
+      roughness: 0.3,
+      metalness: 0.75,
+      emissive: 0xffa000,
+      emissiveIntensity: 0.5,
+    });
+    this._matHarpoonHead = new THREE.MeshStandardMaterial({
+      color: 0xf5f7fa,
+      roughness: 0.2,
+      metalness: 0.85,
+      emissive: 0x90a4ae,
+      emissiveIntensity: 0.65,
     });
     this._matHarpoonFlash = new THREE.MeshBasicMaterial({ color: 0xffe082, transparent: true, opacity: 0.9 });
     this._geoCannonball = new THREE.SphereGeometry(0.22, 8, 6);
@@ -228,29 +238,29 @@ export class ParticleSystem {
     head.position.z = 0.05;
 
     const leftBarb = new THREE.Mesh(this._geoHarpoonBarb, this._matHarpoonHead);
-    leftBarb.position.set(-0.10, 0, -0.07);
+    leftBarb.position.set(-0.15, 0, -0.10);
     leftBarb.rotation.y = 0.46;
 
     const rightBarb = new THREE.Mesh(this._geoHarpoonBarb, this._matHarpoonHead);
-    rightBarb.position.set(0.10, 0, -0.07);
+    rightBarb.position.set(0.15, 0, -0.10);
     rightBarb.rotation.y = -0.46;
 
     const collar = new THREE.Mesh(this._geoHarpoonCollar, this._matHarpoonCollar);
-    collar.position.z = -0.18;
+    collar.position.z = -0.22;
 
     const shaft = new THREE.Mesh(this._geoHarpoon, this._matHarpoon);
-    shaft.position.z = -0.98;
+    shaft.position.z = -1.25;
 
     const flash = new THREE.Mesh(this._geoCannonball, this._matHarpoonFlash);
-    flash.position.z = 0.12;
-    flash.scale.setScalar(0.95);
+    flash.position.z = 0.20;
+    flash.scale.setScalar(1.5);
 
     group.add(shaft, head, leftBarb, rightBarb, flash, collar);
     group.position.copy(start);
 
     const distance = start.distanceTo(end);
     const duration = harpoonFlightDuration(distance);
-    const arcHeight = THREE.MathUtils.clamp(distance * 0.04, 0.35, 1.1);
+    const arcHeight = THREE.MathUtils.clamp(distance * 0.025, 0.25, 0.70);
     const velocity = end.clone().sub(start).multiplyScalar(1 / duration);
 
     const initialAim = interpolateHarpoonFlight(start, end, 0.08, arcHeight);
@@ -271,8 +281,8 @@ export class ParticleSystem {
       getOrigin,
       getTarget,
       isMiss,
-      impactHold: isMiss ? 0.22 : 0.65,
-      maxImpactHold: isMiss ? 0.22 : 0.65,
+      impactHold: isMiss ? 0.35 : 1.4,
+      maxImpactHold: isMiss ? 0.35 : 1.4,
     });
   }
 
@@ -448,7 +458,7 @@ export class ParticleSystem {
         }
 
         const flash = p.mesh.children[4];
-        if (flash) flash.visible = p.life > p.maxLife - 0.06;
+        if (flash) flash.visible = p.life > p.maxLife - 0.08;
 
         if (p.life <= 0) {
           p.mesh.position.copy(p.end);

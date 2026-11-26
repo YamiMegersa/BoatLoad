@@ -302,7 +302,7 @@ export class GamepadRouter {
         emit('qteInput', { kind: 'tap' });
       }
     } else if (qteInputType === 'hold') {
-      const holdNow = this._gp.isPressed(XBOX_BUTTON.LT) || this._gp.isPressed(XBOX_BUTTON.RT) || this._gp.isPressed(XBOX_BUTTON.A);
+      const holdNow = this._gp.isPressed(XBOX_BUTTON.LT) || this._gp.isPressed(XBOX_BUTTON.RT) || this._gp.isPressed(XBOX_BUTTON.A) || this._gp.isPressed(XBOX_BUTTON.X);
       if (holdNow && !this._holdingQTESiren) {
         this._holdingQTESiren = true;
         emit('qteInput', { kind: 'holdStart' });
@@ -338,7 +338,11 @@ export class GamepadRouter {
       emit('denseFogChanged', { enabled: isDense });
     }
 
-    this._nav.updateHints({ phase: GamePhase.OBSTACLE, activeQTE: qteInputType });
+    this._nav.updateHints({
+      phase: GamePhase.OBSTACLE,
+      activeQTE: qteInputType,
+      activeQTEType: activeQTE?.type || null,
+    });
   }
 
   /**

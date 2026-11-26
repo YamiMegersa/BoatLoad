@@ -90,10 +90,9 @@ export const CONTROL_SCHEMES = Object.freeze({
     subtitle: 'Helm Steering, Harpoon, Bail & Siren Ward',
     bindings: [
       { btn: 'LS X / D-Pad', kind: 'stick', action: 'Steer Ship Wheel (Analog)' },
-      { btn: 'RS', kind: 'stick', action: 'Look Around / Spin to Bail Water' },
-      { btn: 'RT / A', kind: 'a', action: 'Harpoon Strike / Brace / Quick Bail' },
-      { btn: 'LT', kind: 'bump', action: 'Hold to Brace vs Siren' },
-      { btn: 'X', kind: 'x', action: 'Quick 50% Bail Assist' },
+      { btn: 'RS', kind: 'stick', action: 'Look Around' },
+      { btn: 'RT / A', kind: 'a', action: 'Harpoon Strike / Hold to Bail & Brace' },
+      { btn: 'LT', kind: 'bump', action: 'Hold to Brace Siren / Bail Water' },
       { btn: 'Y', kind: 'y', action: 'Toggle Bow Lantern / Fog' },
       { btn: 'Menu', kind: 'bump', action: 'Pause' },
     ],

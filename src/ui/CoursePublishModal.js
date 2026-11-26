@@ -51,7 +51,7 @@ export class CoursePublishModal {
     this._el.addEventListener('pointermove', e => e.stopPropagation());
     this._el.addEventListener('pointerup', e => e.stopPropagation());
     this._el.addEventListener('click', e => e.stopPropagation());
-    this._el.addEventListener('wheel', e => e.stopPropagation());
+    this._el.addEventListener('wheel', e => e.stopPropagation(), { passive: true });
     this._el.addEventListener('keydown', e => e.stopPropagation());
     this._el.addEventListener('keyup', e => e.stopPropagation());
 

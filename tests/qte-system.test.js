@@ -6,7 +6,7 @@ globalThis.window ??= {
   removeEventListener() { },
 };
 
-const { QTESystem, QTE_SOURCES, computePoints } = await import('../src/obstacle/QTESystem.js');
+const { QTESystem, QTE_SOURCES, computePoints, holdAccuracyFromElapsed } = await import('../src/obstacle/QTESystem.js');
 const { clear, emit, on, off } = await import('../src/core/EventBus.js');
 
 test('QTE deduplication is per instance when an instance ID is provided', () => {
@@ -46,10 +46,48 @@ test('QTEs without an instance ID retain source-level duplicate protection', () 
 test('shark QTE awards extra doubloons capped at 25', () => {
   const good = computePoints(QTE_SOURCES.shark, false, 1);
   const perfect = computePoints(QTE_SOURCES.shark, true, 5);
-  assert.ok(good.points > 0 && good.points <= 25);
-  assert.ok(perfect.points > 0 && perfect.points <= 25);
-  assert.equal(good.points, 15);
+  assert.equal(good.points, 25);
   assert.equal(perfect.points, 25);
+});
+
+test('higher priority QTE preempts lower priority active QTE (Bail 100 > Siren 70 > Harpoon 30)', () => {
+  const system = new QTESystem();
+  const preemptedEvents = [];
+  on('qtePreempted', e => preemptedEvents.push(e));
+
+  // 1. Shark harpoon starts (priority 30)
+  assert.equal(system.trigger({ source: 'shark', metadata: { instanceId: 'shark-1' } }), true);
+  assert.equal(system._active.type, 'HARPOON');
+
+  // 2. Siren triggers (priority 70) -> PREEMPTS harpoon!
+  assert.equal(system.trigger({ source: 'siren', urgent: true, metadata: { instanceId: 'siren-1' } }), true);
+  assert.equal(system._active.type, 'SIREN');
+  assert.equal(system._queue.length, 1);
+  assert.equal(system._queue[0].type, 'HARPOON');
+  assert.equal(preemptedEvents.length, 1);
+  assert.equal(preemptedEvents[0].preemptedType, 'HARPOON');
+  assert.equal(preemptedEvents[0].newType, 'SIREN');
+
+  // 3. Water bailing triggers (priority 100) -> PREEMPTS siren!
+  assert.equal(system.trigger({ source: 'bail', metadata: { instanceId: 'bail-1' } }), true);
+  assert.equal(system._active.type, 'BAIL');
+  assert.equal(system._queue.length, 2);
+  assert.equal(system._queue[0].type, 'SIREN');
+  assert.equal(system._queue[1].type, 'HARPOON');
+
+  // 4. Resolve bailing -> SIREN starts next!
+  system._succeed();
+  assert.equal(system._active.type, 'SIREN');
+  assert.equal(system._queue.length, 1);
+  assert.equal(system._queue[0].type, 'HARPOON');
+
+  // 5. Resolve siren -> HARPOON resumes next!
+  system._succeed();
+  assert.equal(system._active.type, 'HARPOON');
+  assert.equal(system._queue.length, 0);
+
+  system.dispose();
+  clear();
 });
 
 test('hold QTE input charges resolve over time, decays on release, and succeeds at full resolve', () => {
@@ -216,6 +254,72 @@ test('missed shark retry flow: allows re-triggering after timeout if shark is no
   // 5. This second attempt succeeds
   system._succeed();
   assert.equal(successCount, 1);
+
+  system.dispose();
+  clear();
+});
+
+test('holdAccuracyFromElapsed maps elapsed ratio to [0.6, 1.0] accuracy curve', () => {
+  assert.equal(holdAccuracyFromElapsed(0), 1.0);
+  assert.equal(holdAccuracyFromElapsed(0.5), 0.8);
+  assert.equal(holdAccuracyFromElapsed(1.0), 0.6);
+  assert.equal(holdAccuracyFromElapsed(1.5), 0.6);
+});
+
+test('bail QTE uses hold-to-pump: holding charges resolve and computes accuracy from elapsed time', () => {
+  const system = new QTESystem();
+  let result = null;
+
+  system.trigger({
+    source: 'bail',
+    onSuccess: (res) => {
+      result = res;
+    },
+  });
+
+  assert.equal(system._active?.definition.input, 'hold');
+  assert.equal(system._active.type, 'BAIL');
+
+  // Hold starts
+  emit('qteInput', { kind: 'holdStart' });
+  assert.equal(system._active.isHolding, true);
+
+  // Hold for 2.4s (holdDurationSec for bail is 2.4s) -> completes
+  system.update(2.4);
+
+  assert.ok(result !== null);
+  assert.equal(system._active, null);
+  assert.ok(result.accuracy >= 0.6 && result.accuracy <= 1.0);
+
+  system.dispose();
+  clear();
+});
+
+test('QTESystem cancels active/queued QTEs and rejects new triggers when ship begins sinking or has sunk', () => {
+  const system = new QTESystem();
+  let failReason = null;
+
+  system.trigger({
+    source: 'shark',
+    onFail: ({ reason }) => {
+      failReason = reason;
+    },
+  });
+
+  system.trigger({ source: 'siren' });
+  assert.equal(system.hasActive(), true);
+  assert.equal(system._queue.length, 1);
+
+  // Ship begins terminal sink plunge
+  emit('playerSinkingStart');
+
+  assert.equal(system.hasActive(), false);
+  assert.equal(system._queue.length, 0);
+  assert.equal(failReason, 'ship-sunk');
+
+  // Any subsequent triggers are immediately rejected
+  const triggered = system.trigger({ source: 'shark' });
+  assert.equal(triggered, false);
 
   system.dispose();
   clear();

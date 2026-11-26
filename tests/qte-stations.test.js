@@ -1,75 +1,72 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  QTEStationController,
-  stationFor,
+  HelmConsoleController,
+  modeFor,
+  gestureFor,
   ratioToDialAngle,
   polarOnDial,
   describeSweetSpotArcs,
 } from '../src/ui/QTEStations.js';
 
-test('routes every QTE type to its fixed station', () => {
-  assert.equal(stationFor('HARPOON'), 'timing');
-  assert.equal(stationFor('BAIL'), 'bail');
-  assert.equal(stationFor('SIREN'), 'siren');
-  assert.equal(stationFor('UNKNOWN'), null);
+test('routes every QTE type to its console screen mode and action gesture', () => {
+  assert.equal(modeFor('HARPOON'), 'tap');
+  assert.equal(modeFor('SIREN'), 'brace');
+  assert.equal(modeFor('BAIL'), 'pump');
+  assert.equal(modeFor('UNKNOWN'), null);
+
+  assert.equal(gestureFor('tap'), 'tap');
+  assert.equal(gestureFor('brace'), 'hold');
+  assert.equal(gestureFor('pump'), 'hold');
+  assert.equal(gestureFor(null), null);
 });
 
-test('queued expiry does not clear an active station', () => {
-  const controller = new QTEStationController();
+test('queued expiry does not clear an active console task', () => {
+  const controller = new HelmConsoleController();
   controller.start({ type: 'HARPOON', label: 'HARPOON!' });
   controller.queue({ type: 'BAIL', label: 'BAIL WATER!' });
+  assert.equal(controller.state, 'active');
+  assert.equal(controller.mode, 'tap');
+  assert.equal(controller.queued.length, 1);
+
+  // Expiring the queued task removes it from the queue without disturbing active harpoon
   controller.resolve({ type: 'BAIL', queued: true }, 'MISS');
-  assert.equal(controller.stations.timing.state, 'active');
-  assert.equal(controller.stations.bail.state, 'idle');
+  assert.equal(controller.state, 'active');
+  assert.equal(controller.mode, 'tap');
+  assert.equal(controller.queued.length, 0);
 });
 
-test('siren side is latched from metadata or recent pull and uses a right fallback', () => {
-  let now = 1000;
-  const controller = new QTEStationController(() => now);
-  assert.equal(controller.start({ type: 'SIREN' }), 'siren');
-  assert.equal(controller.stations.siren.side, 'right');
-  controller.clear('siren');
+test('back-to-back QTEs on the unified console transition cleanly', () => {
+  const controller = new HelmConsoleController();
+  controller.start({ type: 'HARPOON', label: 'HARPOON!' });
+  assert.equal(controller.state, 'active');
+  assert.equal(controller.mode, 'tap');
 
-  // Latches from recent sirenPulling event
-  controller.noteSirenPull({ steerPull: -1 });
-  now += 100;
-  controller.start({ type: 'SIREN' });
-  controller.noteSirenPull({ steerPull: 1 });
-  assert.equal(controller.stations.siren.side, 'left');
-  controller.clear('siren');
-
-  // Latches deterministically from metadata.side even after pull expires
-  now += 2000;
-  controller.start({ type: 'SIREN', metadata: { side: 'left' } });
-  assert.equal(controller.stations.siren.side, 'left');
-});
-
-test('back-to-back QTEs across different stations leave the next station active', () => {
-  const controller = new QTEStationController();
-  controller.start({ type: 'HARPOON' });
   controller.resolve({ type: 'HARPOON' }, 'GOOD');
-  controller.start({ type: 'BAIL' });
-  assert.equal(controller.stations.timing.state, 'resolving');
-  assert.equal(controller.stations.bail.state, 'active');
+  assert.equal(controller.state, 'resolving');
+  assert.equal(controller.result, 'GOOD');
+
+  controller.start({ type: 'BAIL', label: 'BAIL WATER!' });
+  assert.equal(controller.state, 'active');
+  assert.equal(controller.mode, 'pump');
 });
 
-test('finishResolve with stale sequence token never clobbers a newly started QTE on the same station', () => {
-  const controller = new QTEStationController();
+test('finishResolve with stale sequence token never clobbers a newly started QTE', () => {
+  const controller = new HelmConsoleController();
   controller.start({ type: 'HARPOON', label: 'HARPOON!', sweetSpot: [0.4, 0.6] });
   controller.resolve({ type: 'HARPOON' }, 'PERFECT');
-  const firstResolveSeq = controller.stations.timing.seq;
-  assert.equal(controller.stations.timing.state, 'resolving');
+  const firstResolveSeq = controller.seq;
+  assert.equal(controller.state, 'resolving');
 
-  // Before the 520ms resolve timer finishes, a new HARPOON QTE starts on the same timing station
-  controller.start({ type: 'HARPOON', label: 'SECOND HARPOON!', sweetSpot: [0.35, 0.65] });
-  assert.equal(controller.stations.timing.state, 'active');
-  assert.equal(controller.stations.timing.type, 'HARPOON');
+  // Before the 520ms resolve timer finishes, a new QTE starts on the console
+  controller.start({ type: 'SIREN', label: 'BRACE!' });
+  assert.equal(controller.state, 'active');
+  assert.equal(controller.mode, 'brace');
 
-  // The stale timer fires and must be ignored
-  assert.equal(controller.finishResolve('timing', firstResolveSeq), false);
-  assert.equal(controller.stations.timing.state, 'active');
-  assert.equal(controller.stations.timing.type, 'HARPOON');
+  // The stale resolve callback fires and must be ignored
+  assert.equal(controller.finishResolve(firstResolveSeq), false);
+  assert.equal(controller.state, 'active');
+  assert.equal(controller.mode, 'brace');
 });
 
 test('chronometer dial math maps ratios and sweet-spot arcs accurately', () => {

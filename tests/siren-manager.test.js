@@ -141,3 +141,56 @@ test('SirenManager.hasSirens reports false when level has no sirens/mermaids, tr
   off('sirensConfigured', onCfg);
   clear();
 });
+
+test('Siren QTE trigger marks urgent: true to bypass forward hazard checks', () => {
+  const { manager, ship, triggered } = createSirenHarness([
+    { position: { x: 0, y: 0, z: -10 }, attractRadius: 30 },
+  ]);
+  manager.update(0, ship);
+
+  assert.equal(triggered.length, 1);
+  assert.equal(triggered[0].type, 'SIREN');
+  assert.equal(triggered[0].urgent, true);
+  assert.equal(triggered[0].metadata?.urgent, true);
+
+  manager.dispose();
+  clear();
+});
+
+test('Siren disorientation reverses steering on PlayerShip', () => {
+  const { manager, ship, triggered, effects } = createSirenHarness([
+    { position: { x: 0, y: 0, z: -10 }, attractRadius: 30, disorientationDuration: 4.0 },
+  ]);
+  manager.update(0, ship);
+
+  // Normal steering check (not disoriented): steerInput = 1.0 (right) -> steeringInput = 1.0
+  ship.steerInput = 1.0;
+  let effectiveInput = effects.size ? -ship.steerInput : ship.steerInput;
+  assert.equal(effectiveInput, 1.0);
+
+  // Fail the resistance QTE -> inflicts disorientation
+  triggered[0].onFail({ queued: false, metadata: triggered[0].metadata });
+  assert.equal(effects.size, 1);
+
+  // While disoriented: steerInput = 1.0 (steer right) reverses to -1.0 (steer left)
+  ship.steerInput = 1.0;
+  effectiveInput = effects.size ? -ship.steerInput : ship.steerInput;
+  assert.equal(effectiveInput, -1.0);
+
+  // steerInput = -1.0 (steer left) reverses to +1.0 (steer right)
+  ship.steerInput = -1.0;
+  effectiveInput = effects.size ? -ship.steerInput : ship.steerInput;
+  assert.equal(effectiveInput, 1.0);
+
+  // Simulate time until disorientation ends (4 seconds)
+  manager.update(4.1, ship);
+  assert.equal(effects.size, 0);
+
+  // Steering returns to normal
+  ship.steerInput = 1.0;
+  effectiveInput = effects.size ? -ship.steerInput : ship.steerInput;
+  assert.equal(effectiveInput, 1.0);
+
+  manager.dispose();
+  clear();
+});

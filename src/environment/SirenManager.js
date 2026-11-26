@@ -19,7 +19,7 @@ export class SirenManager {
   }
 
   update(delta, playerShip) {
-    if (!playerShip || playerShip.sunk) return;
+    if (!playerShip || playerShip.sunk || playerShip.isSinkingDeath) return;
     const shipPosition = playerShip.mesh.position;
 
     for (const siren of this._sirens) {
@@ -46,10 +46,12 @@ export class SirenManager {
         emit('sirenPulling', { intensity: pull, steerPull: -Math.sign(angle) * pull });
         siren.wasPulling = true;
 
-        if (!siren.qteTriggered && distance < radius * 0.7) {
+        if (!siren.qteTriggered && distance < radius * 0.85 && !playerShip?.sunk && !playerShip?.isSinkingDeath) {
           const accepted = this._qteSystem?.trigger({
+            type: 'SIREN',
             source: 'siren',
-            metadata: { source: 'siren' },
+            urgent: true,
+            metadata: { source: 'siren', urgent: true },
             onSuccess: () => {
               siren.cooldown = 7;
               siren.qteTriggered = false;

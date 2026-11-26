@@ -39,6 +39,7 @@ const _mat = {
   barrel:    new THREE.MeshLambertMaterial({ color: 0x7a4f2a }),
   wave_small: new THREE.MeshPhongMaterial({ color: 0x474b6b, transparent: true, opacity: 0.7 }),
   seaweed:   new THREE.MeshLambertMaterial({ color: 0x2e6b3e, transparent: true, opacity: 0.5, side: THREE.DoubleSide }),
+  whirlpool: new THREE.MeshBasicMaterial({ color: 0x071e2e, transparent: true, opacity: 0.65, side: THREE.DoubleSide, depthWrite: false }),
 };
 
 const _shipBoxScratch = new THREE.Box3();
@@ -329,7 +330,7 @@ export function buildObstacle(type, pos, url, scale, rockModels, pickupModels, s
     qteResolved:  false,
     qteTriggered: false,
     damage:       getDamage(type),
-    pullForce:    type === 'whirlpool' ? 8.0 : null,
+    pullForce:    type === 'whirlpool' ? (8.0 * targetScale) : null,
     particles:    particles,
   };
 }
@@ -422,7 +423,33 @@ export class ObstacleManager {
    * @param {import('./PlayerShip.js').PlayerShip} playerShip
    * @param {import('../environment/WindManager.js').WindManager} windManager
    */
+  get hasWhirlpools() {
+    return this._obstacles.some(o => o.type === 'whirlpool' && o.active);
+  }
+
+  get whirlpoolIntensity() {
+    let maxIntensity = 0;
+    const playerPos = this._playerShip?.mesh?.position;
+    for (const obs of this._obstacles) {
+      if (obs.type === 'whirlpool' && obs.active) {
+        if (!playerPos) {
+          maxIntensity = Math.max(maxIntensity, 0.4);
+        } else {
+          const dist = Math.hypot(obs.mesh.position.x - playerPos.x, obs.mesh.position.z - playerPos.z);
+          const pullRadius = 12.0 * (obs.scale || 1.0);
+          const hearRadius = pullRadius * 2.5;
+          if (dist < hearRadius) {
+            const intensity = Math.max(0.2, 1.0 - (dist / hearRadius));
+            if (intensity > maxIntensity) maxIntensity = intensity;
+          }
+        }
+      }
+    }
+    return maxIntensity;
+  }
+
   update(delta, playerShip, windManager, voxelTerrain) {
+    this._playerShip = playerShip;
     this._waveTime += delta;
     if (voxelTerrain && playerShip && playerShip.mesh) {
       const shipPos = playerShip.mesh.position;
@@ -1061,6 +1088,9 @@ export class ObstacleManager {
         this._islandModels,
         this._sirenModel
       );
+      if (cfg.pullForce !== undefined) obs.pullForce = cfg.pullForce;
+      else if (cfg.strength !== undefined) obs.pullForce = cfg.strength;
+      if (cfg.damage !== undefined) obs.damage = cfg.damage;
       obs.wavePhase = this._random() * Math.PI * 2;
       this._scene.add(obs.mesh);
       this._obstacles.push(obs);

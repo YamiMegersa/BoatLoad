@@ -29,6 +29,12 @@ export class ShopUI {
     if (this.root) this.close();
     this._isOpen = true;
 
+    if (typeof document !== 'undefined' && document.exitPointerLock && (document.pointerLockElement || document.webkitPointerLockElement)) {
+      try {
+        document.exitPointerLock();
+      } catch (_) {}
+    }
+
     this.root = document.createElement('div');
     this.root.id = 'deadly-business-modal';
     this.root.className = 'shop-modal-backdrop';
@@ -113,10 +119,12 @@ export class ShopUI {
 
     this._boundKeyDown = (e) => {
       if (e.key === 'Escape' && this._isOpen) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
         this.close();
       }
     };
-    window.addEventListener('keydown', this._boundKeyDown);
+    window.addEventListener('keydown', this._boundKeyDown, true);
 
     const uiRoot = document.getElementById('ui-root') || document.body;
     uiRoot.appendChild(this.root);
@@ -129,7 +137,7 @@ export class ShopUI {
     if (!this._isOpen) return;
     this._isOpen = false;
     if (this._boundKeyDown) {
-      window.removeEventListener('keydown', this._boundKeyDown);
+      window.removeEventListener('keydown', this._boundKeyDown, true);
       this._boundKeyDown = null;
     }
     if (this.root && this.root.parentNode) {

@@ -66,7 +66,7 @@ export class DockPlayerController {
     this.downRaycaster = new THREE.Raycaster();
     this.downRaycaster.far = 10.0;
     this.interactRaycaster = new THREE.Raycaster();
-    this.interactRaycaster.far = 6.5;
+    this.interactRaycaster.far = 10.0;
 
     // Mouse & Pointer Lock
     this.isLocked = false;
@@ -534,7 +534,8 @@ export class DockPlayerController {
     this.domElement.addEventListener('pointerdown', this._onPointerDown);
 
     this.dialogueActive = false;
-    this._onShowDialogue = () => {
+    this._onShowDialogue = (d) => {
+      if (!(d?.dialogue || d?.lines)) return;
       this.dialogueActive = true;
       this.keys.forward = false;
       this.keys.backward = false;
@@ -591,7 +592,7 @@ export class DockPlayerController {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     if (this.mode === 'cutscene') return;
     if (this._tutorialPopupEl) return;
-    if (this.dialogueActive || document.getElementById('dialogue-box')) return;
+    if (this.dialogueActive || document.getElementById('dialogue-box') || document.getElementById('deadly-business-modal')) return;
 
     switch (e.code) {
       case 'KeyW':
@@ -696,7 +697,7 @@ export class DockPlayerController {
   _onMouseMove(e) {
     if (this.mode === 'cutscene') return;
     if (this._tutorialPopupEl) return;
-    if (this.dialogueActive || document.getElementById('dialogue-box')) return;
+    if (this.dialogueActive || document.getElementById('dialogue-box') || document.getElementById('deadly-business-modal')) return;
     if (this.isLocked) {
       const movementX = e.movementX || 0;
       const movementY = e.movementY || 0;
@@ -721,7 +722,7 @@ export class DockPlayerController {
     if (this.mode === 'cutscene') return;
     if (this._tutorialPopupEl) return;
     if (this.emoteWheel && this.emoteWheel.isOpen) return;
-    if (this.dialogueActive || document.getElementById('dialogue-box')) return;
+    if (this.dialogueActive || document.getElementById('dialogue-box') || document.getElementById('deadly-business-modal')) return;
 
     if (this._interactWithHovered()) {
       return;
@@ -1830,7 +1831,7 @@ _getGroundHeightAt(x, z) {
 }
 
 _updateInteractionRaycast() {
-  if (this.dialogueActive || document.getElementById('dialogue-box')) {
+  if (this.dialogueActive || document.getElementById('dialogue-box') || document.getElementById('deadly-business-modal')) {
     this._setHoverState(null);
     return;
   }
@@ -1924,7 +1925,7 @@ _updateInteractionRaycast() {
             return;
           }
         } else if (hit.object.userData.isGhostMerchant) {
-          if (hit.distance <= 7.5 * this.scale) {
+          if (hit.distance <= 10.0 * this.scale) {
             this._setHoverState(hit.object, 'ghost');
             return;
           }
@@ -1980,7 +1981,7 @@ _setHoverState(obj, type = null) {
         this.prompt.innerHTML = `<span class="pixel-icon icon-map-maker-scroll size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">${keyBadge}</span> ${actVerb} to Read Divorce Papers`;
       }
     } else if (type === 'ghost') {
-      if (this.tutorialActive && this.tutorialStep !== 'PRACTICE_SHIP') {
+      if (this.tutorialActive && this.tutorialStep !== 'PRACTICE_SHIP' && this.tutorialStep !== 'VISIT_SHIPYARD') {
         this.prompt.innerHTML = `🔒 <span style="color:#ff9b94;">Complete Harbor Tour First</span>`;
       } else {
         this.prompt.innerHTML = `<span class="pixel-icon icon-phantom-ghost size-16"></span> <span style="background:#4a3520; padding:2px 6px; border-radius:0; border:1px solid #c89d55; font-size:11px; margin-right:4px;">${keyBadge}</span> ${actVerb} Ghost to Barter Wares`;
@@ -2034,7 +2035,7 @@ _setHoverState(obj, type = null) {
 }
 
 _interactWithGhost() {
-  if (this.tutorialActive && this.tutorialStep !== 'PRACTICE_SHIP') {
+  if (this.tutorialActive && this.tutorialStep !== 'PRACTICE_SHIP' && this.tutorialStep !== 'VISIT_SHIPYARD') {
     emit('playSound', { sound: 'qte_fail' });
     this.showLockedHint('🔒 <b>Ghost Merchant Locked:</b> Complete your harbor tour first! Check the instruction at the top.');
     return;
@@ -2047,23 +2048,25 @@ _interactWithGhost() {
   if (!this._hasSeenGhostTutorial) {
     this._hasSeenGhostTutorial = true;
     emit('showDialogue', {
-      id: 'ghost_merchant_intro',
-      portrait: '<span class="pixel-icon icon-phantom-ghost size-48"></span>',
-      name: 'Barnaby • The Phantom Outfitter',
-      lines: [
-        'Hsssh... greetings, mortal shipwright. Welcome to Deadly Business.',
-        'Out in the deep channels, plain timber alone will not save thee from crushing reefs, siren tempests, or the beasts below.',
-        'Bring me the Doubloons you salvage and earn from your voyages, and I shall outfit your fleet with spectral relics: ornate steering wheels, solid brass pedestals, and enchanted ward lanterns.',
-        'Each piece is yours forever once purchased. Equip and swap them at leisure to enhance your ship. Look upon my wares...'
-      ],
-      voice: {
-        pitch: 0.65,
-        pitchVariance: 0.05,
-        charIntervalMs: 38,
-        syllableStep: 2
-      },
-      onComplete: () => {
-        emit('openShopUI');
+      dialogue: {
+        id: 'ghost_merchant_intro',
+        portrait: '<span class="pixel-icon icon-phantom-ghost size-48"></span>',
+        name: 'Barnaby • The Phantom Outfitter',
+        lines: [
+          'Hsssh... greetings, mortal shipwright. Welcome to Deadly Business.',
+          'Out in the deep channels, plain timber alone will not save thee from crushing reefs, siren tempests, or the beasts below.',
+          'Bring me the Doubloons you salvage and earn from your voyages, and I shall outfit your fleet with spectral relics: ornate steering wheels, solid brass pedestals, and enchanted ward lanterns.',
+          'Each piece is yours forever once purchased. Equip and swap them at leisure to enhance your ship. Look upon my wares...'
+        ],
+        voice: {
+          pitch: 0.65,
+          pitchVariance: 0.05,
+          charIntervalMs: 38,
+          syllableStep: 2
+        },
+        onComplete: () => {
+          emit('openShopUI');
+        }
       }
     });
     return;
